@@ -41,8 +41,12 @@ export const runDagExecutorNode = async (
 export const runToolOrchestratorNode = async (
     state: PipelineGraphState
 ): Promise<Partial<PipelineGraphState>> => {
-    if (state.decision?.routeMode === "dag") {
-        logAgentOut("ToolOrchestrator", "跳过", { reason: "dag_already_executed" });
+    const decision = state.decision;
+    // 纯 hybrid（无检索槽）时工具已在 DAG 内跑完；有槽时仍跑 post-retrieval tools
+    if ((decision?.compositeSlots?.length ?? 0) === 0) {
+        logAgentOut("ToolOrchestrator", "跳过", {
+            reason: "no_composite_slots",
+        });
         return {};
     }
 

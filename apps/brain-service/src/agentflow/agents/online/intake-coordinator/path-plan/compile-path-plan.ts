@@ -18,6 +18,7 @@ import {
 import { enrichCompositeSlots } from "@/agentflow/agents/online/tool-orchestrator";
 import { expandHybridMultiSourceTemplate } from "./dag-templates";
 import { emptyPathPlan } from "./defaults";
+import { resolveIntakeGraphRouteMode } from "@/agentflow/agents/online/intake-coordinator/pipeline/resolve-graph-route-mode";
 import type {
   ComposeMode,
   DagRun,
@@ -231,7 +232,7 @@ const normalizeSlotForPathPlan = (
  *   + pathPlan.km / .list / .tool / .dag（分桶，不重排回答顺序）
  *   + composeMode（qa | summarize | composite）
  *   Δ compositeSlots（normalize executor + enrich）
- *   Δ routeMode（hybrid → dag，否则有活则 slots）
+ *   Δ routeMode（resolveIntakeGraphRouteMode → 图边）
  *   + executionPlan（若 hybrid 且此前未建）
  *
  * 规则摘要：list_corpus→list；topics.external→tool/web；其余→km；
@@ -242,7 +243,6 @@ export const applyPathPlanGuard = (
   userQuestion: string
 ): RoutedIntakeDecision => {
   const { pathPlan, composeMode } = compilePathPlan(decision, userQuestion);
-  const hasWork = countSteps(pathPlan) > 0;
   const isHybrid = pathPlan.dag.some(
     (d) => d.template === "hybrid_multi_source"
   );
@@ -255,7 +255,7 @@ export const applyPathPlanGuard = (
 
   const enrichedSlots = enrichCompositeSlots(orderedSlots);
 
-  return {
+  const next: RoutedIntakeDecision = {
     ...decision,
     pathPlan,
     composeMode,
@@ -264,10 +264,12 @@ export const applyPathPlanGuard = (
         ? decision.answerOrder
         : enrichedSlots.map((s) => String(s.id)),
     compositeSlots: enrichedSlots,
-    routeMode: hasWork ? (isHybrid ? "dag" : "slots") : decision.routeMode,
+    routeMode: decision.routeMode,
     executionPlan: isHybrid
       ? (decision.executionPlan ??
         expandHybridMultiSourceTemplate(userQuestion, decision.searchQuery))
       : decision.executionPlan,
   };
+  next.routeMode = resolveIntakeGraphRouteMode(next);
+  return next;
 };

@@ -9,6 +9,7 @@ import {
     topicsSuggestWebSource,
 } from "./field-catalog";
 import type { DataSource, EnrichedPlanItem, ExecutionPlanNode, ToolRunId } from "./types";
+import { resolveIntakeGraphRouteMode } from "@/agentflow/agents/online/intake-coordinator/pipeline/resolve-graph-route-mode";
 
 const enrichItem = (
     item: Pick<
@@ -108,7 +109,7 @@ export const buildHybridExecutionPlan = (
  * 本步新增/改写：
  *   + enrichedPlan[]（每项 dataSource + toolId）
  *   Δ compositeSlots 挂上 enrich 字段
- *   或 + routeMode=dag + executionPlan（external∩corpus → hybrid DAG）
+ *   或 + executionPlan（external∩corpus → hybrid DAG；可与 slots 并存；routeMode=plan）
  *
  * 联网由槽 topics.external → toolId=search_web / pathPlan.tool 表达，
  * 不再写整轮 primaryDataSource / webQuery。
@@ -130,9 +131,9 @@ export const applyToolPlanGuard = (
             planTopics,
         })
     ) {
-        return {
+        const next: RoutedIntakeDecision = {
             ...decision,
-            routeMode: "dag",
+            routeMode: "planExecutor",
             compositeSlots: enrichedSlots,
             retrievalPlan: enrichedPlan.map(
                 ({ label, searchQuery, queryType, topics }) => ({
@@ -145,6 +146,8 @@ export const applyToolPlanGuard = (
             executionPlan: buildHybridExecutionPlan(userQuestion, decision),
             routeReason: decision.routeReason ?? "intake_retrieval_plan",
         };
+        next.routeMode = resolveIntakeGraphRouteMode(next);
+        return next;
     }
 
     return {

@@ -38,6 +38,7 @@ export { completeIntakeCoordinator } from "./llm";
 
 export {
   intakeRequiresKmRetrieval,
+  resolveIntakeGraphRouteMode,
   runIntakePipeline,
   buildEarlyExitRoutedDecision,
   isClarifyEarlyExit,

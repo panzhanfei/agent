@@ -356,9 +356,7 @@ async function* runPipelineStreamInner(
               decision.pathPlan.list.length +
               decision.pathPlan.tool.length +
               decision.pathPlan.dag.length >
-              0) ||
-          decision.routeMode === "dag" ||
-          decision.routeMode === "slots")
+              0))
       ) {
         // PathPlan 主路径：planExecutor（不再有独立 retrieval / fact_checker 图节点）
         yield* startStep("plan_executor");

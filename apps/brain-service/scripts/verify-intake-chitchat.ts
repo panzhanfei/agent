@@ -145,7 +145,7 @@ for (let i = 1; i <= runs; i++) {
         if (!earlyExit) {
             throw new Error("chitchat 应 pipeline 早退");
         }
-        if (decision.routeMode !== "skip") {
+        if (decision.routeMode !== "respondEarly") {
             throw new Error(`chitchat 应 routeMode=skip，实际 ${decision.routeMode}`);
         }
         if (reply !== DEFAULT_CHITCHAT_BRIEF_REPLY) {

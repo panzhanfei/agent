@@ -39,7 +39,7 @@ const base = (): RoutedIntakeDecision => ({
     userFactKey: null,
     userFactLabel: null,
     userFactValue: null,
-    routeMode: "slots",
+    routeMode: "planExecutor",
     compositeSlots: [],
     pathPlan: emptyPathPlan(),
     answerOrder: [],

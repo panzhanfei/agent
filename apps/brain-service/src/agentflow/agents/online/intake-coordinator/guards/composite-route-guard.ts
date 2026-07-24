@@ -17,6 +17,7 @@ import {
   defaultComposeMode,
   emptyPathPlan,
 } from "@/agentflow/agents/online/intake-coordinator/path-plan";
+import { resolveIntakeGraphRouteMode } from "@/agentflow/agents/online/intake-coordinator/pipeline/resolve-graph-route-mode";
 import type {
   CompositeRouteReason,
   RoutedIntakeDecision,
@@ -50,10 +51,10 @@ const applySlotsDecision = (
   routePlanSource: CompositeRoutePlanSource
 ): RoutedIntakeDecision => {
   const primary = slots[0]!;
-  return {
+  const routed: RoutedIntakeDecision = {
     ...decision,
     intent: "retrieve_and_answer",
-    routeMode: "slots",
+    routeMode: "planExecutor",
     compositeSlots: slots,
     pathPlan: emptyPathPlan(),
     answerOrder: slots.map((s) => String(s.id)),
@@ -67,6 +68,8 @@ const applySlotsDecision = (
     clarifyingQuestion: null,
     briefReply: null,
   };
+  routed.routeMode = resolveIntakeGraphRouteMode(routed);
+  return routed;
 };
 
 const EMPTY_PLAN_CLARIFY =
@@ -74,9 +77,9 @@ const EMPTY_PLAN_CLARIFY =
 
 /**
  * Composite 路由主逻辑：
- * 1. 非 retrieve_and_answer → skip
- * 2. resolveCompositeRoute ≥1 槽 → slots
- * 3. 0 槽 → clarify 早退（LLM 未写 retrievalPlan）
+ * 1. 非 retrieve_and_answer → respondEarly
+ * 2. resolveCompositeRoute ≥1 槽 → resolveIntakeGraphRouteMode
+ * 3. 0 槽 → clarify + respondEarly（LLM 未写 retrievalPlan）
  */
 export const applyCompositeRouteGuard = (
   decision: IntakeRoutingDecision,
@@ -85,7 +88,7 @@ export const applyCompositeRouteGuard = (
   if (decision.intent !== "retrieve_and_answer") {
     return {
       ...decision,
-      routeMode: "skip",
+      routeMode: "respondEarly",
       compositeSlots: [],
       pathPlan: emptyPathPlan(),
       answerOrder: [],
@@ -116,7 +119,7 @@ export const applyCompositeRouteGuard = (
     briefReply: null,
     retrievalPlan: [],
     confidence: Math.min(decision.confidence, 0.55),
-    routeMode: "skip",
+    routeMode: "respondEarly",
     compositeSlots: [],
     pathPlan: emptyPathPlan(),
     answerOrder: [],

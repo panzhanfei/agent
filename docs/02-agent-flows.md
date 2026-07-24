@@ -228,7 +228,7 @@ flowchart TD
 
 **Guard 链：** `intake-node` 短路 → Intake LLM（retrieve 须 **`pathPlan`≥1 步 + `answerOrder`**）→ `runIntakePipeline`：continuation noop → early-exit → link harmonize → **legalize PathPlan** → fill list 页码 → **派生 compositeSlots**（空 pathPlan→clarify）。
 
-**端到端 PathPlan：** Intake **主路径** = LLM 执行终稿（四桶 + 顺序）；**旁路** = normalize / JSON 修复 / **三信号**指代拼接≤1 / 白名单合法化与派生。勿把散文兜底或句长启发当成二次 Intake。旧 `retrievalPlan` 编译链已从主路径删除（仅兼容/日志派生）。
+**端到端 PathPlan：** Intake **主路径** = LLM 执行终稿（四桶 + 顺序）；**旁路** = normalize / JSON 修复 / **coreference=unresolved** 指代拼接≤1 / 白名单合法化与派生。勿把散文兜底当成二次 Intake。旧 `retrievalPlan` 编译链已从主路径删除（仅兼容/日志派生）。
 
 **TurnTrace（运行轨迹入库）：** 每轮对答结束时 BFF 将 `timing` + `steps` + `pipeline_log` 写入 `TurnTrace`（键=助手 `messageId`）；进行中仍走 SSE；历史由 `GET /api/conversations/[id]/traces` 回放至运行日志面板。
 
@@ -236,7 +236,7 @@ flowchart TD
 
 **queryType 扩展：** 除 identity / enumeration / tech / default 外，Intake 产出 **`external_link`**（GitHub、仓库、对外 URL）；与 KM `queryProfile` 同名，**不走** enumeration projects fill。见 [km-retrieval-design §六](./km-retrieval-design.md#六queryprofile-参数表)。
 
-**单问 / 多问统一路由：** 凡 `retrieve_and_answer` 须 LLM **`pathPlan`≥1 步** → 按 `answerOrder` 派生 **`routeMode=slots`**（1～N）。空 pathPlan → **clarify**。
+**单问 / 多问统一路由：** Intake 出口 `resolveIntakeGraphRouteMode` 写入 **`routeMode`（与图节点 1:1）**；`routes.ts` 只读分发。km/list/tool/dag 并存 → `planExecutor`。空 pathPlan → `respondEarly`（clarify）。
 
 **外链 / 混合：** `applyIntakeLinkLookupGuard` 仅做 **harmonize**。编号拆槽、混合步序由 **LLM 写齐 pathPlan + answerOrder**，代码不发明、不重排。详见 [坑点 §2.8](./04-pitfalls.md#28-pathplan-统一编排-p0-28--2026-07)、[§2.10](./04-pitfalls.md#210-intake-档-b主路径规划--旁路纠偏-p0-31--2026-07)。
 
@@ -361,9 +361,9 @@ flowchart TD
 ```mermaid
 flowchart TD
   IN["userQuestion + hits + toolResults + queryType"] --> MODE{"analyzeMode"}
-  MODE -->|composite ≥2 槽| COMP["streamCompositeAnalyze()<br/>读 toolResults[slot_*]"]
+  MODE -->|composite ≥2 槽| COMP["streamCompositeAnalyze()<br/>含 dag 槽时 notes=synthesis"]
   MODE -->|single plain| PLAIN["streamAnalyzeSubQuestion()"]
-  MODE -->|routeMode=dag| DAGIN["notes 含 synthesis 材料"]
+  MODE -->|纯 hybrid（synthesis + ≤1 槽）| DAGIN["notes 含 synthesis 材料"]
   DAGIN --> PLAIN
   MODE -->|single tech| JSON["streamSingleAnalyze JSON + Zod"]
   COMP --> PICK{"pickToolResultForSubQuestion"}

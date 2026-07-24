@@ -50,7 +50,8 @@
 flowchart TD
   IC[IntakeCoordinator<br/>guard ⑧ applyToolPlanGuard] --> R{routeAfterIntake}
 
-  R -->|routeMode=dag| DAG[DagExecutor<br/>并行 retrieve_corpus + search_web]
+  R -->|pathPlan.dag hybrid| DAG[planExecutor 内 DagExecutor<br/>可与 slots 并存]
+  R -->|pathPlan km/list/tool| PE[planExecutor 槽检索 + FC + tools]
   R -->|retrieve_and_answer| KM[KnowledgeManager retrieval]
   R -->|其它| EARLY[respondEarly / userFact / summarizer]
 
@@ -80,7 +81,7 @@ Intake（enrichedPlan / executionPlan）
 | 路径 | 职责 |
 |------|------|
 | `agents/online/tool-orchestrator/field-catalog.ts` | 声明式 identity 字段表（`age` → `compute_age_from_hits`）；混合问句 / 外部事实启发式 |
-| `agents/online/tool-orchestrator/enrich-plan.ts` | `applyToolPlanGuard`：富化 `enrichedPlan`；混合问句 → `routeMode=dag` + `executionPlan` |
+| `agents/online/tool-orchestrator/enrich-plan.ts` | `applyToolPlanGuard`：富化 `enrichedPlan`；混合问句 → `executionPlan`（`routeMode=plan`） |
 | `agents/online/tool-orchestrator/execute-tools.ts` | 工具执行：`invokeComputeAge`、`invokeSearchWeb`、`executeDagPlan` |
 | `agents/online/tool-orchestrator/nodes.ts` | `runDagExecutorNode`、`runToolOrchestratorNode` |
 | `pipeline/graph/state.ts` | 新增 `asOfDate`、`toolResults` |
@@ -200,7 +201,7 @@ import { applyToolPlanGuard, runToolOrchestratorNode } from "@/agentflow/agents/
 
 | 维度 | 旧（P0-22 初版） | 新（P0-26） |
 |------|------------------|-------------|
-| 穷举路由 | 整句 **`routeMode=list`** | 恒 **`routeMode=slots`**，N 槽各带 executor |
+| 穷举路由 | 整句 **`routeMode=list`** | **`routeMode=plan`** + N 槽各带 executor |
 | 续问识别 | `enumeration-list-intent` **口语 regex** | Intake **`enumerationControl`** 或 UI **exact-match prompt** |
 | KM 执行 | list 与 hybrid **互斥整句分支** | **`retrieval-node` 按槽**：`km_retrieve` ∥ `list_corpus` |
 | 混合问 | 无法同轮 tech + 穷举 | 一槽 hybrid、一槽 list API |
@@ -236,9 +237,9 @@ flowchart LR
 
 | 旧层 | 表达什么 | 冲突点 |
 |------|----------|--------|
-| `routeMode` | 整句只能 list / slots / dag / skip 之一 | 无法同句「一槽列举 + 一槽 KM + 一槽 DAG 依赖链」 |
-| `compositeSlots` | KM / list 并行槽 | 与 `routeMode=list` 整句劫持冲突（P0-26） |
-| `executionPlan` | 混合 DAG | 与 slots 互斥；opensource 链接无法声明 **依赖 list** |
+| `routeMode` | ~~整句互斥 / 可观测 skip\|plan~~ → **与图节点 1:1** | Intake 出口写入；`routes.ts` 只读分发；执行在节点内 |
+| `compositeSlots` | KM / list 并行槽 | dag 步不进槽，但进 `answerOrder` |
+| `executionPlan` | 混合 DAG | 与槽并存于 planExecutor |
 | FactChecker | 整轮一次；composite≥2 **跳过** | 一段 FC 失败拖垮全答；跳 FC 又丢证据审查 |
 
 ### 11.2 PathPlan 四桶 + Compose 一层
@@ -360,7 +361,7 @@ pnpm --filter @fambrain/brain-service exec tsx --env-file=../../.env scripts/dia
 | **主路径（LLM）** | 产出执行终稿：`intent` / **`pathPlan`≥1 + `answerOrder`**（retrieve 时）/ `composeMode` / `searchQuery` / `coreference` | 依赖代码猜口语、发明多槽、按 queryType 猜桶 |
 | **旁路·入口** | normalize（压连续重复码点）→ 单字/社交/UI 短路 | NFKC 改写标点导致与 history 对不上；盲预合并 |
 | **旁路·格式** | 非 JSON → 格式修复 **1** 次 | 把散文当 `coreference` 信号 |
-| **旁路·指代** | **三信号** + **仅 JSON peek** 未消解时拼接「上轮；本轮」再调 **1** 次 | 无限重试；无上文硬拼；弱模旁路不可删 |
+| **旁路·指代** | **coreference=unresolved** + **JSON peek** → 拼接「上轮；本轮」再调 **1** 次 | 无限重试；代码猜 intent/plan；无上文硬拼 |
 | **旁路·guard** | toolId 白名单、link **harmonize**、list 页码、**派生** compositeSlots（空 pathPlan→clarify） | `filled_fallback` / continuation 补 prior / 口语二次规划 / retrievalPlan 编译猜桶 |
 
 ### 13.2 为何比「调用前合并」更合理

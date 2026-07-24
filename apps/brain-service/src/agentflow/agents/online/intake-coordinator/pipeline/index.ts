@@ -1,5 +1,6 @@
 /** Intake pipeline 聚合导出 */
 export { intakeRequiresKmRetrieval } from "./intake-km-routing";
+export { resolveIntakeGraphRouteMode } from "./resolve-graph-route-mode";
 export {
     runIntakePipeline,
     buildEarlyExitRoutedDecision,

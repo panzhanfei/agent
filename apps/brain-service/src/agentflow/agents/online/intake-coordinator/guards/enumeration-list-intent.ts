@@ -28,6 +28,7 @@ import type {
     EnumerationListIntent,
     RoutedIntakeDecision,
 } from "./interface";
+import { resolveIntakeGraphRouteMode } from "@/agentflow/agents/online/intake-coordinator/pipeline/resolve-graph-route-mode";
 
 export type { EnumerationListIntent } from "./interface";
 
@@ -98,7 +99,7 @@ export const buildEnumerationListDecision = (input: {
         pathPlan,
         answerOrder
     );
-    return {
+    const routed: RoutedIntakeDecision = {
         intent: "retrieve_and_answer",
         searchQuery: slot.searchQuery,
         subTasks: [slot.label],
@@ -115,7 +116,7 @@ export const buildEnumerationListDecision = (input: {
         userFactKey: null,
         userFactLabel: null,
         userFactValue: null,
-        routeMode: "slots",
+        routeMode: "listRetriever",
         compositeSlots,
         routeReason: "intake_path_plan",
         routePlanSource: "intake_path_plan",
@@ -125,6 +126,8 @@ export const buildEnumerationListDecision = (input: {
         enumerationPageSize: input.pageSize,
         enumerationListKind: input.listKind,
     };
+    routed.routeMode = resolveIntakeGraphRouteMode(routed);
+    return routed;
 };
 
 const resolvePageForControl = async (
@@ -191,7 +194,7 @@ const enrichSlotExecutor = async (
  *   UI 按钮 exact-match 可补单槽 list（ENUMERATION_ACTION_PROMPTS）
  *
  * preview 列举仍 km_retrieve；continue/exhaustive → list_corpus（目录扫盘）。
- * routeMode 保持 slots（不再整轮升为 list）。
+ * 出口 routeMode 由 resolveIntakeGraphRouteMode 收成图边。
  */
 export const applyEnumerationSlotGuard = async (
     decision: RoutedIntakeDecision,
@@ -199,7 +202,7 @@ export const applyEnumerationSlotGuard = async (
     session: CompositeSessionKey
 ): Promise<RoutedIntakeDecision> => {
     if (decision.intent !== "retrieve_and_answer") return decision;
-    if (decision.routeMode !== "slots" && decision.routeMode !== "list") {
+    if (decision.routeMode === "respondEarly") {
         return decision;
     }
 
@@ -268,9 +271,8 @@ export const applyEnumerationSlotGuard = async (
             : "exhaustive"
         : decision.listIntent ?? null;
 
-    return {
+    const next: RoutedIntakeDecision = {
         ...decision,
-        routeMode: "slots",
         compositeSlots: enriched,
         listIntent: listIntent ?? null,
         enumerationPage: firstList?.enumerationPage ?? decision.enumerationPage,
@@ -286,5 +288,8 @@ export const applyEnumerationSlotGuard = async (
                 ? decision.queryType
                 : "enumeration"
             : decision.queryType,
+        routeMode: "planExecutor",
     };
+    next.routeMode = resolveIntakeGraphRouteMode(next);
+    return next;
 };

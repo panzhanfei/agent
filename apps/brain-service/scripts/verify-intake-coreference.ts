@@ -90,13 +90,27 @@ await assertCase("unresolved + 有上文 → 应拼接重试", async () => {
     { role: "user", content: "那个项目呢？" },
   ];
   const r = shouldRetryCoreferenceMerge(
-    { intent: "clarify", coreference: "unresolved" },
+    { coreference: "unresolved" },
     "那个项目呢？",
     history
   );
   if (!r.retry || !r.mergedQuestion?.includes("城管平台用了什么技术")) {
     throw new Error(`重试判定失败: ${JSON.stringify(r)}`);
   }
+});
+
+await assertCase("coreference=none → 不重试", async () => {
+  const history: DbChatTurn[] = [
+    { role: "user", content: "城管平台用了什么技术" },
+    { role: "assistant", content: "城市管理平台使用 React。" },
+    { role: "user", content: "那个项目呢？" },
+  ];
+  const r = shouldRetryCoreferenceMerge(
+    { coreference: "none" },
+    "那个项目呢？",
+    history
+  );
+  if (r.retry) throw new Error("none 不应触发拼接");
 });
 
 await assertCase("resolved → 不重试", async () => {
@@ -106,7 +120,7 @@ await assertCase("resolved → 不重试", async () => {
     { role: "user", content: "那个项目呢？" },
   ];
   const r = shouldRetryCoreferenceMerge(
-    { intent: "retrieve_and_answer", coreference: "resolved" },
+    { coreference: "resolved" },
     "那个项目呢？",
     history
   );
@@ -173,7 +187,7 @@ await assertCase("pipeline：LLM clarify → earlyExit", async () => {
     );
   }
   if (decision.routeReason !== "skip_non_retrieve") {
-    throw new Error(`期望 skip_non_retrieve，实际 ${decision.routeReason}`);
+    throw new Error(`期望 respondEarly_non_retrieve，实际 ${decision.routeReason}`);
   }
 });
 
@@ -270,7 +284,7 @@ await assertCase("pipeline：多问 retrieve → composite", async () => {
     throw new Error("retrieve 不应早退");
   }
   if (
-    decision.routeMode !== "slots" ||
+    decision.routeMode !== "planExecutor" ||
     (decision.compositeSlots?.length ?? 0) < 2
   ) {
     throw new Error(

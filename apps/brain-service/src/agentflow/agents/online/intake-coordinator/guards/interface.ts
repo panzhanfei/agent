@@ -1,6 +1,9 @@
 /**
  * Intake guards 类型约定。
- * routeMode：skip | slots | list | dag（兼容派生；执行以 pathPlan 为准）
+ *
+ * routeMode：LangGraph 图路由（与 compile.ts 节点名 1:1）。
+ * 由 Intake 出口 resolveIntakeGraphRouteMode 写入；routes.ts 只读本字段分发。
+ * 节点内执行看 pathPlan / compositeSlots / executionPlan，不二次解读 routeMode。
  */
 import type {
   CompositeRetrievalSlot,
@@ -17,8 +20,16 @@ import type {
   ExecutionPlanNode,
 } from "@/agentflow/agents/online/tool-orchestrator";
 
-/** list 已废弃：列举分页改为 slots 内 per-slot executor=list_corpus */
-export type IntakeRouteMode = "skip" | "slots" | "list" | "dag";
+/**
+ * Intake → 下一图节点（与 StateGraph.addNode 名一致）。
+ * km/list/tool/dag 并存时一律 planExecutor。
+ */
+export type IntakeRouteMode =
+  | "respondEarly"
+  | "userFact"
+  | "listRetriever"
+  | "planExecutor"
+  | "contentSummarizer";
 
 /** 为何走到当前 routeMode（写进日志 routeReason） */
 export type CompositeRouteReason =
@@ -38,8 +49,9 @@ export type IntakeRetrievalPlanGuardReason =
  * 主契约：pathPlan + answerOrder + composeMode；compositeSlots 由 pathPlan 派生。
  */
 export type RoutedIntakeDecision = IntakeRoutingDecision & {
+  /** 图路由：与 LangGraph 节点名 1:1；routes.ts 只读本字段 */
   routeMode: IntakeRouteMode;
-  /** 完整槽对象数组；slots 路由时 length ≥ 1 */
+  /** 由 pathPlan 派生的检索槽（dag 步不进槽） */
   compositeSlots: CompositeRetrievalSlot[];
   /** 四桶执行计划（km / list / tool / dag）；LLM 产出，代码合法化 */
   pathPlan: PathPlan;

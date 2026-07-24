@@ -42,7 +42,7 @@ const exhaustiveDecision = buildEnumerationListDecision({
     pageSize: 20,
 });
 assert.equal(exhaustiveDecision.listIntent, "exhaustive");
-assert.equal(exhaustiveDecision.routeMode, "slots");
+assert.equal(exhaustiveDecision.routeMode, "listRetriever");
 assert.equal(exhaustiveDecision.compositeSlots[0]?.executor, "list_corpus");
 assert.equal(exhaustiveDecision.enumerationPageSize, 20);
 
@@ -51,7 +51,7 @@ const guarded = await applyEnumerationSlotGuard(
     {
         ...exhaustiveDecision,
         listIntent: null,
-        routeMode: "slots",
+        routeMode: "planExecutor",
         compositeSlots: [
             {
                 id: "projects",
@@ -73,7 +73,7 @@ const guarded = await applyEnumerationSlotGuard(
     session
 );
 assert.equal(guarded.listIntent, "exhaustive");
-assert.equal(guarded.routeMode, "slots");
+assert.equal(guarded.routeMode, "listRetriever");
 assert.equal(guarded.compositeSlots[0]?.executor, "list_corpus");
 
 // 混合问：tech + list 槽
@@ -87,26 +87,42 @@ const mixedRaw = JSON.stringify({
     queryType: "tech",
     clarifyingQuestion: null,
     briefReply: null,
-    retrievalPlan: [
-        {
-            label: "城管平台技术栈",
-            searchQuery: "城市管理平台 技术栈",
-            queryType: "tech",
-            topics: ["project", "tech-stack"],
-            enumerationControl: null,
-        },
-        {
-            label: "其它项目全部列出",
-            searchQuery: "项目经历 全部项目",
-            queryType: "enumeration",
-            topics: ["project"],
-            enumerationControl: {
-                action: "exhaustive",
-                listKind: "project",
-                excludeHint: "城管",
+    pathPlan: {
+        km: [
+            {
+                id: "km-tech",
+                pathKind: "km",
+                label: "城管平台技术栈",
+                searchQuery: "城市管理平台 技术栈",
+                queryType: "tech",
+                topics: ["project", "tech-stack"],
+                identityField: null,
+                toolId: null,
+                dataSource: "corpus",
             },
-        },
-    ],
+        ],
+        list: [
+            {
+                id: "list-projects",
+                pathKind: "list",
+                label: "其它项目全部列出",
+                searchQuery: "项目经历 全部项目",
+                queryType: "enumeration",
+                topics: ["project"],
+                enumerationControl: {
+                    action: "exhaustive",
+                    listKind: "project",
+                    excludeHint: "城管",
+                    timeWindowYears: null,
+                },
+            },
+        ],
+        tool: [],
+        dag: [],
+    },
+    answerOrder: ["km-tech", "list-projects"],
+    composeMode: "composite",
+    retrievalPlan: [],
     userFactKey: null,
     userFactLabel: null,
     userFactValue: null,
@@ -118,7 +134,7 @@ const { decision: mixed } = await runIntakePipeline({
     intakeHistory: [],
     session,
 });
-assert.equal(mixed.routeMode, "slots");
+assert.equal(mixed.routeMode, "planExecutor");
 assert.ok(mixed.compositeSlots.length >= 2, "mixed ≥2 slots");
 const execs = mixed.compositeSlots.map((s) => s.executor ?? "km_retrieve");
 assert.ok(execs.includes("km_retrieve"), "tech slot km");
@@ -183,7 +199,7 @@ const continued = buildEnumerationListDecision({
 });
 assert.equal(continued.listIntent, "continue");
 assert.equal(continued.enumerationPage, 2);
-assert.equal(continued.routeMode, "slots");
+assert.equal(continued.routeMode, "listRetriever");
 assert.equal(continued.compositeSlots[0]?.executor, "list_corpus");
 
 const corpusUserId = process.env.FAMBRAIN_CORPUS_USER_ID?.trim();

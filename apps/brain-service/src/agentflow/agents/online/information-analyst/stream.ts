@@ -87,7 +87,11 @@ async function* streamSinglePlainAnalyze(
 async function* streamSingleAnalyze(
     input: InformationAnalystInput
 ): AsyncGenerator<AnalystStreamChunk, InformationAnalystResult> {
-    if (input.routeMode === "dag" && input.toolResults?.synthesis?.answer) {
+    // 纯 hybrid / 单槽：synthesis 进 notes；多槽时 dag 步已挂在 compositeSubResults
+    if (
+        input.toolResults?.synthesis?.answer &&
+        (input.compositeSubResults?.length ?? 0) <= 1
+    ) {
         input = {
             ...input,
             notes: [input.notes, input.toolResults.synthesis.answer]

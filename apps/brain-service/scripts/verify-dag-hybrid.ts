@@ -27,7 +27,7 @@ const decision = (): RoutedIntakeDecision => ({
     searchQuery: "奥卡云 机会 评估",
     queryType: "default",
     retrievalPlan: [],
-    routeMode: "dag",
+    routeMode: "planExecutor",
     compositeSlots: [],
     pathPlan: {
         ...emptyPathPlan(),

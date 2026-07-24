@@ -24,6 +24,7 @@ import {
   legalizeComposeMode,
   legalizePathPlan,
 } from "@/agentflow/agents/online/intake-coordinator/path-plan";
+import { resolveIntakeGraphRouteMode } from "@/agentflow/agents/online/intake-coordinator/pipeline/resolve-graph-route-mode";
 import { isUserFactIntent } from "@/agentflow/agents/online/user-fact";
 import type { IntakeRoutingDecision } from "@/agentflow/agents/online/intake-coordinator/contract";
 import type { DbChatTurn } from "@fambrain/brain-types";
@@ -343,7 +344,7 @@ const runChain = async (input: {
     composeMode,
     retrievalPlan,
     compositeSlots,
-    routeMode: executionPlan ? "dag" : "slots",
+    routeMode: "planExecutor",
     routeReason: "intake_path_plan",
     routePlanSource: "intake_path_plan",
     executionPlan,
@@ -358,6 +359,7 @@ const runChain = async (input: {
     enumerationPageSize: firstList?.enumerationPageSize,
     enumerationListKind: firstList?.enumerationControl?.listKind,
   };
+  routed.routeMode = resolveIntakeGraphRouteMode(routed);
   push(
     "7",
     "⑦ 派生 slots + 补页码",

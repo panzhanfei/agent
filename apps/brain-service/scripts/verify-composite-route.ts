@@ -10,8 +10,6 @@ import {
   EMPLOYERS_SLOT,
   isCompositeProfileQuestion,
   looksLikeMultiPartQuestion,
-  EXTERNAL_LINK_SLOT,
-  PROJECTS_SLOT,
   resolveCompositeRoute,
   splitQuestionUnits,
   type IntakeRoutingDecision,
@@ -68,7 +66,7 @@ assertSync("retrievalPlan ≥2 → slots×2", () => {
     subTasks: ["姓名", "项目经历"],
   };
   const out = applyCompositeRouteGuard(decision, "综合问");
-  if (out.routeMode !== "slots" || out.compositeSlots.length !== 2) {
+  if (out.routeMode !== "planExecutor" || out.compositeSlots.length !== 2) {
     throw new Error(`期望 slots×2，实际 ${out.routeMode}/${out.compositeSlots.length}`);
   }
   if (out.routeReason !== "intake_retrieval_plan") {
@@ -134,7 +132,7 @@ assertSync("P0-15 五连问（有 plan）→ Intake retrievalPlan slots", () => 
     },
     q
   );
-  if (out.routeMode !== "slots" || out.compositeSlots.length < 5) {
+  if (out.routeMode !== "planExecutor" || out.compositeSlots.length < 5) {
     throw new Error(
       `期望 slots≥5槽，实际 ${out.routeMode}/${out.compositeSlots.length}`
     );
@@ -153,7 +151,7 @@ assertSync("P0-15 五连问（有 plan）→ Intake retrievalPlan slots", () => 
   }
 });
 
-assertSync("plan topics/listKind=project → canonical 为 projects 槽", () => {
+assertSync("plan topics/listKind=project → 保留 LLM searchQuery + topics", () => {
   const item = canonicalizePlanItem({
     label: "具体项目名称",
     searchQuery: "用户口语",
@@ -165,19 +163,19 @@ assertSync("plan topics/listKind=project → canonical 为 projects 槽", () => 
       excludeHint: null,
     },
   });
-  if (item.searchQuery !== PROJECTS_SLOT.searchQuery) {
-    throw new Error(`应 canonical 到 projects searchQuery，实际 ${item.searchQuery}`);
+  if (item.searchQuery !== "用户口语") {
+    throw new Error(`应保留 LLM searchQuery，实际 ${item.searchQuery}`);
   }
   if (!item.topics.includes("project")) {
     throw new Error(`topics 应含 project，实际 ${item.topics.join(",")}`);
   }
-  if (item.searchQuery === EMPLOYERS_SLOT.searchQuery) {
-    throw new Error("不应 canonical 到 employers");
+  if (item.queryType !== "enumeration") {
+    throw new Error(`queryType 应为 enumeration，实际 ${item.queryType}`);
   }
 });
 
 assertSync(
-  "external_link「开源项目的 GitHub 与线上地址」→ canonical 模板（勿因 label 正则跳过）",
+  "external_link「开源项目的 GitHub 与线上地址」→ 保留 LLM queryType/searchQuery",
   () => {
     const item = canonicalizePlanItem({
       label: "开源项目的 GitHub 与线上地址",
@@ -188,57 +186,80 @@ assertSync(
     if (item.queryType !== "external_link") {
       throw new Error(`queryType 应为 external_link，实际 ${item.queryType}`);
     }
-    if (!item.searchQuery.includes(EXTERNAL_LINK_SLOT.searchQuery)) {
-      throw new Error(`searchQuery 应含 canonical 模板: ${item.searchQuery}`);
-    }
     if (!item.searchQuery.includes("开源")) {
-      throw new Error(`searchQuery 应保留 label 语义: ${item.searchQuery}`);
+      throw new Error(`searchQuery 应保留 LLM 语义: ${item.searchQuery}`);
     }
-    if (!item.topics.includes("personal")) {
-      throw new Error(`topics 应含 personal/resume: ${item.topics.join(",")}`);
+    // 空 topics 才补模板；已有 topics 则保留
+    if (!item.topics.includes("project")) {
+      throw new Error(`topics 应保留 project: ${item.topics.join(",")}`);
     }
   }
 );
 
-assertSync("单问列举 → slots×1 employers + canonical", () => {
+assertSync("空 retrievalPlan → clarify/skip（档 B 不发明槽）", () => {
   const out = applyCompositeRouteGuard(
     { ...retrieveStub, queryType: "enumeration", topics: ["experience"] },
     "我在哪几家公司上过班？"
   );
-  if (
-    out.routeMode !== "slots" ||
-    out.compositeSlots.length !== 1 ||
-    out.searchQuery !== EMPLOYERS_SLOT.searchQuery
-  ) {
-    throw new Error(`slots/canonical 不符: ${out.routeMode} ${out.searchQuery}`);
+  if (out.routeMode !== "respondEarly" || out.intent !== "clarify") {
+    throw new Error(
+      `期望 respondEarly+clarify，实际 ${out.routeMode}/${out.intent}`
+    );
   }
 });
 
-assertSync("paraphrase 供职单位 → slots employers", () => {
+assertSync("有 retrievalPlan 列举 → plan×1 employers 语义", () => {
   const out = applyCompositeRouteGuard(
     {
       ...retrieveStub,
       queryType: "enumeration",
       topics: ["experience"],
       searchQuery: "供职单位 工作经历",
+      retrievalPlan: [
+        {
+          label: "供职单位",
+          searchQuery: EMPLOYERS_SLOT.searchQuery,
+          queryType: "enumeration",
+          topics: ["experience"],
+          enumerationControl: {
+            action: "preview",
+            listKind: "experience",
+            excludeHint: null,
+          },
+        },
+      ],
     },
     "供职过哪些单位？"
   );
   if (
-    out.routeMode !== "slots" ||
+    out.routeMode !== "planExecutor" ||
     out.compositeSlots.length !== 1 ||
-    out.compositeSlots[0]?.id !== "employers"
+    out.compositeSlots[0]?.queryType !== "enumeration"
   ) {
-    throw new Error(`期望 slots employers，实际 ${out.routeMode}`);
+    throw new Error(
+      `期望 plan×1 enumeration，实际 ${out.routeMode}/${out.compositeSlots[0]?.queryType}`
+    );
   }
 });
 
-assertSync("城管技术 → slots×1", () => {
+assertSync("有 retrievalPlan tech → plan×1", () => {
   const out = applyCompositeRouteGuard(
-    { ...retrieveStub, queryType: "tech", searchQuery: "城管平台 技术栈" },
+    {
+      ...retrieveStub,
+      queryType: "tech",
+      searchQuery: "城管平台 技术栈",
+      retrievalPlan: [
+        {
+          label: "城管平台技术栈",
+          searchQuery: "城管平台 技术栈",
+          queryType: "tech",
+          topics: ["project", "tech-stack"],
+        },
+      ],
+    },
     "城管平台用了什么技术"
   );
-  if (out.routeMode !== "slots" || out.compositeSlots.length !== 1) {
+  if (out.routeMode !== "planExecutor" || out.compositeSlots.length !== 1) {
     throw new Error(`实际 ${out.routeMode}/${out.compositeSlots.length}`);
   }
 });
@@ -252,44 +273,72 @@ assertSync("闲聊 → skip", () => {
     },
     "你好"
   );
-  if (out.routeMode !== "skip") throw new Error("chitchat 应为 skip");
+  if (out.routeMode !== "respondEarly") throw new Error("chitchat 应为 respondEarly");
 });
 
-assertSync("单问年龄（Intake identity）→ slots×1 + identity 模板", () => {
+assertSync("有 retrievalPlan 年龄 → plan×1 identity", () => {
   const q = "我今年多大";
   const out = applyCompositeRouteGuard(
-    { ...retrieveStub, queryType: "identity", searchQuery: "个人简介 简历 年龄 出生年份", subTasks: [] },
+    {
+      ...retrieveStub,
+      queryType: "identity",
+      searchQuery: "个人简介 简历 年龄 出生年份",
+      subTasks: [],
+      retrievalPlan: [
+        {
+          label: "年龄",
+          searchQuery: "个人简介 简历 年龄 出生年份",
+          queryType: "identity",
+          topics: ["personal", "resume"],
+          identityField: "age",
+        },
+      ],
+    },
     q
   );
-  if (out.routeMode !== "slots" || out.compositeSlots.length !== 1) {
-    throw new Error(`期望 slots×1，实际 ${out.routeMode}/${out.compositeSlots.length}`);
+  if (out.routeMode !== "planExecutor" || out.compositeSlots.length !== 1) {
+    throw new Error(`期望 plan×1，实际 ${out.routeMode}/${out.compositeSlots.length}`);
   }
   if (!out.searchQuery.includes("个人简介") || !out.searchQuery.includes("年龄")) {
-    throw new Error(`searchQuery 未 canonicalize: ${out.searchQuery}`);
+    throw new Error(`searchQuery 异常: ${out.searchQuery}`);
   }
   if (out.compositeSlots[0]?.queryType !== "identity") {
     throw new Error(`queryType=${out.compositeSlots[0]?.queryType}`);
   }
 });
 
-assertSync("年龄多大（Intake identity）→ slots×1", () => {
+assertSync("有 retrievalPlan 年龄口语 → plan×1 identity", () => {
   const q = "年龄多大";
   const out = applyCompositeRouteGuard(
-    { ...retrieveStub, queryType: "identity", searchQuery: "个人简介 简历 年龄", topics: ["personal", "resume"] },
+    {
+      ...retrieveStub,
+      queryType: "identity",
+      searchQuery: "个人简介 简历 年龄",
+      topics: ["personal", "resume"],
+      retrievalPlan: [
+        {
+          label: "年龄",
+          searchQuery: "个人简介 简历 年龄",
+          queryType: "identity",
+          topics: ["personal", "resume"],
+          identityField: "age",
+        },
+      ],
+    },
     q
   );
   if (
-    out.routeMode !== "slots" ||
+    out.routeMode !== "planExecutor" ||
     out.compositeSlots.length !== 1 ||
     out.compositeSlots[0]?.queryType !== "identity"
   ) {
-    throw new Error(`slots identity 不符: ${out.routeMode}`);
+    throw new Error(`identity 不符: ${out.routeMode}`);
   }
 });
 
 console.log("\n— 结构 / subTasks（档 B：不发明多槽）—");
 
-assertSync("空 plan + subTasks≥2 → 仍单槽 default（不拆问）", () => {
+assertSync("空 plan + subTasks≥2 → skip/clarify（不拆问）", () => {
   const decision: IntakeRoutingDecision = {
     ...retrieveStub,
     queryType: "default",
@@ -299,14 +348,14 @@ assertSync("空 plan + subTasks≥2 → 仍单槽 default（不拆问）", () =>
     retrievalPlan: [],
   };
   const out = applyCompositeRouteGuard(decision, "整体介绍一下");
-  if (out.routeMode !== "slots" || out.compositeSlots.length !== 1) {
+  if (out.routeMode !== "respondEarly" || out.intent !== "clarify") {
     throw new Error(
-      `期望单槽 slots，实际 ${out.routeMode}/${out.compositeSlots.length}`
+      `期望 respondEarly+clarify，实际 ${out.routeMode}/${out.intent}/${out.compositeSlots.length}`
     );
   }
 });
 
-assertSync("用户句空 + Intake enumeration → slots×1", () => {
+assertSync("空 plan → resolveCompositeRoute 0 槽", () => {
   const decision: IntakeRoutingDecision = {
     ...retrieveStub,
     queryType: "enumeration",
@@ -315,8 +364,10 @@ assertSync("用户句空 + Intake enumeration → slots×1", () => {
     subTasks: ["列出全部公司"],
   };
   const resolved = resolveCompositeRoute(decision, "能说说吗");
-  if (resolved.slots.length !== 1 || resolved.slots[0]?.id !== "employers") {
-    throw new Error(`期望 employers 模板，实际 ${resolved.slots[0]?.id}`);
+  if (resolved.slots.length !== 0 || resolved.source !== "none") {
+    throw new Error(
+      `期望 0 槽 source=none，实际 ${resolved.slots.length}/${resolved.source}`
+    );
   }
 });
 
@@ -376,7 +427,7 @@ assertSync("retrievalPlan 5 项 → 非固定 4 槽", () => {
 
 console.log("\n— Intake retrievalPlan guard —");
 
-assertSync("多问但 plan 空 → 不补槽（档 B）", () => {
+assertSync("多问但 plan 空 → 不补槽（档 B）→ clarify", () => {
   const q =
     "我叫什么？ 今年多大？ 做过那些项目？ 从事什么行业？什么学历？";
   const guarded = applyIntakeRetrievalPlanGuard(retrieveStub, q);
@@ -387,14 +438,14 @@ assertSync("多问但 plan 空 → 不补槽（档 B）", () => {
     throw new Error(`reason=${guarded.retrievalPlanGuardReason}`);
   }
   const out = applyCompositeRouteGuard(guarded, q);
-  if (out.routeMode !== "slots" || out.compositeSlots.length !== 1) {
+  if (out.routeMode !== "respondEarly" || out.intent !== "clarify") {
     throw new Error(
-      `期望单槽 fallback，实际 ${out.routeMode}/${out.compositeSlots.length}`
+      `期望 respondEarly+clarify，实际 ${out.routeMode}/${out.intent}/${out.compositeSlots.length}`
     );
   }
 });
 
-assertSync("plan identity 项 → canonical searchQuery（检索 hits 缓存）", () => {
+assertSync("plan identity 项 → 保留 LLM searchQuery（不强制模板覆盖）", () => {
   const guarded = applyIntakeRetrievalPlanGuard(
     {
       ...retrieveStub,
@@ -416,8 +467,8 @@ assertSync("plan identity 项 → canonical searchQuery（检索 hits 缓存）"
     "姓名？学历？"
   );
   const sq = guarded.retrievalPlan[0]?.searchQuery ?? "";
-  if (!sq.includes("个人简介") || !sq.includes("简历")) {
-    throw new Error(`未 canonicalize: ${sq}`);
+  if (!sq.includes("用户口语") || !sq.includes("姓名")) {
+    throw new Error(`应保留 LLM searchQuery: ${sq}`);
   }
 });
 

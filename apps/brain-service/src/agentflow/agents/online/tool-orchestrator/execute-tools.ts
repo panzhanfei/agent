@@ -516,7 +516,6 @@ export const resolvePostRetrievalToolRuns = (
     >;
 
     if (
-        decision.routeMode === "slots" &&
         state.compositeSubResults
     ) {
         for (const sub of state.compositeSubResults) {

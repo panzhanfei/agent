@@ -33,6 +33,7 @@ import { isUserFactIntent } from "@/agentflow/agents/online/user-fact";
 import { logAgentOut } from "@fambrain/brain-shared/agent-log";
 import type { DbChatTurn } from "@fambrain/brain-types";
 import type { CompositeSessionKey } from "@fambrain/infra";
+import { resolveIntakeGraphRouteMode } from "./resolve-graph-route-mode";
 
 const summarizeDecision = (
   decision: IntakeRoutingDecision | RoutedIntakeDecision
@@ -86,7 +87,7 @@ export const buildEarlyExitRoutedDecision = (
   decision: IntakeRoutingDecision
 ): RoutedIntakeDecision => ({
   ...decision,
-  routeMode: "skip",
+  routeMode: "respondEarly",
   compositeSlots: [],
   pathPlan: emptyPathPlan(),
   answerOrder: [],
@@ -359,7 +360,7 @@ export const runIntakePipeline = async (
   );
 
   const listSlots = compositeSlots.filter((s) => s.executor === "list_corpus");
-  const firstList = listSlots[0];
+  const firstList = listSlots.length > 0 ? listSlots[0] : null;
   const listIntent = firstList?.enumerationControl?.action ?? null;
 
   if (listSlots.length > 0) {
@@ -379,9 +380,9 @@ export const runIntakePipeline = async (
 
   if (executionPlan) {
     logAgentOut("IntakeCoordinator", "guard_工具计划", {
-      routeMode: "dag",
       executionPlanCount: executionPlan.length,
       dagTemplates: pathPlan.dag.map((d) => d.template),
+      compositeSlotCount: compositeSlots.length,
     });
   }
 
@@ -392,7 +393,7 @@ export const runIntakePipeline = async (
     composeMode,
     retrievalPlan,
     compositeSlots,
-    routeMode: executionPlan ? "dag" : "slots",
+    routeMode: "planExecutor",
     routeReason: "intake_path_plan",
     routePlanSource: "intake_path_plan",
     executionPlan,
@@ -406,6 +407,7 @@ export const runIntakePipeline = async (
     enumerationPageSize: firstList?.enumerationPageSize,
     enumerationListKind: firstList?.enumerationControl?.listKind,
   };
+  routed.routeMode = resolveIntakeGraphRouteMode(routed);
 
   /** ⑨ 出口 */
   logAgentOut("IntakeCoordinator", "最终路由", {

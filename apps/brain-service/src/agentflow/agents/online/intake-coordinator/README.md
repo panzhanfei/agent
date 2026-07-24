@@ -17,12 +17,12 @@ Intake 是 Pipeline 的**第一个 LLM 在线 Agent**（图内位于 **`prepareT
 | 多问并列难检索 | **pathPlan + answerOrder → 派生 compositeSlots**，按序独立 KM/list |
 | 用户口述 QQ/微信不在简历里 | **userFact 分支**，走 Mem0，不经 KM |
 | 同句再问浪费算力 | **同问短路** 在 **`prepare-turn-start`** 节点（Intake 不再重复检） |
-| 短续问/单字噪声 | **intake-node**：normalize 后再判单字早短路；**三信号**指代拼接最多 **1** 次；散文只做 JSON 格式修复 |
+| 短续问/单字噪声 | **intake-node**：normalize 后再判单字早短路；**coreference=unresolved** 指代拼接最多 **1** 次；散文只做 JSON 格式修复 |
 
 ### 1.2 核心原则（端到端 PathPlan）
 
 1. **主路径 = 执行终稿** — LLM 产出 `intent` + **`pathPlan` 四桶** + **`answerOrder`** + `composeMode` / `searchQuery` / `coreference`；下游只信结构化字段。
-2. **旁路 = 合法化 + 派生** — normalize / 单字短路 / JSON 格式修复 / 指代拼接≤1（**三信号**）/ toolId 白名单 / list 页码；按 `answerOrder` **派生** `compositeSlots`（及兼容用 `retrievalPlan`）。**禁止**口语二次拆槽或 `queryType` 猜桶。
+2. **旁路 = 合法化 + 派生** — normalize / 单字短路 / JSON 格式修复 / 指代拼接≤1（**仅 unresolved**）/ toolId 白名单 / list 页码；按 `answerOrder` **派生** `compositeSlots`（及兼容用 `retrievalPlan`）。**禁止**口语二次拆槽或 `queryType` 猜桶。
 3. **宁可多检索，不要漏检索** — 简历/经历类问题默认 `retrieve_and_answer`；空 pathPlan → clarify。
 4. **结构化输出** — 只产 JSON；散文反问不算合法工单（可格式修复一轮）。
 5. **对外只暴露 `index.ts`** — 子目录是内部实现，外部 import 统一走 barrel。
@@ -123,7 +123,7 @@ intake-coordinator/nodes/intake-node.ts   runIntakeNode()
     │       输出: 原始 JSON 字符串
     │
     ├─ peek parseIntakeDecision → shouldRetryCoreferenceMerge
-    │       coreference=unresolved（或短 clarify）且有上轮实质问
+    │       coreference=unresolved 且有上轮实质问 → 拼接再调 1×
     │       → 改写最后一条 user 为「上轮；本轮」+ 系统注 + **再调 LLM 1 次**
     │
     ├─ runIntakePipeline()                  pipeline/intake-pipeline.ts
@@ -172,18 +172,28 @@ LLM 原始 JSON
 
 详见坑点 [§2.5.9 GitHub 对外链接](../../../../../../../docs/04-pitfalls.md#259-简历-github--对外链接问法-p0-25--2026-07)（P0-25）。
 
-### 3.4 单问 / 多问统一（`routeMode=slots` · PathPlan 派生）
+### 3.4 图路由：`routeMode` 与 LangGraph 节点 1:1
 
-凡需 KM/list 检索 → **`routeMode=slots`**（或 hybrid → `dag`），`compositeSlots` **按 `answerOrder` 派生**（1～N）。**禁止**编译层按 list→km→dag 重排回答顺序。
+`routeMode` **只**承担图下一跳（由 Intake 出口 `resolveIntakeGraphRouteMode` 写入）。`routes.ts` **只读** `decision.routeMode` 分发，不在路由层展开 isPureList / pathPlan 计数等。
+
+| routeMode | 图节点 |
+|-----------|--------|
+| `respondEarly` | respondEarly（clarify / chitchat / briefReply） |
+| `userFact` | userFact |
+| `contentSummarizer` | contentSummarizer（纯摘要、无检索） |
+| `listRetriever` | listRetriever（纯 list 槽） |
+| `planExecutor` | planExecutor（km/list/tool/dag 可并存） |
 
 ```text
 pathPlan + answerOrder
     │
-    ├─ deriveCompositeSlotsFromPathPlan → slots.length ≥ 1
-    │       → routeMode=slots（或 hybrid dag）
+    ├─ deriveCompositeSlotsFromPathPlan → slots（dag 步除外）
+    ├─ resolveIntakeGraphRouteMode → routeMode（图边）
     │
-    └─ 空 pathPlan → clarify 早退
+    └─ routes.ts：return decision.routeMode
 ```
+
+节点内执行仍看 `pathPlan` / `compositeSlots` / `executionPlan`，不二次解读 routeMode。
 
 **为何：** 单问、多问共用派生 slots；cache / 日志看 `compositeSlots.length` 与 `answerOrder`。
 
@@ -303,7 +313,7 @@ Intake 产出两层结构：**LLM 层** `IntakeRoutingDecision` → **编排层*
 
 | 字段 | 类型 | 含义 |
 |------|------|------|
-| **routeMode** | skip \| slots \| list \| dag | 下游图路由模式 |
+| **routeMode** | respondEarly \| userFact \| listRetriever \| planExecutor \| contentSummarizer | 与 LangGraph 节点名 1:1；routes 只读分发 |
 | **compositeSlots** | CompositeRetrievalSlot[] | 分槽列表（slots 时 length ≥ 1） |
 | **routeReason** | CompositeRouteReason | 为何这样路由（可观测） |
 | **routePlanSource** | CompositeRoutePlanSource | plan 来源（LLM plan / 结构兜底…） |
@@ -311,12 +321,15 @@ Intake 产出两层结构：**LLM 层** `IntakeRoutingDecision` → **编排层*
 
 #### routeMode 含义
 
-| routeMode | 条件 | 下游行为 |
-|-----------|------|----------|
-| `skip` | chitchat / clarify / userFact 等不检索 | respondEarly / userFact |
-| `slots` | 1～N 个检索槽 | KM 分槽并行 + merge（槽数看 `compositeSlots.length`） |
-| `list` | 列举 continue / exhaustive | KM list API 分页 |
-| `dag` | 混合工具编排 | dagExecutor |
+| routeMode | 条件（Intake 出口判定） | 图节点 |
+|-----------|------------------------|--------|
+| `respondEarly` | clarify / chitchat / briefReply | respondEarly |
+| `userFact` | remember / recall | userFact |
+| `contentSummarizer` | 纯摘要、无 pathPlan 检索 | contentSummarizer |
+| `listRetriever` | 纯 list 槽 | listRetriever |
+| `planExecutor` | 有 km/list/tool/dag（可并存） | planExecutor |
+
+> 执行语义在 **planExecutor 节点内**（槽检索 ± hybrid dag）；`routeMode` 不再区分 slots/dag。
 
 #### routeReason 枚举
 
@@ -382,7 +395,7 @@ LLM 输出 IntakeRoutingDecision:
 guard 链: 通常 noop（无指代/非闲聊/非 userFact）
 
 RoutedIntakeDecision:
-  routeMode: slots
+  routeMode: plan
   compositeSlots: [ { id: plan-0, searchQuery: "...", queryType: tech } ]
 
 → routeAfterIntake → retrieval → KM 1 槽（retrieveCompositeIncremental）
@@ -449,7 +462,7 @@ history:
   coreference: resolved · default 单槽 · searchQuery 含「云联智慧 入职 年份」
 
 路径 B（首轮误标 enumeration，或 plan 仍写奥卡云漏新实体）:
-  shouldRetryCoreferenceMerge 三信号 → 拼接「上轮；本轮」再调 Intake
+  shouldRetryCoreferenceMerge（coreference=unresolved）→ 拼接「上轮；本轮」再调 Intake
   → 须含新实体 + 继承属性；禁止 enumeration 整表
 
 pipeline:
@@ -471,7 +484,7 @@ LLM retrievalPlan: [
 guard_检索计划: canonicalize 各 plan 项（检索 hits 缓存 对齐）
 
 guard_复合路由:
-  routeMode: slots
+  routeMode: plan
   compositeSlots: [槽1, 槽2, 槽3, ...]   # length ≥ 2 → Analyst 分段
 
 → retrieval 多槽并行 → analyst 分段写（length ≥ 2）

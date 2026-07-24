@@ -39,7 +39,7 @@ const baseDecision = (): RoutedIntakeDecision => ({
             identityField: "age",
         },
     ],
-    routeMode: "skip",
+    routeMode: "respondEarly",
     compositeSlots: [],
     pathPlan: emptyPathPlan(),
     answerOrder: [],
@@ -142,11 +142,11 @@ console.log("\n— hybrid DAG intent —");
         },
         q
     );
-    assert.equal(routed.routeMode, "dag");
+    assert.equal(routed.routeMode, "planExecutor");
     assert.ok((routed.executionPlan?.length ?? 0) >= 3);
     const synth = routed.executionPlan?.find((n) => n.id === "synthesis");
     assert.ok(synth?.deps.includes("resume"));
-    ok("topics 含 external+corpus → routeMode=dag + executionPlan");
+    ok("topics 含 external+corpus → routeMode=planExecutor + executionPlan");
 }
 
 console.log("\n— resolvePostRetrievalToolRuns —");

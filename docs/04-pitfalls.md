@@ -131,7 +131,7 @@
 
 | 层 | 问题 | 说明 |
 |----|------|------|
-| **路由模型** | `routeMode` 整句互斥 | 同句无法「list + km + dag 依赖链」并存 |
+| **路由模型** | ~~routes 堆判定~~ → **`routeMode` 图边 1:1** | 复杂判定在 Intake `resolveIntakeGraphRouteMode`；routes 只分发 |
 | **多槽实现分裂** | compositeSlots / toolPlan / executionPlan 各维护一套 | Intake 与 PlanExecutor 语义不一致，guard 顺序敏感 |
 | **opensource 链接** | external_link 与 enumeration **并行 KM** | 应 **先 list 实体 → 再抽 URL**（有 deps 的子图） |
 | **FactChecker** | 单次、composite≥2 跳过 | 不符合「每路径审证据」；一段 hallucination 污染 composite |
@@ -230,7 +230,7 @@ pnpm --filter @fambrain/brain-service run verify:intake-chitchat   # CHITCHAT_RU
 | 问题 | 改前做法 | 为什么不合理 | 改后 |
 |------|----------|--------------|------|
 | **单字 / 乱敲** | 几乎原样进 LLM；`呢呢呢！！！` 也烧一轮 | 浪费 token；单字判定未先规范化，附和/残缺与续问边界糊 | **normalize**：trim + 压连续相同码点 → 再判单字短路；喂 LLM 用压后问句。**不做** NFKC（全角 `？`→`?` 曾导致与 history 对不上、本轮被当成 prior） |
-| **续问指代** | 调用前按句长**盲预合并**「上轮；本轮」；或把 `clarifyFallbackFromProse` 当 peek 触发拼接 | 换题短句被误并；散文不是结构化信号，却驱动第二次昂贵 LLM；根因常是 **没吐 JSON**，却用代码假装「已标 unresolved」 | 先原文（normalize 后）调 LLM；**只认 JSON peek**；`coreference=unresolved`（或短续问被误标 clarify/userFact）才拼接 **≤1 次**；散文 → **JSON 格式修复 1 次**（修输出纪律，不当指代触发器） |
+| **续问指代** | 调用前按句长**盲预合并**「上轮；本轮」；或把 `clarifyFallbackFromProse` 当 peek 触发拼接 | 换题短句被误并；散文不是结构化信号，却驱动第二次昂贵 LLM；根因常是 **没吐 JSON**，却用代码假装「已标 unresolved」 | 先原文（normalize 后）调 LLM；**只认 JSON peek**；**仅** `coreference=unresolved` 才拼接 **≤1 次**；散文 → **JSON 格式修复 1 次**（修输出纪律，不当指代触发器） |
 | **Intake 架构** | 规划 / 发明槽 / 纠偏缠在同一条 guard 叙事里（含曾有的 `filled_fallback`） | 复盘成本高；违反「意图归 LLM」与 no-scene-hardcoding | **端到端 PathPlan**：`retrieve_and_answer` 须 LLM **`pathPlan`≥1 + `answerOrder`**；代码只合法化 / 补页码 / 派生 slots；空 pathPlan → **clarify** |
 
 #### 心智模型（复盘顺序）
@@ -242,7 +242,7 @@ pnpm --filter @fambrain/brain-service run verify:intake-chitchat   # CHITCHAT_RU
   │
   ├─【主路径·规划】Intake LLM → JSON 执行终稿（intent + pathPlan + answerOrder + coreference…）
   │     ├─ 非 JSON → 格式修复 1×（仍是要 JSON，不是二次猜意图）
-  │     └─ JSON 且三信号命中 + 有上轮 → 拼接「上轮；本轮」再规划 1×
+  │     └─ JSON 且 coreference=unresolved + 有上轮 → 拼接「上轮；本轮」再规划 1×
   │
   └─【旁路·纠偏】runIntakePipeline：parse 兜底 → continuation / chitchat / link /
         legalize PathPlan → fill list 页码 → 派生 compositeSlots
@@ -255,7 +255,7 @@ pnpm --filter @fambrain/brain-service run verify:intake-chitchat   # CHITCHAT_RU
 | 文件 | 职责 |
 |------|------|
 | `contract/prompt.ts` | PathPlan 契约、`coreference`、**实体替换续问**（示例 6c/6d）、merge/repair notes |
-| `signals/effective-intake-question.ts` | normalize、单字短路、`shouldRetryCoreferenceMerge`（**三信号**；只认 JSON peek） |
+| `signals/effective-intake-question.ts` | normalize、单字短路、`shouldRetryCoreferenceMerge`（**仅 unresolved**；只认 JSON peek） |
 | `nodes/intake-node.ts` | 短路 → LLM → 格式修复 → 指代拼接 → pipeline |
 | `pipeline/intake-pipeline.ts` | 合法化 PathPlan + 派生 slots（不发明多槽） |
 | `path-plan/from-llm.ts` | `legalizePathPlan` / `deriveCompositeSlotsFromPathPlan` |
@@ -263,21 +263,21 @@ pnpm --filter @fambrain/brain-service run verify:intake-chitchat   # CHITCHAT_RU
 
 **验证：** `pnpm exec vitest run apps/brain-service/tests/intake-coordinator/effective-intake-question.test.ts` · `pnpm --filter @fambrain/brain-service run verify:intake-coreference` · Golden **G5c**。详见 [架构 v2 §13](./05-architecture-v2-tool-orchestration.md#13-intake-档-b主路径规划--旁路纠偏-2026-07)、[Intake README](../apps/brain-service/src/agentflow/agents/online/intake-coordinator/README.md)。
 
-#### 2.10.1 实体替换续问误走 enumeration（✅ 2026-07 · prompt 6c/6d + 结构 merge 三信号）
+#### 2.10.1 实体替换续问误走 enumeration（✅ 2026-07 · prompt 6c/6d + LLM coreference）
 
 > **现象：** 用户先问「哪一年入职奥卡云」→ 答 2021；续问「友谊时光呢 / 云联智慧呢」→ 整表列举工作经历。
 
 | 层 | 问题 |
 |----|------|
 | **Intake LLM** | 只认出实体，**未继承**上轮「入职年份」框架，误标 `enumeration`；few-shot 过拟合单公司名时换实体仍翻车 |
-| **代码** | 档 B **不**用词表改 plan；但对 **短续问 + retrieve→enumeration** 走既有 **指代拼接重试**（带 prior 再规划 1 次） |
+| **代码** | 档 B **不**用词表/plan 一致性改路由；实体替换须 **首轮** `coreference=resolved` + 正确 pathPlan（示例 6c/6d）；若暂不能消解则 `unresolved` 触发拼接 |
 
-**对策：**
-1. `contract/prompt.ts`：**实体替换模式**硬规则 + 示例 **6c / 6d**（友谊时光 + 云联智慧）
-2. `shouldRetryCoreferenceMerge` **三信号**：短续问（≤16）且 plan/顶层为 `enumeration` → 拼接「上轮；本轮」再调 Intake（**不发明槽**）
-3. Golden **G5c**（云联智慧）· `verify:intake-coreference` live
+**改法（不硬编码）：**
+1. `contract/prompt.ts`：实体替换规则 + 示例 **6c/6d**；有 history 的续问禁止 `coreference=none`
+2. `shouldRetryCoreferenceMerge`：**仅** `coreference=unresolved` → 拼接再调 1 次
+3. Golden **G5c** · `verify:intake-coreference` live
 
-**禁止：** 用公司名词表 / 「X呢」regex 在 pipeline 直接改成 default 槽。
+**禁止：** 用公司名词表 / plan 一致性 heuristic / 「X呢」regex 在代码里猜是否拼接。
 
 ### 2.3 工作经历枚举不完整 / 同问不同答（✅ 2026-06 · `verify:r6-no-cache`）
 

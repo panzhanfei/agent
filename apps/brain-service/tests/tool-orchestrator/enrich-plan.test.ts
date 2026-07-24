@@ -25,7 +25,7 @@ const baseDecision = (): RoutedIntakeDecision => ({
             identityField: "age",
         },
     ],
-    routeMode: "skip",
+    routeMode: "respondEarly",
     compositeSlots: [],
     pathPlan: emptyPathPlan(),
     answerOrder: [],
@@ -88,10 +88,7 @@ describe("applyToolPlanGuard", () => {
             q
         );
         const routed = applyPathPlanGuard(withTools, q);
-        expect(routed.routeMode).toBe("dag");
-        expect(
-            routed.pathPlan.dag.some((d) => d.template === "hybrid_multi_source")
-        ).toBe(true);
+        expect(routed.routeMode).toBe("planExecutor");
         expect(routed.executionPlan?.some((n) => n.id === "synthesis")).toBe(true);
     });
 });

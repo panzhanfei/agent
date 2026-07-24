@@ -97,7 +97,7 @@ routeAfterIntake()                    pipeline/graph/routes.ts
     │
     └─ 复合 / km / tool / dag → planExecutor
           └─ nodes/retrieval-node.ts     runRetrievalNode()
-                routeMode=slots（可混搭）
+                pathPlan 派生 slots（可与 dag 并存）
                   ├─ executor=km_retrieve → hybrid / composite 增量
                   └─ executor=list_corpus → fetchListSlot（corpus-lister，与 km 并行）
     │
@@ -150,7 +150,7 @@ KnowledgeRetrievalResult { hits, coverage, notes, confidenceTier }
 |------|------|-----------|
 | `searchQuery` | Intake | 主检索文本；检索 hits 缓存 key 之一 |
 | `queryType` | Intake | 映射 queryProfile；检索 hits 缓存 key 之一 |
-| `routeMode` / `compositeSlots` | Intake composite guard | **`slots`（1～N 槽，单问=1 槽）** 或 `list`（列举分页） |
+| `routeMode` / `compositeSlots` | Intake | **`plan`（可观测）** + 1～N 槽；执行看 pathPlan |
 | `topics` | Intake | **仅**拼入向量 semantic query（KM-01） |
 | `subTasks` | Intake | sparse token + rank 辅助 |
 
