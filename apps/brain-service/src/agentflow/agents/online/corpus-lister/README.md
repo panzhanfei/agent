@@ -12,6 +12,8 @@
 
 **摊平：** 纯 list 用 `flattenListRetrieval`（corpus-lister 内），**不**调用 KM `mergeCompositeRetrieval`；混槽 list 仍在 planExecutor / `runRetrievalNode` 里与 km 一并 merge。
 
+**Composite plan：** 多槽 pure list 与 planExecutor 一致，在 `listRetriever` 内调用 `resolveIncrementalCompositePlan`，供 Analyst composite 流式分节与 facet 答案缓存。
+
 ## 目录
 
 ```text

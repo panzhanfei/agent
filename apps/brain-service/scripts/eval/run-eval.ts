@@ -2,6 +2,7 @@
  * Eval MVP：golden.json → Pipeline / KM 断言 → JSON + Markdown 报告。
  *
  *   pnpm --filter @fambrain/brain-service run eval:run
+ *   pnpm --filter @fambrain/brain-service run eval:run -- --case E2E-dual-list
  *   pnpm --filter @fambrain/brain-service run eval:run -- --json-only
  *   pnpm --filter @fambrain/brain-service run eval:run -- --mem-only
  *   EVAL_WRITE_REPORT=1 pnpm --filter @fambrain/brain-service run eval:run
@@ -534,6 +535,11 @@ const formatMarkdown = (report: EvalReport): string => {
 const jsonOnly = process.argv.includes("--json-only");
 const profileOnly = process.argv.includes("--profile-only");
 const memOnly = process.argv.includes("--mem-only");
+const caseFilter = (() => {
+    const idx = process.argv.indexOf("--case");
+    if (idx === -1) return null;
+    return process.argv[idx + 1]?.trim() || null;
+})();
 
 const main = async (): Promise<void> => {
     bootstrapBrainServiceRuntime();
@@ -577,30 +583,42 @@ const main = async (): Promise<void> => {
         return;
     }
 
+    const cases = caseFilter
+        ? golden.cases.filter((c) => c.id === caseFilter)
+        : golden.cases;
+    if (caseFilter && cases.length === 0) {
+        throw new Error(`golden.json 无 case id: ${caseFilter}`);
+    }
+
     console.log(
-        `eval:run — ${golden.cases.length} cases + probes`
+        caseFilter
+            ? `eval:run — case ${caseFilter}`
+            : `eval:run — ${golden.cases.length} cases + probes`
     );
     console.log(`corpusUserId=${corpusUserId} chroma=${chromaUp ? "up" : "down"}\n`);
 
     const results: CaseResult[] = [];
-    for (const [i, spec] of golden.cases.entries()) {
-        process.stdout.write(`  [${i + 1}/${golden.cases.length}] ${spec.id} … `);
+    for (const [i, spec] of cases.entries()) {
+        process.stdout.write(`  [${i + 1}/${cases.length}] ${spec.id} … `);
         const result = await evaluateCase(spec, corpusUserId, 1);
         console.log(result.pass ? "PASS" : "FAIL");
         results.push(result);
     }
 
-    const memProbe = golden.memProbe
-        ? await runMemProbe(golden.memProbe, corpusUserId)
-        : [];
+    const memProbe =
+        caseFilter || !golden.memProbe
+            ? []
+            : await runMemProbe(golden.memProbe, corpusUserId);
 
-    const cacheProbe = golden.cacheProbe
-        ? await runCacheProbe(golden.cacheProbe, corpusUserId)
-        : [];
+    const cacheProbe =
+        caseFilter || !golden.cacheProbe
+            ? []
+            : await runCacheProbe(golden.cacheProbe, corpusUserId);
 
-    const profileProbe = golden.profileProbe
-        ? await runProfileProbe(golden.profileProbe, corpusUserId)
-        : [];
+    const profileProbe =
+        caseFilter || !golden.profileProbe
+            ? []
+            : await runProfileProbe(golden.profileProbe, corpusUserId);
 
     const report: EvalReport = {
         generatedAt: new Date().toISOString(),

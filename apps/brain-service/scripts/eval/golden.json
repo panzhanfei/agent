@@ -209,6 +209,19 @@
         "mustIncludeSteps": ["analyst"],
         "answerRe": "云联智慧|友谊时光|奖多多|奥卡云"
       }
+    },
+    {
+      "id": "E2E-dual-list",
+      "tier": "pipeline",
+      "label": "纯 list 双槽：项目经历 + 从业经历",
+      "question": "列出项目经历和从业经历",
+      "assert": {
+        "mustIncludeSteps": ["retrieval", "analyst"],
+        "mustNotIncludeSteps": ["plan_executor"],
+        "minAnswerLength": 80,
+        "answerMustIncludeAll": ["云联智慧", "友谊时光"],
+        "answerRe": "项目|城管|agents|aky|flattening|独立开源"
+      }
     }
   ],
   "memProbe": {

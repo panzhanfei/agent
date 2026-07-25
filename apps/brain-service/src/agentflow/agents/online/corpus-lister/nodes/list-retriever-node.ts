@@ -1,4 +1,5 @@
 import { logAgentOut } from "@fambrain/brain-shared/agent-log";
+import { resolveIncrementalCompositePlan } from "@/agentflow/agents/online/knowledge-manager";
 import type { PipelineGraphState } from "@/agentflow/pipeline/graph/state";
 import { fetchListSlot } from "../fetch-list-slot";
 import { flattenListRetrieval } from "../flatten-list-retrieval";
@@ -30,6 +31,17 @@ export const runListRetrieverNode = async (
     });
 
     try {
+        const sessionKey = {
+            conversationId: state.context.conversationId,
+            corpusUserId: state.context.corpusUserId,
+        };
+
+        const incremental = await resolveIncrementalCompositePlan({
+            session: sessionKey,
+            userQuestion: state.userQuestion,
+            slots,
+        });
+
         const subResults = await Promise.all(
             slots.map((slot) =>
                 fetchListSlot(
@@ -47,6 +59,8 @@ export const runListRetrieverNode = async (
             coverage: flattened.coverage,
             page: flattened.enumerationMeta?.page ?? null,
             hasMore: flattened.enumerationMeta?.hasMore ?? null,
+            facetCacheHits: incremental.facetCacheHits,
+            incrementalSlotCount: incremental.slots.length,
         });
 
         return {
@@ -56,7 +70,8 @@ export const runListRetrieverNode = async (
             confidenceTier: flattened.confidenceTier,
             enumerationMeta: flattened.enumerationMeta,
             compositeSubResults: subResults,
-            compositeIncrementalPlan: null,
+            compositeIncrementalPlan: incremental,
+            compositeFacetCacheHits: incremental.facetCacheHits,
             retrievalCacheHit: false,
             retrievalCacheSlotHits: null,
             checkerPassed: true,
