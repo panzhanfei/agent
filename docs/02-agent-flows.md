@@ -393,7 +393,7 @@ flowchart TD
 
 **职责：** 在 FactChecker 放行后、Analyst 生成前，对 `hits` 做 **Zod 规范化**、**同 path 去重**、excerpt 合并；空 hits 时将 `coverage` 降为 `none`。**不调 LLM**。
 
-**技术：** Zod（`knowledgeHitsSchema`）；规则合并（`organizeHits` / `dedupeCitations`）；**maxHits 随 queryProfile**（enumeration **8**，default **5**）。
+**技术：** Zod（`knowledgeHitsSchema`）；规则合并（`organizeHits` / `dedupeCitations`）；**maxHits 随 queryProfile**（enumeration **8**，default **5**）；**列举分页**时 `listIntent=exhaustive|continue` → `maxHitsOverride=enumerationPageSize`（通常 20）。
 
 ```mermaid
 flowchart TD

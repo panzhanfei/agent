@@ -585,6 +585,8 @@ pnpm --filter @fambrain/brain-service run verify:enumeration-compose  # P0-22 �
 | `enumeration-list-intent.ts` → **`applyEnumerationSlotGuard`** | ~~口语 regex 猜续问~~ → **per-slot** `enumerationControl` + `executor=list_corpus`（见 **§2.5.10**） |
 | `enumeration-action-prompts.ts` | UI 按钮 **精确 prompt** → Intake 短路，不依赖 regex |
 | `resolve-enumeration-pagination.ts` | 续页从 conversation **blocks** 读 page/pageSize（无 Redis session） |
+| `sliceHitsForAnalystStream` | 列举分页 Analyst 信 `enumerationMeta.pageSize`，不单槽 plain stream 截 8 条 |
+| `facet-key.ts` | `list_corpus` 分页槽 facetKey `enum:projects:p{N}`；`facetAnswerMatchesSlot` 校验页码 |
 | `flatten-list-retrieval.ts` | 纯 list 摊平；混槽 merge 仍在 KM `retrieval-node` |
 | `composite-answer-cache` | 槽答案缓存 **存 blocks**，命中恢复表格 UI |
 | `packages/brain-types` | `AssistantMessageBlock` + `paginationHint` / `startIndex` |
@@ -741,7 +743,11 @@ pnpm --filter @fambrain/brain-service exec tsx --env-file=../../.env scripts/dia
 pnpm --filter @fambrain/brain-service run verify:enumeration-pagination   # 含混合 2 槽
 pnpm --filter @fambrain/brain-service run verify:enumeration-compose
 pnpm --filter @fambrain/brain-service run verify:composite-route
+pnpm --filter @fambrain/brain-service run verify:composite-incremental
+pnpm --filter @fambrain/brain-service run eval:run -- --list-pagination-only   # E2E 续页 + 双槽续页
 ```
+
+**续页坑（P0-31 · 2026-07）：** 双槽首问走 composite（整页 20 条）→ UI「更多项目」走单槽 `streamSinglePlainAnalyze` 时，若仍用 profile `maxHits=8` 截断，第 2 页只显示 8 条（如 21–28/36）；facetKey 若不按 `enumerationPage` 分桶，continue 会命中上一页终稿 cache。**对策：** `sliceHitsForAnalystStream` + `enum:projects:p{N}` + `facetAnswerMatchesSlot`。
 
 详见 [架构 v2 §10](./05-architecture-v2-tool-orchestration.md#10-列举执行-per-slot-演进-2026-07)。
 

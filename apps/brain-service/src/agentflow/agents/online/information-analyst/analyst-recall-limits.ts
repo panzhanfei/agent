@@ -1,15 +1,34 @@
+import type { EnumerationListIntent } from "@/agentflow/agents/online/intake-coordinator";
 import {
     getProfileRecallParams,
     PROFILE_MAX_HITS,
-} from "@/agentflow/agents/online/knowledge-manager";
-import {
-    resolveQueryProfile,
+    type EnumerationMeta,
+    type KnowledgeHit,
     type QueryProfile,
+    resolveQueryProfile,
 } from "@/agentflow/agents/online/knowledge-manager";
 
 /** Analyst 子问 / 单问可见 hits 上限（与 KM profile 对齐，非固定 4）。 */
 export const maxAnalystHitsForProfile = (profile: QueryProfile): number =>
     getProfileRecallParams(profile).maxHits;
+
+/** 流式 / compose 前列举 hits：分页列举信 enumerationMeta.pageSize，勿用 profile maxHits=8 截断。 */
+export const sliceHitsForAnalystStream = (
+    profile: QueryProfile,
+    hits: KnowledgeHit[],
+    opts?: {
+        enumerationMeta?: EnumerationMeta | null;
+        listIntent?: EnumerationListIntent | null;
+    }
+): KnowledgeHit[] => {
+    if (profile === "enumeration") {
+        const pageSize = opts?.enumerationMeta?.pageSize;
+        if (pageSize && pageSize > 0) {
+            return hits.slice(0, pageSize);
+        }
+    }
+    return hits.slice(0, maxAnalystHitsForProfile(profile));
+};
 
 export const resolveAnalystQueryProfile = (input: {
     userQuestion: string;

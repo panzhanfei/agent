@@ -77,7 +77,36 @@ console.log("verify-composite-incremental\n— facetKey —");
     if (roles !== "enum:employers" && roles !== "enum:employers:roles") {
         fail("职位独立 facetKey", roles);
     }
-    ok("姓名 / 邮箱 / 项目 / 职位 分桶");
+    const listP1 = buildFacetKey({
+        label: "项目经历",
+        searchQuery: "x",
+        queryType: "enumeration",
+        topics: ["project"],
+        executor: "list_corpus",
+        enumerationPage: 1,
+        enumerationControl: {
+            action: "exhaustive",
+            listKind: "project",
+            excludeHint: null,
+        },
+    });
+    const listP2 = buildFacetKey({
+        label: "项目经历",
+        searchQuery: "x",
+        queryType: "enumeration",
+        topics: ["project"],
+        executor: "list_corpus",
+        enumerationPage: 2,
+        enumerationControl: {
+            action: "continue",
+            listKind: "project",
+            excludeHint: null,
+        },
+    });
+    if (listP1 !== "enum:projects:p1" || listP2 !== "enum:projects:p2") {
+        fail("list 分页 facetKey", `${listP1} ${listP2}`);
+    }
+    ok("姓名 / 邮箱 / 项目 / 职位 分桶 + list 分页键");
 }
 
 console.log("\n— 槽答案会话 —");

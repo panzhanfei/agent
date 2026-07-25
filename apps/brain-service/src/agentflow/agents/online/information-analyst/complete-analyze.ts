@@ -8,8 +8,8 @@ import { dedupeCitations } from "@/agentflow/agents/online/content-organizer";
 import type { KnowledgeHit } from "@/agentflow/agents/online/knowledge-manager";
 import { parseJsonObject, textFromResponse } from "@/agentflow/utils";
 import {
-    maxAnalystHitsForProfile,
     resolveAnalystQueryProfile,
+    sliceHitsForAnalystStream,
 } from "./analyst-recall-limits";
 import { resolveOrchestratedTool } from "@/agentflow/tools/orchestrated/run-sub-question";
 import { pickToolResultForSubQuestion } from "@/agentflow/agents/online/tool-orchestrator";
@@ -38,16 +38,10 @@ const sliceHitsForAnalyst = (input: SubQuestionAnalyzeInput): KnowledgeHit[] => 
         userQuestion: input.userQuestion,
         queryType: input.queryType,
     });
-    // 列举分页页：保留整页，勿用 profile maxHits=8 截断
-    if (profile === "enumeration") {
-        const pageSize = input.enumerationMeta?.pageSize;
-        if (pageSize && pageSize > 0) {
-            return input.hits.slice(0, pageSize);
-        }
-        return input.hits;
-    }
-    const limit = maxAnalystHitsForProfile(profile);
-    return input.hits.slice(0, limit);
+    return sliceHitsForAnalystStream(profile, input.hits, {
+        enumerationMeta: input.enumerationMeta,
+        listIntent: input.listIntent,
+    });
 };
 
 const buildSubQuestionResult = (

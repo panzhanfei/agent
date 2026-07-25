@@ -11,6 +11,8 @@ export {
     buildFacetKey,
     detectCompositeRefreshIntent,
     attachFacetKey,
+    facetAnswerMatchesSlot,
+    isPaginatedListCorpusSlot,
 } from "./facet-key";
 export {
     resolveIncrementalCompositePlan,

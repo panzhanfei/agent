@@ -14,6 +14,8 @@
 
 **Composite plan：** 多槽 pure list 与 planExecutor 一致，在 `listRetriever` 内调用 `resolveIncrementalCompositePlan`，供 Analyst composite 流式分节与 facet 答案缓存。
 
+**列举续页：** 游标在 assistant **`enumeration` blocks**（`page` / `pageSize`）；`list_corpus` 分页槽 facetKey 为 `enum:projects:p{N}`（按 `enumerationPage` 分桶，防 continue 命中上一页 cache）；Analyst 单槽流式用 `sliceHitsForAnalystStream` 信 `enumerationMeta.pageSize`，不用 profile `maxHits=8` 截断整页。
+
 ## 目录
 
 ```text

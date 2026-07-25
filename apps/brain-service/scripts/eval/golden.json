@@ -272,6 +272,53 @@
       }
     ]
   },
+  "listPaginationProbe": {
+    "id": "E2E-list-pagination",
+    "label": "列举 exhaustive→continue（blocks 游标 + 整页展示）",
+    "conversationIdPrefix": "eval-list-page",
+    "turns": [
+      {
+        "question": "列出全部项目名称",
+        "assert": {
+          "mustIncludeSteps": ["retrieval", "analyst"],
+          "mustNotIncludeSteps": ["plan_executor"],
+          "answerRe": "agents-monorepo|城管"
+        }
+      },
+      {
+        "question": "更多项目",
+        "assert": {
+          "mustIncludeSteps": ["retrieval", "analyst"],
+          "answerRe": "城市管理平台|96611|帮扶宝",
+          "minAnswerLength": 200
+        }
+      }
+    ]
+  },
+  "dualListPaginationProbe": {
+    "id": "E2E-dual-list-pagination",
+    "label": "双槽首问 + 更多项目续页",
+    "conversationIdPrefix": "eval-dual-list-page",
+    "turns": [
+      {
+        "question": "列出项目经历和从业经历",
+        "assert": {
+          "mustIncludeSteps": ["retrieval", "analyst"],
+          "mustNotIncludeSteps": ["plan_executor"],
+          "answerMustIncludeAll": ["云联智慧", "友谊时光"],
+          "answerRe": "agents-monorepo|aky"
+        }
+      },
+      {
+        "question": "更多项目",
+        "assert": {
+          "mustIncludeSteps": ["retrieval", "analyst"],
+          "answerRe": "城市管理平台|96611|帮扶宝",
+          "minAnswerLength": 120
+        }
+      }
+    ]
+  },
   "profileProbe": {
     "id": "G-履历综合",
     "label": "R6-3 综合履历四轮（fail-first）",

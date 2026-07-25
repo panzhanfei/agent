@@ -20,6 +20,7 @@ import type { CompositeRetrievalSlot } from "@/agentflow/agents/online/intake-co
 import {
     attachFacetKey,
     detectCompositeRefreshIntent,
+    facetAnswerMatchesSlot,
 } from "./facet-key";
 import type {
     CompositeSlotPlan,
@@ -106,7 +107,9 @@ export const resolveIncrementalCompositePlan = async (input: {
     for (const slot of input.slots) {
         const withKey = attachFacetKey(slot);
         const cached = snapshot?.facets[withKey.facetKey] ?? null;
-        const useCachedAnswer = isFacetAnswerReusable(cached);
+        const useCachedAnswer =
+            isFacetAnswerReusable(cached) &&
+            facetAnswerMatchesSlot(cached, withKey);
         if (useCachedAnswer) facetCacheHits++;
 
         const plan: CompositeSlotPlan = {

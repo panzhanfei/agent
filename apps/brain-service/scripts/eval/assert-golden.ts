@@ -48,6 +48,7 @@ export type PipelineEvalSnapshot = {
     latencyMs: number;
     cacheHit?: boolean;
     repeatHit?: boolean;
+    blocks?: import("@fambrain/brain-types").AssistantMessageBlock[];
 };
 
 const re = (pattern: string): RegExp => new RegExp(pattern, "i");

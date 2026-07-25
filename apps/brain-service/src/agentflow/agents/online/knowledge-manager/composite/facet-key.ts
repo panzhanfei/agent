@@ -10,7 +10,9 @@
  * identity / enumeration 子类信 identityField / listKind / topics，不用口语正则。
  */
 import { normalizeSearchQuery } from "@fambrain/infra";
+import type { CachedFacetAnswer } from "@fambrain/infra";
 import type { CompositeRetrievalSlot } from "@/agentflow/agents/online/intake-coordinator";
+import type { EnumerationControlAction } from "@/agentflow/agents/online/intake-coordinator/enumeration";
 import {
     canonicalizePlanItem,
     resolveEnumerationTarget,
@@ -35,6 +37,29 @@ type FacetSource =
 const labelNorm = (label: string): string =>
     normalizeSearchQuery(label).replace(/\s+/g, " ");
 
+const isPaginatedListCorpusAction = (
+    action: EnumerationControlAction | undefined
+): action is "continue" | "exhaustive" =>
+    action === "continue" || action === "exhaustive";
+
+/** list_corpus + exhaustive/continue → facet 缓存按页分桶 */
+export const isPaginatedListCorpusSlot = (
+    slot: Pick<CompositeRetrievalSlot, "executor" | "enumerationControl">
+): boolean =>
+    slot.executor === "list_corpus" &&
+    isPaginatedListCorpusAction(slot.enumerationControl?.action);
+
+/** 槽答案缓存命中时校验列举页码（防 continue 复用上一页终稿） */
+export const facetAnswerMatchesSlot = (
+    cached: CachedFacetAnswer,
+    slot: CompositeRetrievalSlot
+): boolean => {
+    if (!isPaginatedListCorpusSlot(slot)) return true;
+    const wantPage = slot.enumerationPage ?? 1;
+    if (cached.enumerationPage == null) return wantPage === 1;
+    return cached.enumerationPage === wantPage;
+};
+
 /** 用户明确要求重答 → resolveIncrementalCompositePlan 会清会话 cache */
 export const detectCompositeRefreshIntent = (userQuestion: string): boolean =>
     /全部重来|重新介绍|重新回答|重新说|再说一遍|从头再来|不对[，,]?重新|重新来/.test(
@@ -53,7 +78,8 @@ const IDENTITY_FACET_KEY: Record<IntakeIdentityField, string> = {
 
 /**
  * 从 plan/槽推导 facetKey。
- * - enumeration → enum:projects | enum:employers
+ * - enumeration + list_corpus 分页 → enum:projects:p{N} | enum:employers:p{N}
+ * - enumeration preview/km → enum:projects | enum:employers
  * - identity → id:name | id:age | …（信 identityField）
  * - tech / default → 带 label 前缀的弱键
  */
@@ -93,8 +119,22 @@ export const buildFacetKey = (source: FacetSource): string => {
             topics: canonical.topics,
             listKind: item.enumerationControl?.listKind ?? null,
         });
-        if (target === "project") return "enum:projects";
-        return "enum:employers";
+        const base = target === "project" ? "enum:projects" : "enum:employers";
+        const executor =
+            "executor" in source ? source.executor : undefined;
+        const action = item.enumerationControl?.action;
+        if (
+            executor === "list_corpus" &&
+            isPaginatedListCorpusAction(action)
+        ) {
+            const page =
+                "enumerationPage" in source &&
+                typeof source.enumerationPage === "number"
+                    ? Math.max(1, source.enumerationPage)
+                    : 1;
+            return `${base}:p${page}`;
+        }
+        return base;
     }
 
     if (canonical.queryType === "identity") {

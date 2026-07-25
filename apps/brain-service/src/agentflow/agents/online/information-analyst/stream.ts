@@ -4,9 +4,9 @@ import { estimateTokenUsage, recordPipelineTokenUsage, } from "@fambrain/brain-s
 import { streamOllamaNative } from "@fambrain/brain-shared/ollama-native-stream";
 import { parseJsonObject } from "@/agentflow/utils";
 import {
-    maxAnalystHitsForProfile,
     prefersPlainTextAnalystStream,
     resolveAnalystQueryProfile,
+    sliceHitsForAnalystStream,
 } from "./analyst-recall-limits";
 import {
     buildFallbackAnswer,
@@ -56,8 +56,10 @@ async function* streamSinglePlainAnalyze(
     input: InformationAnalystInput,
     profile: ReturnType<typeof resolveAnalystQueryProfile>
 ): AsyncGenerator<AnalystStreamChunk, InformationAnalystResult> {
-    const limit = maxAnalystHitsForProfile(profile);
-    const hits = input.hits.slice(0, limit);
+    const hits = sliceHitsForAnalystStream(profile, input.hits, {
+        enumerationMeta: input.enumerationMeta,
+        listIntent: input.listIntent,
+    });
     const subInput = toSubQuestionInput(input, profile, hits);
     const gen = streamAnalyzeSubQuestion(subInput);
     let result: InformationAnalystResult | undefined;

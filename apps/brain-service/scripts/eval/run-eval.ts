@@ -2,7 +2,7 @@
  * Eval MVP：golden.json → Pipeline / KM 断言 → JSON + Markdown 报告。
  *
  *   pnpm --filter @fambrain/brain-service run eval:run
- *   pnpm --filter @fambrain/brain-service run eval:run -- --case E2E-dual-list
+ *   pnpm --filter @fambrain/brain-service run eval:run -- --list-pagination-only
  *   pnpm --filter @fambrain/brain-service run eval:run -- --json-only
  *   pnpm --filter @fambrain/brain-service run eval:run -- --mem-only
  *   EVAL_WRITE_REPORT=1 pnpm --filter @fambrain/brain-service run eval:run
@@ -62,6 +62,11 @@ type ProfileTurn = {
     expectRepeatHit?: boolean;
 };
 
+type ListPaginationTurn = {
+    question: string;
+    assert: JsonAssert;
+};
+
 type MemTurn = {
     conversationSuffix: string;
     question: string;
@@ -90,6 +95,18 @@ type GoldenFile = {
         conversationIdPrefix: string;
         companies?: string[];
         turns: ProfileTurn[];
+    };
+    listPaginationProbe?: {
+        id: string;
+        label: string;
+        conversationIdPrefix: string;
+        turns: ListPaginationTurn[];
+    };
+    dualListPaginationProbe?: {
+        id: string;
+        label: string;
+        conversationIdPrefix: string;
+        turns: ListPaginationTurn[];
     };
 };
 
@@ -135,6 +152,8 @@ type EvalReport = {
     memProbe?: CaseResult[];
     cacheProbe?: CaseResult[];
     profileProbe?: CaseResult[];
+    listPaginationProbe?: CaseResult[];
+    dualListPaginationProbe?: CaseResult[];
 };
 
 const chromaUrl = (): string => {
@@ -189,11 +208,13 @@ const runPipelineCase = async (
     };
     let cacheHit = false;
     let repeatHit = false;
+    let blocks: PipelineEvalSnapshot["blocks"];
     const gen = runPipelineStream(history, context);
     while (true) {
         const next = await gen.next();
         if (next.done) {
             answer = next.value.answer;
+            blocks = next.value.blocks;
             if (next.value.retrievalCacheHit) cacheHit = true;
             if (next.value.repeatQuestionHit) repeatHit = true;
             break;
@@ -212,6 +233,7 @@ const runPipelineCase = async (
         latencyMs: Date.now() - started,
         cacheHit,
         repeatHit,
+        blocks,
     };
 };
 
@@ -413,7 +435,47 @@ const runProfileProbe = async (
         priorHistory = [
             ...priorHistory,
             { role: "user", content: turn.question },
-            { role: "assistant", content: snap.answer },
+            {
+                role: "assistant",
+                content: snap.answer,
+                ...(snap.blocks?.length ? { blocks: snap.blocks } : {}),
+            },
+        ];
+    }
+    return out;
+};
+
+const runListPaginationProbe = async (
+    probe: NonNullable<GoldenFile["listPaginationProbe"]>,
+    corpusUserId: string
+): Promise<CaseResult[]> => {
+    const conversationId = `${probe.conversationIdPrefix}-${Date.now()}`;
+    const out: CaseResult[] = [];
+    let priorHistory: DbChatTurn[] = [];
+    for (const [i, turn] of probe.turns.entries()) {
+        const snap = await runPipelineCase(
+            corpusUserId,
+            turn.question,
+            conversationId,
+            priorHistory
+        );
+        const issues = assertPipeline(snap, turn.assert);
+        out.push({
+            id: `${probe.id}-t${i + 1}`,
+            tier: "pipeline",
+            label: `${probe.label} · turn${i + 1}`,
+            pass: issues.length === 0,
+            reason: issues.length === 0 ? "ok" : issues.join("; "),
+            latencyMs: snap.latencyMs,
+        });
+        priorHistory = [
+            ...priorHistory,
+            { role: "user", content: turn.question },
+            {
+                role: "assistant",
+                content: snap.answer,
+                ...(snap.blocks?.length ? { blocks: snap.blocks } : {}),
+            },
         ];
     }
     return out;
@@ -529,11 +591,28 @@ const formatMarkdown = (report: EvalReport): string => {
             );
         }
     }
+    if (report.listPaginationProbe?.length) {
+        lines.push(``, `## 列举分页探测`, ``);
+        for (const r of report.listPaginationProbe) {
+            lines.push(
+                `- ${r.id}: ${r.pass ? "✅" : "❌"} ${r.reason} (${r.latencyMs}ms)`
+            );
+        }
+    }
+    if (report.dualListPaginationProbe?.length) {
+        lines.push(``, `## 双槽列举续页探测`, ``);
+        for (const r of report.dualListPaginationProbe) {
+            lines.push(
+                `- ${r.id}: ${r.pass ? "✅" : "❌"} ${r.reason} (${r.latencyMs}ms)`
+            );
+        }
+    }
     return lines.join("\n");
 };
 
 const jsonOnly = process.argv.includes("--json-only");
 const profileOnly = process.argv.includes("--profile-only");
+const listPaginationOnly = process.argv.includes("--list-pagination-only");
 const memOnly = process.argv.includes("--mem-only");
 const caseFilter = (() => {
     const idx = process.argv.indexOf("--case");
@@ -583,6 +662,35 @@ const main = async (): Promise<void> => {
         return;
     }
 
+    if (listPaginationOnly) {
+        if (!golden.listPaginationProbe) {
+            throw new Error("golden.json 缺少 listPaginationProbe");
+        }
+        console.log(
+            `eval:run — list pagination probe only (${golden.listPaginationProbe.id})`
+        );
+        console.log(`corpusUserId=${corpusUserId} chroma=${chromaUp ? "up" : "down"}\n`);
+        const probes = [
+            ...(golden.listPaginationProbe
+                ? [golden.listPaginationProbe]
+                : []),
+            ...(golden.dualListPaginationProbe
+                ? [golden.dualListPaginationProbe]
+                : []),
+        ];
+        let failed = 0;
+        for (const probe of probes) {
+            const results = await runListPaginationProbe(probe, corpusUserId);
+            for (const r of results) {
+                console.log(`  ${r.id}: ${r.pass ? "PASS" : "FAIL"} — ${r.reason} (${r.latencyMs}ms)`);
+                if (!r.pass) failed++;
+            }
+        }
+        if (failed > 0) process.exit(1);
+        console.log("\nList pagination probe 通过。");
+        return;
+    }
+
     const cases = caseFilter
         ? golden.cases.filter((c) => c.id === caseFilter)
         : golden.cases;
@@ -620,6 +728,22 @@ const main = async (): Promise<void> => {
             ? []
             : await runProfileProbe(golden.profileProbe, corpusUserId);
 
+    const listPaginationProbe =
+        caseFilter || !golden.listPaginationProbe
+            ? []
+            : await runListPaginationProbe(
+                  golden.listPaginationProbe,
+                  corpusUserId
+              );
+
+    const dualListPaginationProbe =
+        caseFilter || !golden.dualListPaginationProbe
+            ? []
+            : await runListPaginationProbe(
+                  golden.dualListPaginationProbe,
+                  corpusUserId
+              );
+
     const report: EvalReport = {
         generatedAt: new Date().toISOString(),
         corpusUserId,
@@ -629,6 +753,12 @@ const main = async (): Promise<void> => {
         memProbe: memProbe.length ? memProbe : undefined,
         cacheProbe: cacheProbe.length ? cacheProbe : undefined,
         profileProbe: profileProbe.length ? profileProbe : undefined,
+        listPaginationProbe: listPaginationProbe.length
+            ? listPaginationProbe
+            : undefined,
+        dualListPaginationProbe: dualListPaginationProbe.length
+            ? dualListPaginationProbe
+            : undefined,
     };
 
     if (process.env.EVAL_WRITE_REPORT === "1") {
@@ -652,8 +782,21 @@ const main = async (): Promise<void> => {
     const failed = results.filter((r) => !r.pass);
     const memFailed = (report.memProbe ?? []).filter((r) => !r.pass);
     const profileFailed = (report.profileProbe ?? []).filter((r) => !r.pass);
+    const listPaginationFailed = (report.listPaginationProbe ?? []).filter(
+        (r) => !r.pass
+    );
+    const dualListPaginationFailed = (
+        report.dualListPaginationProbe ?? []
+    ).filter((r) => !r.pass);
     const coalesceBad = report.metrics.coalesceFailures > 0;
-    if (failed.length > 0 || memFailed.length > 0 || profileFailed.length > 0 || coalesceBad) {
+    if (
+        failed.length > 0 ||
+        memFailed.length > 0 ||
+        profileFailed.length > 0 ||
+        listPaginationFailed.length > 0 ||
+        dualListPaginationFailed.length > 0 ||
+        coalesceBad
+    ) {
         process.exit(1);
     }
     console.log("\nEval MVP 通过。");
