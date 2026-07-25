@@ -2,6 +2,8 @@
 export type DbChatTurn = {
     role: "user" | "assistant" | "system";
     content: string;
+    /** assistant 结构化块（列举分页等）；续页 Intake 从上一轮 blocks 读 page/pageSize */
+    blocks?: import("./message-blocks").AssistantMessageBlock[];
 };
 
 export type {

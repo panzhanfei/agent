@@ -9,7 +9,10 @@
  * 对外入口：runPipelineStream()，由 HTTP routes / eval / golden 调用。
  */
 import { ensureBrainServiceRuntime } from "@/config";
-import { isPureSummarizeDecision } from "@/agentflow/agents/online/content-summarizer/summarize-route";
+import {
+  isPureSummarizeDecision,
+  isSummarizeComposeDecision,
+} from "@/agentflow/agents/online/content-summarizer/summarize-route";
 import { isPureListDecision } from "@/agentflow/agents/online/corpus-lister/pure-list-route";
 import { intakeRequiresKmRetrieval } from "@/agentflow/agents/online/intake-coordinator/pipeline/intake-km-routing";
 import { isUserFactIntent } from "@/agentflow/agents/online/user-fact";
@@ -437,7 +440,12 @@ async function* runPipelineStreamInner(
     }
     if (nodeName === "contentOrganizer") {
       yield* finishStep("content_organizer");
-      yield* startStep("content_summarizer");
+      const decision = finalState.decision;
+      if (decision && isSummarizeComposeDecision(decision)) {
+        yield* startStep("content_summarizer");
+      } else {
+        yield* startStep("analyst");
+      }
       continue;
     }
     if (nodeName === "analyst") {

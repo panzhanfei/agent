@@ -324,10 +324,7 @@ const runChain = async (input: {
     { ...decision, pathPlan, answerOrder, composeMode }
   );
 
-  pathPlan = await fillListPagesInPathPlan(pathPlan, {
-    conversationId: "sandbox",
-    corpusUserId: "sandbox",
-  });
+  pathPlan = fillListPagesInPathPlan(pathPlan, []);
   const compositeSlots = deriveCompositeSlotsFromPathPlan(pathPlan, answerOrder);
   const retrievalPlan = deriveRetrievalPlanFromPathPlan(pathPlan, answerOrder);
   const executionPlan = executionPlanFromPathPlanDag(

@@ -7,3 +7,8 @@ export {
   type EnumerationListKind,
   type SlotExecutor,
 } from "./action-prompts";
+export {
+  findLastEnumerationBlock,
+  resolveEnumerationPagination,
+  enumerationBlockListKind,
+} from "./resolve-enumeration-pagination";

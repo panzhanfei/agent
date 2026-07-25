@@ -8,8 +8,8 @@ import type { EnumerationControl } from "@/agentflow/agents/online/intake-coordi
 import {
   ENUMERATION_EXHAUSTIVE_PAGE_SIZE,
 } from "@/agentflow/agents/online/corpus-lister/list";
-import type { CompositeSessionKey } from "@fambrain/infra";
-import { getEnumerationListSession } from "@fambrain/infra";
+import type { DbChatTurn } from "@fambrain/brain-types";
+import { resolveEnumerationPagination } from "../enumeration";
 import {
   TOOL_RUN_IDS,
   type DataSource,
@@ -261,13 +261,12 @@ const stepById = (
   return m;
 };
 
-/** list 步补 session 页码（运行时状态，非 LLM） */
-export const fillListPagesInPathPlan = async (
+/** list 步补页码（从 history assistant blocks，非 Redis） */
+export const fillListPagesInPathPlan = (
   plan: PathPlan,
-  session: CompositeSessionKey
-): Promise<PathPlan> => {
-  const list = await Promise.all(
-    plan.list.map(async (step) => {
+  history: DbChatTurn[]
+): PathPlan => {
+  const list = plan.list.map((step) => {
       const control = step.enumerationControl;
       if (!control) {
         return {
@@ -277,26 +276,16 @@ export const fillListPagesInPathPlan = async (
             step.enumerationPageSize ?? ENUMERATION_EXHAUSTIVE_PAGE_SIZE,
         };
       }
-      if (control.action === "exhaustive") {
-        return {
-          ...step,
-          enumerationPage: 1,
-          enumerationPageSize:
-            step.enumerationPageSize ?? ENUMERATION_EXHAUSTIVE_PAGE_SIZE,
-        };
-      }
-      if (control.action === "continue") {
-        const stored = await getEnumerationListSession(
-          session,
-          control.listKind
+      if (control.action === "exhaustive" || control.action === "continue") {
+        const { page, pageSize } = resolveEnumerationPagination(
+          control,
+          history,
+          step.enumerationPageSize ?? ENUMERATION_EXHAUSTIVE_PAGE_SIZE
         );
         return {
           ...step,
-          enumerationPage: (stored?.lastPage ?? 1) + 1,
-          enumerationPageSize:
-            stored?.pageSize ??
-            step.enumerationPageSize ??
-            ENUMERATION_EXHAUSTIVE_PAGE_SIZE,
+          enumerationPage: page,
+          enumerationPageSize: pageSize,
         };
       }
       return {
@@ -305,8 +294,7 @@ export const fillListPagesInPathPlan = async (
         enumerationPageSize:
           step.enumerationPageSize ?? ENUMERATION_EXHAUSTIVE_PAGE_SIZE,
       };
-    })
-  );
+    });
   return { ...plan, list };
 };
 

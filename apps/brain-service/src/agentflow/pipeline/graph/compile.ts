@@ -20,6 +20,7 @@ import { PipelineGraphAnnotation } from "./state";
 import {
   routeAfterIntake,
   routeAfterPlanExecutor,
+  routeAfterContentOrganizer,
   routeAfterContentSummarizer,
   routeAfterPrepareMemory,
   routeAfterRepeat,
@@ -49,7 +50,7 @@ const buildPipelineGraph = () => {
     .addEdge("userFact", "persistTurnEnd")
     .addEdge("repeatRespondEarly", "persistTurnEnd")
     .addConditionalEdges("planExecutor", routeAfterPlanExecutor)
-    .addEdge("contentOrganizer", "contentSummarizer")
+    .addConditionalEdges("contentOrganizer", routeAfterContentOrganizer)
     .addConditionalEdges("contentSummarizer", routeAfterContentSummarizer)
     .addEdge("analyst", "persistTurnEnd")
     .addEdge("respondEarly", "persistTurnEnd")

@@ -1,5 +1,8 @@
 import { completeIntakeCoordinator } from "../llm/ollama-chat";
-import { matchUiEnumerationPrompt } from "../enumeration";
+import {
+  matchUiEnumerationPrompt,
+  resolveEnumerationPagination,
+} from "../enumeration";
 import {
   buildEnumerationListDecision,
   buildIncompleteUtteranceDecision,
@@ -15,8 +18,6 @@ import {
 } from "@/agentflow/agents/online/intake-coordinator/signals";
 import { logAgentOut } from "@fambrain/brain-shared/agent-log";
 import { buildEarlyExitRoutedDecision } from "../pipeline/intake-pipeline";
-import { ENUMERATION_EXHAUSTIVE_PAGE_SIZE } from "@/agentflow/agents/online/corpus-lister/list";
-import { getEnumerationListSession } from "@fambrain/infra";
 import { parseIntakeDecision } from "../pipeline/parse-intake";
 import { runIntakePipeline } from "../pipeline/intake-pipeline";
 import type { PipelineGraphState } from "@/agentflow/pipeline/graph/state";
@@ -86,29 +87,19 @@ export const runIntakeNode = async (
       };
     }
 
-    /** 列举 session 键：pipeline ⑦ fillListPagesInPathPlan 读 Redis 续页用 */
-    const session = {
-      conversationId: state.context.conversationId,
-      corpusUserId: state.context.corpusUserId,
-    };
-
     /**
      * 【短路 0b】Web UI 列举按钮（「更多项目」「列出全部」等）。
-     * 必须对 rawQuestion exact-match，不能走 normalize（按钮文案是常量）。
-     * 直接构造 pathPlan.list + answerOrder，routeAfterIntake → listRetriever / planExecutor。
+     * 续页从 history 末条 assistant enumeration block 读 page/pageSize。
      */
     const uiControl = matchUiEnumerationPrompt(rawQuestion);
     if (
       uiControl &&
       (uiControl.action === "continue" || uiControl.action === "exhaustive")
     ) {
-      const stored = await getEnumerationListSession(
-        session,
-        uiControl.listKind
+      const { page, pageSize } = resolveEnumerationPagination(
+        uiControl,
+        state.history
       );
-      const page =
-        uiControl.action === "continue" ? (stored?.lastPage ?? 1) + 1 : 1;
-      const pageSize = stored?.pageSize ?? ENUMERATION_EXHAUSTIVE_PAGE_SIZE;
       return {
         decision: buildEnumerationListDecision({
           userQuestion: rawQuestion,
@@ -201,7 +192,7 @@ export const runIntakeNode = async (
       intakeRaw,
       userQuestion: effectiveQuestion,
       intakeHistory: intakeHistoryForLlm,
-      session,
+      history: state.history,
     });
     return { decision };
   } catch (e) {

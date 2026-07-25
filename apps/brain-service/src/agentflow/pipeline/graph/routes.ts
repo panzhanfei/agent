@@ -1,5 +1,6 @@
-import type { PipelineGraphState } from "./state";
+import { isSummarizeComposeDecision } from "@/agentflow/agents/online/content-summarizer/summarize-route";
 import type { IntakeRouteMode } from "@/agentflow/agents/online/intake-coordinator/guards/interface";
+import type { PipelineGraphState } from "./state";
 
 export const routeAfterRepeat = (
   state: PipelineGraphState
@@ -28,12 +29,24 @@ export const routeAfterIntake = (
   return state.decision.routeMode;
 };
 
-/** planExecutor 之后统一进入 contentOrganizer → contentSummarizer */
+/** planExecutor 之后进入 contentOrganizer */
 export const routeAfterPlanExecutor = (
   state: PipelineGraphState
 ): "contentOrganizer" | "respondEarly" => {
   if (state.error) return "respondEarly";
   return "contentOrganizer";
+};
+
+/** contentOrganizer 之后：仅 summarize 意图进 contentSummarizer；qa / list / composite → analyst */
+export const routeAfterContentOrganizer = (
+  state: PipelineGraphState
+): "contentSummarizer" | "analyst" => {
+  if (state.error) return "analyst";
+  const decision = state.decision;
+  if (decision && isSummarizeComposeDecision(decision)) {
+    return "contentSummarizer";
+  }
+  return "analyst";
 };
 
 /** contentSummarizer 之后：终态摘要 → respondEarly；qa/composite → analyst */

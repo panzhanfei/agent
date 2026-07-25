@@ -18,6 +18,7 @@ export type AgentLogName =
   | "Learning"
   | "PlanExecutor"
   | "ToolOrchestrator"
+  | "ListRetriever"
   | "DagExecutor";
 
 export const AGENT_LOG_LABEL_IN = "进入";
@@ -42,6 +43,7 @@ const AGENT_EMOJI: Record<AgentLogName, string> = {
   PlanExecutor: "⚙️",
   ToolOrchestrator: "🛠️",
   DagExecutor: "🕸️",
+  ListRetriever: "🔍",
 };
 
 const MAX_JSON_CHARS = 6000;

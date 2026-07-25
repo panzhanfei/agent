@@ -1,4 +1,4 @@
-import type { DbChatTurn } from "@fambrain/brain-types";
+import type { AssistantMessageBlock, DbChatTurn } from "@fambrain/brain-types";
 import { ChatRole, type Prisma } from "../generated/prisma/client";
 import { prisma } from "../client";
 export type MessageRow = {
@@ -31,12 +31,24 @@ export const toModelHistory = (
   rows: {
     role: string;
     content: string;
+    metadata?: unknown;
   }[]
 ): DbChatTurn[] => {
-  return rows.map((r) => ({
-    role: r.role as DbChatTurn["role"],
-    content: r.content,
-  }));
+  return rows.map((r) => {
+    const meta =
+      r.metadata && typeof r.metadata === "object"
+        ? (r.metadata as { blocks?: AssistantMessageBlock[] })
+        : undefined;
+    const blocks =
+      meta?.blocks?.length && r.role === "assistant"
+        ? meta.blocks
+        : undefined;
+    return {
+      role: r.role as DbChatTurn["role"],
+      content: r.content,
+      ...(blocks ? { blocks } : {}),
+    };
+  });
 };
 export const appendUserMessage = async (
   conversationId: string,

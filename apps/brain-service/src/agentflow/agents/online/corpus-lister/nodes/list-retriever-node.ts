@@ -1,13 +1,14 @@
-/**
- * LangGraph listRetriever 节点：纯列举分页（UI 短路 / exhaustive / continue）。
- * 跳过 planExecutor、FC、tool 编排。
- */
 import { logAgentOut } from "@fambrain/brain-shared/agent-log";
-import { upsertEnumerationListSession } from "@fambrain/infra";
-import { mergeCompositeRetrieval } from "@/agentflow/agents/online/knowledge-manager";
 import type { PipelineGraphState } from "@/agentflow/pipeline/graph/state";
 import { fetchListSlot } from "../fetch-list-slot";
+import { flattenListRetrieval } from "../flatten-list-retrieval";
 
+/**
+ * LangGraph `listRetriever` 节点：纯列举分页（UI 短路 / exhaustive / continue）。
+ *
+ * 入口：Intake 将 routeMode 收成 `listRetriever`（pathPlan 仅 list 槽、无 km/tool/dag）。
+ * 跳过 planExecutor、FC、tool 编排；后段 contentOrganizer → analyst（不经 contentSummarizer）。
+ */
 export const runListRetrieverNode = async (
     state: PipelineGraphState
 ): Promise<Partial<PipelineGraphState>> => {
@@ -28,11 +29,6 @@ export const runListRetrieverNode = async (
         ),
     });
 
-    const sessionKey = {
-        conversationId: state.context.conversationId,
-        corpusUserId: state.context.corpusUserId,
-    };
-
     try {
         const subResults = await Promise.all(
             slots.map((slot) =>
@@ -44,33 +40,21 @@ export const runListRetrieverNode = async (
             )
         );
 
-        for (const sub of subResults) {
-            const meta = sub.enumerationMeta;
-            if (!meta) continue;
-            await upsertEnumerationListSession(sessionKey, meta.listKind, {
-                lastPage: meta.page,
-                pageSize: meta.pageSize,
-                total: meta.totalExpected,
-            }).catch(() => undefined);
-        }
-
-        const merged = mergeCompositeRetrieval(subResults);
-        const enumerationMeta =
-            subResults.find((s) => s.enumerationMeta)?.enumerationMeta ?? null;
+        const flattened = flattenListRetrieval(subResults);
 
         logAgentOut("ListRetriever", "完成", {
-            hitCount: merged.hits.length,
-            coverage: merged.coverage,
-            page: enumerationMeta?.page ?? null,
-            hasMore: enumerationMeta?.hasMore ?? null,
+            hitCount: flattened.hits.length,
+            coverage: flattened.coverage,
+            page: flattened.enumerationMeta?.page ?? null,
+            hasMore: flattened.enumerationMeta?.hasMore ?? null,
         });
 
         return {
-            hits: merged.hits,
-            coverage: merged.coverage,
-            notes: merged.notes,
-            confidenceTier: merged.confidenceTier,
-            enumerationMeta,
+            hits: flattened.hits,
+            coverage: flattened.coverage,
+            notes: flattened.notes,
+            confidenceTier: flattened.confidenceTier,
+            enumerationMeta: flattened.enumerationMeta,
             compositeSubResults: subResults,
             compositeIncrementalPlan: null,
             retrievalCacheHit: false,

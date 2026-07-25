@@ -32,7 +32,6 @@ import {
 import { isUserFactIntent } from "@/agentflow/agents/online/user-fact";
 import { logAgentOut } from "@fambrain/brain-shared/agent-log";
 import type { DbChatTurn } from "@fambrain/brain-types";
-import type { CompositeSessionKey } from "@fambrain/infra";
 import { resolveIntakeGraphRouteMode } from "./resolve-graph-route-mode";
 
 const summarizeDecision = (
@@ -120,8 +119,8 @@ export type RunIntakePipelineInput = {
   intakeRaw: string;
   userQuestion: string;
   intakeHistory: DbChatTurn[];
-  /** 列举续页读 session；缺省则无法解析 continue 页码 */
-  session?: CompositeSessionKey;
+  /** 完整对话 history（含 blocks）；列举续页从末条 assistant enumeration block 解析 */
+  history?: DbChatTurn[];
 };
 
 export type RunIntakePipelineResult = {
@@ -340,12 +339,9 @@ export const runIntakePipeline = async (
     dag: pathPlan.dag.map((d) => d.template),
   });
 
-  /** ⑦ list 步补 session 页码 */
-  const sessionKey: CompositeSessionKey = input.session ?? {
-    conversationId: "_",
-    corpusUserId: "_",
-  };
-  pathPlan = await fillListPagesInPathPlan(pathPlan, sessionKey);
+  /** ⑦ list 步补页码（从 history blocks） */
+  const paginationHistory = input.history ?? input.intakeHistory;
+  pathPlan = fillListPagesInPathPlan(pathPlan, paginationHistory);
 
   /** ⑧ 按 answerOrder 派生 compositeSlots / retrievalPlan；hybrid DAG 展开 */
   const compositeSlots = deriveCompositeSlotsFromPathPlan(

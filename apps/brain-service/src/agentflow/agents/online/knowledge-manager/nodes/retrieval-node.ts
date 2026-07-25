@@ -12,7 +12,6 @@ import {
 } from "../composite";
 import { fetchListSlot } from "@/agentflow/agents/online/corpus-lister/fetch-list-slot";
 import type { PipelineGraphState } from "@/agentflow/pipeline/graph/state";
-import { upsertEnumerationListSession } from "@fambrain/infra";
 
 export const runRetrievalNode = async (
   state: PipelineGraphState
@@ -67,20 +66,6 @@ export const runRetrievalNode = async (
       )
     );
 
-    for (const sub of listSubResults) {
-      const meta = sub.enumerationMeta;
-      if (!meta) continue;
-      await upsertEnumerationListSession(
-        sessionKey,
-        meta.listKind,
-        {
-          lastPage: meta.page,
-          pageSize: meta.pageSize,
-          total: meta.totalExpected,
-        }
-      ).catch(() => undefined);
-    }
-
     const byId = new Map<string, CompositeSubRetrieval>();
     for (const s of [...kmSubResults, ...listSubResults]) {
       byId.set(String(s.slot), s);
@@ -103,24 +88,6 @@ export const runRetrievalNode = async (
     const merged = mergeCompositeRetrieval(subResults);
     const enumerationMeta =
       subResults.find((s) => s.enumerationMeta)?.enumerationMeta ?? null;
-
-    if (
-      enumerationMeta &&
-      listSlots.length === 0 &&
-      decision.queryType === "enumeration" &&
-      decision.listIntent !== "continue" &&
-      decision.listIntent !== "exhaustive"
-    ) {
-      await upsertEnumerationListSession(
-        sessionKey,
-        enumerationMeta.listKind,
-        {
-          lastPage: 1,
-          pageSize: subResults[0]?.hits.length ?? merged.hits.length,
-          total: enumerationMeta.totalExpected,
-        }
-      ).catch(() => undefined);
-    }
 
     return {
       hits: merged.hits,

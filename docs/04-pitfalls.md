@@ -570,7 +570,7 @@ pnpm --filter @fambrain/brain-service run verify:enumeration-compose  # P0-22 �
 |------|------|-----------|
 | composite 内「项目段」 | hybrid KM + fill | **预览 8**，序号 1–8 |
 | 单问「列出全部 / 都列出来」 | `corpus-lister/list-corpus-entries` 分页 API | **每页 20**（如 36 项 → 2 页） |
-| 续问「更多项目」 | 读 `enumeration-list-session` → 下一页 | 序号连续（如 21–36） |
+| 续问「更多项目」 | 读 history 末条 assistant `enumeration` block → 下一页 | 序号连续（如 9–16、21–36） |
 
 **对策（已实现）：**
 
@@ -584,7 +584,8 @@ pnpm --filter @fambrain/brain-service run verify:enumeration-compose  # P0-22 �
 | `corpus-lister/list/*` + `/enumeration/list` | **分页 API**（path 排序 slice，不经 hybrid） |
 | `enumeration-list-intent.ts` → **`applyEnumerationSlotGuard`** | ~~口语 regex 猜续问~~ → **per-slot** `enumerationControl` + `executor=list_corpus`（见 **§2.5.10**） |
 | `enumeration-action-prompts.ts` | UI 按钮 **精确 prompt** → Intake 短路，不依赖 regex |
-| `enumeration-list-session.ts` | 会话记住 listKind / lastPage |
+| `resolve-enumeration-pagination.ts` | 续页从 conversation **blocks** 读 page/pageSize（无 Redis session） |
+| `flatten-list-retrieval.ts` | 纯 list 摊平；混槽 merge 仍在 KM `retrieval-node` |
 | `composite-answer-cache` | 槽答案缓存 **存 blocks**，命中恢复表格 UI |
 | `packages/brain-types` | `AssistantMessageBlock` + `paginationHint` / `startIndex` |
 | `assistant-message-content.tsx` | 表格 **# + 项目名称**；底部分页说明 |

@@ -17,11 +17,7 @@ import {
 import { composeEnumerationAnswer } from "../src/agentflow/agents/online/information-analyst/compose-message";
 import { listCorpusEntriesPage } from "../src/agentflow/agents/online/corpus-lister";
 import { retrieveEnumerationPage } from "../src/agentflow/agents/online/corpus-lister";
-import {
-    clearMemoryEnumerationListSessions,
-    getEnumerationListSession,
-    upsertEnumerationListSession,
-} from "@fambrain/infra";
+import { resolveEnumerationPagination } from "../src/agentflow/agents/online/intake-coordinator/enumeration";
 import { ENUMERATION_EXHAUSTIVE_PAGE_SIZE } from "../src/agentflow/agents/online/corpus-lister";
 
 console.log("verify-enumeration-pagination");
@@ -46,8 +42,7 @@ assert.equal(exhaustiveDecision.routeMode, "listRetriever");
 assert.equal(exhaustiveDecision.compositeSlots[0]?.executor, "list_corpus");
 assert.equal(exhaustiveDecision.enumerationPageSize, 20);
 
-const session = { conversationId: "c-enum", corpusUserId: "u-enum" };
-const guarded = await applyEnumerationSlotGuard(
+const guarded = applyEnumerationSlotGuard(
     {
         ...exhaustiveDecision,
         listIntent: null,
@@ -70,7 +65,7 @@ const guarded = await applyEnumerationSlotGuard(
         queryType: "enumeration",
     },
     "任意问法",
-    session
+    []
 );
 assert.equal(guarded.listIntent, "exhaustive");
 assert.equal(guarded.routeMode, "listRetriever");
@@ -132,7 +127,6 @@ const { decision: mixed } = await runIntakePipeline({
     userQuestion:
         "城管平台用了那些技术？他除了城管还做了其他那些项目全部列出。",
     intakeHistory: [],
-    session,
 });
 assert.equal(mixed.routeMode, "planExecutor");
 assert.ok(mixed.compositeSlots.length >= 2, "mixed ≥2 slots");
@@ -178,24 +172,36 @@ assert.ok(cached.blocks?.length, "槽答案缓存 stores blocks");
 const restored = cachedFacetToAnalystResult(cached);
 assert.equal(restored.blocks?.length, composed.blocks?.length);
 
-clearMemoryEnumerationListSessions();
-await upsertEnumerationListSession(
-    { conversationId: "c1", corpusUserId: "u1" },
-    "project",
-    { lastPage: 1, pageSize: 8, total: 36 }
-);
+const continueHistory = [
+    { role: "user" as const, content: "查看所有项目" },
+    {
+        role: "assistant" as const,
+        content: "preview",
+        blocks: [
+            {
+                type: "enumeration" as const,
+                listKind: "project" as const,
+                items: [],
+                total: 36,
+                shown: 8,
+                page: 1,
+                pageSize: 8,
+                hasMore: true,
+                startIndex: 1,
+            },
+        ],
+    },
+    { role: "user" as const, content: "更多项目" },
+];
 const continueUi = matchUiEnumerationPrompt("更多项目");
 assert.ok(continueUi && continueUi.action === "continue");
-const stored = await getEnumerationListSession(
-    { conversationId: "c1", corpusUserId: "u1" },
-    continueUi!.listKind
-);
+const continuePage = resolveEnumerationPagination(continueUi, continueHistory);
 const continued = buildEnumerationListDecision({
     userQuestion: "更多项目",
     listKind: continueUi!.listKind,
     listIntent: "continue",
-    page: (stored?.lastPage ?? 1) + 1,
-    pageSize: stored?.pageSize ?? ENUMERATION_EXHAUSTIVE_PAGE_SIZE,
+    page: continuePage.page,
+    pageSize: continuePage.pageSize,
 });
 assert.equal(continued.listIntent, "continue");
 assert.equal(continued.enumerationPage, 2);

@@ -22,7 +22,7 @@
 
 **链路：** 用户提问 → **轮次开始** → 意图识别 → **PathPlan 执行**（km / list / tool / dag + per-step FC）→ **内容整理** → **Compose**（qa / composite / summarize）→ 回答 → **轮次结束**。跨轮 **两层 cache**（同问短路 + 检索结果 cache）见 [坑点 §2.2](./04-pitfalls.md)。
 
-**PathPlan 四桶（2026-07 · 端到端）：** Intake LLM 直接产出 `pathPlan` + `answerOrder` + `composeMode`；pipeline **合法化并派生** `compositeSlots`（不再 `retrievalPlan→compilePathPlan` 猜桶）。LangGraph：**纯 list** → `listRetriever`；**纯总结（无查库）** → `contentSummarizer`；**复合 / km / 需查库的总结** → `planExecutor` → `contentOrganizer` → `contentSummarizer` → `analyst`。
+**PathPlan 四桶（2026-07 · 端到端）：** Intake LLM 直接产出 `pathPlan` + `answerOrder` + `composeMode`；pipeline **合法化并派生** `compositeSlots`（不再 `retrievalPlan→compilePathPlan` 猜桶）。LangGraph：**纯 list** → `listRetriever` → `contentOrganizer` → `analyst`；**纯总结（无查库）** → `contentSummarizer`；**复合 / km / 需查库的总结** → `planExecutor` → `contentOrganizer` →（`composeMode=summarize` 才进 `contentSummarizer`，否则）→ `analyst`。
 
 **架构双线（2026-06，目录 2026-07 对齐）：**
 

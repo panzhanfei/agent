@@ -1,6 +1,8 @@
 /** CorpusLister：语料目录列举分页（projects / experience），不经 KM hybrid。 */
 
 export { fetchListSlot } from "./fetch-list-slot";
+export { flattenListRetrieval } from "./flatten-list-retrieval";
+export type { FlattenedListRetrieval, ListSlotRetrieval } from "./interface";
 export { isPureListDecision } from "./pure-list-route";
 export {
     listCorpusEntriesPage,

@@ -16,6 +16,8 @@ export {
   ENUMERATION_ACTION_PROMPTS,
   enumerationActionPrompt,
   matchUiEnumerationPrompt,
+  findLastEnumerationBlock,
+  resolveEnumerationPagination,
   type EnumerationControl,
   type EnumerationListKind,
   type SlotExecutor,

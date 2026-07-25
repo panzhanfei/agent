@@ -9,7 +9,7 @@ import type { PipelineGraphState } from "@/agentflow/pipeline/graph/state";
  * LangGraph contentSummarizer 节点。
  *
  * - 纯总结（intake 短路）：生成终稿，exitEarly
- * - planExecutor / listRetriever 链内：composeMode=summarize 时生成终稿；qa/composite 透传
+ * - planExecutor 链内：composeMode=summarize 时生成终稿；qa/composite/list 在 contentOrganizer 后直接进 analyst，不经本节点
  */
 export const runContentSummarizerNode = async (
     state: PipelineGraphState

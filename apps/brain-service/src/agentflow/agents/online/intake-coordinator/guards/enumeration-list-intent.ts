@@ -1,10 +1,8 @@
 /**
- * 列举分页：按槽设置 executor=list_corpus，从会话补页码。
+ * 列举分页：按槽设置 executor=list_corpus，从 history assistant blocks 补页码。
  * 不再用口语 regex 猜意图；意图来自 Intake LLM 的 enumerationControl，
  * 或 UI 按钮 prompt 的精确匹配（ENUMERATION_ACTION_PROMPTS）。
  */
-import type { CompositeSessionKey } from "@fambrain/infra";
-import { getEnumerationListSession } from "@fambrain/infra";
 import {
     EMPLOYERS_SLOT,
     PROJECTS_SLOT,
@@ -13,8 +11,10 @@ import {
 import {
     ENUMERATION_EXHAUSTIVE_PAGE_SIZE,
 } from "@/agentflow/agents/online/corpus-lister/list";
+import type { DbChatTurn } from "@fambrain/brain-types";
 import {
     matchUiEnumerationPrompt,
+    resolveEnumerationPagination,
     type EnumerationControl,
     type EnumerationListKind,
 } from "../enumeration";
@@ -130,28 +130,17 @@ export const buildEnumerationListDecision = (input: {
     return routed;
 };
 
-const resolvePageForControl = async (
+const resolvePageForControl = (
     control: EnumerationControl,
-    session: CompositeSessionKey,
+    history: DbChatTurn[],
     pageSize: number
-): Promise<{ page: number; pageSize: number }> => {
-    if (control.action === "exhaustive") {
-        return { page: 1, pageSize };
-    }
-    if (control.action === "continue") {
-        const stored = await getEnumerationListSession(session, control.listKind);
-        return {
-            page: (stored?.lastPage ?? 1) + 1,
-            pageSize: stored?.pageSize ?? pageSize,
-        };
-    }
-    return { page: 1, pageSize };
-};
+): { page: number; pageSize: number } =>
+    resolveEnumerationPagination(control, history, pageSize);
 
-const enrichSlotExecutor = async (
+const enrichSlotExecutor = (
     slot: CompositeRetrievalSlot,
-    session: CompositeSessionKey
-): Promise<CompositeRetrievalSlot> => {
+    history: DbChatTurn[]
+): CompositeRetrievalSlot => {
     if (slot.queryType !== "enumeration") {
         return {
             ...slot,
@@ -170,9 +159,9 @@ const enrichSlotExecutor = async (
     }
     const pageSize =
         slot.enumerationPageSize ?? ENUMERATION_EXHAUSTIVE_PAGE_SIZE;
-    const { page, pageSize: resolvedSize } = await resolvePageForControl(
+    const { page, pageSize: resolvedSize } = resolvePageForControl(
         control,
-        session,
+        history,
         pageSize
     );
     return {
@@ -188,19 +177,14 @@ const enrichSlotExecutor = async (
 /**
  * Intake guard ⑦：列举分页 / per-slot executor。
  *
- * 本步新增/改写：
- *   Δ compositeSlots[].executor = list_corpus | km_retrieve
- *   + listIntent / enumerationPage / enumerationPageSize / enumerationListKind
- *   UI 按钮 exact-match 可补单槽 list（ENUMERATION_ACTION_PROMPTS）
- *
  * preview 列举仍 km_retrieve；continue/exhaustive → list_corpus（目录扫盘）。
- * 出口 routeMode 由 resolveIntakeGraphRouteMode 收成图边。
+ * 续页页码从 history 末条 assistant enumeration block 读取。
  */
-export const applyEnumerationSlotGuard = async (
+export const applyEnumerationSlotGuard = (
     decision: RoutedIntakeDecision,
     userQuestion: string,
-    session: CompositeSessionKey
-): Promise<RoutedIntakeDecision> => {
+    history: DbChatTurn[]
+): RoutedIntakeDecision => {
     if (decision.intent !== "retrieve_and_answer") return decision;
     if (decision.routeMode === "respondEarly") {
         return decision;
@@ -219,9 +203,9 @@ export const applyEnumerationSlotGuard = async (
     if (uiControl && !hasListControl) {
         const listIntent: EnumerationListIntent =
             uiControl.action === "continue" ? "continue" : "exhaustive";
-        const { page, pageSize } = await resolvePageForControl(
+        const { page, pageSize } = resolvePageForControl(
             uiControl,
-            session,
+            history,
             ENUMERATION_EXHAUSTIVE_PAGE_SIZE
         );
         return buildEnumerationListDecision({
@@ -234,7 +218,6 @@ export const applyEnumerationSlotGuard = async (
         });
     }
 
-    // 从 plan 同步 enumerationControl → 仅 enumeration 槽，按 label 对齐（非 index）
     if (retrievalPlan.length > 0 && slots.length > 0) {
         slots = slots.map((slot) => {
             if (slot.queryType !== "enumeration" || slot.enumerationControl) {
@@ -247,7 +230,6 @@ export const applyEnumerationSlotGuard = async (
         });
     }
 
-    // 单槽 enumeration：顶层未带 control 时，若 plan[0] 有则同步
     if (
         slots.length === 1 &&
         slots[0]!.queryType === "enumeration" &&
@@ -260,9 +242,7 @@ export const applyEnumerationSlotGuard = async (
         };
     }
 
-    const enriched = await Promise.all(
-        slots.map((s) => enrichSlotExecutor(s, session))
-    );
+    const enriched = slots.map((s) => enrichSlotExecutor(s, history));
 
     const firstList = enriched.find((s) => s.executor === "list_corpus");
     const listIntent: EnumerationListIntent | null | undefined = firstList
