@@ -373,6 +373,9 @@ async function* runPipelineStreamInner(
         if (fan.hasList) yield* startStep("list_retrieve");
         if (fan.hasDag) yield* startStep("plan_dag");
         if (fan.hasSideRemember) yield* startStep("user_fact");
+        if (fan.hasKm || fan.hasList || fan.hasSideRemember) {
+          yield* startStep("plan_slot_join");
+        }
       }
       continue;
     }
@@ -401,34 +404,26 @@ async function* runPipelineStreamInner(
       continue;
     }
     if (nodeName === "userFactSide") {
+      // 多槽并行时不提前 finish km/list；join 统一收口
       yield* finishStep("user_fact");
-      // 汇入 planSlotPost；若无 km/list 也会单独触发 post
-      if (
-        !runningSteps.has("km_retrieve") &&
-        !runningSteps.has("list_retrieve")
-      ) {
-        yield* startStep("plan_slot_post");
-      }
       continue;
     }
     if (nodeName === "kmRetrieve") {
-      yield* finishStep("km_retrieve");
-      if (
-        !runningSteps.has("list_retrieve") &&
-        !runningSteps.has("user_fact")
-      ) {
-        yield* startStep("plan_slot_post");
-      }
+      // 每槽一个 kmRetrieve：等 planSlotJoin 再 finish km_retrieve
       continue;
     }
     if (nodeName === "listRetrieve") {
-      yield* finishStep("list_retrieve");
-      if (
-        !runningSteps.has("km_retrieve") &&
-        !runningSteps.has("user_fact")
-      ) {
-        yield* startStep("plan_slot_post");
+      continue;
+    }
+    if (nodeName === "planSlotJoin") {
+      if (runningSteps.has("km_retrieve")) {
+        yield* finishStep("km_retrieve");
       }
+      if (runningSteps.has("list_retrieve")) {
+        yield* finishStep("list_retrieve");
+      }
+      yield* finishStep("plan_slot_join");
+      yield* startStep("plan_slot_post");
       continue;
     }
     if (nodeName === "planSlotPost") {
@@ -440,16 +435,25 @@ async function* runPipelineStreamInner(
     }
     if (nodeName === "planDag") {
       yield* finishStep("plan_dag");
-      if (!runningSteps.has("plan_slot_post")) {
+      if (!runningSteps.has("plan_slot_post") && !runningSteps.has("plan_slot_join")) {
         yield* startStep("plan_merge");
       }
       continue;
     }
     if (nodeName === "planMerge") {
       yield* finishStep("plan_merge");
-      // 兜底：若 post 仍标 running（竞态），收掉
+      // 兜底：收掉仍标 running 的 join/post（竞态）
+      if (runningSteps.has("plan_slot_join")) {
+        yield* finishStep("plan_slot_join");
+      }
       if (runningSteps.has("plan_slot_post")) {
         yield* finishStep("plan_slot_post");
+      }
+      if (runningSteps.has("km_retrieve")) {
+        yield* finishStep("km_retrieve");
+      }
+      if (runningSteps.has("list_retrieve")) {
+        yield* finishStep("list_retrieve");
       }
       yield {
         type: "retrieval_meta",

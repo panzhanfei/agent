@@ -17,6 +17,7 @@ export type AgentLogName =
   | "UserFact"
   | "Learning"
   | "PlanSlotPost"
+  | "PlanSlotJoin"
   | "PlanDag"
   | "PlanMerge"
   | "UserFactSide"
@@ -44,6 +45,7 @@ const AGENT_EMOJI: Record<AgentLogName, string> = {
   UserFact: "🪪",
   Learning: "📖",
   PlanSlotPost: "⚙️",
+  PlanSlotJoin: "🔗",
   PlanDag: "🕸️",
   PlanMerge: "🧩",
   UserFactSide: "🪪",

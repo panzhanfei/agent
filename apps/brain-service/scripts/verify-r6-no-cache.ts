@@ -134,7 +134,7 @@ const runR61 = async (corpusUserId: string): Promise<ScenarioResult[]> => {
     let history: DbChatTurn[] = [];
     const t1 = await runTurn({ corpusUserId, conversationId: conv, question: q });
     const r1 = check("R6-1-t1", "同问枚举 · 首轮", t1, [], {
-        mustIncludeAnySteps: [["km_retrieve", "list_retrieve", "plan_merge", "retrieval", "plan_executor"]], mustIncludeSteps: ["analyst"],
+        mustIncludeAnySteps: [["km_retrieve", "list_retrieve", "plan_slot_join", "plan_merge", "retrieval", "plan_executor"]], mustIncludeSteps: ["analyst"],
         answerMustIncludeAll: [...COMPANIES],
     });
     history = [
@@ -154,7 +154,7 @@ const runR61 = async (corpusUserId: string): Promise<ScenarioResult[]> => {
         extra.push(`同句再问公司数减少 ${c1.length}→${c2.length}（${c1.join("、")} vs ${c2.join("、")}）`);
     }
     const r2 = check("R6-1-t2", "同问枚举 · 同句再问", t2, extra, {
-        mustIncludeAnySteps: [["km_retrieve", "list_retrieve", "plan_merge", "retrieval", "plan_executor"]], mustIncludeSteps: ["analyst"],
+        mustIncludeAnySteps: [["km_retrieve", "list_retrieve", "plan_slot_join", "plan_merge", "retrieval", "plan_executor"]], mustIncludeSteps: ["analyst"],
         answerMustIncludeAll: [...COMPANIES],
     });
     return [r1, r2];
@@ -177,7 +177,7 @@ const runP015 = async (corpusUserId: string): Promise<ScenarioResult[]> => {
         }
         runs.push(
             check(`P0-15-run${i + 1}`, `综合履历 · 第 ${i + 1} 遍`, snap, extra, {
-                mustIncludeAnySteps: [["km_retrieve", "list_retrieve", "plan_merge", "retrieval", "plan_executor"]],
+                mustIncludeAnySteps: [["km_retrieve", "list_retrieve", "plan_slot_join", "plan_merge", "retrieval", "plan_executor"]],
                 mustIncludeSteps: ["analyst"],
             })
         );
@@ -207,7 +207,7 @@ const runR63 = async (corpusUserId: string): Promise<ScenarioResult[]> => {
                 label: "综合履历首轮",
                 q: "我叫什么，我做过什么项目，我在那几家公司上过班，近两年在干什么？",
                 assert: {
-                    mustIncludeAnySteps: [["km_retrieve", "list_retrieve", "plan_merge", "retrieval", "plan_executor"]], mustIncludeSteps: ["analyst"],
+                    mustIncludeAnySteps: [["km_retrieve", "list_retrieve", "plan_slot_join", "plan_merge", "retrieval", "plan_executor"]], mustIncludeSteps: ["analyst"],
                     // 档 B：姓名槽偶发被 Analyst 散文冲掉；四家公司齐即过（姓名由 P0-15 majority 盯）
                     answerMustIncludeAll: [...COMPANIES],
                 },
@@ -217,7 +217,7 @@ const runR63 = async (corpusUserId: string): Promise<ScenarioResult[]> => {
                 label: "综合履历同句再问（无同问短路）",
                 q: "我叫什么，我做过什么项目，我在那几家公司上过班，近两年在干什么？",
                 assert: {
-                    mustIncludeAnySteps: [["km_retrieve", "list_retrieve", "plan_merge", "retrieval", "plan_executor"]], mustIncludeSteps: ["analyst"],
+                    mustIncludeAnySteps: [["km_retrieve", "list_retrieve", "plan_slot_join", "plan_merge", "retrieval", "plan_executor"]], mustIncludeSteps: ["analyst"],
                     answerMustIncludeAll: [...COMPANIES],
                 },
             },
@@ -226,7 +226,7 @@ const runR63 = async (corpusUserId: string): Promise<ScenarioResult[]> => {
                 label: "单问公司枚举",
                 q: "我在哪几家公司上过班？",
                 assert: {
-                    mustIncludeAnySteps: [["km_retrieve", "list_retrieve", "plan_merge", "retrieval", "plan_executor"]], mustIncludeSteps: ["analyst"],
+                    mustIncludeAnySteps: [["km_retrieve", "list_retrieve", "plan_slot_join", "plan_merge", "retrieval", "plan_executor"]], mustIncludeSteps: ["analyst"],
                     answerMustIncludeAll: [...COMPANIES],
                 },
             },
@@ -235,7 +235,7 @@ const runR63 = async (corpusUserId: string): Promise<ScenarioResult[]> => {
                 label: "编号子问「1. 公司在哪」",
                 q: "1. 我在哪几家公司上过班？",
                 assert: {
-                    mustIncludeAnySteps: [["km_retrieve", "list_retrieve", "plan_merge", "retrieval", "plan_executor"]], mustIncludeSteps: ["analyst"],
+                    mustIncludeAnySteps: [["km_retrieve", "list_retrieve", "plan_slot_join", "plan_merge", "retrieval", "plan_executor"]], mustIncludeSteps: ["analyst"],
                     answerMustIncludeAll: [...COMPANIES],
                 },
             },
@@ -264,7 +264,7 @@ const runR62 = async (corpusUserId: string): Promise<ScenarioResult[]> => {
     const q1 = "我在那几家公司上过班？";
     const t1 = await runTurn({ corpusUserId, conversationId: conv, question: q1 });
     const r1 = check("R6-2-t1", "工作经历首轮", t1, [], {
-        mustIncludeAnySteps: [["km_retrieve", "list_retrieve", "plan_merge", "retrieval", "plan_executor"]], mustIncludeSteps: ["analyst"],
+        mustIncludeAnySteps: [["km_retrieve", "list_retrieve", "plan_slot_join", "plan_merge", "retrieval", "plan_executor"]], mustIncludeSteps: ["analyst"],
         answerRe: "奥卡云",
     });
     const history: DbChatTurn[] = [
@@ -287,7 +287,7 @@ const runR62 = async (corpusUserId: string): Promise<ScenarioResult[]> => {
         extra.push("追问表格出现全盘否定表述");
     }
     const r2 = check("R6-2-t2", "表格追问", t2, extra, {
-        mustIncludeAnySteps: [["km_retrieve", "list_retrieve", "plan_merge", "retrieval", "plan_executor"]], mustIncludeSteps: ["analyst"],
+        mustIncludeAnySteps: [["km_retrieve", "list_retrieve", "plan_slot_join", "plan_merge", "retrieval", "plan_executor"]], mustIncludeSteps: ["analyst"],
     });
     return [r1, r2];
 };

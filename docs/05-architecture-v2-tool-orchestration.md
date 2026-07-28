@@ -289,11 +289,10 @@ type ComposeMode = "qa" | "summarize" | "composite";
 flowchart LR
   IC[Intake pathPlan.steps<br/>list + km/external_link] --> Val[legalize + derive slots]
   Val --> L[routeMode=planFanOut]
-  L --> PE[kmRetrieve→planSlotPost ∥ planDag ∥ userFactSide]
+  L --> PE[每槽 Send+FC → join → post ∥ dag]
   PE --> M[planMerge]
   M --> T[extract_external_links_from_hits]
-  M --> FC[per-step FC in planSlotPost]
-  FC --> CO[ContentOrganizer]
+  M --> CO[ContentOrganizer]
   CO --> IA[Analyst composeMode=composite]
 ```
 
@@ -308,14 +307,15 @@ flowchart LR
 ```mermaid
 flowchart TD
   IC[IntakeCoordinator] --> R{routeAfterIntake}
-  R -->|planFanOut| S[Send 并行]
-  S --> PS[kmRetrieve]
+  R -->|planFanOut| S[Send 每槽并行]
+  S --> PS[kmRetrieve / listRetrieve]
   S --> PD[planDag]
   S --> UF[userFactSide]
-  PS --> POST[planSlotPost]
+  PS --> JOIN[planSlotJoin]
+  UF --> JOIN
+  JOIN --> POST[planSlotPost tools]
   POST --> M[planMerge]
   PD --> M
-  UF --> M
   R -->|早退| EARLY[respondEarly / userFact / summarizer / listRetriever]
   M --> CO[ContentOrganizer]
   CO --> IA[InformationAnalyst<br/>composeMode]

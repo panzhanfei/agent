@@ -9,6 +9,7 @@ import { runListRetrieverNode } from "@/agentflow/agents/online/corpus-lister/no
 import {
   runKmRetrieveNode,
   runListRetrieveNode,
+  runPlanSlotJoinNode,
   runPlanSlotPostNode,
   runPlanDagNode,
   runPlanMergeNode,
@@ -33,6 +34,11 @@ import {
   routeAfterRepeat,
 } from "./routes";
 
+/**
+ * intake → Send(每槽 km|list ∥ dag ∥ userFactSide)
+ *   kmRetrieve / listRetrieve / userFactSide → planSlotJoin → planSlotPost → planMerge
+ *   planDag ───────────────────────────────────────────────→ planMerge
+ */
 const buildPipelineGraph = () => {
   return new StateGraph(PipelineGraphAnnotation)
     .addNode("prepareTurnStart", runPrepareTurnStart)
@@ -43,6 +49,7 @@ const buildPipelineGraph = () => {
     .addNode("listRetriever", runListRetrieverNode)
     .addNode("kmRetrieve", runKmRetrieveNode)
     .addNode("listRetrieve", runListRetrieveNode)
+    .addNode("planSlotJoin", runPlanSlotJoinNode)
     .addNode("planSlotPost", runPlanSlotPostNode)
     .addNode("planDag", runPlanDagNode)
     .addNode("userFactSide", runUserFactSideNode)
@@ -61,9 +68,10 @@ const buildPipelineGraph = () => {
     .addEdge("listRetriever", "contentOrganizer")
     .addEdge("userFact", "persistTurnEnd")
     .addEdge("repeatRespondEarly", "persistTurnEnd")
-    .addEdge("kmRetrieve", "planSlotPost")
-    .addEdge("listRetrieve", "planSlotPost")
-    .addEdge("userFactSide", "planSlotPost")
+    .addEdge("kmRetrieve", "planSlotJoin")
+    .addEdge("listRetrieve", "planSlotJoin")
+    .addEdge("userFactSide", "planSlotJoin")
+    .addEdge("planSlotJoin", "planSlotPost")
     .addEdge("planSlotPost", "planMerge")
     .addEdge("planDag", "planMerge")
     .addConditionalEdges("planMerge", routeAfterPlanMerge)

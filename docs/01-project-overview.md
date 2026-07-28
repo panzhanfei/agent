@@ -208,7 +208,7 @@ pnpm run dev
 | `parseIntakeDecision` / `defaultIntakeDecision` | `intake-coordinator/pipeline/parse-intake.ts` | 解析 Intake 路由 JSON；失败 → **clarify**（不发明 retrieve） |
 | `runListRetrieverNode` | `agentflow/agents/online/corpus-lister/nodes/` | 纯 list 短路径：目录扫盘分页，跳过 planFanOut/FC |
 | `runRetrievalNode` | `knowledge-manager/nodes/retrieval-node.ts` | 图节点 `kmRetrieve` 调用：km hybrid + composite 混槽 list |
-| `runKmRetrieveNode` / `runPlanSlotPostNode` / `runPlanDagNode` / `runPlanMergeNode` / `runUserFactSideNode` | `agentflow/agents/online/plan-fanout/` | 复合路径：Send 并行 KM/DAG/remember；KM 后串 FC+tools → merge |
+| `runKmRetrieveNode` / `runListRetrieveNode` / `runPlanSlotJoinNode` / `runPlanSlotPostNode` / `runPlanDagNode` / `runPlanMergeNode` / `runUserFactSideNode` | `agentflow/agents/online/plan-fanout/` | 复合路径：每槽 Send（retrieve+FC）→ join 混排 → tools → 与 DAG merge |
 | `isPureListDecision` | `corpus-lister/pure-list-route.ts` | routeAfterIntake → listRetriever 判定 |
 | `addStructuredUserFact` / `searchUserFactMemories` | `packages/brain-memory/src/mem0/store.ts` | Mem0 结构化写入 + 按 factKey 语义检索 |
 | `completeIntakeCoordinator` | `agentflow/agents/online/intake-coordinator/` | 一次 `invoke` → 路由 JSON |
@@ -252,7 +252,7 @@ pnpm run dev
 | `verify:learning-extract` | `apps/brain-service/scripts/` | 自主学习候选抽取（Phase A 前置） |
 | `verify-test-env.ts` | `apps/brain-service/scripts/` | verify 脚本内覆盖 `.env` cache 开关；**勿**在生产入口引用 |
 | `createFambrainTools` | `agentflow/tools/` | LangChain **StructuredTool**：`retrieve_corpus` / `remember_user_fact` / `recall_user_fact` / `list_vault_files` / `summarize_text` |
-| `runKmRetrieveNode` / `runPlanSlotPostNode` / … | `agentflow/agents/online/plan-fanout/` | LangGraph Send：KM → FC/tools ∥ DAG ∥ remember → merge |
+| `runKmRetrieveNode` / `runListRetrieveNode` / `runPlanSlotJoinNode` / … | `agentflow/agents/online/plan-fanout/` | 每槽 Send：retrieve+FC → join → tools ∥ DAG → merge |
 | `compilePathPlan` / `applyPathPlanGuard` | `intake-coordinator/path-plan/` | 旧分桶编译（兼容/测试）；主路径见 `from-llm.ts` |
 | `legalizePathPlan` / `deriveCompositeSlotsFromPathPlan` | `intake-coordinator/path-plan/from-llm.ts` | LLM PathPlan（steps[] 或旧四桶）→ 合法化 + 派生 slots |
 | `extract_external_links_from_hits` | `tools/lib/extract-external-links.ts` | 从 hits 抽对外 URL（Intake 只声明 external_link + toolId） |

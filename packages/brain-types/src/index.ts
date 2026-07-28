@@ -32,6 +32,7 @@ export type PipelineStepName =
     | "retrieval"
     | "km_retrieve"
     | "list_retrieve"
+    | "plan_slot_join"
     | "plan_slot_post"
     | "plan_dag"
     | "plan_merge"

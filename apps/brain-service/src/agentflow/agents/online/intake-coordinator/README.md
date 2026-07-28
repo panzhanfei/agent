@@ -187,7 +187,7 @@ LLM 原始 JSON
 | `userFact` | userFact（纯 remember/recall） |
 | `contentSummarizer` | contentSummarizer（纯摘要、无检索） |
 | `listRetriever` | listRetriever（纯 list 槽） |
-| `planFanOut` | `Send` → kmRetrieve∥listRetrieve∥userFactSide→planSlotPost ∥ planDag → planMerge（SSE 报真实步骤，非 `plan_executor`） |
+| `planFanOut` | `Send` 每槽 → kmRetrieve∥listRetrieve（槽内 FC）∥userFactSide→planSlotJoin→planSlotPost ∥ planDag → planMerge（SSE 报真实步骤） |
 
 ```text
 pathPlan.steps[]
@@ -338,7 +338,7 @@ Intake 产出两层结构：**LLM 层** `IntakeRoutingDecision` → **编排层*
 | `userFact` | remember / recall | userFact |
 | `contentSummarizer` | 纯摘要、无 pathPlan 检索 | contentSummarizer |
 | `listRetriever` | 纯 list 槽 | listRetriever |
-| `planFanOut` | 有 km/list/tool/dag（可并存）或同轮 remember side-effect | kmRetrieve→planSlotPost ∥ planDag ∥ userFactSide → planMerge |
+| `planFanOut` | 有 km/list/tool/dag（可并存）或同轮 remember side-effect | 每槽 km/list Send（槽内 FC）→ planSlotJoin→planSlotPost ∥ planDag → planMerge |
 
 > 执行语义在 **plan-fanout 工人**（槽检索 ± hybrid dag ± remember）；`routeMode` 不再区分 slots/dag。
 

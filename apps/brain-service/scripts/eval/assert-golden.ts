@@ -16,7 +16,7 @@ export type JsonAssert = {
     mustIncludeSteps?: string[];
     /**
      * 每组至少命中一个 step（架构分叉：plan_executor / retrieval / user_fact）。
-     * 例：[["km_retrieve","list_retrieve","plan_merge","retrieval","plan_executor"]] 表示走过检索主路径即可。
+     * 例：[["km_retrieve","list_retrieve","plan_slot_join","plan_merge","retrieval","plan_executor"]] 表示走过检索主路径即可。
      */
     mustIncludeAnySteps?: string[][];
     mustNotIncludeSteps?: string[];

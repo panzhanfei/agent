@@ -130,9 +130,9 @@ export const runPlanMergeNode = async (
     stepResults,
     checkerPassed: true,
     // 清工人通道
-    fanOutKmPatch: null,
-    fanOutListPatch: null,
+    fanOutSlotPatches: [],
     fanOutSlotPatch: null,
     fanOutDagPatch: null,
+    activeSlotId: null,
   };
 };

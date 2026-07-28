@@ -1,11 +1,13 @@
 /**
- * Plan fan-out：LangGraph Send 并行 km / list / dag / remember，再 planMerge 汇合。
+ * Plan fan-out：每槽 Send（km|list）∥ dag ∥ remember → join → tools → planMerge。
  *
- *   intake → Send(kmRetrieve | listRetrieve | planDag | userFactSide)
+ *   intake → Send(kmRetrieve×N | listRetrieve×M | planDag | userFactSide)
  *            kmRetrieve ──┐
- *            listRetrieve ┼→ planSlotPost ─┐
- *            userFactSide ┘               ├→ planMerge → contentOrganizer
- *            planDag ─────────────────────┘
+ *            listRetrieve ┼→ planSlotJoin → planSlotPost ─┐
+ *            userFactSide ┘                               ├→ planMerge → contentOrganizer
+ *            planDag ─────────────────────────────────────┘
+ *
+ * 单槽工人内：retrieve → FC →（km 失败且有 refinedQuery 时）局部重检一次。
  */
 
 export { fanOutPlanWorkers, pathHasHybridDag, describeFanOutPlan } from "./fan-out";
@@ -14,10 +16,15 @@ export {
   buildDagStepResults,
   mergeCompositeWithDagSteps,
 } from "./merge-composite-dag";
-export type { PlanSlotsPatch, PlanDagPatch } from "./interface";
+export type {
+  PlanSlotsPatch,
+  PlanDagPatch,
+  PlanSlotWorkerPatch,
+} from "./interface";
 export {
   runKmRetrieveNode,
   runListRetrieveNode,
+  runPlanSlotJoinNode,
   runPlanSlotPostNode,
   runPlanDagNode,
   runPlanMergeNode,
