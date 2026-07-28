@@ -2,17 +2,18 @@
 
 纯 **list_corpus** 路径：按 `projects/`、`experience/` 目录扫盘分页，**不经 KM hybrid**。
 
-## 图节点
+## 图节点（包根 `index.ts`）
 
-| 节点 | 文件 | 何时进入 |
-|------|------|----------|
-| `listRetriever` | `nodes/list-retriever-node.ts` | Intake 后 `isPureListDecision`：全部槽 `executor=list_corpus`，且无 km/tool/dag |
+| 节点 | 何时进入 |
+|------|----------|
+| `runListRetrieverNode` | Intake 后 `isPureListDecision`：全部槽 `executor=list_corpus`，且无 km/tool/dag |
+| `runListRetrieveNode` | 复合路径 planFanOut Send 工人（单槽 list，**不经 FC**） |
 
-**短路径：** `intake → listRetriever → contentOrganizer → analyst → persistTurnEnd`（跳过 planExecutor / contentSummarizer / FC / tool）。
+**短路径：** `intake → listRetriever → contentOrganizer → analyst → persistTurnEnd`（跳过 planFanOut / contentSummarizer）。
 
-**摊平：** 纯 list 用 `flattenListRetrieval`（corpus-lister 内），**不**调用 KM `mergeCompositeRetrieval`；混槽 list 仍在 planExecutor / `runRetrievalNode` 里与 km 一并 merge。
+**摊平：** 纯 list 用 `flattenListRetrieval`（`flatten/`），**不**调用 KM `mergeCompositeRetrieval`；混槽 list 由 plan-fanout 每槽 Send 后在 `planSlotJoin` 混排。
 
-**Composite plan：** 多槽 pure list 与 planExecutor 一致，在 `listRetriever` 内调用 `resolveIncrementalCompositePlan`，供 Analyst composite 流式分节与 facet 答案缓存。
+**Composite plan：** 多槽 pure list 在 `listRetriever` 内调用 `resolveIncrementalCompositePlan`，供 Analyst composite 流式分节与 facet 答案缓存。
 
 **列举续页：** 游标在 assistant **`enumeration` blocks**（`page` / `pageSize`）；`list_corpus` 分页槽 facetKey 为 `enum:projects:p{N}`（按 `enumerationPage` 分桶，防 continue 命中上一页 cache）；Analyst 单槽流式用 `sliceHitsForAnalystStream` 信 `enumerationMeta.pageSize`，不用 profile `maxHits=8` 截断整页。
 
@@ -20,17 +21,14 @@
 
 ```text
 corpus-lister/
-├── index.ts
+├── index.ts              # runListRetrieverNode / runListRetrieveNode + barrel
 ├── interface.ts
-├── fetch-list-slot.ts      # 单槽 list 检索（listRetriever + composite 共用）
-├── flatten-list-retrieval.ts  # 纯 list 摊平 hits/meta（不经 KM merge）
-├── pure-list-route.ts      # isPureListDecision
-├── list/
-│   ├── list-corpus-entries.ts
-│   ├── retrieve-enumeration-page.ts
-│   └── entry-time-window.ts
-└── nodes/
-    └── list-retriever-node.ts
+├── fetch-list-slot/      # 单槽 list 检索
+├── flatten/              # 纯 list 摊平 hits/meta
+├── route/                # isPureListDecision
+├── slot/                 # 复合路径 listRetrieve Send 工人
+├── enumeration/
+└── list/
 ```
 
 ## 与 KnowledgeManager 边界
@@ -38,7 +36,5 @@ corpus-lister/
 | | CorpusLister | KnowledgeManager |
 |---|---|---|
 | 触发 | exhaustive / continue / UI 分页 | identity / tech / preview 列举 / 复合 km 槽 |
-| 机制 | path 排序 + slice | hybrid（vector ∥ sparse）+ rank + confidence |
-| 图节点 | `listRetriever` | planExecutor 内 `runRetrievalNode` |
-
-HTTP：`POST /enumeration/list`（`server/enumeration-list.ts`）同样走本模块 `listCorpusEntriesPage`。
+| 检索 | 目录扫盘 + 分页 | hybrid vector ∥ sparse |
+| 图节点 | `listRetriever` / `listRetrieve` | `kmRetrieve` |

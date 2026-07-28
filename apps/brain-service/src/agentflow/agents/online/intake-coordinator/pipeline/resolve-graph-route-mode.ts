@@ -8,7 +8,7 @@ import type {
 } from "@/agentflow/agents/online/intake-coordinator/guards/interface";
 import type { IntakeRoutingDecision } from "@/agentflow/agents/online/intake-coordinator/contract";
 import { isPureSummarizeDecision } from "@/agentflow/agents/online/content-summarizer/summarize-route";
-import { isPureListDecision } from "@/agentflow/agents/online/corpus-lister/pure-list-route";
+import { isPureListDecision } from "@/agentflow/agents/online/corpus-lister";
 import {
   isUserFactIntent,
   routeUserFactSideEffect,

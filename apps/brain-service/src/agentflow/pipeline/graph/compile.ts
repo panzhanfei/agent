@@ -5,16 +5,20 @@ import { runIntakeNode } from "@/agentflow/agents/online/intake-coordinator";
 import { runRespondEarlyNode } from "@/agentflow/agents/online/respond-early";
 import { userFactNode } from "@/agentflow/agents/online/user-fact";
 import { runAnalystNode } from "@/agentflow/agents/online/information-analyst";
-import { runListRetrieverNode } from "@/agentflow/agents/online/corpus-lister/nodes";
 import {
-  runKmRetrieveNode,
+  runListRetrieverNode,
   runListRetrieveNode,
+} from "@/agentflow/agents/online/corpus-lister";
+import { runKmRetrieveNode } from "@/agentflow/agents/online/knowledge-manager";
+import {
   runPlanSlotJoinNode,
+  runPlanMergeNode,
+} from "@/agentflow/agents/online/plan-fanout";
+import {
   runPlanSlotPostNode,
   runPlanDagNode,
-  runPlanMergeNode,
-  runUserFactSideNode,
-} from "@/agentflow/agents/online/plan-fanout";
+} from "@/agentflow/agents/online/tool-orchestrator";
+import { runUserFactSideNode } from "@/agentflow/agents/online/user-fact";
 import {
   runPreparePipelineMemory,
   runPrepareTurnStart,
@@ -36,7 +40,7 @@ import {
 
 /**
  * intake → Send(每槽 km|list ∥ dag ∥ userFactSide)
- *   kmRetrieve / listRetrieve / userFactSide → planSlotJoin → planSlotPost → planMerge
+ *   kmRetrieve（FC）/ listRetrieve（无 FC）/ userFactSide → planSlotJoin → planSlotPost → planMerge
  *   planDag ───────────────────────────────────────────────→ planMerge
  */
 const buildPipelineGraph = () => {

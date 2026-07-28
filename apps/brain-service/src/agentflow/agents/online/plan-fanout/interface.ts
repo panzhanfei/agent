@@ -12,7 +12,8 @@ import type {
   KnowledgeRetrievalResult,
 } from "@/agentflow/agents/online/knowledge-manager";
 import type { StepResult } from "@/agentflow/agents/online/intake-coordinator/path-plan/interface";
-import type { PipelineToolResults } from "@/agentflow/agents/online/tool-orchestrator/types";
+import type { PipelineToolResults } from "@/agentflow/agents/online/tool-orchestrator/interface";
+
 
 /** 单槽工人产出（append 进 fanOutSlotPatches） */
 export type PlanSlotWorkerPatch = {

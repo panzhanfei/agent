@@ -15,5 +15,6 @@ This version has breaking changes — APIs, conventions, and file structure may 
 ## 模块目录约定（详见 `.cursor/rules/module-folder-conventions.mdc`）
 
 - 每个职责文件夹：`index.ts`（聚合导出）+ `interface.ts`（类型）
+- 图节点出口：`<capability>/node/{index.ts, interface.ts}`（`node/` 最多两文件）
 - 同级 import 用 `./`；跨目录用 `@.../<folder>`，禁止深挖实现文件
 <!-- END:nextjs-agent-rules -->

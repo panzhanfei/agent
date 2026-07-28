@@ -13,16 +13,17 @@
 | `IntakeCoordinator` | 入口接线员 | 接收输入、理解意图、拆分任务、产出路由 JSON + **PathPlan** |
 | `KnowledgeManager` | 知识管理员 | hybrid 检索（vector ∥ sparse），返回 `hits` / `coverage` / `notes` |
 | **`CorpusLister`** | **语料列举器** | 纯 list 路径：目录扫盘分页（projects / experience）；**不经 KM hybrid** |
-| **`PlanFanOut`** | **计划并行执行** | 复合路径：每槽 `Send`（`kmRetrieve`×N∥`listRetrieve`×M∥`userFactSide`→`planSlotJoin`→`planSlotPost` ∥ `planDag`）→ `planMerge` |
-| `FactChecker` | 事实核查员 | **每槽工人内** per-step FC；km 失败且有 refinedQuery 时该槽局部重检一次 |
+| **`PlanFanOut`** | **计划并行执行** | 复合路径：`fanOutPlanWorkers` Send 派发 → `planSlotJoin` → `planMerge`（retrieve/tools/userFact 节点归各 Agent） |
+| `FactChecker` | 事实核查员 | **km 槽** per-step FC；list_corpus 不经 FC；km 失败且有 refinedQuery 时该槽局部重检一次 |
 | `ContentOrganizer` | 内容整理师 | **核查通过后**对 `hits` 做 Zod 规范化与 path 去重，再交给分析师 |
-| **`ToolOrchestrator`** | **工具编排器** | `planSlotPost` 内调用：年龄计算、列举合成、联网搜索 |
-| **`DagExecutor`** | **DAG 执行器** | planDag 工人调用：多源汇合（语料+联网+synthesize）；单场景不走 named DAG |
+| **`ToolOrchestrator`** | **工具编排器** | `runToolOrchestratorNode` + **`runPlanSlotPostNode`**（fan-out 槽后 tools） |
+| **`DagExecutor`** | **DAG 执行器** | `runDagExecutorNode` + **`runPlanDagNode`**（fan-out hybrid DAG 工人） |
+| **`UserFact`** | **用户记忆** | `userFactNode`（纯 remember/recall）+ **`runUserFactSideNode`**（复合并行 side-effect） |
 | `InformationAnalyst` | 信息分析师 | 消费 `stepResults` + `toolResults` + 整理后的 `hits` 写终稿；可并入同轮 remember side-effect |
 
-**链路：** 用户提问 → **轮次开始** → 意图识别 → **PathPlan fan-out**（按 `steps[]`：km / list / tool / dag 并行工人 + per-step FC）→ **内容整理** → **Compose**（qa / composite / summarize）→ 回答 → **轮次结束**。跨轮 **两层 cache**（同问短路 + 检索结果 cache）见 [坑点 §2.2](./04-pitfalls.md)。
+**链路：** 用户提问 → **轮次开始** → 意图识别 → **PathPlan fan-out**（按 `steps[]`：km / list / tool / dag 并行工人；km 槽 per-step FC，list 不经 FC）→ **内容整理** → **Compose**（qa / composite / summarize）→ 回答 → **轮次结束**。跨轮 **两层 cache**（同问短路 + 检索结果 cache）见 [坑点 §2.2](./04-pitfalls.md)。
 
-**PathPlan 有序 steps（2026-07 · 端到端）：** Intake LLM 直接产出 `pathPlan.steps[]` + `composeMode`（数组顺序 = 回答/执行顺序；`answerOrder` 可选，默认由 `steps.map(s => s.id)` 派生）；pipeline **合法化并派生** `compositeSlots`（不再 `retrievalPlan→compilePathPlan` 猜桶；`legalize` 仍兼容旧四桶）。LangGraph：**纯 list** → `listRetriever`（SSE=`list_retrieve`）→ `contentOrganizer` → `analyst`；**纯总结（无查库）** → `contentSummarizer`；**复合** → `planFanOut`（每槽 `Send`→`kmRetrieve`/`listRetrieve`（槽内 FC）∥`userFactSide`→`planSlotJoin`→`planSlotPost`(tools) ∥ `planDag`→`planMerge`）→ `contentOrganizer` →（`composeMode=summarize` 才进 `contentSummarizer`，否则）→ `analyst`。SSE 按真实图节点报步骤（含 `plan_slot_join`；不再聚合为 `plan_executor`）。
+**PathPlan 有序 steps（2026-07 · 端到端）：** Intake LLM 直接产出 `pathPlan.steps[]` + `composeMode`（数组顺序 = 回答/执行顺序；`answerOrder` 可选，默认由 `steps.map(s => s.id)` 派生）；pipeline **合法化并派生** `compositeSlots`（不再 `retrievalPlan→compilePathPlan` 猜桶；`legalize` 仍兼容旧四桶）。LangGraph：**纯 list** → `listRetriever`（SSE=`list_retrieve`）→ `contentOrganizer` → `analyst`；**纯总结（无查库）** → `contentSummarizer`；**复合** → `planFanOut`（每槽 `Send`→`kmRetrieve`（FC）/`listRetrieve`（不经 FC）∥`userFactSide`→`planSlotJoin`→`planSlotPost`(tools) ∥ `planDag`→`planMerge`）→ `contentOrganizer` →（`composeMode=summarize` 才进 `contentSummarizer`，否则）→ `analyst`。SSE 按真实图节点报步骤（含 `plan_slot_join`；不再聚合为 `plan_executor`）。
 
 **架构双线（2026-06，目录 2026-07 对齐）：**
 
@@ -67,7 +68,7 @@ flowchart TB
     P -->|remember/recall user_fact| UF[userFact 节点]
     P -->|clarify / chitchat| R1[respondEarly]
     P -->|summarize_content| SUM[ContentSummarizer]
-    P -->|retrieve_and_answer| PE[planFanOut<br/>km/list/tool/dag + per-step FC]
+    P -->|retrieve_and_answer| PE[planFanOut<br/>km FC / list 无 FC / tool / dag]
     PE --> CO[ContentOrganizer]
     CO --> IA[InformationAnalyst<br/>composeMode]
     IA --> OUT[assistant 入库]
@@ -104,7 +105,7 @@ flowchart TB
 | 层 | 位置 | Key / 条件 | 命中后 | 关闭 |
 |----|------|------------|--------|------|
 | **同问短路** | **`repeatQuestionGuard` 节点**（`repeat-question-guard/nodes/repeat-question-node.ts`） | `normalize(userQuestion)` + history 中已有 assistant 答 | `repeat_respond_early` → 复用答案（`repeatQuestionHit`）→ `persistTurnEnd` | `REPEAT_QUESTION_CACHE_DISABLED=1` |
-| **检索结果 cache** | `knowledge-manager/nodes/retrieval-node.ts`（`runRetrievalNode`） | `{prefix}:retrieval:v1:{corpusUserId}:{queryType}:{normalize(searchQuery)}` | 跳过 KM；仍走 FC / Analyst（`retrievalCacheHit`） | `RETRIEVAL_CACHE_DISABLED=1` |
+| **检索结果 cache** | `knowledge-manager/composite/retrieve-with-cache.ts`（`retrieveSlotWithCache`） | `{prefix}:retrieval:v1:{corpusUserId}:{queryType}:{normalize(searchQuery)}` | 跳过真检索；仍走 FC / Analyst（`retrievalCacheHit`） | `RETRIEVAL_CACHE_DISABLED=1` |
 | **composite 终稿 cache** | `composite-answer-cache.ts` | 同会话 `conversationId` + `corpusUserId` + **facetKey** | composite/slot 增量：命中槽跳过 KM；**slot 单槽**时 Analyst 读 cache 或 citations 还原 hits | `COMPOSITE_ANSWER_CACHE_DISABLED=1` |
 
 清空 Redis / memory：`pnpm --filter @fambrain/brain-service exec tsx --env-file=../../.env scripts/clear-pipeline-cache.ts`（改 env 后须**重启 agents** 清进程内 memory）。
@@ -121,7 +122,7 @@ flowchart TD
   C -->|clarify / chitchat| D[respondEarly]
   C -->|remember_user_fact / recall_user_fact| UF[userFact → Mem0]
   C -->|summarize_content| CS[ContentSummarizer → respondEarly]
-  C -->|retrieve_and_answer| PE[planFanOut<br/>PathPlan steps[] + per-step FC]
+  C -->|retrieve_and_answer| PE[planFanOut<br/>km FC / list 无 FC / tool / dag]
   PE -->|composeMode=summarize| CS
   PE -->|qa / composite| CO[ContentOrganizer]
   CO --> G[InformationAnalyst]

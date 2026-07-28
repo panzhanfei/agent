@@ -1,6 +1,6 @@
 import { describe, expect, it } from "vitest";
 import { buildEnumerationListDecision } from "@/agentflow/agents/online/intake-coordinator/guards/enumeration-list-intent";
-import { isPureListDecision } from "@/agentflow/agents/online/corpus-lister/pure-list-route";
+import { isPureListDecision } from "@/agentflow/agents/online/corpus-lister/route";
 import { stepsOfKind } from "@/agentflow/agents/online/intake-coordinator/path-plan";
 
 describe("isPureListDecision", () => {

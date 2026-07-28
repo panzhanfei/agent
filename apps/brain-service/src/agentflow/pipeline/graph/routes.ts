@@ -69,7 +69,7 @@ export const routeAfterContentSummarizer = (
 /** @deprecated 保留导出名供旧脚本；图已不再使用 */
 export const routeAfterRetrieval = routeAfterPlanMerge;
 
-/** @deprecated 图已内嵌 per-step FC */
+/** @deprecated 图已改为 km 槽工人内 per-step FC；list_corpus 不经 FC */
 export const routeAfterFactChecker = (
   _state: PipelineGraphState
 ): "contentOrganizer" => "contentOrganizer";

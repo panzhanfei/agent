@@ -21,7 +21,7 @@ import {
     buildTenureAnswer,
     extractTenureFromHits,
 } from "../lib/compute-tenure";
-import { resolveIdentityFieldFromPlan } from "@/agentflow/agents/online/tool-orchestrator/field-catalog";
+import { resolveIdentityFieldFromPlan } from "@/agentflow/agents/online/tool-orchestrator/catalog";
 
 /** 主 pipeline Analyst 编排工具（非 LLM ReAct） */
 export const ORCHESTRATED_TOOL_IDS = [

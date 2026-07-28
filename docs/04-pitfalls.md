@@ -108,7 +108,7 @@
 | P0-25 | Intake / KM / Analyst | 问「开源项目 **GitHub 链接**」→ 答 **aky 内部路径**；应 **2 条 URL** 只给 release-bot；「不止这一个」→ **clarify** 或 LLM 写齐 plan；点名物联网/工具库 → 一未覆盖、一错绑 release-bot | Intake 误标 **enumeration** → KM **projects fill** 扫 offline 文档；会话 **stale subTasks** 继承；省略续问误 clarify；Analyst 跨槽借 URL | **`queryType=external_link`** + **`applyIntakeLinkLookupGuard`**（harmonize only）+ KM **`applyExternalLinkGuard`** + Analyst external_link 规则；**LLM 写齐 `retrievalPlan`** | ✅ **已解决**（2026-07）← §2.5.9 |
 | P0-26 | Intake / KM / 编排 | **混合问**「React 经验 + **列出全部项目**」→ 整句走 list、tech 段丢失；续问「更多项目」靠 **口语 regex** 误判 | P0-22 用 **整句 `routeMode=list`** 表达穷举；`enumeration-list-intent` 堆 regex，与 per-slot composite 冲突；KM 无 **按槽 executor** | **per-slot** `enumerationControl` + `executor=km_retrieve\|list_corpus`；`applyEnumerationSlotGuard`；UI **`ENUMERATION_ACTION_PROMPTS`** exact-match；`retrieval-node` 按槽执行 | ✅ **已解决**（2026-07）← §2.5.10 · [架构 v2 §10](./05-architecture-v2-tool-orchestration.md#10-列举执行-per-slot-演进-2026-07) |
 | P0-27 | Intake / Web | 「列出全部项目 + **开源** GitHub/线上地址」→ 第 2 段变成「**每个**项目的 GitHub」且无 URL；前端无分页按钮 | LLM 双槽皆标 enumeration；link guard 误 aggregate；槽 id 撞车；Web BFF `pipeline_done` **丢 blocks** | Intake 示例 16 + `harmonizeRetrievalPlanQueryTypes`（`inferQueryProfile`）+ 保留混合 plan；`planItemToSlot` 唯一 id；BFF 透传 blocks；分页文案对齐 `ENUMERATION_ACTION_PROMPTS` | ✅ **已解决**（2026-07）← §2.5.10 · diagnose-mixed-projects-github-query |
-| **P0-28** | Intake / KM / FC / 编排 | **混合问**「列举项目 + 开源 GitHub 链接」→ composite 只答 **一段**（或 external_link 槽被 label regex 漏掉）；FC 对 composite≥2 **整轮跳过** | `routeMode` / `compositeSlots` / `executionPlan` / toolPlan **四套多槽互斥**；opensource 与 enumeration **并行 KM** 而非依赖链；FC 一次失败拖垮全答 | **PathPlan** 有序 `steps[]` + **`planFanOut`（LangGraph Send）**；external_link 作 km 步 + extract 工具（无场景 DAG）；**per-step FC**；`composeMode` 一次 composite | ✅ **已解决**（2026-07）← **§2.8** · [架构 v2 §11](./05-architecture-v2-tool-orchestration.md#11-pathplan-统一执行计划-2026-07) |
+| **P0-28** | Intake / KM / FC / 编排 | **混合问**「列举项目 + 开源 GitHub 链接」→ composite 只答 **一段**（或 external_link 槽被 label regex 漏掉）；FC 对 composite≥2 **整轮跳过** | `routeMode` / `compositeSlots` / `executionPlan` / toolPlan **四套多槽互斥**；opensource 与 enumeration **并行 KM** 而非依赖链；FC 一次失败拖垮全答 | **PathPlan** 有序 `steps[]` + **`planFanOut`（LangGraph Send）**；external_link 作 km 步 + extract 工具（无场景 DAG）；**km 槽 per-step FC**（list 不经 FC）；`composeMode` 一次 composite | ✅ **已解决**（2026-07）← **§2.8** · [架构 v2 §11](./05-architecture-v2-tool-orchestration.md#11-pathplan-统一执行计划-2026-07) |
 | **P0-29** | Intake | `verify:intake-chitchat` 偶发「你好」→ **`retrieve_and_answer`**；脚本断言逻辑反了 | 小模型对极短句非确定性；prompt 检索示例偏多；parse 失败 → `defaultIntakeDecision`；测试在 intent=chitchat 时误 throw | **`isPureSocialUtterance`** 入口跳过 LLM；chitchat briefReply 仍走 P0-13 模板 | ✅ **已解决**（2026-07）← **§2.8.1** · `verify:intake-chitchat` |
 | **P0-30** | Intake / KM / Analyst / Web | 超长复合履历问：重复「工作经历/任职」、表头误「项目名称」、年限只算近段、近两年未过滤；`labels` 口语二次规划 | Intake 过拆 + repair 口语注入；canonicalize 盖掉 tenure 检索词；UI 写死表头；list 无时间窗 | **LLM 主导合并拆分**；schema 合法化 + facet 去重；`tenure` + `timeWindowYears`；职位/链接 UI；单测迁 `tests/` | ✅ **已解决**（2026-07）← **§2.9** · [架构 v2 §12](./05-architecture-v2-tool-orchestration.md#12-intake-llm-主导--schema-兜底2026-07--去问句硬编码) |
 | **P0-31** | Intake | 单字乱敲浪费 token；短续问**盲预合并**误伤换题；散文当指代信号；复盘时「代码像二次 Intake」 | 结构启发当语义；散文兜底驱动重试；规划与纠偏缠在一起 | **档 B 定型**：主路径=LLM 任务规划；旁路=normalize / JSON 修复 / 指代拼接≤1 / guard 纠偏；`coreference` 字段 | ✅ **已解决**（2026-07）← **§2.10** · [架构 v2 §13](./05-architecture-v2-tool-orchestration.md#13-intake-档-b主路径规划--旁路纠偏-2026-07) |
@@ -125,7 +125,7 @@
 |--------|------|--------------|
 | 列举全部项目 + 开源 GitHub 链接 | 两段：项目列表 + 简历中 2 条公开 URL | 常只答一段；或 external_link 槽被 **label 正则** 漏配 |
 | React 经验 + 列出全部项目（混合） | 同轮 tech KM + list 分页 | 整句 `routeMode=list` 劫持，tech 段丢失（P0-26 同类） |
-| composite ≥2 槽 | 每段独立 FC，一段失败可局部重试 | 旧 FC **整轮 skip**；或一次打回拖垮全答 |
+| composite ≥2 槽 | km 槽 per-step FC；list 不经 FC；km 一段失败可局部重试 | 旧 FC **整轮 skip**；或一次打回拖垮全答 |
 
 #### 根因（架构层）
 
@@ -134,7 +134,7 @@
 | **路由模型** | ~~routes 堆判定~~ → **`routeMode` 图边 1:1** | 复杂判定在 Intake `resolveIntakeGraphRouteMode`；routes 只分发 |
 | **多槽实现分裂** | compositeSlots / toolPlan / executionPlan 各维护一套 | Intake 与 planFanOut 语义不一致，guard 顺序敏感 |
 | **opensource 链接** | external_link 与 enumeration **并行 KM** | 应 **先 list 实体 → 再抽 URL**（有 deps 的子图） |
-| **FactChecker** | 单次、composite≥2 跳过 | 不符合「每路径审证据」；一段 hallucination 污染 composite |
+| **FactChecker** | 单次、composite≥2 跳过 | → **km 槽**工人内 per-step FC；list_corpus 不经 FC |
 | **硬编码** | label 口语猜 external_link 槽 | 与 P0-25「只信 queryType」原则冲突 |
 
 #### 对策（已实现）
@@ -145,15 +145,17 @@
 | `path-plan/from-llm.ts` | LLM pathPlan **合法化**（steps[] 或旧四桶）+ 按 steps 顺序 **派生** compositeSlots / retrievalPlan / answerOrder |
 | `path-plan/compile-path-plan.ts` | 旧分桶编译（测试/兼容；主 pipeline 不再走） |
 | `path-plan/dag-templates.ts` | 仅 `hybrid_multi_source`（多源汇合；禁止场景 named DAG） |
-| `tool-orchestrator/plan-executor.ts` → **`plan-fanout/`** | 每槽 Send：kmRetrieve×N∥listRetrieve×M（槽内 FC）∥userFactSide→planSlotJoin→planSlotPost ∥ planDag → planMerge |
-| `corpus-lister/nodes/list-retriever-node.ts` | LangGraph **`listRetriever`**：纯 list 短路径（跳过 FC/tool） |
+| **`plan-fanout/`** | `fan-out` + `planSlotJoin` + `planMerge`；Send 目标节点在 KM / Lister / ToolOrchestrator / UserFact |
+| `corpus-lister/` | LangGraph **`listRetriever` / `listRetrieve`**：纯 list / 复合 list 工人（**均不经 FC**） |
+| `tool-orchestrator/plan-slot-post/`、`plan-dag/` | fan-out 内 tools / DAG 图节点出口 |
+| `user-fact/side/` | fan-out 并行 remember side-effect |
 | `corpus-lister/enumeration/` | 列举分页 / UI **exact-match**（Intake barrel re-export） |
 | `tools/lib/extract-external-links.ts` | `extract_external_links_from_hits`（tools 层；Intake 只声明 queryType+toolId；strip 时间口语） |
 | `pipeline/graph/compile.ts` | `listRetriever` + planFanOut 工人条件边 |
 | `composite-slot-queries.ts` | `EXTERNAL_LINK_SLOT` canonical searchQuery |
 | `information-analyst/stream.ts` | `composeMode=composite` 走 parallel composite 流 |
 
-**链路（通俗）：** Intake 把子任务写成有序 `steps[]`（kind=执行类型）并标依赖 → planFanOut 并行取数、**每段各自核查** → 整理师规范化 → Analyst **只混剪一次** 出终稿。
+**链路（通俗）：** Intake 把子任务写成有序 `steps[]`（kind=执行类型）并标依赖 → planFanOut 并行取数、**km 槽各自核查（list 不经 FC）** → 整理师规范化 → Analyst **只混剪一次** 出终稿。
 
 **验证：**
 
@@ -590,7 +592,7 @@ pnpm --filter @fambrain/brain-service run verify:enumeration-compose  # P0-22 �
 | `resolve-enumeration-pagination.ts` | 续页从 conversation **blocks** 读 page/pageSize（无 Redis session） |
 | `sliceHitsForAnalystStream` | 列举分页 Analyst 信 `enumerationMeta.pageSize`，不单槽 plain stream 截 8 条 |
 | `facet-key.ts` | `list_corpus` 分页槽 facetKey `enum:projects:p{N}`；`facetAnswerMatchesSlot` 校验页码 |
-| `flatten-list-retrieval.ts` | 纯 list 摊平；混槽 merge 仍在 KM `retrieval-node` |
+| `flatten/` | 纯 list 摊平；混槽 merge 在 plan-fanout `planSlotJoin` |
 | `composite-answer-cache` | 槽答案缓存 **存 blocks**，命中恢复表格 UI |
 | `packages/brain-types` | `AssistantMessageBlock` + `paginationHint` / `startIndex` |
 | `assistant-message-content.tsx` | 表格 **# + 项目名称**；底部分页说明 |

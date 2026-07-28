@@ -7,7 +7,7 @@ import type { RoutedIntakeDecision } from "@/agentflow/agents/online/intake-coor
 import {
   decisionSuggestsHybridDag,
   topicsSuggestWebSource,
-} from "@/agentflow/agents/online/tool-orchestrator/field-catalog";
+} from "@/agentflow/agents/online/tool-orchestrator/catalog";
 import { enrichCompositeSlots } from "@/agentflow/agents/online/tool-orchestrator";
 import { expandHybridMultiSourceTemplate } from "./dag-templates";
 import { emptyPathPlan } from "./defaults";

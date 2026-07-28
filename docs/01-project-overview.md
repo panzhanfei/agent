@@ -194,7 +194,7 @@ pnpm run dev
 
 **约定：** `@fambrain/brain-service` 不直接访问数据库；编排层不把中间 Agent 输出写入 `messages`。
 
-**架构演进（2026-07）：** 原 `agentflow/brain-service/` 重命名为 **`agents/`**；`tool-orchestration/` 移入 **`agents/online/tool-orchestrator/`**；列举执行从整句 `routeMode=list` 改为 **per-slot** `enumerationControl`（P0-26）；**PathPlan + planFanOut（LangGraph Send）** 统一有序 `pathPlan.steps[]`（kind=km|list|tool|dag）并行执行与 per-step FC（P0-28；legalize 兼容旧四桶；原单体 `plan-executor` 已删除）。详见 [架构 v2 §11 PathPlan](./05-architecture-v2-tool-orchestration.md#11-pathplan-统一执行计划-2026-07)、[坑点 §2.8](./04-pitfalls.md#28-pathplan-统一编排-p0-28--2026-07)。
+**架构演进（2026-07）：** 原 `agentflow/brain-service/` 重命名为 **`agents/`**；`tool-orchestration/` 移入 **`agents/online/tool-orchestrator/`**；列举执行从整句 `routeMode=list` 改为 **per-slot** `enumerationControl`（P0-26）；**PathPlan + planFanOut（LangGraph Send）** 统一有序 `pathPlan.steps[]`（kind=km|list|tool|dag）并行执行（km 槽 per-step FC，list_corpus 不经 FC）（P0-28；legalize 兼容旧四桶；原单体 `plan-executor` 已删除）。详见 [架构 v2 §11 PathPlan](./05-architecture-v2-tool-orchestration.md#11-pathplan-统一执行计划-2026-07)、[坑点 §2.8](./04-pitfalls.md#28-pathplan-统一编排-p0-28--2026-07)。
 
 ## P0 已落地能力（代码索引）
 
@@ -204,12 +204,14 @@ pnpm run dev
 | `runPrepareTurnStart` | `agentflow/agents/online/prepare-turn-start/` | 图首节点：ALS、同问短路、Mem0/LangMem **读** |
 | `runPersistTurnEnd` | `agentflow/agents/online/persist-turn-end/` | 图末节点：Mem0/LangMem **写**、Learning 候选 |
 | `getCompiledPipelineGraph` | `pipeline/graph/compile.ts` + `routes.ts` | **prepareTurnStart** → Intake → … → **persistTurnEnd** → END |
-| `userFactNode` / `routeUserFactFromIntake` | `user-fact/nodes/user-fact-node.ts`、`user-fact/user-fact.ts` | P0-16：跨会话 remember/recall；绕过 KM / FC / Analyst |
+| `userFactNode` / `runUserFactSideNode` / `routeUserFactFromIntake` | `user-fact/`（`index.ts` + `side/`） | remember/recall 主路径；复合路径并行 side-effect |
 | `parseIntakeDecision` / `defaultIntakeDecision` | `intake-coordinator/pipeline/parse-intake.ts` | 解析 Intake 路由 JSON；失败 → **clarify**（不发明 retrieve） |
-| `runListRetrieverNode` | `agentflow/agents/online/corpus-lister/nodes/` | 纯 list 短路径：目录扫盘分页，跳过 planFanOut/FC |
-| `runRetrievalNode` | `knowledge-manager/nodes/retrieval-node.ts` | 图节点 `kmRetrieve` 调用：km hybrid + composite 混槽 list |
-| `runKmRetrieveNode` / `runListRetrieveNode` / `runPlanSlotJoinNode` / `runPlanSlotPostNode` / `runPlanDagNode` / `runPlanMergeNode` / `runUserFactSideNode` | `agentflow/agents/online/plan-fanout/` | 复合路径：每槽 Send（retrieve+FC）→ join 混排 → tools → 与 DAG merge |
-| `isPureListDecision` | `corpus-lister/pure-list-route.ts` | routeAfterIntake → listRetriever 判定 |
+| `runListRetrieverNode` / `runListRetrieveNode` | `corpus-lister/` | 纯 list 短路径 / 复合 list Send 工人 |
+| `retrieveSlotWithCache` / `orderSubResultsBySlots` | `knowledge-manager/` | 单槽 hits cache；join 按 compositeSlots 顺序混排 |
+| `runKmRetrieveNode` | `knowledge-manager/` | 复合路径 km Send 工人（retrieve+FC） |
+| `runPlanSlotJoinNode` / `runPlanMergeNode` | `plan-fanout/` | fan-out 槽汇合 + 与 DAG 线 merge |
+| `runPlanSlotPostNode` / `runPlanDagNode` | `tool-orchestrator/`（`plan-slot-post` / `plan-dag`） | post-retrieval tools / hybrid DAG 工人 |
+| `isPureListDecision` | `corpus-lister/route/` | routeAfterIntake → listRetriever 判定 |
 | `addStructuredUserFact` / `searchUserFactMemories` | `packages/brain-memory/src/mem0/store.ts` | Mem0 结构化写入 + 按 factKey 语义检索 |
 | `completeIntakeCoordinator` | `agentflow/agents/online/intake-coordinator/` | 一次 `invoke` → 路由 JSON |
 | `retrieveKnowledge` | `agentflow/agents/online/knowledge-manager/` | 向量 + 关键词扫盘 + **规则精排**（无 LLM）；v3 业界对标见 [km-retrieval-design.md](./km-retrieval-design.md) |
@@ -252,7 +254,10 @@ pnpm run dev
 | `verify:learning-extract` | `apps/brain-service/scripts/` | 自主学习候选抽取（Phase A 前置） |
 | `verify-test-env.ts` | `apps/brain-service/scripts/` | verify 脚本内覆盖 `.env` cache 开关；**勿**在生产入口引用 |
 | `createFambrainTools` | `agentflow/tools/` | LangChain **StructuredTool**：`retrieve_corpus` / `remember_user_fact` / `recall_user_fact` / `list_vault_files` / `summarize_text` |
-| `runKmRetrieveNode` / `runListRetrieveNode` / `runPlanSlotJoinNode` / … | `agentflow/agents/online/plan-fanout/` | 每槽 Send：retrieve+FC → join → tools ∥ DAG → merge |
+| `runKmRetrieveNode` / `runListRetrieveNode` | `knowledge-manager` / `corpus-lister` | 复合 Send 工人 |
+| `runPlanSlotJoinNode` / `runPlanMergeNode` | `plan-fanout/` | join + merge 编排 |
+| `runPlanSlotPostNode` / `runPlanDagNode` | `tool-orchestrator/` | tools / DAG fan-out 工人 |
+| `runUserFactSideNode` | `user-fact/side/` | 复合并行 remember side-effect |
 | `compilePathPlan` / `applyPathPlanGuard` | `intake-coordinator/path-plan/` | 旧分桶编译（兼容/测试）；主路径见 `from-llm.ts` |
 | `legalizePathPlan` / `deriveCompositeSlotsFromPathPlan` | `intake-coordinator/path-plan/from-llm.ts` | LLM PathPlan（steps[] 或旧四桶）→ 合法化 + 派生 slots |
 | `extract_external_links_from_hits` | `tools/lib/extract-external-links.ts` | 从 hits 抽对外 URL（Intake 只声明 external_link + toolId） |

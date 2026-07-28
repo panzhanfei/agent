@@ -1,5 +1,5 @@
 import { describe, expect, it } from "vitest";
-import { flattenListRetrieval } from "@/agentflow/agents/online/corpus-lister/flatten-list-retrieval";
+import { flattenListRetrieval } from "@/agentflow/agents/online/corpus-lister/flatten";
 
 describe("flattenListRetrieval", () => {
     it("passes through single slot", () => {

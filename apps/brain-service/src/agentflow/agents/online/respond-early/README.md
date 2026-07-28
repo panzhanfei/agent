@@ -10,7 +10,7 @@ Intake 路由后**不经 KM / Analyst** 的直接终稿节点：澄清、闲聊�
 
 | 路径 | 说明 |
 |------|------|
-| `nodes/respond-early-node.ts` | `runRespondEarlyNode()` |
+| `node/` | `runRespondEarlyNode()` |
 | `index.ts` | 对外 barrel |
 
 ---

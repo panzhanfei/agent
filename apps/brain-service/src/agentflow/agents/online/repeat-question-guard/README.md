@@ -10,9 +10,9 @@
 
 | 路径 | 说明 |
 |------|------|
-| `repeat-question-guard.ts` | `findRepeatAnswerInHistory()` 纯函数 |
-| `nodes/repeat-question-node.ts` | `runRepeatQuestionGuard()` 图节点 |
-| `nodes/repeat-respond-early-node.ts` | `runRepeatRespondEarlyNode()` 同问终态 |
+| `guard/` | `findRepeatAnswerInHistory()` 纯函数 |
+| `repeat-guard/node/` | `runRepeatQuestionGuard()` 图节点 |
+| `repeat-respond-early/node/` | `runRepeatRespondEarlyNode()` 同问终态 |
 | `index.ts` | 对外 barrel |
 
 ---

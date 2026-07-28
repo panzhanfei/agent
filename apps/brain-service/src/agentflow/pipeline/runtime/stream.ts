@@ -13,7 +13,7 @@ import {
   isPureSummarizeDecision,
   isSummarizeComposeDecision,
 } from "@/agentflow/agents/online/content-summarizer/summarize-route";
-import { isPureListDecision } from "@/agentflow/agents/online/corpus-lister/pure-list-route";
+import { isPureListDecision } from "@/agentflow/agents/online/corpus-lister";
 import { intakeRequiresKmRetrieval } from "@/agentflow/agents/online/intake-coordinator/pipeline/intake-km-routing";
 import { describeFanOutPlan } from "@/agentflow/agents/online/plan-fanout";
 import { isUserFactIntent } from "@/agentflow/agents/online/user-fact";

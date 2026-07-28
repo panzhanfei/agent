@@ -240,7 +240,7 @@ flowchart LR
 | `routeMode` | ~~整句互斥 / 可观测 skip\|plan~~ → **与图节点 1:1** | Intake 出口写入；`routes.ts` 只读分发；执行在节点内 |
 | `compositeSlots` | KM / list 并行槽 | dag 步不进槽；顺序跟 `pathPlan.steps` |
 | `executionPlan` | 混合 DAG | 与槽并存于 planExecutor |
-| FactChecker | 整轮一次；composite≥2 **跳过** | 一段 FC 失败拖垮全答；跳 FC 又丢证据审查 |
+| FactChecker | 整轮一次；composite≥2 **跳过** | → **km 槽**工人内 per-step FC；list_corpus 不经 FC |
 
 ### 11.2 PathPlan 有序 steps[] + Compose 一层
 
@@ -275,7 +275,7 @@ type ComposeMode = "qa" | "summarize" | "composite";
 | kind | 执行 | FC |
 |------|------|-----|
 | `km` | `retrieval-node` 按槽 | **per-step** |
-| `list` | `list_corpus` 分页 | **per-step** |
+| `list` | `list_corpus` 分页 | **跳过**（确定性扫盘，与纯 listRetriever 一致） |
 | `tool` | `ToolOrchestrator` | 规则 / 工具输出 |
 | `dag` | `DagExecutor`（**仅** `hybrid_multi_source`） | 节点级或整 DAG pass |
 
@@ -289,7 +289,7 @@ type ComposeMode = "qa" | "summarize" | "composite";
 flowchart LR
   IC[Intake pathPlan.steps<br/>list + km/external_link] --> Val[legalize + derive slots]
   Val --> L[routeMode=planFanOut]
-  L --> PE[每槽 Send+FC → join → post ∥ dag]
+  L --> PE[km FC / list 无 FC → join → post ∥ dag]
   PE --> M[planMerge]
   M --> T[extract_external_links_from_hits]
   M --> CO[ContentOrganizer]
@@ -308,7 +308,7 @@ flowchart LR
 flowchart TD
   IC[IntakeCoordinator] --> R{routeAfterIntake}
   R -->|planFanOut| S[Send 每槽并行]
-  S --> PS[kmRetrieve / listRetrieve]
+  S --> PS[kmRetrieve FC / listRetrieve 无 FC]
   S --> PD[planDag]
   S --> UF[userFactSide]
   PS --> JOIN[planSlotJoin]

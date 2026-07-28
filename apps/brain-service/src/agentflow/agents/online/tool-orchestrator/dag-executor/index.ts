@@ -1,0 +1,33 @@
+import type { PipelineGraphState } from "@/agentflow/pipeline/graph/state";
+import { executeDagPlan } from "../execute";
+
+export const runDagExecutorNode = async (
+  state: PipelineGraphState
+): Promise<Partial<PipelineGraphState>> => {
+  const plan = state.decision?.executionPlan;
+  if (!plan?.length) {
+    return { error: "DAG 路由缺少 executionPlan" };
+  }
+  try {
+    const toolResults = await executeDagPlan(plan, state);
+    const resume = toolResults.resume;
+    const synthesis = toolResults.synthesis;
+    return {
+      hits: resume?.hits ?? [],
+      coverage:
+        resume && resume.hits.length > 0
+          ? resume.insufficientEvidence
+            ? "partial"
+            : "sufficient"
+          : "none",
+      notes: synthesis?.ok
+        ? "DAG 混合检索：语料 + 外部搜索已汇合"
+        : "DAG 执行完成，部分节点无结果",
+      toolResults,
+      checkerPassed: true,
+    };
+  } catch (e) {
+    const msg = e instanceof Error ? e.message : "DAG 执行失败";
+    return { error: msg };
+  }
+};

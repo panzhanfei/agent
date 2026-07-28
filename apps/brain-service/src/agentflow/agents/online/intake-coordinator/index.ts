@@ -3,6 +3,32 @@
  * 端到端：LLM 产出 pathPlan.steps[]；代码合法化并派生 compositeSlots / answerOrder。
  */
 
+import { completeIntakeCoordinator } from "./llm";
+import {
+  matchUiEnumerationPrompt,
+  resolveEnumerationPagination,
+} from "@/agentflow/agents/online/corpus-lister/enumeration";
+import {
+  buildEnumerationListDecision,
+  buildIncompleteUtteranceDecision,
+  buildPureChitchatDecision,
+  applyIntakeChitchatGuard,
+} from "./guards";
+import {
+  isPureSocialUtterance,
+  normalizeIntakeUtterance,
+  rewriteLastUserTurn,
+  shouldRetryCoreferenceMerge,
+  shouldShortCircuitIncompleteUtterance,
+} from "./signals";
+import { logAgentOut } from "@fambrain/brain-shared/agent-log";
+import {
+  buildEarlyExitRoutedDecision,
+  runIntakePipeline,
+} from "./pipeline/intake-pipeline";
+import { parseIntakeDecision } from "./pipeline/parse-intake";
+import type { PipelineGraphState } from "@/agentflow/pipeline/graph/state";
+
 export {
   prompt,
   parseIntakeRoutingDecision,
@@ -49,8 +75,6 @@ export {
   defaultIntakeDecision,
   type RunIntakePipelineResult,
 } from "./pipeline";
-
-export { runIntakeNode } from "./nodes";
 
 export {
   applyIntakeChitchatGuard,
@@ -123,3 +147,131 @@ export {
   type DagTemplateId,
   type ExecutionStep,
 } from "./path-plan";
+
+/**
+ * LangGraph `intake` 节点（位于 preparePipelineMemory 之后、routeAfterIntake 之前）。
+ */
+export const runIntakeNode = async (
+  state: PipelineGraphState
+): Promise<Partial<PipelineGraphState>> => {
+  try {
+    const rawQuestion = state.userQuestion;
+    const normalizedQuestion =
+      normalizeIntakeUtterance(rawQuestion) || rawQuestion.trim() || rawQuestion;
+
+    if (
+      isPureSocialUtterance(normalizedQuestion) ||
+      isPureSocialUtterance(rawQuestion)
+    ) {
+      const chitchat = applyIntakeChitchatGuard(buildPureChitchatDecision());
+      return {
+        decision: buildEarlyExitRoutedDecision(chitchat),
+      };
+    }
+
+    if (
+      shouldShortCircuitIncompleteUtterance(
+        normalizedQuestion,
+        state.intakeHistory
+      )
+    ) {
+      const incomplete = buildIncompleteUtteranceDecision();
+      logAgentOut("IntakeCoordinator", "短路_单字残缺", {
+        userQuestion: rawQuestion,
+        normalizedQuestion,
+      });
+      return {
+        decision: buildEarlyExitRoutedDecision(incomplete),
+      };
+    }
+
+    const uiControl = matchUiEnumerationPrompt(rawQuestion);
+    if (
+      uiControl &&
+      (uiControl.action === "continue" || uiControl.action === "exhaustive")
+    ) {
+      const { page, pageSize } = resolveEnumerationPagination(
+        uiControl,
+        state.history
+      );
+      return {
+        decision: buildEnumerationListDecision({
+          userQuestion: rawQuestion,
+          listKind: uiControl.listKind,
+          listIntent:
+            uiControl.action === "continue" ? "continue" : "exhaustive",
+          page,
+          pageSize,
+        }),
+      };
+    }
+
+    let effectiveQuestion = normalizedQuestion;
+    let intakeHistoryForLlm =
+      normalizedQuestion !== rawQuestion.trim()
+        ? rewriteLastUserTurn(state.intakeHistory, normalizedQuestion)
+        : state.intakeHistory;
+
+    let intakeRaw = await completeIntakeCoordinator(intakeHistoryForLlm, {
+      memoryBlock: state.memoryBlock,
+      intakeHistory: intakeHistoryForLlm,
+    });
+
+    let peek = parseIntakeDecision(intakeRaw);
+    if (!peek) {
+      logAgentOut("IntakeCoordinator", "JSON格式修复重试", {
+        userQuestion: effectiveQuestion,
+        rawPreview:
+          intakeRaw.length > 200 ? `${intakeRaw.slice(0, 200)}…` : intakeRaw,
+      });
+      intakeRaw = await completeIntakeCoordinator(intakeHistoryForLlm, {
+        memoryBlock: state.memoryBlock,
+        intakeHistory: intakeHistoryForLlm,
+        jsonFormatRepair: true,
+      });
+      peek = parseIntakeDecision(intakeRaw);
+    }
+
+    const mergeRetry = shouldRetryCoreferenceMerge(
+      peek,
+      effectiveQuestion,
+      state.intakeHistory
+    );
+    if (mergeRetry.retry && mergeRetry.mergedQuestion) {
+      effectiveQuestion = mergeRetry.mergedQuestion;
+      intakeHistoryForLlm = rewriteLastUserTurn(
+        state.intakeHistory,
+        effectiveQuestion
+      );
+      logAgentOut("IntakeCoordinator", "指代拼接重试", {
+        original: rawQuestion,
+        normalizedQuestion,
+        prior: mergeRetry.prior,
+        effectiveQuestion,
+        peekCoreference: peek?.coreference ?? null,
+        peekIntent: peek?.intent ?? null,
+      });
+      intakeRaw = await completeIntakeCoordinator(intakeHistoryForLlm, {
+        memoryBlock: state.memoryBlock,
+        intakeHistory: intakeHistoryForLlm,
+        coreferenceMergeRetry: true,
+      });
+    }
+
+    const { decision } = await runIntakePipeline({
+      intakeRaw,
+      userQuestion: effectiveQuestion,
+      intakeHistory: intakeHistoryForLlm,
+      history: state.history,
+    });
+    return { decision };
+  } catch (e) {
+    const msg =
+      e instanceof Error ? e.message : "入口接线员调用失败，请确认 Ollama 可用";
+    return {
+      error: msg,
+      answer: "（模型调用失败：请确认本地 Ollama 已启动且模型已拉取）",
+      exitEarly: true,
+    };
+  }
+};

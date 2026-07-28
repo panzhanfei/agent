@@ -19,10 +19,9 @@ export {
     cachedFacetToAnalystResult,
     analystResultToCachedFacet,
 } from "./incremental-plan";
-export { retrieveCompositeIncremental } from "./retrieve";
-export { retrieveCompositeSlotsParallel } from "./slots-parallel";
 export { retrieveSlotWithCache } from "./retrieve-with-cache";
 export {
     mergeCompositeHits,
     mergeCompositeRetrieval,
 } from "./merge";
+export { orderSubResultsBySlots } from "./order-sub-results";

@@ -11,7 +11,7 @@ alwaysApply: true
 
 | 文件 | 职责 |
 |------|------|
-| `index.ts` | **聚合导出**本目录对外 API（函数、常量、类型） |
+| `index.ts` | **聚合导出**本目录对外 API（函数、常量、类型）；单节点 Agent 的 LangGraph 主流程也写在此 |
 | `interface.ts` | **类型约束**（`type` / `interface`）；不含业务实现 |
 
 实现文件（`*-guard.ts`、`retrieve.ts` 等）只写逻辑，类型从 `./interface` 引入。
@@ -38,9 +38,48 @@ import { applyCompositeRouteGuard } from "@/agentflow/.../guards/composite-route
 
 父模块 `index.ts` 再聚合子目录；包外优先用模块根入口（如 `@/.../intake-coordinator`）。
 
+## LangGraph 图节点（`runXxxNode`）
+
+| 包类型 | 图节点出口 | 业务逻辑 |
+|--------|-----------|----------|
+| **单节点 Agent** | 包根 `index.ts`（如 `corpus-lister/index.ts` 导出 `runListRetrieverNode`） | 分类子目录（`list/`、`slot/` 等） |
+| **多节点 / 编排包** | 各子能力 `子目录/index.ts`；包根 `index.ts` **只聚合** | 同左，由子目录 `index.ts` 调用 helper |
+| **纯库包** | 无图节点（如 `knowledge-manager` 的 recall/composite；有图节点时写在包根） | 按职责分子目录 |
+
+**`index.ts` 排版：** 先 `import` + barrel `export { … } from "./…"`；**LangGraph 节点实现（`runXxxNode`）放在文件最下方**。纯节点子目录（仅一个 `runXxxNode`）可只有 import + 底部实现。
+
+```text
+corpus-lister/                    plan-fanout/
+├── index.ts    ← runListRetrieverNode + barrel   ├── index.ts           ← 只聚合
+├── interface.ts                                  ├── interface.ts
+├── list/                                         ├── fan-out/index.ts
+└── slot/                                         ├── plan-slot-join/index.ts
+                                                  └── plan-merge/index.ts
+
+knowledge-manager/
+├── index.ts    ← runKmRetrieveNode + barrel
+├── slot/
+├── recall/
+└── composite/
+```
+
+```ts
+// ✅ compile.ts：从各 Agent 引节点，从 plan-fanout 引编排
+import { runKmRetrieveNode } from "@/agentflow/agents/online/knowledge-manager";
+import { runListRetrieveNode } from "@/agentflow/agents/online/corpus-lister";
+import { runPlanSlotJoinNode, fanOutPlanWorkers } from "@/agentflow/agents/online/plan-fanout";
+
+// ❌ 禁止 plan-fanout 代管 KM / Lister 的 retrieve 节点
+// ❌ 禁止 node/ 子目录（已废弃）
+```
+
+**PlanFanOut 边界：** 只拥有 `fan-out` → `planSlotJoin` → `planMerge`；`kmRetrieve`/`listRetrieve` → KM/Lister；`runUserFactSideNode` → `user-fact/side`；`runPlanSlotPostNode`/`runPlanDagNode` → `tool-orchestrator`。
+
 ## 新建 / 改动检查
 
 1. 新类型 → 放进该目录 `interface.ts`，并由 `index.ts` re-export
 2. 新公开函数 → 实现文件 + `index.ts` 导出
 3. 同级 `./`，跨目录 `@.../<folder>`（不要 `.../具体文件名`）
 4. `interface.ts` 只依赖其它目录的类型（优先 `.../interface`），避免与实现 barrel 循环
+5. 新图节点 → 单节点写包根 `index.ts`；多节点写 `子目录/index.ts`；**不建** `node/`
+6. 子模块 import 禁止走包根 barrel（避免循环依赖）

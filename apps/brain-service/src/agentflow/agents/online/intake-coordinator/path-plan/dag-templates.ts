@@ -2,7 +2,7 @@
  * DAG 模板：仅「多源汇合」一类通用图（语料 + 外部检索 + synthesize）。
  * 禁止再为单个业务场景（如开源链接）新增 named template。
  */
-import { extractCompanyHint } from "@/agentflow/agents/online/tool-orchestrator/field-catalog";
+import { extractCompanyHint } from "@/agentflow/agents/online/tool-orchestrator/catalog";
 import type { ExecutionPlanNode } from "@/agentflow/agents/online/tool-orchestrator";
 
 /** 语料简历 + 联网公司/市场 + synthesize（deps 拓扑） */

@@ -61,7 +61,7 @@ intake-coordinator/
 ├── signals/               ← 问句结构工具 + 指代重试判定 / 单字短路
 ├── enumeration/           ← re-export：`corpus-lister/enumeration`（UI exact-match / 分页）
 │
-├── nodes/                 ← LangGraph 图节点（仅 intake）
+├── node/                  ← LangGraph 图节点（仅 intake）
 │   └── intake-node.ts     # 短路 → LLM →（JSON 修复）→（指代拼接≤1）→ pipeline
 │
 ├── path-plan/             ← PathPlan 合法化 + 派生 slots（主路径）
@@ -117,7 +117,7 @@ pipeline/graph/compile.ts  →  runPrepareTurnStart()     ../prepare-turn-start/
     │         同问命中 → respondEarly → END
     │
     ▼
-intake-coordinator/nodes/intake-node.ts   runIntakeNode()
+intake-coordinator/node/                   runIntakeNode()
     │
     ├─ completeIntakeCoordinator()          llm/ollama-chat.ts  ← 原文第 1 次
     │       输入: intakeHistory + memoryBlock + contract/prompt
@@ -137,7 +137,7 @@ state.decision 写入 PipelineGraphState
 routeAfterIntake()                        pipeline/graph/routes.ts
     ├─ userFact        → user-fact-node.ts → persistTurnEnd
     ├─ respondEarly    → respond-early-node.ts → persistTurnEnd
-    ├─ retrieval       → knowledge-manager/nodes/retrieval-node → … → analyst → persistTurnEnd
+    ├─ planFanout      → plan-fanout/<capability>/node（km/list Send → join → post ∥ dag → merge）→ … → analyst → persistTurnEnd
     ├─ contentSummarizer
     └─ factChecker     → （无检索的 direct_answer 等）
 ```
@@ -187,7 +187,7 @@ LLM 原始 JSON
 | `userFact` | userFact（纯 remember/recall） |
 | `contentSummarizer` | contentSummarizer（纯摘要、无检索） |
 | `listRetriever` | listRetriever（纯 list 槽） |
-| `planFanOut` | `Send` 每槽 → kmRetrieve∥listRetrieve（槽内 FC）∥userFactSide→planSlotJoin→planSlotPost ∥ planDag → planMerge（SSE 报真实步骤） |
+| `planFanOut` | `Send` 每槽 → kmRetrieve（FC）∥listRetrieve（无 FC）∥userFactSide→planSlotJoin→planSlotPost ∥ planDag → planMerge（SSE 报真实步骤） |
 
 ```text
 pathPlan.steps[]
@@ -338,7 +338,7 @@ Intake 产出两层结构：**LLM 层** `IntakeRoutingDecision` → **编排层*
 | `userFact` | remember / recall | userFact |
 | `contentSummarizer` | 纯摘要、无 pathPlan 检索 | contentSummarizer |
 | `listRetriever` | 纯 list 槽 | listRetriever |
-| `planFanOut` | 有 km/list/tool/dag（可并存）或同轮 remember side-effect | 每槽 km/list Send（槽内 FC）→ planSlotJoin→planSlotPost ∥ planDag → planMerge |
+| `planFanOut` | 有 km/list/tool/dag（可并存）或同轮 remember side-effect | km Send（FC）∥ list Send（无 FC）→ planSlotJoin→planSlotPost ∥ planDag → planMerge |
 
 > 执行语义在 **plan-fanout 工人**（槽检索 ± hybrid dag ± remember）；`routeMode` 不再区分 slots/dag。
 
@@ -410,7 +410,7 @@ RoutedIntakeDecision:
   routeMode: plan
   compositeSlots: [ { id: plan-0, searchQuery: "...", queryType: tech } ]
 
-→ routeAfterIntake → retrieval → KM 1 槽（retrieveCompositeIncremental）
+→ routeAfterIntake → planFanOut 每槽 Send → KM/list 单槽（retrieveSlotWithCache / fetchListSlot）
 ```
 
 ### 5.2 闲聊：「你好」
@@ -570,7 +570,7 @@ LLM 返回非 JSON / Zod 校验失败
 | `intake-pipeline.ts` | LLM 之后：parse → guard 链 → `RoutedIntakeDecision`；分步打日志 |
 | `parse-intake.ts` | 解析 LLM JSON；解析失败 → `defaultIntakeDecision`（**clarify**，不发明 retrieve） |
 
-### nodes/
+### node/
 
 | 文件 | 职责 |
 |------|------|
@@ -630,7 +630,7 @@ Pipeline 内主要调用点：
 | `pipeline/graph/compile.ts` | `runPrepareTurnStart`（prepare-turn-start）；`runIntakeNode` 等节点委托 |
 | `pipeline/runtime/stream.ts` | SSE 消费；**不**再直接调同问短路/Mem0 |
 | `pipeline/graph/state.ts` | `RoutedIntakeDecision`, `IncrementalCompositePlan` |
-| `user-fact/nodes/user-fact-node.ts` | userFact 图节点 |
+| `user-fact/node/` | userFact 图节点 |
 | `intake-coordinator/pipeline/parse-intake.ts` | `parseIntakeDecision`, `defaultIntakeDecision` |
 | `knowledge-manager/recall/retrieve.ts` | `resolveEnumerationTarget`（列举扫盘） |
 | `information-analyst/*` | composite 槽类型、enumeration 辅助 |

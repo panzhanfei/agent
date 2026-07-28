@@ -1,6 +1,6 @@
 # KnowledgeManager（语料检索）
 
-KM 是 Pipeline 的**纯规则检索 Agent**（复合路径在 **planExecutor** 内调用；纯 list 见 [`../corpus-lister/`](../corpus-lister/README.md)）。
+KM 是 Pipeline 的**纯规则检索 Agent**（复合路径在 **plan-fanout** 内调用；纯 list 见 [`../corpus-lister/`](../corpus-lister/README.md)）。
 
 **KM 不做的事：** 调 Chat LLM 精排、写最终长答、读写 Mem0、Intake 路由决策（见 [`../intake-coordinator/`](../intake-coordinator/README.md)）。
 
@@ -22,7 +22,7 @@ KM 是 Pipeline 的**纯规则检索 Agent**（复合路径在 **planExecutor** 
 1. **快、稳、可回归** — 主路径确定性；日志带 `queryProfile`、`recallSource`、`confidenceTier`。
 2. **Intake queryType 优先** — KM 内 `inferQueryProfile` 仅脚本 / 解析失败兜底。
 3. **对外只暴露 `index.ts`** — 子目录按职责拆分；外部 import 统一走 barrel。
-4. **一个 LangGraph 节点 ≈ 一个文件夹** — 图节点在 `nodes/`；多槽编排在 `composite/`；真查库在 `recall/`。
+4. **图节点在包根 `index.ts`** — 复合路径 `runKmRetrieveNode` 在本模块；多槽编排在 `composite/`；真查库在 `recall/`；单槽工人在 `slot/`。
 
 ### 1.3 技术栈
 
@@ -47,15 +47,11 @@ knowledge-manager/
 │   ├── types.ts           # KnowledgeHit / KnowledgeRetrievalResult / Candidate
 │   └── schema.ts          # Zod 校验 hits / coverage
 │
-├── nodes/                 ← LangGraph 图节点（仅 retrieval）
-│   └── retrieval-node.ts  # runRetrievalNode()
-│
-├── composite/             ← 多槽增量检索（对应 Intake compositeSlots）
+├── composite/             ← 多槽增量（facet 计划 + 单槽 cache retrieve）
 │   ├── facet-key.ts
 │   ├── incremental-plan.ts
-│   ├── retrieve.ts
-│   ├── slots-parallel.ts
 │   ├── retrieve-with-cache.ts
+│   ├── order-sub-results.ts  # orderSubResultsBySlots()（join 用）
 │   ├── merge.ts
 │   └── index.ts
 │
@@ -75,9 +71,9 @@ knowledge-manager/
 
 ### 推荐阅读顺序
 
-1. `nodes/retrieval-node.ts` — **slots×1 vs slots×N** 分支、检索 hits 缓存
+1. `knowledge-manager/slot/` — 复合路径 kmRetrieve Send 工人：retrieve + FC + 局部重检
 2. `recall/retrieve.ts` — Hybrid → rank → coverage 主路径
-3. `composite/` — 槽答案增量与多槽并行
+3. `composite/` — facet 增量计划与单槽 hits cache
 4. `profile/query-profile.ts` + `profile/km-config.ts` — 分档参数
 5. `recall/retrieve-helpers.ts` — identityGuard、enumerationFill
 
@@ -95,23 +91,26 @@ routeAfterIntake()                    pipeline/graph/routes.ts
     │
     ├─ 纯 list（全部槽 executor=list_corpus）→ listRetriever（../corpus-lister/）
     │
-    └─ 复合 / km / tool / dag → planExecutor
-          └─ nodes/retrieval-node.ts     runRetrievalNode()
+    └─ 复合 / km / tool / dag → planFanOut
+          └─ 每槽 Send：kmRetrieve（`knowledge-manager`，retrieve+FC）/ listRetrieve（`corpus-lister`，扫盘不经 FC）
                 pathPlan 派生 slots（可与 dag 并存）
-                  ├─ executor=km_retrieve → hybrid / composite 增量
-                  └─ executor=list_corpus → fetchListSlot（corpus-lister，与 km 并行）
+                  ├─ executor=km_retrieve → retrieveSlotWithCache + FC
+                  └─ executor=list_corpus → fetchListSlot（不经 FC）
     │
     ▼
-state.hits / coverage / notes / confidenceTier
+planSlotJoin 混排 → planSlotPost(tools) → planMerge
     │
     ▼
-（planExecutor 路径）per-step FC → contentOrganizer → analyst
-（listRetriever 路径）直接 contentOrganizer → analyst
+state.hits / coverage / notes / confidenceTier / stepResults
+    │
+    ▼
+contentOrganizer → analyst
+（纯 listRetriever 路径）直接 contentOrganizer → analyst
 ```
 
-### 3.2 单槽检索（slots × 1）
+### 3.2 单槽检索（每槽 Send）
 
-与多槽共用 `retrieveCompositeIncremental`；`compositeSlots.length === 1` 时 merge 结果等价于原单问 hits。
+复合路径每槽独立工人；`retrieveSlotWithCache` + facet 增量计划（`resolveIncrementalCompositePlan`）。
 
 ### 3.3 单问检索内部（`retrieveKnowledge`）
 
