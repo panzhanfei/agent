@@ -194,7 +194,7 @@ pnpm run dev
 
 **约定：** `@fambrain/brain-service` 不直接访问数据库；编排层不把中间 Agent 输出写入 `messages`。
 
-**架构演进（2026-07）：** 原 `agentflow/brain-service/` 重命名为 **`agents/`**；`tool-orchestration/` 移入 **`agents/online/tool-orchestrator/`**；列举执行从整句 `routeMode=list` 改为 **per-slot** `enumerationControl`（P0-26）；**PathPlan + planFanOut（LangGraph Send）** 统一有序 `pathPlan.steps[]`（kind=km|list|tool|dag）并行执行（km 槽 per-step FC，list_corpus 不经 FC）（P0-28；legalize 兼容旧四桶；原单体 `plan-executor` 已删除）。详见 [架构 v2 §11 PathPlan](./05-architecture-v2-tool-orchestration.md#11-pathplan-统一执行计划-2026-07)、[坑点 §2.8](./04-pitfalls.md#28-pathplan-统一编排-p0-28--2026-07)。
+**架构演进（2026-07）：** **PathPlan + planFanOut（LangGraph Send）** 统一有序 `pathPlan.steps[]`（kind=km|list|mem|tool|summarize|dag）：km 槽 per-step FC；list 无 FC；mem→Mem0；tool→独立工具工人（易扩展天气/搜索）；summarizeSlot→子步总结。详见 [架构 v2 §11](./05-architecture-v2-tool-orchestration.md#11-pathplan-统一执行计划-2026-07)、[坑点 §2.8](./04-pitfalls.md#28-pathplan-统一编排-p0-28--2026-07)。
 
 ## P0 已落地能力（代码索引）
 
@@ -240,7 +240,8 @@ pnpm run dev
 | TurnTrace | `packages/db` + `GET .../traces` | 每轮 Pipeline timing/steps/logs 入库；SSE 直播 + 历史回放 |
 | `verify:intake-chitchat` | `apps/brain-service/scripts/` | P0-13：chitchat briefReply 模板兜底 + live ×10 |
 | `verify:intake-link-lookup` | `apps/brain-service/scripts/` | P0-25：GitHub/对外链接 `external_link` guard + stale multipart 单测 |
-| `verify:composite-route` | `apps/brain-service/scripts/` | P0-15/R6-3：composite 路由 guard + merge + 单问年龄 slot 单测 |
+| `verify:composite-route` | `apps/brain-service/scripts/` | PathPlan legalize + derive slots（mem/tool/summarize）冒烟 |
+| `legalizePathPlan` / `normalizePathPlanSteps` / `deriveCompositeSlotsFromPathPlan` | `intake-coordinator/path-plan/from-llm.ts` | LLM PathPlan → 合法化 + 结构归一 + 派生 slots |
 | `verify:composite-incremental` | `apps/brain-service/scripts/` | P0-15：槽答案缓存 + composite 增量 单测 |
 | `verify:user-fact` | `apps/brain-service/scripts/` | P0-16：Intake schema + Mem0 跨会话 QQ remember/recall |
 | `resolveEnumerationTarget` | `intake-coordinator/composite/enumeration-target.ts` | plan label/topics → project \| experience 列举分流（P0-21） |
@@ -259,7 +260,7 @@ pnpm run dev
 | `runPlanSlotPostNode` / `runPlanDagNode` | `tool-orchestrator/` | tools / DAG fan-out 工人 |
 | `runUserFactSideNode` | `user-fact/side/` | 复合并行 remember side-effect |
 | `compilePathPlan` / `applyPathPlanGuard` | `intake-coordinator/path-plan/` | 旧分桶编译（兼容/测试）；主路径见 `from-llm.ts` |
-| `legalizePathPlan` / `deriveCompositeSlotsFromPathPlan` | `intake-coordinator/path-plan/from-llm.ts` | LLM PathPlan（steps[] 或旧四桶）→ 合法化 + 派生 slots |
+| `legalizePathPlan` / `normalizePathPlanSteps` / `deriveCompositeSlotsFromPathPlan` | `intake-coordinator/path-plan/from-llm.ts` | LLM PathPlan → 合法化 + 结构归一 + 派生 slots |
 | `extract_external_links_from_hits` | `tools/lib/extract-external-links.ts` | 从 hits 抽对外 URL（Intake 只声明 external_link + toolId） |
 | `repairRetrievalPlanItems` / `IDENTITY_FIELD_SEARCH` | `intake-coordinator/composite/` | P0-30：schema 合法化 + facet 去重（无口语 labels） |
 | `compute_tenure_from_hits` | `tools/lib/compute-tenure.ts` | P0-30：从业年限（简历时间线最早起点） |

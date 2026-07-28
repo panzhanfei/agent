@@ -18,8 +18,16 @@ export type EnumerationControl = {
     timeWindowYears?: number | null;
 };
 
-/** 槽执行器：语义检索 vs 目录扫盘分页 */
-export type SlotExecutor = "km_retrieve" | "list_corpus";
+/**
+ * 槽执行器 → planFanOut Send 目标。
+ * km_retrieve / list_corpus / mem_recall / tool_run / summarize_slot
+ */
+export type SlotExecutor =
+    | "km_retrieve"
+    | "list_corpus"
+    | "mem_recall"
+    | "tool_run"
+    | "summarize_slot";
 
 export const ENUMERATION_ACTION_PROMPTS = {
     project: {

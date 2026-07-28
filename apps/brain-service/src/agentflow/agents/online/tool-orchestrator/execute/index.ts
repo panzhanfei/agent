@@ -31,6 +31,7 @@ import type {
     ToolRunId,
     ToolRunResult,
 } from "../interface";
+import { isPostRetrievalToolId } from "../interface";
 
 const analystToToolResult = (
     toolId: ToolRunId,
@@ -520,8 +521,15 @@ export const resolvePostRetrievalToolRuns = (
     ) {
         for (const sub of state.compositeSubResults) {
             const slot = enrichedSlots.find((s) => s.id === sub.slot);
+            // 仅 post-retrieval：mem/tool/summarize 工人已处理；无 hits 不跑
             if (
                 !slot?.toolId ||
+                !isPostRetrievalToolId(slot.toolId) ||
+                slot.executor === "mem_recall" ||
+                slot.executor === "tool_run" ||
+                slot.executor === "summarize_slot" ||
+                slot.dataSource === "mem0" ||
+                slot.dataSource === "user_text" ||
                 sub.hits.length === 0 ||
                 sub.coverage === "none"
             ) {
@@ -533,12 +541,10 @@ export const resolvePostRetrievalToolRuns = (
                     id: sub.slot,
                     label: sub.label,
                     dataSource:
-                        slot.toolId === "search_web"
-                            ? "web"
-                            : slot.toolId === "compute_age_from_hits" ||
-                                slot.toolId === "compute_tenure_from_hits"
-                              ? "compute"
-                              : "corpus",
+                        slot.toolId === "compute_age_from_hits" ||
+                        slot.toolId === "compute_tenure_from_hits"
+                            ? "compute"
+                            : "corpus",
                     toolId: slot.toolId,
                     queryType: slot.queryType,
                     topics: slot.topics,

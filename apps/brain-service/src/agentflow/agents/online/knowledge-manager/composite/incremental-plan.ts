@@ -9,17 +9,15 @@
  * 槽位列表本身由 Intake 规划；本文件只决定本轮哪些槽还要查。
  */
 import {
-    clearCompositeSession,
     getCompositeSession,
     isFacetAnswerReusable,
     type CachedFacetAnswer,
     type CompositeSessionKey,
 } from "@fambrain/infra";
-import type { InformationAnalystResult } from "@/agentflow/agents/online/information-analyst";
+import type { InformationAnalystResult } from "@/agentflow/agents/online/information-analyst/prompt";
 import type { CompositeRetrievalSlot } from "@/agentflow/agents/online/intake-coordinator";
 import {
     attachFacetKey,
-    detectCompositeRefreshIntent,
     facetAnswerMatchesSlot,
 } from "./facet-key";
 import type {
@@ -81,24 +79,18 @@ export const analystResultToCachedFacet = (
  * 解析本次 composite 增量计划：哪些槽可跳过真检索。
  *
  * 流程：
- * 1. 用户说「重新来」等 → 清空会话 facet cache
- * 2. 读会话 snapshot.facets
- * 3. 每槽 attachFacetKey，可复用则计入 facetCacheHits，否则进 activeRetrievalSlots
+ * 1. 读会话 snapshot.facets（不再按口语「重新来」清 cache）
+ * 2. 每槽 attachFacetKey，可复用则计入 facetCacheHits，否则进 activeRetrievalSlots
  */
 export const resolveIncrementalCompositePlan = async (input: {
     session: CompositeSessionKey;
     userQuestion: string;
     slots: CompositeRetrievalSlot[];
 }): Promise<IncrementalCompositePlan> => {
-    let sessionCleared = false;
-    if (detectCompositeRefreshIntent(input.userQuestion)) {
-        await clearCompositeSession(input.session);
-        sessionCleared = true;
-    }
+    const sessionCleared = false;
+    void input.userQuestion;
 
-    const snapshot = sessionCleared
-        ? null
-        : await getCompositeSession(input.session);
+    const snapshot = await getCompositeSession(input.session);
 
     const slots: CompositeSlotPlan[] = [];
     const activeRetrievalSlots: CompositeRetrievalSlot[] = [];

@@ -11,8 +11,8 @@ export const parseIntakeDecision = (
 };
 
 /**
- * LLM 未吐 JSON、而是反问散文时的结构兜底（无口语意图词表）。
- * 信号：无 `{` 对象；含问号，或含「请明确/哪个/更多细节」等反问骨架。
+ * LLM 未吐 JSON、而是散文时的结构兜底（无口语意图词表）。
+ * 信号：无 `{`/`}`；含问号 → 当作 clarify 文案。
  */
 export const clarifyFallbackFromProse = (
   raw: string
@@ -20,12 +20,7 @@ export const clarifyFallbackFromProse = (
   const t = raw.trim();
   if (!t || t.length < 8 || t.length > 400) return null;
   if (t.includes("{") || t.includes("}")) return null;
-  const hasQuestionMark = /[？?]/.test(t);
-  const looksLikeClarifyAsk =
-    /请(明确|说明|补充|告知)|哪(个|段|项|一)|更多(细节|信息)|具体(指|是哪)/.test(
-      t
-    );
-  if (!hasQuestionMark && !looksLikeClarifyAsk) return null;
+  if (!/[？?]/.test(t)) return null;
   return {
     intent: "clarify",
     searchQuery: "",

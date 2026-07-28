@@ -10,10 +10,11 @@ import {
 } from "@/agentflow/agents/online/intake-coordinator";
 
 describe("normalizeIntakeUtterance", () => {
-  it("collapses consecutive identical code points", () => {
+  it("collapses repeated punctuation/CJK but keeps latin letter runs", () => {
     expect(normalizeIntakeUtterance("呢呢呢？？？")).toBe("呢？");
     expect(normalizeIntakeUtterance("好好好")).toBe("好");
-    expect(normalizeIntakeUtterance("  aaa  ")).toBe("a");
+    expect(normalizeIntakeUtterance("  aaa  ")).toBe("aaa");
+    expect(normalizeIntakeUtterance("我的qq是多少")).toBe("我的qq是多少");
   });
 
   it("does not collapse distinct characters", () => {

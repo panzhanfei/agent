@@ -23,11 +23,14 @@ export type {
   ContentSummaryResult,
 } from "./prompt";
 
+export { runSummarizeSlotNode } from "./slot";
+
 /**
  * LangGraph contentSummarizer 节点。
  *
  * - 纯总结（intake 短路）：生成终稿，exitEarly
  * - planFanOut 链内：composeMode=summarize 时生成终稿；qa/composite/list 在 contentOrganizer 后直接进 analyst，不经本节点
+ * - 复合内子步总结：走 summarizeSlot Send 工人（见 ./slot）
  */
 export const runContentSummarizerNode = async (
   state: PipelineGraphState

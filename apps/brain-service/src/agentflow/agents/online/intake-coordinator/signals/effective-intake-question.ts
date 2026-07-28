@@ -30,7 +30,8 @@ export const utteranceCodePointLength = (question: string): number =>
   Array.from(question.trim()).length;
 
 /**
- * 进线轻量规范化：trim + 压掉连续相同码点（呢呢呢？？？→呢？）。
+ * 进线轻量规范化：trim + 压掉连续相同**标点/空白/汉字**（呢呢呢？？？→呢？；好好好→好）。
+ * **不**压缩拉丁字母/数字（避免 qq→q、11→1）。
  * 不做 NFKC（避免全角「？」变半角「?」导致与 history 对不上）。
  * 用于省 token / 单字判定；不做语义去重或相似句合并。
  */
@@ -39,7 +40,9 @@ export const normalizeIntakeUtterance = (question: string): string => {
   if (!t) return t;
   const out: string[] = [];
   for (const ch of Array.from(t)) {
-    if (out.length > 0 && out[out.length - 1] === ch) continue;
+    const prev = out[out.length - 1];
+    // 字母数字保留重复（qq / email 局部）；其余重复码点压成 1
+    if (prev === ch && !/[a-zA-Z0-9]/.test(ch)) continue;
     out.push(ch);
   }
   return out.join("");

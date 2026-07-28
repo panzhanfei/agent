@@ -20,6 +20,7 @@ import {
 } from "./user-fact";
 
 export { runUserFactSideNode } from "./side";
+export { runMemRetrieveNode } from "./mem-retrieve";
 export {
   routeUserFactFromIntake,
   routeUserFactSideEffect,

@@ -60,11 +60,12 @@ export const facetAnswerMatchesSlot = (
     return cached.enumerationPage === wantPage;
 };
 
-/** 用户明确要求重答 → resolveIncrementalCompositePlan 会清会话 cache */
-export const detectCompositeRefreshIntent = (userQuestion: string): boolean =>
-    /全部重来|重新介绍|重新回答|重新说|再说一遍|从头再来|不对[，,]?重新|重新来/.test(
-        userQuestion.trim()
-    );
+/**
+ * @deprecated 禁止问句口语词表清 cache。
+ * 槽答案失效靠 facetKey 变化 / 会话自然过期；不再匹配「重新来」等口语。
+ */
+export const detectCompositeRefreshIntent = (_userQuestion: string): boolean =>
+    false;
 
 const IDENTITY_FACET_KEY: Record<IntakeIdentityField, string> = {
     name: "id:name",

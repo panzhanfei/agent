@@ -2,7 +2,7 @@
  * Intake 编排（LLM 之后）：parse → early-exit → legalize PathPlan → 派生 slots。
  * 每步打结构化日志，供 Web 运行日志 / 控制台复盘。
  *
- * 端到端：LLM 出 pathPlan 四桶 + answerOrder；代码只合法化、补 list 页码、派生 compositeSlots。
+ * 端到端：LLM 出 pathPlan.steps[]；代码只合法化、结构归一、补 list 页码、派生 compositeSlots。
  * 三信号指代 merge 在 intake-node；continuation 恒 noop。
  */
 import {
@@ -55,7 +55,9 @@ const summarizeDecision = (
         return {
           km: steps.filter((s) => s.kind === "km").length,
           list: steps.filter((s) => s.kind === "list").length,
+          mem: steps.filter((s) => s.kind === "mem").length,
           tool: steps.filter((s) => s.kind === "tool").length,
+          summarize: steps.filter((s) => s.kind === "summarize").length,
           dag: steps.filter((s) => s.kind === "dag").length,
         };
       })()
@@ -166,10 +168,13 @@ const emptyPlanClarify = (
 export const runIntakePipeline = async (
   input: RunIntakePipelineInput
 ): Promise<RunIntakePipelineResult> => {
-  /** ① 解析 + 兜底：失败 → 散文 clarify 或 defaultClarify */
+  /** ① 解析 + 兜底：无 `{` 且含问号→散文 clarify；否则 defaultClarify（禁止口语猜 chitchat） */
   const parsed = parseIntakeDecision(input.intakeRaw);
+  const noJsonObject = !input.intakeRaw.includes("{");
   const proseClarify =
-    parsed === null ? clarifyFallbackFromProse(input.intakeRaw) : null;
+    parsed === null && noJsonObject
+      ? clarifyFallbackFromProse(input.intakeRaw)
+      : null;
   const parseUsedFallback = parsed === null && proseClarify === null;
   let decision =
     parsed ?? proseClarify ?? defaultIntakeDecision(input.userQuestion);
@@ -179,8 +184,8 @@ export const runIntakePipeline = async (
     ...(parsed === null
       ? {
           fallbackReason: proseClarify
-            ? "JSON 解析失败，散文含问号 → clarifyFallbackFromProse"
-            : "JSON 解析或 Zod 校验失败，使用 defaultIntakeDecision(clarify)",
+            ? "无 JSON 对象且含问号 → clarifyFallbackFromProse"
+            : "JSON 解析失败 → defaultIntakeDecision(clarify)",
         }
       : {}),
     ...summarizeDecision(decision),
@@ -312,6 +317,63 @@ export const runIntakePipeline = async (
 
   /** ⑥ 合法化 LLM pathPlan；retrieve 且空 → clarify */
   let pathPlan = legalizePathPlan(decision.pathPlan);
+
+  // 顶层 userFactKey 补到缺 key 的 mem 步（结构补全，非猜字段名）
+  if (decision.userFactKey?.trim()) {
+    const topKey = decision.userFactKey.trim();
+    pathPlan = {
+      steps: pathPlan.steps.map((s) =>
+        s.kind === "mem" && !s.userFactKey
+          ? {
+              ...s,
+              userFactKey: topKey,
+              userFactLabel:
+                s.userFactLabel || decision.userFactLabel || s.label,
+            }
+          : s
+      ),
+    };
+  }
+
+  // 结构规则：仅一步 mem → 等价纯 recall 早退（缺 key 时用占位 key + Intake label）
+  if (
+    decision.intent === "retrieve_and_answer" &&
+    pathPlan.steps.length === 1 &&
+    pathPlan.steps[0]?.kind === "mem"
+  ) {
+    const mem = pathPlan.steps[0];
+    const label =
+      mem.userFactLabel?.trim() ||
+      decision.userFactLabel?.trim() ||
+      mem.label ||
+      "user_fact";
+    const factKey =
+      mem.userFactKey?.trim() ||
+      decision.userFactKey?.trim() ||
+      "user_fact";
+    decision = {
+      ...decision,
+      intent: "recall_user_fact",
+      userFactKey: factKey,
+      userFactLabel: label,
+      userFactValue: null,
+      pathPlan: emptyPathPlan(),
+      retrievalPlan: [],
+      composeMode: "qa",
+    };
+    logAgentOut("IntakeCoordinator", "guard_单步mem→recall", {
+      userFactKey: decision.userFactKey,
+      userFactLabel: decision.userFactLabel,
+    });
+    const routed = buildEarlyExitRoutedDecision(decision);
+    logAgentOut("IntakeCoordinator", "最终路由", {
+      earlyExit: true,
+      reason: "recall_user_fact",
+      ...summarizeDecision(routed),
+    });
+    return { decision: routed, parseUsedFallback, earlyExit: true };
+  }
+
   const needsPathPlan =
     decision.intent === "retrieve_and_answer" ||
     (decision.intent === "summarize_content" &&
@@ -351,7 +413,9 @@ export const runIntakePipeline = async (
     })),
     km: pathPlan.steps.filter((s) => s.kind === "km").length,
     list: pathPlan.steps.filter((s) => s.kind === "list").length,
+    mem: pathPlan.steps.filter((s) => s.kind === "mem").length,
     tool: pathPlan.steps.filter((s) => s.kind === "tool").length,
+    summarize: pathPlan.steps.filter((s) => s.kind === "summarize").length,
     dag: pathPlan.steps.filter((s) => s.kind === "dag").map((d) => d.template),
   });
 
@@ -428,7 +492,10 @@ export const runIntakePipeline = async (
     pathPlanCounts: {
       km: routed.pathPlan.steps.filter((s) => s.kind === "km").length,
       list: routed.pathPlan.steps.filter((s) => s.kind === "list").length,
+      mem: routed.pathPlan.steps.filter((s) => s.kind === "mem").length,
       tool: routed.pathPlan.steps.filter((s) => s.kind === "tool").length,
+      summarize: routed.pathPlan.steps.filter((s) => s.kind === "summarize")
+        .length,
       dag: routed.pathPlan.steps.filter((s) => s.kind === "dag").length,
     },
   });

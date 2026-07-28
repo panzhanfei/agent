@@ -1,9 +1,9 @@
 import { describe, expect, it } from "vitest";
 import {
-    applyCompositeRouteGuard,
     applyPathPlanGuard,
-    compilePathPlan,
+    deriveCompositeSlotsFromPathPlan,
     emptyPathPlan,
+    legalizePathPlan,
     stepsOfKind,
     type RoutedIntakeDecision,
 } from "@/agentflow/agents/online/intake-coordinator";
@@ -18,25 +18,7 @@ const base = (): RoutedIntakeDecision => ({
     queryType: "enumeration",
     clarifyingQuestion: null,
     briefReply: null,
-    retrievalPlan: [
-        {
-            label: "列举所有项目名称",
-            searchQuery: "项目经历 全部项目 项目名称",
-            queryType: "enumeration",
-            topics: ["project"],
-            enumerationControl: {
-                action: "preview",
-                listKind: "project",
-                excludeHint: null,
-            },
-        },
-        {
-            label: "开源项目的 GitHub 与线上地址",
-            searchQuery: "个人简介 简历 开源 GitHub",
-            queryType: "external_link",
-            topics: ["personal", "resume", "project"],
-        },
-    ],
+    retrievalPlan: [],
     userFactKey: null,
     userFactLabel: null,
     userFactValue: null,
@@ -47,37 +29,116 @@ const base = (): RoutedIntakeDecision => ({
     composeMode: "qa",
 });
 
-describe("compilePathPlan", () => {
-    it("compiles enumeration + external_link as km/list slots (no scene DAG)", () => {
-        const routed = applyCompositeRouteGuard(
-            base(),
-            "列出所有项目并告诉我开源 GitHub"
-        );
-        const { pathPlan, composeMode } = compilePathPlan(
-            routed,
-            "列出所有项目并告诉我开源 GitHub"
-        );
+describe("legalizePathPlan + deriveCompositeSlots", () => {
+    it("legalizes enumeration + external_link as km/list (no scene DAG)", () => {
+        const pathPlan = legalizePathPlan({
+            steps: [
+                {
+                    id: "list-projects",
+                    kind: "list",
+                    label: "列举所有项目名称",
+                    searchQuery: "项目经历 全部项目 项目名称",
+                    queryType: "enumeration",
+                    topics: ["project"],
+                    enumerationControl: {
+                        action: "exhaustive",
+                        listKind: "project",
+                        excludeHint: null,
+                    },
+                },
+                {
+                    id: "km-links",
+                    kind: "km",
+                    label: "开源项目的 GitHub 与线上地址",
+                    searchQuery: "个人简介 简历 开源 GitHub",
+                    queryType: "external_link",
+                    topics: ["personal", "resume", "project"],
+                    toolId: "extract_external_links_from_hits",
+                    dataSource: "corpus",
+                },
+            ],
+        });
         expect(stepsOfKind(pathPlan, "dag")).toHaveLength(0);
         expect(
             stepsOfKind(pathPlan, "km").some(
                 (k) => k.queryType === "external_link"
             )
         ).toBe(true);
-        expect(
-            stepsOfKind(pathPlan, "list").length > 0 ||
-                stepsOfKind(pathPlan, "km").some(
-                    (k) => k.queryType === "enumeration"
-                )
-        ).toBe(true);
-        expect(composeMode).toBe("composite");
+        expect(stepsOfKind(pathPlan, "list").length).toBe(1);
+        const slots = deriveCompositeSlotsFromPathPlan(pathPlan);
+        expect(slots.map((s) => s.executor)).toEqual([
+            "list_corpus",
+            "km_retrieve",
+        ]);
+    });
+
+    it("rewrites userFactKey (no identityField) → kind=mem", () => {
+        const pathPlan = legalizePathPlan({
+            steps: [
+                {
+                    id: "km-qq",
+                    kind: "km",
+                    label: "QQ号",
+                    searchQuery: "QQ",
+                    queryType: "identity",
+                    topics: ["personal"],
+                    userFactKey: "qq",
+                    userFactLabel: "QQ号",
+                },
+            ],
+        });
+        expect(pathPlan.steps).toHaveLength(1);
+        expect(pathPlan.steps[0]?.kind).toBe("mem");
+        expect(pathPlan.steps[0]?.dataSource).toBe("mem0");
+        expect(pathPlan.steps[0]?.userFactKey).toBe("qq");
+        expect(pathPlan.steps[0]?.toolId).toBeNull();
+        const slots = deriveCompositeSlotsFromPathPlan(pathPlan);
+        expect(slots[0]?.executor).toBe("mem_recall");
+    });
+
+    it("rewrites search_web on km → kind=tool", () => {
+        const pathPlan = legalizePathPlan({
+            steps: [
+                {
+                    id: "km-company",
+                    kind: "km",
+                    label: "公司概况",
+                    searchQuery: "奥卡云 公司",
+                    queryType: "default",
+                    topics: ["external"],
+                    toolId: "search_web",
+                    dataSource: "web",
+                },
+            ],
+        });
+        expect(pathPlan.steps[0]?.kind).toBe("tool");
+        expect(deriveCompositeSlotsFromPathPlan(pathPlan)[0]?.executor).toBe(
+            "tool_run"
+        );
+    });
+
+    it("keeps identityField phone as km (not mem)", () => {
+        const pathPlan = legalizePathPlan({
+            steps: [
+                {
+                    id: "km-phone",
+                    kind: "km",
+                    label: "手机号",
+                    searchQuery: "个人简介 简历 电话 手机",
+                    queryType: "identity",
+                    topics: ["personal", "resume"],
+                    identityField: "phone",
+                    toolId: "extract_identity_from_hits",
+                    dataSource: "corpus",
+                },
+            ],
+        });
+        expect(pathPlan.steps[0]?.kind).toBe("km");
+        expect(pathPlan.steps[0]?.identityField).toBe("phone");
     });
 
     it("applyPathPlanGuard preserves Intake slot order", () => {
-        const routed = applyCompositeRouteGuard(
-            base(),
-            "列出所有项目并告诉我开源 GitHub"
-        );
-        // age → name → projects → links order simulation
+        const routed = base();
         routed.compositeSlots = [
             {
                 id: "identity-0",

@@ -70,6 +70,9 @@ const buildSubInput = (
         identityField: plan.identityField ?? null,
         parentUserQuestion: input.userQuestion,
         toolResults: input.toolResults,
+        dataSource: plan.dataSource ?? sub.dataSource ?? null,
+        recalledFact: sub.recalledFact ?? null,
+        memoryBlock: input.memoryBlock,
     };
 };
 

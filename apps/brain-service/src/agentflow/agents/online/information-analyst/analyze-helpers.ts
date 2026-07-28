@@ -59,11 +59,24 @@ export type SubQuestionAnalyzeInput = {
   parentUserQuestion?: string;
   /** ToolOrchestrator 预计算结果（优先于 Analyst 内联编排） */
   toolResults?: PipelineToolResults | null;
+  /** 槽 dataSource（mem0 / user_text / corpus…） */
+  dataSource?: string | null;
+  /** mem 槽召回值 */
+  recalledFact?: {
+    factKey: string;
+    label: string;
+    value: string | null;
+  } | null;
+  /** 父轮 memoryBlock（复合子问也可据 Mem0 答自述字段） */
+  memoryBlock?: string | null;
 };
 
 export const shouldSkipSubQuestionLlm = (
   input: SubQuestionAnalyzeInput
 ): boolean =>
+  Boolean(input.recalledFact) ||
+  input.dataSource === "mem0" ||
+  input.dataSource === "user_text" ||
   input.hits.length === 0 ||
   input.coverage === "none" ||
   pickToolResultForSubQuestion(input, input.toolResults) !== null ||
@@ -129,9 +142,51 @@ const buildEmptyHitsFallback = (
   > & {
     identityField?: IntakeIdentityField | null;
     facetKey?: string;
+    dataSource?: string | null;
+    recalledFact?: SubQuestionAnalyzeInput["recalledFact"];
   }
 ): InformationAnalystResult => {
   const { userQuestion, language, subTasks, queryType } = input;
+
+  if (input.dataSource === "mem0" || input.recalledFact) {
+    const label =
+      input.recalledFact?.label?.trim() ||
+      userQuestion.trim() ||
+      (language === "en" ? "that field" : "该字段");
+    if (input.recalledFact?.value) {
+      return {
+        answer:
+          language === "en"
+            ? `Your saved ${label} is ${input.recalledFact.value}.`
+            : `您保存的${label}是：${input.recalledFact.value}。`,
+        citations: [],
+        confidence: 0.95,
+        insufficientEvidence: false,
+      };
+    }
+    return {
+      answer:
+        language === "en"
+          ? `I don't have a saved value for ${label} yet. Tell me what to remember.`
+          : `尚未记住您的${label}。您可以说「记住我的${label}是…」让我保存。`,
+      citations: [],
+      confidence: 0.9,
+      insufficientEvidence: true,
+    };
+  }
+
+  if (input.dataSource === "user_text") {
+    return {
+      answer:
+        language === "en"
+          ? "No text was available to summarize for this step."
+          : "本步没有可总结的正文。",
+      citations: [],
+      confidence: 0.9,
+      insufficientEvidence: true,
+    };
+  }
+
   const profile = resolveAnalystQueryProfile({
     userQuestion,
     subTasks,
@@ -183,10 +238,28 @@ export const buildSubQuestionFallbackAnswer = (
 ): InformationAnalystResult => {
   const { userQuestion, hits, coverage, language, queryType } = input;
 
+  if (input.recalledFact?.value) {
+    const label = input.recalledFact.label || userQuestion;
+    return {
+      answer:
+        language === "en"
+          ? `Your saved ${label} is ${input.recalledFact.value}.`
+          : `您保存的${label}是：${input.recalledFact.value}。`,
+      citations: [],
+      confidence: 0.95,
+      insufficientEvidence: false,
+    };
+  }
+
   const fromTools = pickToolResultForSubQuestion(input, input.toolResults);
   if (fromTools) return toolRunToAnalystResult(fromTools);
 
-  if (hits.length === 0 || coverage === "none") {
+  if (
+    input.dataSource === "mem0" ||
+    input.recalledFact ||
+    hits.length === 0 ||
+    coverage === "none"
+  ) {
     const empty = buildEmptyHitsFallback({
       userQuestion,
       language,
@@ -194,7 +267,12 @@ export const buildSubQuestionFallbackAnswer = (
       queryType,
       identityField: input.identityField,
       facetKey: input.facetKey,
+      dataSource: input.dataSource,
+      recalledFact: input.recalledFact,
     });
+    if (input.dataSource === "mem0" || input.recalledFact) {
+      return empty;
+    }
     return {
       ...empty,
       answer:
@@ -206,10 +284,6 @@ export const buildSubQuestionFallbackAnswer = (
 
   const orchestrated = runOrchestratedSubQuestion(input);
   if (orchestrated) return orchestrated;
-
-  const profile =
-    queryType ??
-    resolveAnalystQueryProfile({ userQuestion, subTasks: [userQuestion] });
 
   let hitsForAnswer = hits;
   const citations: Citation[] = dedupeCitations(
@@ -244,7 +318,7 @@ export const buildFallbackAnswer = (
       hits,
       coverage,
       notes,
-      queryType,
+      queryType: queryType ?? undefined,
       topics: input.topics ?? [],
       enumerationMeta: input.enumerationMeta ?? null,
       listIntent: input.listIntent ?? null,
@@ -270,7 +344,7 @@ export const buildFallbackAnswer = (
     hits,
     coverage,
     notes,
-    queryType,
+    queryType: queryType ?? undefined,
     topics: input.topics ?? [],
     enumerationMeta: input.enumerationMeta ?? null,
     listIntent: input.listIntent ?? null,

@@ -1,16 +1,20 @@
 /**
- * LLM PathPlan → 合法化 + 派生 compositeSlots / retrievalPlan。
- * 主契约：有序 steps[]；兼容旧四桶 {km,list,tool,dag}+answerOrder。
- * 不做 queryType 猜桶；空 plan → 由上层 clarify。
+ * LLM PathPlan → 合法化 + 结构归一 + 派生 compositeSlots / retrievalPlan。
+ * 主契约：有序 steps[]。
+ * normalizePathPlanSteps：仅按 dataSource / userFactKey / identityField / toolId 族修正 kind（无字段名表）。
  */
 import type { IntakeRoutingDecision } from "@/agentflow/agents/online/intake-coordinator/contract";
 import type { CompositeRetrievalSlot } from "@/agentflow/agents/online/intake-coordinator/composite/interface";
 import type { EnumerationControl } from "@/agentflow/agents/online/corpus-lister/enumeration";
+import type { SlotExecutor } from "@/agentflow/agents/online/corpus-lister/enumeration";
 import { ENUMERATION_EXHAUSTIVE_PAGE_SIZE } from "@/agentflow/agents/online/corpus-lister/list";
 import type { DbChatTurn } from "@fambrain/brain-types";
 import { resolveEnumerationPagination } from "@/agentflow/agents/online/corpus-lister/enumeration";
+import { normalizeFactKey } from "@/agentflow/agents/online/user-fact/user-fact";
 import {
   TOOL_RUN_IDS,
+  defaultDataSourceForStandaloneTool,
+  isPostRetrievalToolId,
   type DataSource,
   type ToolRunId,
 } from "@/agentflow/agents/online/tool-orchestrator";
@@ -33,8 +37,22 @@ const QUERY_TYPES = new Set([
   "default",
 ]);
 
-const DATA_SOURCES = new Set(["corpus", "web", "compute", "synthesize"]);
-const PATH_KINDS = new Set(["km", "list", "tool", "dag"]);
+const DATA_SOURCES = new Set([
+  "corpus",
+  "web",
+  "compute",
+  "synthesize",
+  "mem0",
+  "user_text",
+]);
+const PATH_KINDS = new Set([
+  "km",
+  "list",
+  "mem",
+  "tool",
+  "summarize",
+  "dag",
+]);
 
 const asQueryType = (v: unknown): ExecutionStep["queryType"] => {
   if (typeof v === "string" && QUERY_TYPES.has(v)) {
@@ -126,8 +144,14 @@ const legalizeIdentityField = (v: unknown): ExecutionStep["identityField"] => {
     : null;
 };
 
+const legalizeUserFactKey = (v: unknown): string | null => {
+  if (typeof v !== "string") return null;
+  const key = normalizeFactKey(v);
+  return key || null;
+};
+
 /**
- * external_link 步：若 LLM 漏填 toolId，按 schema 补 extract（非场景硬编码）。
+ * external_link / identity 步：若 LLM 漏填 toolId，按 schema 补（非场景硬编码）。
  */
 const defaultToolIdForStep = (
   kind: PathKind,
@@ -136,7 +160,9 @@ const defaultToolIdForStep = (
   toolId: ToolRunId | null
 ): ToolRunId | null => {
   if (toolId) return toolId;
-  if (kind === "tool") return null;
+  if (kind === "tool" || kind === "mem" || kind === "summarize" || kind === "dag") {
+    return null;
+  }
   if (queryType === "external_link") return "extract_external_links_from_hits";
   if (queryType === "identity" && identityField === "age") {
     return "compute_age_from_hits";
@@ -156,6 +182,142 @@ const defaultToolIdForStep = (
   }
   if (kind === "list") return "compose_enumeration";
   return null;
+};
+
+const toMemStep = (step: ExecutionStep): ExecutionStep => {
+  const key = legalizeUserFactKey(step.userFactKey);
+  return {
+    id: step.id,
+    kind: "mem",
+    label: step.label,
+    searchQuery: step.searchQuery || step.label,
+    queryType: step.queryType === "enumeration" ? "default" : step.queryType,
+    topics: step.topics.length > 0 ? step.topics : ["personal"],
+    identityField: null,
+    toolId: null,
+    dataSource: "mem0",
+    userFactKey: key,
+    userFactLabel: step.userFactLabel?.trim() || step.label || key,
+    enumerationControl: null,
+  };
+};
+
+const toSummarizeStep = (step: ExecutionStep): ExecutionStep => ({
+  id: step.id,
+  kind: "summarize",
+  label: step.label,
+  searchQuery: step.searchQuery || step.label,
+  queryType: "default",
+  topics: step.topics,
+  identityField: null,
+  toolId: null,
+  dataSource: "user_text",
+  userFactKey: null,
+  userFactLabel: null,
+  enumerationControl: null,
+});
+
+const toToolStep = (step: ExecutionStep): ExecutionStep | null => {
+  if (!step.toolId) return null;
+  return {
+    id: step.id,
+    kind: "tool",
+    label: step.label || step.toolId,
+    searchQuery: step.searchQuery || step.label || step.toolId,
+    queryType: step.queryType,
+    topics: step.topics,
+    identityField: null,
+    toolId: step.toolId,
+    dataSource:
+      step.dataSource && step.dataSource !== "mem0" && step.dataSource !== "user_text"
+        ? step.dataSource
+        : defaultDataSourceForStandaloneTool(step.toolId),
+    userFactKey: null,
+    userFactLabel: null,
+    enumerationControl: null,
+  };
+};
+
+/**
+ * 结构归一：只信 dataSource / userFactKey / identityField / toolId 族。
+ * 不维护 Mem0 字段名表；不猜 label/问句。
+ */
+export const normalizePathPlanSteps = (plan: PathPlan): PathPlan => {
+  const steps: ExecutionStep[] = [];
+  for (const raw of plan.steps) {
+    let s = raw;
+
+    // 显式 mem0 / kind=mem
+    if (s.dataSource === "mem0" || s.kind === "mem") {
+      steps.push(toMemStep(s));
+      continue;
+    }
+
+    // 显式 user_text / kind=summarize
+    if (s.dataSource === "user_text" || s.kind === "summarize") {
+      steps.push(toSummarizeStep(s));
+      continue;
+    }
+
+    const factKey = legalizeUserFactKey(s.userFactKey);
+    const hasIdentity = Boolean(s.identityField);
+
+    // userFactKey 有、identityField 无 → mem（补 dataSource=mem0）
+    if (factKey && !hasIdentity) {
+      steps.push(toMemStep({ ...s, userFactKey: factKey }));
+      continue;
+    }
+
+    // 两者皆有：缺省走语料 identity（闭集）；mem0 已在上方分支处理
+    if (factKey && hasIdentity) {
+      s = {
+        ...s,
+        kind: "km",
+        userFactKey: null,
+        userFactLabel: null,
+        dataSource:
+          s.dataSource === "compute" || s.dataSource === "corpus"
+            ? s.dataSource
+            : "corpus",
+      };
+    }
+
+    // 独立工具（非 post-retrieval）
+    const standaloneTool =
+      s.toolId &&
+      !isPostRetrievalToolId(s.toolId) &&
+      s.toolId !== "synthesize_merge";
+    if (s.kind === "tool" || (standaloneTool && (s.dataSource === "web" || s.kind === "km"))) {
+      if (standaloneTool && s.toolId) {
+        const tool = toToolStep({ ...s, toolId: s.toolId });
+        if (tool) {
+          steps.push(tool);
+          continue;
+        }
+      }
+    }
+
+    // dag / list / km 保持
+    if (s.kind === "dag" || s.kind === "list") {
+      steps.push(s);
+      continue;
+    }
+
+    steps.push({
+      ...s,
+      kind: "km",
+      dataSource:
+        s.dataSource === "compute" || s.dataSource === "corpus"
+          ? s.dataSource
+          : s.toolId === "compute_age_from_hits" ||
+              s.toolId === "compute_tenure_from_hits"
+            ? "compute"
+            : "corpus",
+      userFactKey: null,
+      userFactLabel: null,
+    });
+  }
+  return { steps };
 };
 
 const legalizeStep = (raw: unknown, index: number): ExecutionStep | null => {
@@ -203,14 +365,54 @@ const legalizeStep = (raw: unknown, index: number): ExecutionStep | null => {
   const identityField = legalizeIdentityField(
     o.identityField ?? o.identity_field
   );
+  const userFactKey = legalizeUserFactKey(
+    o.userFactKey ?? o.user_fact_key
+  );
+  const userFactLabelRaw = o.userFactLabel ?? o.user_fact_label;
+  const userFactLabel =
+    typeof userFactLabelRaw === "string" ? userFactLabelRaw.trim() || null : null;
   let toolId = asToolId(o.toolId ?? o.tool_id);
   toolId = defaultToolIdForStep(kind, queryType, identityField, toolId);
+  const dataSourceRaw = asDataSource(o.dataSource ?? o.data_source);
+
+  if (kind === "mem") {
+    return {
+      id: trimId(o.id, `mem-${index}`),
+      kind: "mem",
+      label: label || searchQuery.slice(0, 40) || `mem-${index}`,
+      searchQuery: searchQuery || label,
+      queryType: queryType === "enumeration" ? "default" : queryType,
+      topics: topics.length > 0 ? topics : ["personal"],
+      identityField: null,
+      toolId: null,
+      dataSource: "mem0",
+      userFactKey,
+      userFactLabel: userFactLabel || label || userFactKey,
+    };
+  }
+
+  if (kind === "summarize") {
+    return {
+      id: trimId(o.id, `summarize-${index}`),
+      kind: "summarize",
+      label: label || searchQuery.slice(0, 40) || `summarize-${index}`,
+      searchQuery: searchQuery || label,
+      queryType: "default",
+      topics,
+      identityField: null,
+      toolId: null,
+      dataSource: "user_text",
+      userFactKey: null,
+      userFactLabel: null,
+    };
+  }
 
   if (kind === "tool") {
     if (!toolId) return null;
     const dataSource =
-      asDataSource(o.dataSource ?? o.data_source) ??
-      (toolId === "search_web" ? "web" : "corpus");
+      dataSourceRaw && dataSourceRaw !== "mem0" && dataSourceRaw !== "user_text"
+        ? dataSourceRaw
+        : defaultDataSourceForStandaloneTool(toolId);
     return {
       id: trimId(o.id, `tool-${index}`),
       kind: "tool",
@@ -220,6 +422,8 @@ const legalizeStep = (raw: unknown, index: number): ExecutionStep | null => {
       topics,
       toolId,
       dataSource,
+      userFactKey: null,
+      userFactLabel: null,
     };
   }
 
@@ -237,6 +441,8 @@ const legalizeStep = (raw: unknown, index: number): ExecutionStep | null => {
       identityField: null,
       toolId: toolId ?? "compose_enumeration",
       dataSource: "corpus",
+      userFactKey: null,
+      userFactLabel: null,
       enumerationControl,
       enumerationPage:
         typeof o.enumerationPage === "number" ? o.enumerationPage : undefined,
@@ -247,9 +453,9 @@ const legalizeStep = (raw: unknown, index: number): ExecutionStep | null => {
     };
   }
 
-  // km
+  // km（含 LLM 误写 kind 但带 mem 信号的情况，交给 normalize）
   const dataSource =
-    asDataSource(o.dataSource ?? o.data_source) ??
+    dataSourceRaw ??
     (toolId === "compute_age_from_hits" || toolId === "compute_tenure_from_hits"
       ? "compute"
       : "corpus");
@@ -263,72 +469,23 @@ const legalizeStep = (raw: unknown, index: number): ExecutionStep | null => {
     identityField,
     toolId,
     dataSource,
+    userFactKey,
+    userFactLabel,
   };
 };
 
-/** 旧四桶 + answerOrder → 有序 steps（兼容过渡） */
-const legacyBucketsToSteps = (raw: Record<string, unknown>): unknown[] => {
-  const kmIn = Array.isArray(raw.km) ? raw.km : [];
-  const listIn = Array.isArray(raw.list) ? raw.list : [];
-  const toolIn = Array.isArray(raw.tool) ? raw.tool : [];
-  const dagIn = Array.isArray(raw.dag) ? raw.dag : [];
-  const byId = new Map<string, unknown>();
-  const push = (item: unknown, fallbackKind: PathKind, index: number) => {
-    if (!item || typeof item !== "object" || Array.isArray(item)) return;
-    const o = item as Record<string, unknown>;
-    const id = trimId(o.id, `${fallbackKind}-${index}`);
-    byId.set(id, { ...o, kind: o.kind ?? o.pathKind ?? fallbackKind, id });
-  };
-  kmIn.forEach((x, i) => push(x, "km", i));
-  listIn.forEach((x, i) => push(x, "list", i));
-  toolIn.forEach((x, i) => push(x, "tool", i));
-  dagIn.forEach((x, i) => push(x, "dag", i));
-
-  const order = Array.isArray(raw.answerOrder)
-    ? raw.answerOrder.map((x) => String(x).trim()).filter(Boolean)
-    : Array.isArray(raw.answer_order)
-      ? raw.answer_order.map((x) => String(x).trim()).filter(Boolean)
-      : [];
-  const ordered: unknown[] = [];
-  const seen = new Set<string>();
-  for (const id of order) {
-    const step = byId.get(id);
-    if (step && !seen.has(id)) {
-      ordered.push(step);
-      seen.add(id);
-    }
-  }
-  for (const [id, step] of byId) {
-    if (!seen.has(id)) ordered.push(step);
-  }
-  return ordered;
-};
-
-/** 合法化 LLM pathPlan；支持 steps[] 或旧四桶；非法项丢弃 */
+/** 合法化 LLM pathPlan；非法项丢弃；再结构归一 */
 export const legalizePathPlan = (raw: unknown): PathPlan => {
   if (!raw || typeof raw !== "object" || Array.isArray(raw)) {
     return emptyPathPlan();
   }
   const o = raw as Record<string, unknown>;
-  let rawSteps: unknown[] = [];
-  if (Array.isArray(o.steps) && o.steps.length > 0) {
-    rawSteps = o.steps;
-  } else if (
-    Array.isArray(o.km) ||
-    Array.isArray(o.list) ||
-    Array.isArray(o.tool) ||
-    Array.isArray(o.dag)
-  ) {
-    rawSteps = legacyBucketsToSteps(o);
-  } else if (Array.isArray(o.steps)) {
-    rawSteps = o.steps;
-  }
+  const rawSteps = Array.isArray(o.steps) ? o.steps : [];
 
   const steps = rawSteps
     .map((item, i) => legalizeStep(item, i))
     .filter((x): x is ExecutionStep => Boolean(x));
 
-  // 去重 id（保留首次）
   const seen = new Set<string>();
   const deduped: ExecutionStep[] = [];
   for (const s of steps) {
@@ -336,7 +493,7 @@ export const legalizePathPlan = (raw: unknown): PathPlan => {
     seen.add(s.id);
     deduped.push(s);
   }
-  return { steps: deduped };
+  return normalizePathPlanSteps({ steps: deduped });
 };
 
 export const legalizeComposeMode = (
@@ -412,6 +569,25 @@ export const fillListPagesInPathPlan = (
   return { steps };
 };
 
+const executorForStep = (step: ExecutionStep): SlotExecutor => {
+  switch (step.kind) {
+    case "list": {
+      const isListAction =
+        step.enumerationControl?.action === "continue" ||
+        step.enumerationControl?.action === "exhaustive";
+      return isListAction ? "list_corpus" : "km_retrieve";
+    }
+    case "mem":
+      return "mem_recall";
+    case "tool":
+      return "tool_run";
+    case "summarize":
+      return "summarize_slot";
+    default:
+      return "km_retrieve";
+  }
+};
+
 /** 按 steps 顺序派生 compositeSlots（dag 不进槽） */
 export const deriveCompositeSlotsFromPathPlan = (
   plan: PathPlan,
@@ -424,55 +600,24 @@ export const deriveCompositeSlotsFromPathPlan = (
   const slots: CompositeRetrievalSlot[] = [];
   for (const step of steps) {
     if (step.kind === "dag") continue;
-    if (step.kind === "list") {
-      const isListAction =
-        step.enumerationControl?.action === "continue" ||
-        step.enumerationControl?.action === "exhaustive";
-      slots.push({
-        id: step.id,
-        label: step.label,
-        searchQuery: step.searchQuery,
-        queryType: "enumeration",
-        topics: [...step.topics],
-        subTasks: [step.label],
-        executor: isListAction ? "list_corpus" : "km_retrieve",
-        enumerationControl: step.enumerationControl ?? null,
-        identityField: null,
-        enumerationPage: step.enumerationPage,
-        enumerationPageSize: step.enumerationPageSize,
-        toolId: step.toolId ?? null,
-        dataSource: step.dataSource ?? "corpus",
-      });
-      continue;
-    }
-    if (step.kind === "tool") {
-      slots.push({
-        id: step.id,
-        label: step.label,
-        searchQuery: step.searchQuery,
-        queryType: step.queryType,
-        topics: [...step.topics],
-        subTasks: [step.label],
-        executor: "km_retrieve",
-        enumerationControl: null,
-        identityField: null,
-        toolId: step.toolId ?? null,
-        dataSource: step.dataSource ?? "corpus",
-      });
-      continue;
-    }
+    const executor = executorForStep(step);
     slots.push({
       id: step.id,
       label: step.label,
       searchQuery: step.searchQuery,
-      queryType: step.queryType,
+      queryType: step.kind === "list" ? "enumeration" : step.queryType,
       topics: [...step.topics],
       subTasks: [step.label],
-      executor: "km_retrieve",
-      enumerationControl: null,
+      executor,
+      enumerationControl:
+        step.kind === "list" ? (step.enumerationControl ?? null) : null,
       identityField: step.identityField ?? null,
+      enumerationPage: step.enumerationPage,
+      enumerationPageSize: step.enumerationPageSize,
       toolId: step.toolId ?? null,
-      dataSource: step.dataSource ?? "corpus",
+      dataSource: step.dataSource ?? null,
+      userFactKey: step.userFactKey ?? null,
+      userFactLabel: step.userFactLabel ?? null,
     });
   }
   return slots;

@@ -23,7 +23,7 @@
 
 **链路：** 用户提问 → **轮次开始** → 意图识别 → **PathPlan fan-out**（按 `steps[]`：km / list / tool / dag 并行工人；km 槽 per-step FC，list 不经 FC）→ **内容整理** → **Compose**（qa / composite / summarize）→ 回答 → **轮次结束**。跨轮 **两层 cache**（同问短路 + 检索结果 cache）见 [坑点 §2.2](./04-pitfalls.md)。
 
-**PathPlan 有序 steps（2026-07 · 端到端）：** Intake LLM 直接产出 `pathPlan.steps[]` + `composeMode`（数组顺序 = 回答/执行顺序；`answerOrder` 可选，默认由 `steps.map(s => s.id)` 派生）；pipeline **合法化并派生** `compositeSlots`（不再 `retrievalPlan→compilePathPlan` 猜桶；`legalize` 仍兼容旧四桶）。LangGraph：**纯 list** → `listRetriever`（SSE=`list_retrieve`）→ `contentOrganizer` → `analyst`；**纯总结（无查库）** → `contentSummarizer`；**复合** → `planFanOut`（每槽 `Send`→`kmRetrieve`（FC）/`listRetrieve`（不经 FC）∥`userFactSide`→`planSlotJoin`→`planSlotPost`(tools) ∥ `planDag`→`planMerge`）→ `contentOrganizer` →（`composeMode=summarize` 才进 `contentSummarizer`，否则）→ `analyst`。SSE 按真实图节点报步骤（含 `plan_slot_join`；不再聚合为 `plan_executor`）。
+**PathPlan 有序 steps（2026-07 · 端到端）：** Intake LLM 直接产出 `pathPlan.steps[]` + `composeMode`（数组顺序 = 回答/执行顺序；`answerOrder` 可选）；pipeline **合法化 + 结构归一**（`dataSource`/`userFactKey`/`identityField`/`toolId` 族修正 kind）并派生 `compositeSlots`。LangGraph：**纯 list** → `listRetriever` → `contentOrganizer` → `analyst`；**纯总结（无查库）** → `contentSummarizer`；**复合** → `planFanOut`（每槽 `Send`→`kmRetrieve`（FC）/`listRetrieve`/`memRetrieve`/`toolRetrieve`/`summarizeSlot` ∥`userFactSide`→`planSlotJoin`→`planSlotPost`(仅 post-retrieval tools) ∥ `planDag`→`planMerge`）→ `contentOrganizer` →（`composeMode=summarize` 才进 `contentSummarizer`，否则）→ `analyst`。SSE 按真实图节点报步骤。
 
 **架构双线（2026-06，目录 2026-07 对齐）：**
 
@@ -68,7 +68,7 @@ flowchart TB
     P -->|remember/recall user_fact| UF[userFact 节点]
     P -->|clarify / chitchat| R1[respondEarly]
     P -->|summarize_content| SUM[ContentSummarizer]
-    P -->|retrieve_and_answer| PE[planFanOut<br/>km FC / list 无 FC / tool / dag]
+    P -->|retrieve_and_answer| PE[planFanOut<br/>km/list/mem/tool/summarize/dag]
     PE --> CO[ContentOrganizer]
     CO --> IA[InformationAnalyst<br/>composeMode]
     IA --> OUT[assistant 入库]
@@ -122,7 +122,7 @@ flowchart TD
   C -->|clarify / chitchat| D[respondEarly]
   C -->|remember_user_fact / recall_user_fact| UF[userFact → Mem0]
   C -->|summarize_content| CS[ContentSummarizer → respondEarly]
-  C -->|retrieve_and_answer| PE[planFanOut<br/>km FC / list 无 FC / tool / dag]
+  C -->|retrieve_and_answer| PE[planFanOut<br/>km/list/mem/tool/summarize/dag]
   PE -->|composeMode=summarize| CS
   PE -->|qa / composite| CO[ContentOrganizer]
   CO --> G[InformationAnalyst]
@@ -229,7 +229,7 @@ flowchart TD
 
 **Guard 链：** `intake-node` 短路 → Intake LLM（retrieve 须 **`pathPlan.steps`≥1**；`answerOrder` 可选）→ `runIntakePipeline`：continuation noop → early-exit → link harmonize → **legalize PathPlan** → fill list 页码 → **派生 compositeSlots**（空 pathPlan→clarify）。
 
-**端到端 PathPlan：** Intake **主路径** = LLM 执行终稿（有序 `steps[]`，`kind` = km|list|tool|dag 执行类型，非场景名）；**旁路** = normalize / JSON 修复 / **coreference=unresolved** 指代拼接≤1 / 白名单合法化与派生。勿把散文兜底当成二次 Intake。旧 `retrievalPlan` 编译链与四桶主路径已删除（legalize 仍兼容旧四桶；retrievalPlan 仅兼容/日志派生）。
+**端到端 PathPlan：** Intake **主路径** = LLM 执行终稿（有序 `steps[]`，`kind` = km|list|mem|tool|summarize|dag）；**旁路** = normalize / JSON 修复 / **coreference=unresolved** 指代拼接≤1 / 结构归一与派生。勿把散文兜底当成二次 Intake。旧 `retrievalPlan` 编译链与 `composite-route-guard` 已删除。
 
 **TurnTrace（运行轨迹入库）：** 每轮对答结束时 BFF 将 `timing` + `steps` + `pipeline_log` 写入 `TurnTrace`（键=助手 `messageId`）；进行中仍走 SSE；历史由 `GET /api/conversations/[id]/traces` 回放至运行日志面板。
 
@@ -237,7 +237,7 @@ flowchart TD
 
 **queryType 扩展：** 除 identity / enumeration / tech / default 外，Intake 产出 **`external_link`**（GitHub、仓库、对外 URL）；与 KM `queryProfile` 同名，**不走** enumeration projects fill。外链抽取工具 `extract_external_links_from_hits` 在 **tools 层**（`tools/lib/extract-external-links.ts`）；Intake 只声明 `queryType=external_link` + `toolId`。见 [km-retrieval-design §六](./km-retrieval-design.md#六queryprofile-参数表)。
 
-**单问 / 多问统一路由：** Intake 出口 `resolveIntakeGraphRouteMode` 写入 **`routeMode`（与图节点 1:1）**；`routes.ts` 只读分发。优先级：**userFact → respondEarly → …**（remember/recall 进 **userFact**，不误进 respondEarly）。km/list/tool/dag 并存 → `planFanOut`。空 pathPlan → `respondEarly`（clarify）。dag **仅** `hybrid_multi_source`（禁止场景 named DAG）。
+**单问 / 多问统一路由：** Intake 出口 `resolveIntakeGraphRouteMode` 写入 **`routeMode`（与图节点 1:1）**；`routes.ts` 只读分发。优先级：**userFact → respondEarly → …**（remember/recall 进 **userFact**；**仅一步 mem** 结构折叠为 recall 早退）。km/list/mem/tool/summarize/dag 并存 → `planFanOut`。空 pathPlan → `respondEarly`（clarify）。dag **仅** `hybrid_multi_source`。独立工具（如 `search_web`）→ `toolRetrieve`；扩展天气等同族只需加 `TOOL_RUN_IDS` + execute，无需新 PathKind。
 
 **外链 / 混合：** `applyIntakeLinkLookupGuard` 仅做 **harmonize**。编号拆槽、混合步序由 **LLM 写齐 `pathPlan.steps[]`**（数组顺序即答序），代码不发明、不重排。列举分页 / UI exact-match 实现在 **`corpus-lister/enumeration`**（Intake `enumeration/` 仅 re-export）。详见 [坑点 §2.8](./04-pitfalls.md#28-pathplan-统一编排-p0-28--2026-07)、[§2.10](./04-pitfalls.md#210-intake-档-b主路径规划--旁路纠偏-p0-31--2026-07)。
 

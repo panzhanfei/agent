@@ -1,17 +1,12 @@
 export type {
   ComposeMode,
-  DagRun,
   DagTemplateId,
   ExecutionStep,
-  KmStep,
-  ListStep,
   PathKind,
   PathPlan,
   PathPlanCounts,
-  PathStepBase,
   StepFactCheck,
   StepResult,
-  ToolStep,
 } from "./interface";
 
 export { expandHybridMultiSourceTemplate } from "./dag-templates";
@@ -31,6 +26,7 @@ export {
   legalizeAnswerOrder,
   legalizeComposeMode,
   legalizePathPlan,
+  normalizePathPlanSteps,
   reorderPathPlanByAnswerOrder,
 } from "./from-llm";
 

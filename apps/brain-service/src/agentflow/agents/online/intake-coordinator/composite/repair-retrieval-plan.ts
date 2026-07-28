@@ -212,16 +212,3 @@ export const normalizePlanItemFromSchema = (
     enumerationControl: item.enumerationControl ?? null,
   };
 };
-
-/**
- * 修复 plan：schema 合法化 + 结构化去重。
- * 档 B：不再用 subTasks 发明槽；空 plan 保持空，由 composite 编译为单槽 default。
- */
-export const repairRetrievalPlanItems = (
-  plan: IntakeRetrievalPlanItem[],
-  _subTasks: string[],
-  _userQuestion = ""
-): IntakeRetrievalPlanItem[] => {
-  const items = plan.filter((p) => p.label.trim() && p.searchQuery.trim());
-  return dedupePlanByFacet(items.map(normalizePlanItemFromSchema));
-};

@@ -18,7 +18,7 @@ export type CompositeFacetId = "identity" | "projects" | "employers";
 /** 槽 id：已知 facet、plan-N，或 `${facet}-${index}` / external_link-* */
 export type CompositeSlotId = CompositeFacetId | `plan-${number}` | string;
 
-/** 一个执行槽：KM 语义检索或 list 目录分页（可混搭） */
+/** 一个执行槽：由 pathPlan.steps 按序派生（含 km/list/mem/tool/summarize） */
 export type CompositeRetrievalSlot = {
   id: CompositeSlotId;
   label: string;
@@ -26,7 +26,9 @@ export type CompositeRetrievalSlot = {
   queryType: NonNullable<IntakeRoutingDecision["queryType"]>;
   topics: string[];
   subTasks: string[];
-  /** 默认 km_retrieve；continue/exhaustive 列举 → list_corpus */
+  /**
+   * Send 工人：km_retrieve | list_corpus | mem_recall | tool_run | summarize_slot
+   */
   executor?: SlotExecutor;
   enumerationControl?: EnumerationControl | null;
   identityField?: IntakeIdentityField | null;
@@ -35,6 +37,9 @@ export type CompositeRetrievalSlot = {
   /** 来自 LLM pathPlan 步；白名单工具 */
   toolId?: ToolRunId | null;
   dataSource?: DataSource | null;
+  /** mem 步：用户自述字段 slug */
+  userFactKey?: string | null;
+  userFactLabel?: string | null;
 };
 
 /** 槽从何而来（端到端：LLM pathPlan） */

@@ -22,7 +22,7 @@ Intake 是 Pipeline 的**第一个 LLM 在线 Agent**（图内位于 **`prepareT
 ### 1.2 核心原则（端到端 PathPlan）
 
 1. **主路径 = 执行终稿** — LLM 产出 `intent` + **`pathPlan.steps[]`**（数组顺序=答序；`kind`=km|list|tool|dag）+ `composeMode` / `searchQuery` / `coreference`；`answerOrder` 可选。下游只信结构化字段。
-2. **旁路 = 合法化 + 派生** — normalize / 单字短路 / JSON 格式修复 / 指代拼接≤1（**仅 unresolved**）/ toolId 白名单 / list 页码；按 `steps` **派生** `compositeSlots`（及兼容用 `retrievalPlan` / `answerOrder`）。**禁止**口语二次拆槽或 `queryType` 猜桶。legalize **兼容旧四桶**。
+2. **旁路 = 合法化 + 结构归一 + 派生** — normalize / 单字短路 / JSON 格式修复 / 指代拼接≤1（**仅 unresolved**）/ toolId 白名单 / list 页码；按 `dataSource`/`userFactKey`/`identityField`/`toolId` 族归一 kind；按 `steps` **派生** `compositeSlots`。**禁止**口语二次拆槽、Mem0 字段名表、`queryType` 猜桶。
 3. **宁可多检索，不要漏检索** — 简历/经历类问题默认 `retrieve_and_answer`；空 pathPlan → clarify。
 4. **结构化输出** — 只产 JSON；散文反问不算合法工单（可格式修复一轮）。
 5. **对外只暴露 `index.ts`** — 子目录是内部实现，外部 import 统一走 barrel。
@@ -74,7 +74,10 @@ intake-coordinator/
 │   ├── intake-link-lookup-guard.ts   # 字段自相矛盾 harmonize
 │   ├── intake-chitchat-guard.ts
 │   ├── intake-retrieval-plan-guard.ts  # 旧 retrievalPlan 合法化（兼容 / 非主路径）
-│   ├── composite-route-guard.ts        # 旧 plan→slots（兼容 / 非主路径）
+│   ├── composite-routing.ts            # multipart 结构信号（非 plan 发明）
+│   ├── repair-retrieval-plan.ts        # facet 去重 / schema 合法化（派生辅助）
+│   └── identity-field-search.ts        # identityField → 检索模板（闭集）
+│   # 已删：composite-route-guard / intake-retrieval-plan-guard / resolveCompositeRoute
 │   └── enumeration-list-intent.ts      # UI exact-match → 直接造 list 步
 │
 ├── composite/             ← 槽类型 / 模板 / 诊断（执行仍读派生 compositeSlots）
@@ -187,7 +190,7 @@ LLM 原始 JSON
 | `userFact` | userFact（纯 remember/recall） |
 | `contentSummarizer` | contentSummarizer（纯摘要、无检索） |
 | `listRetriever` | listRetriever（纯 list 槽） |
-| `planFanOut` | `Send` 每槽 → kmRetrieve（FC）∥listRetrieve（无 FC）∥userFactSide→planSlotJoin→planSlotPost ∥ planDag → planMerge（SSE 报真实步骤） |
+| `planFanOut` | `Send` 每槽 → kmRetrieve（FC）∥listRetrieve∥memRetrieve∥toolRetrieve∥summarizeSlot∥userFactSide→planSlotJoin→planSlotPost ∥ planDag → planMerge |
 
 ```text
 pathPlan.steps[]
@@ -283,7 +286,7 @@ Intake 产出两层结构：**LLM 层** `IntakeRoutingDecision` → **编排层*
 | **clarifyingQuestion** | string \| null | 澄清追问（只问一个） | 仅 intent=clarify 时填 |
 | **briefReply** | string \| null | 极短直接回复（≤80 字） | chitchat / clarify；retrieve / summarize 必须为 null |
 | **retrievalPlan** | IntakeRetrievalPlanItem[] | 兼容/派生：可由 pathPlan.steps 生成；LLM 可不填 | chitchat/clarify/userFact 可为 `[]` |
-| **pathPlan** | `{ steps: ExecutionStep[] }` | **retrieve 必填**：有序执行计划；数组顺序=答序；`kind`=km\|list\|tool\|dag | 空 `steps` → clarify；legalize 兼容旧四桶 |
+| **pathPlan** | `{ steps: ExecutionStep[] }` | **retrieve 必填**：有序执行计划；数组顺序=答序；`kind`=km\|list\|mem\|tool\|summarize\|dag | 空 `steps` → clarify；单步 mem → recall 早退 |
 | **answerOrder** | string[] \| null | 可选：步 id 顺序；缺省 = `steps.map(s => s.id)` | 可省略 |
 | **composeMode** | qa \| summarize \| composite \| null | 出稿模式 | retrieve 时建议填 |
 | **userFactKey** | string \| null | 记忆字段 slug | qq / wechat / phone / email / dingtalk… |
@@ -338,7 +341,7 @@ Intake 产出两层结构：**LLM 层** `IntakeRoutingDecision` → **编排层*
 | `userFact` | remember / recall | userFact |
 | `contentSummarizer` | 纯摘要、无 pathPlan 检索 | contentSummarizer |
 | `listRetriever` | 纯 list 槽 | listRetriever |
-| `planFanOut` | 有 km/list/tool/dag（可并存）或同轮 remember side-effect | km Send（FC）∥ list Send（无 FC）→ planSlotJoin→planSlotPost ∥ planDag → planMerge |
+| `planFanOut` | 有 km/list/mem/tool/summarize/dag（可并存）或同轮 remember side-effect | 各 Send 工人 → planSlotJoin→planSlotPost ∥ planDag → planMerge |
 
 > 执行语义在 **plan-fanout 工人**（槽检索 ± hybrid dag ± remember）；`routeMode` 不再区分 slots/dag。
 

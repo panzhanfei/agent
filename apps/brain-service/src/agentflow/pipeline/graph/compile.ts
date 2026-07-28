@@ -1,9 +1,16 @@
 import { END, START, StateGraph } from "@langchain/langgraph";
 import { runContentOrganizerNode } from "@/agentflow/agents/online/content-organizer";
-import { runContentSummarizerNode } from "@/agentflow/agents/online/content-summarizer";
+import {
+  runContentSummarizerNode,
+  runSummarizeSlotNode,
+} from "@/agentflow/agents/online/content-summarizer";
 import { runIntakeNode } from "@/agentflow/agents/online/intake-coordinator";
 import { runRespondEarlyNode } from "@/agentflow/agents/online/respond-early";
-import { userFactNode } from "@/agentflow/agents/online/user-fact";
+import {
+  userFactNode,
+  runUserFactSideNode,
+  runMemRetrieveNode,
+} from "@/agentflow/agents/online/user-fact";
 import { runAnalystNode } from "@/agentflow/agents/online/information-analyst";
 import {
   runListRetrieverNode,
@@ -17,8 +24,8 @@ import {
 import {
   runPlanSlotPostNode,
   runPlanDagNode,
+  runToolRetrieveNode,
 } from "@/agentflow/agents/online/tool-orchestrator";
-import { runUserFactSideNode } from "@/agentflow/agents/online/user-fact";
 import {
   runPreparePipelineMemory,
   runPrepareTurnStart,
@@ -39,9 +46,11 @@ import {
 } from "./routes";
 
 /**
- * intake → Send(每槽 km|list ∥ dag ∥ userFactSide)
- *   kmRetrieve（FC）/ listRetrieve（无 FC）/ userFactSide → planSlotJoin → planSlotPost → planMerge
- *   planDag ───────────────────────────────────────────────→ planMerge
+ * intake → Send(每槽 km|list|mem|tool|summarize ∥ dag ∥ userFactSide)
+ *   kmRetrieve（FC）/ listRetrieve / memRetrieve / toolRetrieve / summarizeSlot / userFactSide
+ *     → planSlotJoin → planSlotPost(post-retrieval) → planMerge
+ *   planDag ────────────────────────────────────────────────→ planMerge
+ * → contentOrganizer → contentSummarizer? → analyst
  */
 const buildPipelineGraph = () => {
   return new StateGraph(PipelineGraphAnnotation)
@@ -53,6 +62,9 @@ const buildPipelineGraph = () => {
     .addNode("listRetriever", runListRetrieverNode)
     .addNode("kmRetrieve", runKmRetrieveNode)
     .addNode("listRetrieve", runListRetrieveNode)
+    .addNode("memRetrieve", runMemRetrieveNode)
+    .addNode("toolRetrieve", runToolRetrieveNode)
+    .addNode("summarizeSlot", runSummarizeSlotNode)
     .addNode("planSlotJoin", runPlanSlotJoinNode)
     .addNode("planSlotPost", runPlanSlotPostNode)
     .addNode("planDag", runPlanDagNode)
@@ -74,6 +86,9 @@ const buildPipelineGraph = () => {
     .addEdge("repeatRespondEarly", "persistTurnEnd")
     .addEdge("kmRetrieve", "planSlotJoin")
     .addEdge("listRetrieve", "planSlotJoin")
+    .addEdge("memRetrieve", "planSlotJoin")
+    .addEdge("toolRetrieve", "planSlotJoin")
+    .addEdge("summarizeSlot", "planSlotJoin")
     .addEdge("userFactSide", "planSlotJoin")
     .addEdge("planSlotJoin", "planSlotPost")
     .addEdge("planSlotPost", "planMerge")

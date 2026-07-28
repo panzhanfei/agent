@@ -1,6 +1,7 @@
 /**
- * planSlotJoin：等全部 km/list 单槽工人（+ userFactSide）汇合；
- * 按 compositeSlots 顺序混排 subResults → fanOutSlotPatch（不含 tools）。
+ * planSlotJoin：等全部槽工人（km/list/mem/tool/summarize + userFactSide）汇合；
+ * 按 compositeSlots 顺序混排 subResults → fanOutSlotPatch；
+ * tool/summarize 的 toolResult 并入 toolResults（post 再跑 hits 后加工）。
  */
 import { logAgentOut } from "@fambrain/brain-shared/agent-log";
 import {
@@ -8,6 +9,7 @@ import {
   orderSubResultsBySlots,
   resolveIncrementalCompositePlan,
 } from "@/agentflow/agents/online/knowledge-manager";
+import type { PipelineToolResults } from "@/agentflow/agents/online/tool-orchestrator/interface";
 import type { PipelineGraphState } from "@/agentflow/pipeline/graph/state";
 import type { PlanSlotsPatch } from "../interface";
 
@@ -50,6 +52,13 @@ export const runPlanSlotJoinNode = async (
     )
     .filter((s): s is NonNullable<typeof s> => Boolean(s));
 
+  const toolResults: PipelineToolResults = {};
+  for (const p of patches) {
+    if (p.toolResult) {
+      toolResults[`slot_${p.slotId}`] = p.toolResult;
+    }
+  }
+
   const enumerationMeta =
     subResults.find((s) => s.enumerationMeta)?.enumerationMeta ?? null;
   const cacheHits = subResults.filter((s) => s.cacheHit).length;
@@ -85,14 +94,19 @@ export const runPlanSlotJoinNode = async (
     retryCount: state.retryCount,
     error: null,
     slotStepResults: stepResults,
+    toolResults: Object.keys(toolResults).length > 0 ? toolResults : null,
   };
 
   logAgentOut("PlanSlotJoin", "完成", {
     slotCount: patches.length,
     kmCount: patches.filter((p) => p.executor === "km").length,
     listCount: patches.filter((p) => p.executor === "list").length,
+    memCount: patches.filter((p) => p.executor === "mem").length,
+    toolCount: patches.filter((p) => p.executor === "tool").length,
+    summarizeCount: patches.filter((p) => p.executor === "summarize").length,
     hitCount: patch.hits?.length ?? 0,
     stepCount: stepResults.length,
+    toolKeys: Object.keys(toolResults),
   });
 
   return {

@@ -7,13 +7,13 @@
 import {
     applyIntakeChitchatGuard,
     applyPureSocialUtteranceGuard,
-    buildPureChitchatDecision,
     DEFAULT_CHITCHAT_BRIEF_REPLY,
     isPureSocialUtterance,
     runIntakePipeline,
     type IntakeRoutingDecision,
 } from "../src/agentflow/agents/online/intake-coordinator/index";
 import { bootstrapBrainServiceRuntime } from "../src/config/index";
+import { completeIntakeCoordinator } from "../src/agentflow/agents/online/intake-coordinator/llm";
 
 const DEFAULT_RUNS = 10;
 
@@ -92,7 +92,7 @@ assertSync("guard：非 chitchat 不改动", () => {
     }
 });
 
-assertSync("guard：纯社交句覆盖 retrieve", () => {
+assertSync("guard：纯社交口语短路已废弃（恒不改写）", () => {
     const retrieve: IntakeRoutingDecision = {
         ...chitchatStub(null),
         intent: "retrieve_and_answer",
@@ -100,56 +100,55 @@ assertSync("guard：纯社交句覆盖 retrieve", () => {
         queryType: "default",
     };
     const out = applyPureSocialUtteranceGuard(retrieve, "你好");
-    if (out.intent !== "chitchat") {
-        throw new Error(`期望 chitchat，实际 ${out.intent}`);
-    }
-    if (out.briefReply !== DEFAULT_CHITCHAT_BRIEF_REPLY) {
-        throw new Error(`期望模板，实际: ${out.briefReply}`);
+    if (out.intent !== "retrieve_and_answer") {
+        throw new Error(`期望不改写 retrieve，实际 ${out.intent}`);
     }
 });
 
-assertSync("signals：纯社交句识别", () => {
-    if (!isPureSocialUtterance("你好")) throw new Error("「你好」应命中");
-    if (!isPureSocialUtterance("谢谢！")) throw new Error("「谢谢！」应命中");
-    if (!isPureSocialUtterance("hi")) throw new Error("「hi」应命中");
-    if (!isPureSocialUtterance("你好 你好 你好 你好 你好")) {
-        throw new Error("重复问候应命中");
+assertSync("signals：纯社交口语识别已废弃（恒 false）", () => {
+    if (isPureSocialUtterance("你好")) {
+        throw new Error("「你好」不应再口语短路");
     }
-    if (isPureSocialUtterance("你好，我叫什么")) {
-        throw new Error("带检索意图的不应命中");
+    if (isPureSocialUtterance("谢谢！")) {
+        throw new Error("「谢谢」不应再口语短路");
     }
 });
 
 await bootstrapBrainServiceRuntime();
 
 const runs = parseRuns();
-console.log(`\n— 入口短路 live × ${runs}（「你好」，对齐 intake-node）—`);
+console.log(`\n— chitchat live × ${runs}（「你好」走 Intake LLM，无口语短路）—`);
 
 for (let i = 1; i <= runs; i++) {
     try {
-        if (!isPureSocialUtterance("你好")) {
-            throw new Error("「你好」应命中 isPureSocialUtterance");
-        }
-        /** 与 intake-node 一致：短路后直接 pipeline（不调 LLM） */
-        const { decision, earlyExit } = await runIntakePipeline({
-            intakeRaw: JSON.stringify(
-                applyIntakeChitchatGuard(buildPureChitchatDecision())
-            ),
-            userQuestion: "你好",
-            intakeHistory: [{ role: "user", content: "你好" }],
+        const history = [{ role: "user" as const, content: "你好" }];
+        const intakeRaw = await completeIntakeCoordinator(history, {
+            memoryBlock: null,
+            intakeHistory: history,
         });
-        const reply = decision.briefReply ?? "";
-        if (decision.intent !== "chitchat") {
-            throw new Error(`期望 chitchat，实际 ${decision.intent}`);
+        const { decision, earlyExit } = await runIntakePipeline({
+            intakeRaw,
+            userQuestion: "你好",
+            intakeHistory: history,
+        });
+        const reply =
+            decision.intent === "chitchat"
+                ? (decision.briefReply ?? "")
+                : (decision.clarifyingQuestion ?? decision.briefReply ?? "");
+        if (decision.intent !== "chitchat" && decision.intent !== "clarify") {
+            throw new Error(`期望 chitchat|clarify，实际 ${decision.intent}`);
         }
         if (!earlyExit) {
-            throw new Error("chitchat 应 pipeline 早退");
+            throw new Error("应 pipeline 早退");
         }
         if (decision.routeMode !== "respondEarly") {
-            throw new Error(`chitchat 应 routeMode=skip，实际 ${decision.routeMode}`);
+            throw new Error(`应 routeMode=respondEarly，实际 ${decision.routeMode}`);
         }
-        if (reply !== DEFAULT_CHITCHAT_BRIEF_REPLY) {
-            throw new Error(`期望固定模板，实际: ${reply}`);
+        if (decision.intent === "chitchat" && reply !== DEFAULT_CHITCHAT_BRIEF_REPLY) {
+            throw new Error(`chitchat 期望固定模板，实际: ${reply}`);
+        }
+        if (!reply.trim()) {
+            throw new Error("应答为空");
         }
         if (FORBIDDEN_ANSWER_RE.test(reply)) {
             throw new Error(`含禁用称呼: ${reply}`);

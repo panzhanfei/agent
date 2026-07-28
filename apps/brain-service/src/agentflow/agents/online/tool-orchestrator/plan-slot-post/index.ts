@@ -50,6 +50,11 @@ export const runPlanSlotPostNode = async (
     compositeFacetCacheHits: slotPatch.compositeFacetCacheHits ?? null,
     checkerPassed: slotPatch.checkerPassed ?? true,
     stepResults: slotPatch.slotStepResults ?? null,
+    // 保留 tool/summarize 工人在 join 写入的 toolResults
+    toolResults: {
+      ...(state.toolResults ?? {}),
+      ...(slotPatch.toolResults ?? {}),
+    },
   };
 
   const toolPatch = await runToolOrchestratorNode(working);

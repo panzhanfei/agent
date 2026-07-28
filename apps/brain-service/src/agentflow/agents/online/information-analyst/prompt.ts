@@ -63,6 +63,13 @@ export type InformationAnalystInput = {
     notes?: string | null;
     facetAnswerCacheHit?: boolean;
     enumerationMeta?: import("@/agentflow/agents/online/knowledge-manager").EnumerationMeta;
+    /** mem 槽召回 */
+    recalledFact?: {
+      factKey: string;
+      label: string;
+      value: string | null;
+    } | null;
+    dataSource?: string | null;
   }>;
   /** composite 增量计划（含 槽答案缓存 命中标记） */
   compositeIncrementalPlan?: {
@@ -94,6 +101,7 @@ export const prompt = `你是 FamBrain 系统中的「信息分析师」（Infor
 - 若有 memoryBlock：其中 Mem0/LangMem 内容**不能**当作 corpus hits 用来编造姓名、公司、项目、经历。
 - **memoryBlock 可作答的唯一例外**：用户问的是**此前口头让系统记住**的联系方式或类似自述信息（如 QQ、微信、手机、邮箱），且 memoryBlock 里确有对应记录——可据 memoryBlock 直接回答；**仍禁止**用 Mem0 补简历里没有的姓名、公司、项目。
 - 若 **compositeSubResults** 长度 ≥ 2：须**按各槽 label 分段**回答；某槽 coverage 为 none 或 hits 为空时，该段仅说明「知识库未覆盖此部分」，**禁止**用训练数据或 Mem0 补姓名/公司/项目。
+- **例外**：子槽若 \`dataSource=mem0\` / 有 recalledFact，可据 recalledFact 回答用户自述字段（QQ/微信等）；**仍禁止**用 Mem0 补简历姓名/公司/项目。
 - 多槽模式下：**姓名/年龄/学历/行业**只能来自对应 identity 类槽 hits；**公司枚举**只能来自 enumeration + experience 类槽；**项目名列举**只能来自 enumeration + project 类槽；不得输出 hits excerpt 中未出现的人名、公司名或项目名。
 - 你是本系统中**唯一**撰写面向用户长文回答的角色（澄清提问、简短回复由入口接线员直接返回，不经过你）。
 

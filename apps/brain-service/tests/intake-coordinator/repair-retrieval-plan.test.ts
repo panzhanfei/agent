@@ -3,7 +3,6 @@ import {
     canonicalizePlanItem,
     dedupePlanByFacet,
     normalizePlanItemFromSchema,
-    repairRetrievalPlanItems,
 } from "@/agentflow/agents/online/intake-coordinator";
 
 describe("dedupePlanByFacet", () => {
@@ -115,73 +114,6 @@ describe("normalizePlanItemFromSchema", () => {
             },
         });
         expect(item.enumerationControl?.listKind).toBe("experience");
-    });
-});
-
-describe("repairRetrievalPlanItems", () => {
-    it("does not invent identity fields from oral labels in subTasks", () => {
-        const repaired = repairRetrievalPlanItems(
-            [
-                {
-                    label: "工作经历",
-                    searchQuery: "公司",
-                    queryType: "enumeration",
-                    topics: ["experience"],
-                    enumerationControl: {
-                        action: "exhaustive",
-                        listKind: "experience",
-                        excludeHint: null,
-                    },
-                },
-            ],
-            ["干了多少年", "工作经历", "年龄"],
-            "你在IT行业干了多少年了？我今年多大了？"
-        );
-        expect(repaired.some((p) => p.identityField === "tenure")).toBe(false);
-        expect(repaired.some((p) => p.identityField === "age")).toBe(false);
-        expect(
-            repaired.filter(
-                (p) =>
-                    p.queryType === "enumeration" &&
-                    p.enumerationControl?.listKind === "experience"
-            )
-        ).toHaveLength(1);
-    });
-
-    it("dedupes duplicate experience after normalize", () => {
-        const repaired = repairRetrievalPlanItems(
-            [
-                {
-                    label: "工作经历",
-                    searchQuery: "a",
-                    queryType: "enumeration",
-                    topics: ["experience"],
-                    enumerationControl: {
-                        action: "preview",
-                        listKind: "experience",
-                        excludeHint: null,
-                    },
-                },
-                {
-                    label: "任职公司及职位",
-                    searchQuery: "b",
-                    queryType: "enumeration",
-                    topics: ["experience"],
-                    enumerationControl: {
-                        action: "exhaustive",
-                        listKind: "experience",
-                        excludeHint: null,
-                    },
-                },
-            ],
-            ["工作经历", "任职公司及职位"],
-            ""
-        );
-        expect(
-            repaired.filter(
-                (p) => p.enumerationControl?.listKind === "experience"
-            )
-        ).toHaveLength(1);
     });
 });
 

@@ -1,7 +1,7 @@
 /**
- * PathPlan：Intake 有序执行计划（单一 steps[]；不再用四桶 + answerOrder 拼凑）。
+ * PathPlan：Intake 有序执行计划（单一 steps[]）。
  *
- * kind = 执行器类型（km | list | tool | dag），不是业务场景名。
+ * kind = LangGraph Send 工人族（粗）；dataSource / toolId / userFactKey = 细语义。
  * 数组顺序 = 回答/执行顺序。
  */
 import type { IntakeIdentityField } from "@/agentflow/agents/online/intake-coordinator/contract";
@@ -19,7 +19,8 @@ import type {
   ToolRunResult,
 } from "@/agentflow/agents/online/tool-orchestrator";
 
-export type PathKind = "km" | "list" | "tool" | "dag";
+/** Send 工人族：km | list | mem | tool | summarize | dag */
+export type PathKind = "km" | "list" | "mem" | "tool" | "summarize" | "dag";
 
 export type ComposeMode = "qa" | "summarize" | "composite";
 
@@ -30,7 +31,9 @@ export type DagTemplateId = "hybrid_multi_source";
  * 单步执行计划（LLM 终稿字段）。
  * - km：向量/混合检索；可挂 post-tool（age/links/identity）
  * - list：目录扫盘穷举/续页
- * - tool：独立工具步（如 search_web）
+ * - mem：Mem0 结构化召回（userFactKey + dataSource=mem0）
+ * - tool：独立工具步（search_web 等；扩展天气/搜索同族）
+ * - summarize：子步总结用户原文（dataSource=user_text）
  * - dag：仅 hybrid_multi_source（语料+外网汇合）
  */
 export type ExecutionStep = {
@@ -38,7 +41,7 @@ export type ExecutionStep = {
   kind: PathKind;
   /** 面向用户的子问题标题 */
   label: string;
-  /** LLM 改写后的检索/工具查询词 */
+  /** LLM 改写后的检索/工具查询词；summarize 可为待总结正文 */
   searchQuery: string;
   queryType: "identity" | "enumeration" | "tech" | "external_link" | "default";
   topics: string[];
@@ -46,6 +49,10 @@ export type ExecutionStep = {
   /** 检索后或独立工具（白名单 ToolRunId） */
   toolId?: ToolRunId | null;
   dataSource?: DataSource | null;
+  /** mem 步：用户自述字段 slug（开集，由 Intake 命名） */
+  userFactKey?: string | null;
+  /** mem 步：展示名 */
+  userFactLabel?: string | null;
   /** 仅 list */
   enumerationControl?: EnumerationControl | null;
   enumerationPage?: number;
@@ -56,20 +63,6 @@ export type ExecutionStep = {
   params?: Record<string, unknown>;
 };
 
-/** @deprecated 兼容别名；新代码用 ExecutionStep */
-export type PathStepBase = Omit<ExecutionStep, "kind"> & { pathKind?: PathKind };
-/** @deprecated */
-export type KmStep = ExecutionStep & { kind: "km" };
-/** @deprecated */
-export type ListStep = ExecutionStep & { kind: "list" };
-/** @deprecated */
-export type ToolStep = ExecutionStep & { kind: "tool"; toolId: ToolRunId; dataSource: DataSource };
-/** @deprecated */
-export type DagRun = ExecutionStep & {
-  kind: "dag";
-  template: DagTemplateId;
-};
-
 export type PathPlan = {
   /** 有序执行步；顺序即回答顺序 */
   steps: ExecutionStep[];
@@ -78,7 +71,9 @@ export type PathPlan = {
 export type PathPlanCounts = {
   km: number;
   list: number;
+  mem: number;
   tool: number;
+  summarize: number;
   dag: number;
   total: number;
 };

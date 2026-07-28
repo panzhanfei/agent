@@ -21,11 +21,11 @@ alwaysApply: true
 ```ts
 // ✅ 同级（同一文件夹内）
 import type { RoutedIntakeDecision } from "./interface";
-import { applyCompositeRouteGuard } from "./composite-route-guard";
+import { applyIntakeChitchatGuard } from "./intake-chitchat-guard";
 
 // ✅ 跨文件夹：走目标目录的 index，用 @ 别名
 import {
-  applyCompositeRouteGuard,
+  applyIntakeChitchatGuard,
   type RoutedIntakeDecision,
 } from "@/agentflow/agents/online/intake-coordinator/guards";
 
@@ -33,7 +33,7 @@ import {
 import type { CompositeRetrievalSlot } from "@/agentflow/agents/online/intake-coordinator/composite/interface";
 
 // ❌ 禁止：跨目录深挖具体实现文件
-import { applyCompositeRouteGuard } from "@/agentflow/.../guards/composite-route-guard";
+import { applyIntakeChitchatGuard } from "@/agentflow/.../guards/intake-chitchat-guard";
 ```
 
 父模块 `index.ts` 再聚合子目录；包外优先用模块根入口（如 `@/.../intake-coordinator`）。
@@ -73,7 +73,7 @@ import { runPlanSlotJoinNode, fanOutPlanWorkers } from "@/agentflow/agents/onlin
 // ❌ 禁止 node/ 子目录（已废弃）
 ```
 
-**PlanFanOut 边界：** 只拥有 `fan-out` → `planSlotJoin` → `planMerge`；`kmRetrieve`/`listRetrieve` → KM/Lister；`runUserFactSideNode` → `user-fact/side`；`runPlanSlotPostNode`/`runPlanDagNode` → `tool-orchestrator`。
+**PlanFanOut 边界：** 只拥有 `fan-out` → `planSlotJoin` → `planMerge`；`kmRetrieve`→KM；`listRetrieve`→Lister；`memRetrieve`→user-fact；`toolRetrieve`/`planSlotPost`/`planDag`→tool-orchestrator；`summarizeSlot`→content-summarizer；`runUserFactSideNode`→user-fact/side。
 
 ## 新建 / 改动检查
 

@@ -6,6 +6,7 @@ export type {
     CompositeSlotPlan,
     CompositeSubRetrieval,
     IncrementalCompositePlan,
+    RecalledUserFact,
 } from "./interface";
 export {
     buildFacetKey,

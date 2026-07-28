@@ -244,10 +244,16 @@ flowchart LR
 
 ### 11.2 PathPlan 有序 steps[] + Compose 一层
 
-Intake LLM **直接产出**有序 `pathPlan.steps[]` + `composeMode`；pipeline **`legalizePathPlan`** 后按数组顺序派生 `compositeSlots`（旧 `compilePathPlan` 分桶推断已退出主路径；legalize **仍兼容**旧四桶 `{km,list,tool,dag}+answerOrder`）：
+Intake LLM **直接产出**有序 `pathPlan.steps[]` + `composeMode`；pipeline **`legalizePathPlan` + `normalizePathPlanSteps`** 后按数组顺序派生 `compositeSlots`：
+
+- `kind=km|list|mem|tool|summarize|dag`（Send 工人族）
+- `dataSource`：corpus|compute|web|mem0|user_text|synthesize
+- 结构归一：`userFactKey` 无 `identityField` → mem；`dataSource=web` + 非 post-tool → tool；**无 Mem0 字段名表**
+- 独立工具扩展：加 `TOOL_RUN_IDS` + execute case（不进 `POST_RETRIEVAL_TOOL_IDS`）→ 自动 `toolRetrieve`
+
 
 ```typescript
-type PathKind = "km" | "list" | "tool" | "dag"; // 执行类型，非场景名
+type PathKind = "km" | "list" | "mem" | "tool" | "summarize" | "dag";
 
 type ExecutionStep = {
   id: string;
@@ -258,7 +264,9 @@ type ExecutionStep = {
   topics: string[];
   identityField?: string | null;
   toolId?: string | null;
-  dataSource?: string | null;
+  dataSource?: "corpus" | "web" | "compute" | "synthesize" | "mem0" | "user_text" | null;
+  userFactKey?: string | null;
+  userFactLabel?: string | null;
   enumerationControl?: EnumerationControl | null;
   template?: "hybrid_multi_source"; // 仅 dag
   deps?: string[];
@@ -269,17 +277,18 @@ type PathPlan = {
 };
 
 type ComposeMode = "qa" | "summarize" | "composite";
-// answerOrder?: string[]  // 可选；缺省 = steps.map(s => s.id)
 ```
 
-| kind | 执行 | FC |
+| kind | Send 工人 | FC |
 |------|------|-----|
-| `km` | `retrieval-node` 按槽 | **per-step** |
-| `list` | `list_corpus` 分页 | **跳过**（确定性扫盘，与纯 listRetriever 一致） |
-| `tool` | `ToolOrchestrator` | 规则 / 工具输出 |
-| `dag` | `DagExecutor`（**仅** `hybrid_multi_source`） | 节点级或整 DAG pass |
+| `km` | `kmRetrieve` | **per-step** |
+| `list` | `listRetrieve` | **跳过** |
+| `mem` | `memRetrieve`（Mem0） | **跳过** |
+| `tool` | `toolRetrieve`（独立工具） | **跳过** |
+| `summarize` | `summarizeSlot` | **跳过** |
+| `dag` | `planDag`（**仅** `hybrid_multi_source`） | 节点级 |
 
-**Compose 只做一次：** 全部 step 完成后，Analyst 按 `composeMode` 输出单答 / 多段 composite / 摘要；**回答顺序 = `pathPlan.steps` 数组顺序**（不做 list→km 重排）。
+**Compose 只做一次：** 全部 step 完成后，Analyst 按 `composeMode` 输出单答 / 多段 composite / 摘要；**回答顺序 = `pathPlan.steps` 数组顺序**（不做 list→km 重排）。整轮 `composeMode=summarize` 仍走 `contentSummarizer` 终稿节点。
 
 ### 11.3 列举 + 外链（无场景 DAG）
 
@@ -308,12 +317,12 @@ flowchart LR
 flowchart TD
   IC[IntakeCoordinator] --> R{routeAfterIntake}
   R -->|planFanOut| S[Send 每槽并行]
-  S --> PS[kmRetrieve FC / listRetrieve 无 FC]
+  S --> PS[km FC / list / mem / tool / summarize]
   S --> PD[planDag]
   S --> UF[userFactSide]
   PS --> JOIN[planSlotJoin]
   UF --> JOIN
-  JOIN --> POST[planSlotPost tools]
+  JOIN --> POST[planSlotPost post-tools]
   POST --> M[planMerge]
   PD --> M
   R -->|早退| EARLY[respondEarly / userFact / summarizer / listRetriever]
@@ -321,7 +330,7 @@ flowchart TD
   CO --> IA[InformationAnalyst<br/>composeMode]
 ```
 
-**代码：** `intake-coordinator/path-plan/*` · `plan-fanout/` · `corpus-lister/` · `pipeline/graph/compile.ts`。
+**代码：** `intake-coordinator/path-plan/*` · `plan-fanout/` · `user-fact/mem-retrieve` · `tool-orchestrator/tool-retrieve` · `content-summarizer/slot` · `pipeline/graph/compile.ts`。
 
 **验证：**
 
@@ -330,7 +339,7 @@ pnpm --filter @fambrain/brain-service run verify:composite-route
 pnpm --filter @fambrain/brain-service run verify:composite-incremental
 pnpm --filter @fambrain/brain-service run verify:tool-orchestration
 pnpm --filter @fambrain/brain-service run verify:dag-hybrid
-pnpm --filter @fambrain/brain-service run eval:run   # 含 E2E-five-composite + fiveCompositeProbe
+pnpm --filter @fambrain/brain-service run eval:run   # 含 six-composite-qq-phone + GMem
 ```
 
 ---

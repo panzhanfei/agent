@@ -120,11 +120,11 @@ assert("token 全未命中时 pathBoost 仍可排前（兜底场景）", () => {
   }
 });
 
-console.log("\n— queryProfile（KM-08/09）—");
+console.log("\n— queryProfile（无口语推断；信 Intake queryType）—");
 
-assert("identity：我的名字是什么？", () => {
-  if (inferQueryProfile("我的名字是什么？", []) !== "identity") {
-    throw new Error("应为 identity");
+assert("inferQueryProfile 恒 default（口语表已删）", () => {
+  if (inferQueryProfile("我的名字是什么？", []) !== "default") {
+    throw new Error("infer 应恒为 default");
   }
   const { maxHits, vectorTopK } = getProfileRecallParams("identity");
   if (maxHits !== 4 || vectorTopK !== 12) {
@@ -132,9 +132,9 @@ assert("identity：我的名字是什么？", () => {
   }
 });
 
-assert("enumeration：哪几家公司上过班", () => {
-  if (inferQueryProfile("我在哪几家公司上过班？", []) !== "enumeration") {
-    throw new Error("应为 enumeration");
+assert("enumeration 参数仍按显式 profile", () => {
+  if (inferQueryProfile("我在哪几家公司上过班？", []) !== "default") {
+    throw new Error("infer 应恒为 default");
   }
   const { maxHits, vectorTopK } = getProfileRecallParams("enumeration");
   if (maxHits !== 8 || vectorTopK !== 24) {
@@ -142,9 +142,9 @@ assert("enumeration：哪几家公司上过班", () => {
   }
 });
 
-assert("tech：城管平台技术栈", () => {
-  if (inferQueryProfile("城管平台用了什么技术栈？", []) !== "tech") {
-    throw new Error("应为 tech");
+assert("tech：infer 不再猜口语", () => {
+  if (inferQueryProfile("城管平台用了什么技术栈？", []) !== "default") {
+    throw new Error("infer 应恒为 default");
   }
 });
 
@@ -162,10 +162,10 @@ assert("QU-06：queryType=null 时用 default 不再规则推断", () => {
   }
 });
 
-assert("QU-06：queryType 未传时脚本仍 infer", () => {
+assert("QU-06：queryType 未传时亦 default（无口语 infer）", () => {
   const p = resolveQueryProfile("我的名字是什么？", []);
-  if (p !== "identity") {
-    throw new Error(`未传 queryType 应 infer identity，实际 ${p}`);
+  if (p !== "default") {
+    throw new Error(`未传 queryType 应为 default，实际 ${p}`);
   }
 });
 
@@ -185,7 +185,7 @@ assert("identity 问法优先摘 | 姓名 | 行", () => {
 
 assert("pickTableExcerpt 匹配 token 字段", () => {
   const body = "| 公司 | 西安奥卡云 |\n| 姓名 | 潘展飞 |";
-  const ex = pickTableExcerpt(body, tokenize("奥卡云"), 120, false);
+  const ex = pickTableExcerpt(body, tokenize("奥卡云"), 120);
   if (!ex?.includes("奥卡云")) {
     throw new Error(`应摘公司行，实际 ${ex}`);
   }

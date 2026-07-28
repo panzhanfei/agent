@@ -36,10 +36,19 @@ const useCompositeParallelAnalyze = (
     compositeSubResults: NonNullable<
         InformationAnalystInput["compositeSubResults"]
     >;
-} =>
-    (input.composeMode === "composite" ||
-        (input.compositeSubResults?.length ?? 0) >= 2) &&
-    (input.compositeSubResults?.length ?? 0) >= 2;
+} => {
+    const n = input.compositeSubResults?.length ?? 0;
+    if (n < 1) return false;
+    if (n >= 2) return true;
+    // 单槽：composite 模式，或 mem/summarize 槽（无 corpus hits 也要走子问兜底）
+    if (input.composeMode === "composite") return true;
+    const sub = input.compositeSubResults![0]!;
+    return Boolean(
+        sub.dataSource === "mem0" ||
+            sub.dataSource === "user_text" ||
+            sub.recalledFact
+    );
+};
 
 const resolveSingleSlotCachedAnswer = (
     input: InformationAnalystInput

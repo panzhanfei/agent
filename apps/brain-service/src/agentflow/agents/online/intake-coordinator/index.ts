@@ -11,15 +11,17 @@ import {
 import {
   buildEnumerationListDecision,
   buildIncompleteUtteranceDecision,
-  buildPureChitchatDecision,
   applyIntakeChitchatGuard,
+  buildPureChitchatDecision,
 } from "./guards";
 import {
-  isPureSocialUtterance,
+  historySupportsContinuation,
   normalizeIntakeUtterance,
   rewriteLastUserTurn,
   shouldRetryCoreferenceMerge,
   shouldShortCircuitIncompleteUtterance,
+  surfaceForSingleCharSignal,
+  utteranceCodePointLength,
 } from "./signals";
 import { logAgentOut } from "@fambrain/brain-shared/agent-log";
 import {
@@ -83,21 +85,15 @@ export {
   buildPureChitchatDecision,
   DEFAULT_CHITCHAT_BRIEF_REPLY,
   INCOMPLETE_UTTERANCE_BRIEF_REPLY,
-  applyIntakeRetrievalPlanGuard,
   applyEnumerationSlotGuard,
   buildEnumerationListDecision,
-  applyCompositeRouteGuard,
-  isCompositeProfileQuestion,
-  type CompositeRouteReason,
   type EnumerationListIntent,
-  type IntakeRetrievalPlanGuardReason,
   type IntakeRouteMode,
   type RoutedIntakeDecision,
 } from "./guards";
 
 export {
   looksLikeMultiPartQuestion,
-  resolveCompositeRoute,
   resolveEffectiveQueryType,
   splitQuestionUnits,
   EMPLOYERS_SLOT,
@@ -110,14 +106,12 @@ export {
   dedupePlanByFacet,
   normalizePlanItemFromSchema,
   planFacetKey,
-  repairRetrievalPlanItems,
   isProjectEnumeration,
   resolveEnumerationTarget,
   type CompositeFacetId,
   type CompositeRetrievalSlot,
   type CompositeSlotId,
   type CompositeRoutePlanSource,
-  type ResolvedCompositeRoute,
   type EnumerationTarget,
 } from "./composite";
 
@@ -136,13 +130,12 @@ export {
   legalizePathPlan,
   legalizeAnswerOrder,
   legalizeComposeMode,
+  normalizePathPlanSteps,
   fillListPagesInPathPlan,
   isPathPlanEmpty,
   type ComposeMode,
   type PathPlan,
   type PathKind,
-  type ListStep,
-  type KmStep,
   type StepResult,
   type DagTemplateId,
   type ExecutionStep,
@@ -159,11 +152,24 @@ export const runIntakeNode = async (
     const normalizedQuestion =
       normalizeIntakeUtterance(rawQuestion) || rawQuestion.trim() || rawQuestion;
 
+    /**
+     * 超短无问号（码点 ≤2，如「你好」）：结构短路 → chitchat。
+     * 非口语词表；有问号 / 可续上文 不触发。
+     */
+    const shortSurface = surfaceForSingleCharSignal(normalizedQuestion);
+    const shortLen = utteranceCodePointLength(shortSurface);
     if (
-      isPureSocialUtterance(normalizedQuestion) ||
-      isPureSocialUtterance(rawQuestion)
+      shortLen >= 1 &&
+      shortLen <= 2 &&
+      !/[？?]/.test(normalizedQuestion) &&
+      !historySupportsContinuation(state.intakeHistory)
     ) {
       const chitchat = applyIntakeChitchatGuard(buildPureChitchatDecision());
+      logAgentOut("IntakeCoordinator", "短路_超短无问号", {
+        userQuestion: rawQuestion,
+        normalizedQuestion,
+        shortLen,
+      });
       return {
         decision: buildEarlyExitRoutedDecision(chitchat),
       };

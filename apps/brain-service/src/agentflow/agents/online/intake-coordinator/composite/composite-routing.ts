@@ -1,32 +1,20 @@
 /**
- * Composite 路由解析：从 Intake decision 推出「本次要跑哪些检索槽」。
- *
- * 档 B：只信 LLM \`retrievalPlan\` → 编译为 slots。
- * 空 plan → source=none（上层 clarify，不发明模板槽）。
+ * Composite 结构信号工具（非计划发明）。
+ * 主路径槽位来自 pathPlan.steps → deriveCompositeSlotsFromPathPlan。
  */
 import type {
   IntakeRetrievalPlanItem,
   IntakeRoutingDecision,
 } from "@/agentflow/agents/online/intake-coordinator/contract";
-import type {
-  CompositeRoutePlanSource,
-  ResolvedCompositeRoute,
-} from "./interface";
-import { planItemToSlot } from "./composite-slot-queries";
 
-export type {
-  CompositeRoutePlanSource,
-  ResolvedCompositeRoute,
-} from "./interface";
-
-/** 结构信号：多问号 / 顿号并列 / 以及·还有 等（非语义词表；供 link stale 检测等） */
+/** 结构信号：多问号 / 顿号并列 / 编号（非语义词表；供 link stale 检测等） */
 export const looksLikeMultiPartQuestion = (question: string): boolean => {
   const q = question.trim();
   if (!q) return false;
   if (/^\d+[.．、]\s*[^\d]{2,}$/u.test(q)) return false;
   const questionMarks = (q.match(/[？?]/g) ?? []).length;
   if (questionMarks >= 2) return true;
-  if (/[，,、；;]|以及|还有|另外|分别/.test(q)) return true;
+  if (/[，,、；;]/.test(q)) return true;
   if (/\d[.．、].*\d[.．、]/s.test(q)) return true;
   return false;
 };
@@ -65,48 +53,3 @@ export const resolveEffectiveQueryType = (
   }
   return "default";
 };
-
-/**
- * 编排主入口：仅把 LLM retrievalPlan 编译为槽。
- * 被 applyCompositeRouteGuard 调用。
- */
-export const resolveCompositeRoute = (
-  decision: Pick<
-    IntakeRoutingDecision,
-    | "intent"
-    | "searchQuery"
-    | "subTasks"
-    | "topics"
-    | "queryType"
-    | "retrievalPlan"
-  >,
-  _userQuestion: string
-): ResolvedCompositeRoute => {
-  if (decision.intent !== "retrieve_and_answer") {
-    return { slots: [], source: "none" };
-  }
-
-  const fromIntake = normalizePlanItems(decision.retrievalPlan ?? []);
-  if (fromIntake.length >= 1) {
-    return {
-      slots: fromIntake.map((item, i) => planItemToSlot(item, i)),
-      source: "intake_retrieval_plan",
-    };
-  }
-
-  return { slots: [], source: "none" };
-};
-
-/** 是否会走 ≥2 槽 composite（诊断用） */
-export const isCompositeProfileQuestion = (
-  decision: Pick<
-    IntakeRoutingDecision,
-    | "intent"
-    | "searchQuery"
-    | "subTasks"
-    | "topics"
-    | "queryType"
-    | "retrievalPlan"
-  >,
-  userQuestion: string
-): boolean => resolveCompositeRoute(decision, userQuestion).slots.length >= 2;

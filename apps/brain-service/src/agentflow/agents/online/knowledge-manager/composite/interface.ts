@@ -32,6 +32,13 @@ export type IncrementalCompositePlan = {
     sessionCleared: boolean;
 };
 
+/** Mem0 召回结果（mem 槽；非 corpus hits） */
+export type RecalledUserFact = {
+    factKey: string;
+    label: string;
+    value: string | null;
+};
+
 export type CompositeSubRetrieval = {
     slot: CompositeSlotId;
     /** facet 稳定键 */
@@ -45,6 +52,10 @@ export type CompositeSubRetrieval = {
     cacheHit: boolean;
     /** 槽答案缓存命中（跳过真检索 + Analyst） */
     facetAnswerCacheHit?: boolean;
+    /** mem 槽召回；Analyst / fallback 优先于此 */
+    recalledFact?: RecalledUserFact | null;
+    /** 槽 dataSource（mem0 / user_text / corpus…） */
+    dataSource?: string | null;
 };
 
 export type CompositeRetrievePlan = {

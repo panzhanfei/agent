@@ -4,7 +4,7 @@
  *   pnpm --filter @fambrain/brain-service run eval:run
  *   pnpm --filter @fambrain/brain-service run eval:run -- --list-pagination-only
  *   pnpm --filter @fambrain/brain-service run eval:run -- --json-only
- *   pnpm --filter @fambrain/brain-service run eval:run -- --mem-only
+ *   pnpm --filter @fambrain/brain-service run eval:run -- --identity-composite-only
  *   EVAL_WRITE_REPORT=1 pnpm --filter @fambrain/brain-service run eval:run
  *
  * 需 Ollama + 语料；KM hybrid 指标建议 Chroma 在线。
@@ -114,6 +114,13 @@ type GoldenFile = {
         conversationIdPrefix: string;
         turns: ListPaginationTurn[];
     };
+    identityCompositeProbe?: {
+        id: string;
+        label: string;
+        conversationIdPrefix: string;
+        qq?: string;
+        turns: ListPaginationTurn[];
+    };
 };
 
 type CaseResult = {
@@ -161,6 +168,7 @@ type EvalReport = {
     listPaginationProbe?: CaseResult[];
     dualListPaginationProbe?: CaseResult[];
     fiveCompositeProbe?: CaseResult[];
+    identityCompositeProbe?: CaseResult[];
 };
 
 const chromaUrl = (): string => {
@@ -454,7 +462,8 @@ const runProfileProbe = async (
 
 const runListPaginationProbe = async (
     probe: NonNullable<GoldenFile["listPaginationProbe"]>,
-    corpusUserId: string
+    corpusUserId: string,
+    opts?: { logAnswerOnFail?: boolean }
 ): Promise<CaseResult[]> => {
     const conversationId = `${probe.conversationIdPrefix}-${Date.now()}`;
     const out: CaseResult[] = [];
@@ -467,12 +476,20 @@ const runListPaginationProbe = async (
             priorHistory
         );
         const issues = assertPipeline(snap, turn.assert);
+        const pass = issues.length === 0;
+        if (!pass && opts?.logAnswerOnFail) {
+            const preview =
+                snap.answer.length > 600
+                    ? `${snap.answer.slice(0, 600)}…`
+                    : snap.answer;
+            console.log(`\n--- answer preview (turn ${i + 1}) ---\n${preview}\n--- steps: ${snap.steps.join(" → ")} ---\n`);
+        }
         out.push({
             id: `${probe.id}-t${i + 1}`,
             tier: "pipeline",
             label: `${probe.label} · turn${i + 1}`,
-            pass: issues.length === 0,
-            reason: issues.length === 0 ? "ok" : issues.join("; "),
+            pass,
+            reason: pass ? "ok" : issues.join("; "),
             latencyMs: snap.latencyMs,
         });
         priorHistory = [
@@ -622,12 +639,21 @@ const formatMarkdown = (report: EvalReport): string => {
             );
         }
     }
+    if (report.identityCompositeProbe?.length) {
+        lines.push(``, `## 六连问 QQ+手机探测`, ``);
+        for (const r of report.identityCompositeProbe) {
+            lines.push(
+                `- ${r.id}: ${r.pass ? "✅" : "❌"} ${r.reason} (${r.latencyMs}ms)`
+            );
+        }
+    }
     return lines.join("\n");
 };
 
 const jsonOnly = process.argv.includes("--json-only");
 const profileOnly = process.argv.includes("--profile-only");
 const listPaginationOnly = process.argv.includes("--list-pagination-only");
+const identityCompositeOnly = process.argv.includes("--identity-composite-only");
 const memOnly = process.argv.includes("--mem-only");
 const caseFilter = (() => {
     const idx = process.argv.indexOf("--case");
@@ -674,6 +700,28 @@ const main = async (): Promise<void> => {
         const failed = profileProbe.filter((r) => !r.pass);
         if (failed.length > 0) process.exit(1);
         console.log("\nProfile probe 通过。");
+        return;
+    }
+
+    if (identityCompositeOnly) {
+        if (!golden.identityCompositeProbe) {
+            throw new Error("golden.json 缺少 identityCompositeProbe");
+        }
+        console.log(
+            `eval:run — identity composite probe only (${golden.identityCompositeProbe.id})`
+        );
+        console.log(`corpusUserId=${corpusUserId} chroma=${chromaUp ? "up" : "down"}\n`);
+        const results = await runListPaginationProbe(
+            golden.identityCompositeProbe,
+            corpusUserId,
+            { logAnswerOnFail: true }
+        );
+        for (const r of results) {
+            console.log(`  ${r.id}: ${r.pass ? "PASS" : "FAIL"} — ${r.reason} (${r.latencyMs}ms)`);
+        }
+        const failed = results.filter((r) => !r.pass);
+        if (failed.length > 0) process.exit(1);
+        console.log("\nIdentity composite probe 通过。");
         return;
     }
 
@@ -767,6 +815,14 @@ const main = async (): Promise<void> => {
                   corpusUserId
               );
 
+    const identityCompositeProbe =
+        caseFilter || !golden.identityCompositeProbe
+            ? []
+            : await runListPaginationProbe(
+                  golden.identityCompositeProbe,
+                  corpusUserId
+              );
+
     const report: EvalReport = {
         generatedAt: new Date().toISOString(),
         corpusUserId,
@@ -784,6 +840,9 @@ const main = async (): Promise<void> => {
             : undefined,
         fiveCompositeProbe: fiveCompositeProbe.length
             ? fiveCompositeProbe
+            : undefined,
+        identityCompositeProbe: identityCompositeProbe.length
+            ? identityCompositeProbe
             : undefined,
     };
 
@@ -817,6 +876,9 @@ const main = async (): Promise<void> => {
     const fiveCompositeFailed = (report.fiveCompositeProbe ?? []).filter(
         (r) => !r.pass
     );
+    const identityCompositeFailed = (report.identityCompositeProbe ?? []).filter(
+        (r) => !r.pass
+    );
     const coalesceBad = report.metrics.coalesceFailures > 0;
     if (
         failed.length > 0 ||
@@ -825,6 +887,7 @@ const main = async (): Promise<void> => {
         listPaginationFailed.length > 0 ||
         dualListPaginationFailed.length > 0 ||
         fiveCompositeFailed.length > 0 ||
+        identityCompositeFailed.length > 0 ||
         coalesceBad
     ) {
         process.exit(1);

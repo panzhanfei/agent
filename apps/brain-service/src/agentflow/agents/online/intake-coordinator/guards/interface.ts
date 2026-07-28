@@ -53,7 +53,7 @@ export type RoutedIntakeDecision = IntakeRoutingDecision & {
   routeMode: IntakeRouteMode;
   /** 由 pathPlan.steps 派生的检索槽（dag 步不进槽） */
   compositeSlots: CompositeRetrievalSlot[];
-  /** 有序执行计划；LLM 产出 steps[]，代码合法化（兼容旧四桶） */
+  /** 有序执行计划；LLM 产出 steps[]，代码合法化 + 结构归一 */
   pathPlan: PathPlan;
   /** 回答顺序（step id）；默认 = steps.map(s => s.id) */
   answerOrder: string[];

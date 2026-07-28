@@ -6,12 +6,13 @@ Mem0 / LangMem 在 **`preparePipelineMemory`** 加载；本模块负责 Intake J
 
 ---
 
-## 图节点（包根 `index.ts` + `side/`）
+## 图节点
 
 | 节点 | 路径 | 何时进入 |
 |------|------|----------|
-| `userFactNode` | `index.ts` | Intake 纯 remember/recall 路由；绕过 KM / FC / Analyst |
-| `runUserFactSideNode` | `side/` | 复合路径 planFanOut Send：与检索并行写 remember，文案并入 Analyst 终稿 |
+| `userFactNode` | `index.ts` | 纯 remember/recall；或 Intake 将**单步 mem** 结构折叠为 recall 早退 |
+| `runMemRetrieveNode` | `mem-retrieve/` | 复合 pathPlan 中 `kind=mem` 槽：并行召回，写入 `recalledFact` |
+| `runUserFactSideNode` | `side/` | 复合 + 顶层 userFactKey/Value：并行写 remember |
 
 ---
 
@@ -19,9 +20,10 @@ Mem0 / LangMem 在 **`preparePipelineMemory`** 加载；本模块负责 Intake J
 
 ```text
 user-fact/
-├── index.ts       # userFactNode + barrel
-├── user-fact.ts   # 路由解析、校验、话术、Mem0 行解析
-└── side/          # runUserFactSideNode（planFanOut 并行 side-effect）
+├── index.ts         # userFactNode + barrel
+├── user-fact.ts     # 路由解析、校验、话术、Mem0 行解析
+├── mem-retrieve/    # runMemRetrieveNode（复合 mem 槽）
+└── side/            # runUserFactSideNode（remember side-effect）
 ```
 
 ---
@@ -34,10 +36,11 @@ user-fact/
 preparePipelineMemory → intake → routeAfterIntake → userFact → persistTurnEnd
 ```
 
-**复合 + remember side-effect：**
+**复合 + mem 召回 / remember side-effect：**
 
 ```text
-intake → planFanOut Send(userFactSide ∥ km/list…) → planSlotJoin → … → Analyst 并入 sideEffectAnswer
+intake → planFanOut Send(memRetrieve ∥ userFactSide ∥ km/list…)
+  → planSlotJoin → planSlotPost → planMerge → Analyst（信 recalledFact / sideEffectAnswer）
 ```
 
-验证：`pnpm run verify:user-fact`
+**结构规则：** 语料 identity 用 `identityField` 闭集（km）；自述字段用 `userFactKey` 开集 + `dataSource=mem0`（mem）。禁止 Mem0 字段名硬编码表。

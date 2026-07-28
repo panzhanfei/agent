@@ -2,7 +2,6 @@
  * P0-13：chitchat 固定话术 — LLM 只产 intent，briefReply 由服务端注入，避免幻觉称呼。
  */
 import type { IntakeRoutingDecision } from "@/agentflow/agents/online/intake-coordinator/contract";
-import { isPureSocialUtterance } from "@/agentflow/agents/online/intake-coordinator/signals";
 
 export const DEFAULT_CHITCHAT_BRIEF_REPLY =
     "你好，我是 FamBrain 助手。可以问我关于工作经历、项目或技术栈的问题。";
@@ -48,23 +47,10 @@ export const applyIntakeChitchatGuard = (
 };
 
 /**
- * 纯问候/感谢句强制 chitchat（覆盖 LLM 误判 retrieve）。
- * remember/recall 等显式 userFact intent 不覆盖。
- * 生产入口：`intake-node` 用 `isPureSocialUtterance` 跳过 LLM；本函数供 verify / 兜底导出。
+ * @deprecated 禁止口语问候强制改写 intent；恒原样返回。
+ * 问候由 Intake LLM 判 chitchat，再经 applyIntakeChitchatGuard 注入 briefReply。
  */
 export const applyPureSocialUtteranceGuard = (
     decision: IntakeRoutingDecision,
-    userQuestion: string
-): IntakeRoutingDecision => {
-    if (!isPureSocialUtterance(userQuestion)) return decision;
-    if (
-        decision.intent === "remember_user_fact" ||
-        decision.intent === "recall_user_fact"
-    ) {
-        return decision;
-    }
-    return applyIntakeChitchatGuard({
-        ...buildPureChitchatDecision(),
-        language: decision.language ?? "zh",
-    });
-};
+    _userQuestion: string
+): IntakeRoutingDecision => decision;

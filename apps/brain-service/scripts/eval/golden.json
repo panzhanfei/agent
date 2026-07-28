@@ -236,6 +236,20 @@
         "answerMustIncludeAll": ["潘展飞", "734858469"],
         "answerMustNotRe": "未能生成回复|未找到与「近两年"
       }
+    },
+    {
+      "id": "E2E-six-composite-qq-phone",
+      "tier": "pipeline",
+      "label": "六连问：姓名+年龄+QQ(recall)+履历+GitHub+手机（QQ 须先 remember）",
+      "question": "我叫什么？今年多大？我的QQ号多少？告诉我。告诉我我的简历里面有什么（我的从业经历）。我近两年的开源项目的GitHub地址是什么？我的手机号多少？",
+      "assert": {
+        "mustIncludeSteps": ["plan_merge", "analyst"],
+        "mustIncludeAnySteps": [["km_retrieve", "list_retrieve", "plan_slot_join", "plan_merge"]],
+        "minAnswerLength": 80,
+        "answerMustIncludeAll": ["潘展飞", "734858469"],
+        "answerRe": "云联智慧|友谊时光|github\\.com/panzhanfei",
+        "answerMustNotRe": "未能生成回复"
+      }
     }
   ],
   "memProbe": {
@@ -354,6 +368,33 @@
           "answerRe": "潘展飞",
           "answerMustIncludeAll": ["潘展飞"],
           "minAnswerLength": 40,
+          "answerMustNotRe": "未能生成回复"
+        }
+      }
+    ]
+  },
+  "identityCompositeProbe": {
+    "id": "E2E-six-composite-qq-phone-probe",
+    "label": "六连问分轮：remember QQ → 姓名+年龄+QQ recall+履历+GitHub+手机",
+    "conversationIdPrefix": "eval-six-qq-phone",
+    "qq": "734858469",
+    "turns": [
+      {
+        "question": "我的qq是734858469，请帮我记住",
+        "assert": {
+          "mustIncludeSteps": ["user_fact"],
+          "answerRe": "734858469",
+          "answerMustNotRe": "未能生成回复"
+        }
+      },
+      {
+        "question": "我叫什么？今年多大？我的QQ号多少？告诉我。告诉我我的简历里面有什么（我的从业经历）。我近两年的开源项目的GitHub地址是什么？我的手机号多少？",
+        "assert": {
+          "mustIncludeAnySteps": [["km_retrieve", "list_retrieve", "plan_slot_join", "plan_merge"]],
+          "mustIncludeSteps": ["analyst", "plan_merge"],
+          "minAnswerLength": 80,
+          "answerMustIncludeAll": ["潘展飞", "734858469"],
+          "answerRe": "云联智慧|友谊时光|github\\.com/panzhanfei",
           "answerMustNotRe": "未能生成回复"
         }
       }

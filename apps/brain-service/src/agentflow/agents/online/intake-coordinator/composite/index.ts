@@ -6,16 +6,13 @@ export type {
     CompositeSlotId,
     EnumerationTarget,
     EnumerationTargetInput,
-    ResolvedCompositeRoute,
 } from "./interface";
 
 export {
     looksLikeMultiPartQuestion,
     normalizePlanItems,
-    resolveCompositeRoute,
     resolveEffectiveQueryType,
     splitQuestionUnits,
-    isCompositeProfileQuestion,
 } from "./composite-routing";
 export {
     EMPLOYERS_SLOT,
@@ -34,7 +31,6 @@ export {
     dedupePlanByFacet,
     normalizePlanItemFromSchema,
     planFacetKey,
-    repairRetrievalPlanItems,
 } from "./repair-retrieval-plan";
 export {
     isProjectEnumeration,
