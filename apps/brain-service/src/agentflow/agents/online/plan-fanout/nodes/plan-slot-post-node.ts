@@ -1,56 +1,69 @@
 /**
- * planSlotPost：KM 检索之后的 per-step FC + post-retrieval tools。
- * 读 fanOutSlotPatch（由 kmRetrieve 写入），写回完整槽补丁供 planMerge。
+ * planSlotPost：汇合 km+list 补丁 → per-step FC + post-retrieval tools → fanOutSlotPatch。
  */
 import { logAgentOut } from "@fambrain/brain-shared/agent-log";
 import { runPerStepFactChecks } from "@/agentflow/agents/online/fact-checker/check-step";
-import { runRetrievalNode } from "@/agentflow/agents/online/knowledge-manager";
+import {
+  mergeKmAndListRetrieveBundles,
+  runRetrievalNode,
+} from "@/agentflow/agents/online/knowledge-manager";
 import { runToolOrchestratorNode } from "@/agentflow/agents/online/tool-orchestrator";
 import type { PipelineGraphState } from "@/agentflow/pipeline/graph/state";
 import type { PlanSlotsPatch } from "../interface";
-
-const hydrateFromSlotPatch = (
-  state: PipelineGraphState,
-  patch: PlanSlotsPatch
-): PipelineGraphState => ({
-  ...state,
-  hits: patch.hits ?? [],
-  coverage: patch.coverage ?? "none",
-  notes: patch.notes ?? null,
-  confidenceTier: patch.confidenceTier ?? null,
-  enumerationMeta: patch.enumerationMeta ?? null,
-  retrievalCacheHit: Boolean(patch.retrievalCacheHit),
-  retrievalCacheSlotHits: patch.retrievalCacheSlotHits ?? null,
-  compositeSubResults: patch.compositeSubResults ?? null,
-  compositeIncrementalPlan: patch.compositeIncrementalPlan ?? null,
-  compositeFacetCacheHits: patch.compositeFacetCacheHits ?? null,
-  retryCount: patch.retryCount ?? state.retryCount,
-});
 
 export const runPlanSlotPostNode = async (
   state: PipelineGraphState
 ): Promise<Partial<PipelineGraphState>> => {
   const decision = state.decision;
-  const slotPatch = state.fanOutSlotPatch;
+  const kmPatch = state.fanOutKmPatch;
+  const listPatch = state.fanOutListPatch;
 
   if (!decision) {
     return {
       fanOutSlotPatch: { error: "缺少入口路由决策", hits: [], coverage: "none" },
     };
   }
-  if (!slotPatch) {
+
+  if (kmPatch?.error) {
+    return {
+      fanOutSlotPatch: { error: kmPatch.error, hits: [], coverage: "none" },
+    };
+  }
+  if (listPatch?.error) {
+    return {
+      fanOutSlotPatch: { error: listPatch.error, hits: [], coverage: "none" },
+    };
+  }
+
+  if (!kmPatch && !listPatch) {
     return { fanOutSlotPatch: null };
   }
-  if (slotPatch.error) {
-    return { fanOutSlotPatch: slotPatch };
-  }
+
+  const slots = decision.compositeSlots ?? [];
+  const mergedRetrieve = mergeKmAndListRetrieveBundles(
+    slots,
+    {
+      subResults: kmPatch?.compositeSubResults ?? [],
+      incremental: kmPatch?.compositeIncrementalPlan ?? null,
+      cacheHits: kmPatch?.retrievalCacheSlotHits ?? 0,
+    },
+    {
+      subResults: listPatch?.compositeSubResults ?? [],
+      incremental: null,
+      cacheHits: 0,
+    }
+  );
 
   logAgentOut("PlanSlotPost", "进入", {
-    hitCount: slotPatch.hits?.length ?? 0,
-    retryCount: state.retryCount,
+    hitCount: mergedRetrieve.hits.length,
+    kmSubs: kmPatch?.compositeSubResults?.length ?? 0,
+    listSubs: listPatch?.compositeSubResults?.length ?? 0,
   });
 
-  let working = hydrateFromSlotPatch(state, slotPatch);
+  let working: PipelineGraphState = {
+    ...state,
+    ...mergedRetrieve,
+  };
 
   const runFc = async (st: PipelineGraphState) =>
     runPerStepFactChecks({

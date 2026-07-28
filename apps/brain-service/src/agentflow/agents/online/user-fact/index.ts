@@ -17,6 +17,8 @@ export {
     buildRememberMissingValueAnswer,
     buildRecallAnswer,
     buildRecallMissingAnswer,
+    sideEffectAnswerToAssistantBlock,
+    prependSideEffectAssistantBlocks,
     type UserFactRoute,
     type UserFactRecord,
 } from "./user-fact";

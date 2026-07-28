@@ -17,7 +17,7 @@ import {
   parseIntakeDecision,
 } from "./parse-intake";
 import type { IntakeRoutingDecision } from "@/agentflow/agents/online/intake-coordinator/contract";
-  import {
+import {
   defaultComposeMode,
   deriveCompositeSlotsFromPathPlan,
   deriveRetrievalPlanFromPathPlan,
@@ -352,9 +352,7 @@ export const runIntakePipeline = async (
     km: pathPlan.steps.filter((s) => s.kind === "km").length,
     list: pathPlan.steps.filter((s) => s.kind === "list").length,
     tool: pathPlan.steps.filter((s) => s.kind === "tool").length,
-    dag: pathPlan.steps
-      .filter((s) => s.kind === "dag")
-      .map((d) => d.template),
+    dag: pathPlan.steps.filter((s) => s.kind === "dag").map((d) => d.template),
   });
 
   /** ⑦ list 步补页码（从 history blocks） */

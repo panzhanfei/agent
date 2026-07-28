@@ -1,6 +1,6 @@
 {
   "version": 2,
-  "description": "Eval：对齐 PathPlan + planFanOut（SSE 仍报 plan_executor；user_fact 记忆/side-effect；listRetriever 对外仍报 retrieval）",
+  "description": "Eval：对齐 PathPlan + planFanOut（SSE：km_retrieve/list_retrieve/plan_merge 等真实步骤；user_fact side-effect）",
   "cases": [
     {
       "id": "G1",
@@ -8,7 +8,7 @@
       "label": "闲聊不检索",
       "question": "你好",
       "assert": {
-        "mustNotIncludeSteps": ["plan_executor", "retrieval", "analyst"],
+        "mustNotIncludeSteps": ["plan_executor", "km_retrieve", "list_retrieve", "plan_merge", "retrieval", "analyst"],
         "minAnswerLength": 1
       }
     },
@@ -18,7 +18,7 @@
       "label": "姓名（语料 retrieve 或 Mem0 recall）",
       "question": "我的名字",
       "assert": {
-        "mustIncludeAnySteps": [["plan_executor", "retrieval", "user_fact"]],
+        "mustIncludeAnySteps": [["km_retrieve", "list_retrieve", "plan_merge", "retrieval", "plan_executor", "user_fact"]],
         "minAnswerLength": 1,
         "answerRe": "潘展飞",
         "answerMustNotRe": "哪|哪个|请说明|指的是|哪一段"
@@ -30,7 +30,7 @@
       "label": "项目与技术",
       "question": "我做过的项目和掌握的技术",
       "assert": {
-        "mustIncludeAnySteps": [["plan_executor", "retrieval"]],
+        "mustIncludeAnySteps": [["km_retrieve", "list_retrieve", "plan_merge", "retrieval", "plan_executor"]],
         "mustIncludeSteps": ["analyst"],
         "minAnswerLength": 60
       }
@@ -41,7 +41,7 @@
       "label": "城管平台技术",
       "question": "城管平台用了什么技术",
       "assert": {
-        "mustIncludeAnySteps": [["plan_executor", "retrieval"]],
+        "mustIncludeAnySteps": [["km_retrieve", "list_retrieve", "plan_merge", "retrieval", "plan_executor"]],
         "mustIncludeSteps": ["content_organizer", "analyst"],
         "answerRe": "城管|城市管理平台|React|TypeScript|UniApp|Vite"
       }
@@ -73,7 +73,7 @@
       ],
       "question": "那个项目呢？",
       "assert": {
-        "mustIncludeAnySteps": [["plan_executor", "retrieval"]],
+        "mustIncludeAnySteps": [["km_retrieve", "list_retrieve", "plan_merge", "retrieval", "plan_executor"]],
         "answerMustNotRe": "哪|哪个|请说明|指的是|哪一段|哪一家|什么项目|能否说明",
         "answerRe": "城管|城市管理|React|UniApp|TypeScript|Vite"
       }
@@ -94,7 +94,7 @@
       ],
       "question": "云联智慧呢",
       "assert": {
-        "mustIncludeAnySteps": [["plan_executor", "retrieval"]],
+        "mustIncludeAnySteps": [["km_retrieve", "list_retrieve", "plan_merge", "retrieval", "plan_executor"]],
         "mustIncludeSteps": ["analyst"],
         "answerMustNotRe": "哪|哪个|请说明|指的是|哪一段",
         "answerRe": "2016|2017|云联智慧",
@@ -195,7 +195,7 @@
       "label": "全链路姓名",
       "question": "我的名字是什么？",
       "assert": {
-        "mustIncludeAnySteps": [["plan_executor", "retrieval", "user_fact"]],
+        "mustIncludeAnySteps": [["km_retrieve", "list_retrieve", "plan_merge", "retrieval", "plan_executor", "user_fact"]],
         "answerRe": "潘展飞"
       }
     },
@@ -205,7 +205,7 @@
       "label": "全链路列举",
       "question": "我在哪几家公司上过班？",
       "assert": {
-        "mustIncludeAnySteps": [["plan_executor", "retrieval"]],
+        "mustIncludeAnySteps": [["km_retrieve", "list_retrieve", "plan_merge", "retrieval", "plan_executor"]],
         "mustIncludeSteps": ["analyst"],
         "answerRe": "云联智慧|友谊时光|奖多多|奥卡云"
       }
@@ -216,8 +216,8 @@
       "label": "纯 list 双槽：项目经历 + 从业经历",
       "question": "列出项目经历和从业经历",
       "assert": {
-        "mustIncludeSteps": ["retrieval", "analyst"],
-        "mustNotIncludeSteps": ["plan_executor"],
+        "mustIncludeSteps": ["list_retrieve", "analyst"],
+        "mustNotIncludeSteps": ["plan_executor", "plan_merge"],
         "minAnswerLength": 80,
         "answerMustIncludeAll": ["云联智慧", "友谊时光"],
         "answerRe": "项目|城管|agents|aky|flattening|独立开源"
@@ -229,11 +229,11 @@
       "label": "五连问：姓名+年龄+记住QQ side-effect+履历list+开源链接",
       "question": "我叫什么？今年多大？我的qq是734858469，请帮我记住。列出我的履历。近两年开源项目的GitHub地址是什么？",
       "assert": {
-        "mustIncludeSteps": ["plan_executor", "analyst"],
-        "mustIncludeAnySteps": [["user_fact", "plan_executor"]],
+        "mustIncludeSteps": ["plan_merge", "analyst"],
+        "mustIncludeAnySteps": [["user_fact", "km_retrieve", "list_retrieve", "plan_merge"]],
         "minAnswerLength": 40,
         "answerRe": "潘展飞",
-        "answerMustIncludeAll": ["潘展飞"],
+        "answerMustIncludeAll": ["潘展飞", "734858469"],
         "answerMustNotRe": "未能生成回复|未找到与「近两年"
       }
     }
@@ -264,13 +264,13 @@
   },
   "cacheProbe": {
     "id": "CACHE-G4-repeat",
-    "label": "同问重复（cache 探测；主路径为 plan_executor）",
+    "label": "同问重复（cache 探测；主路径为 planFanOut 真实步骤）",
     "conversationIdPrefix": "eval-cache",
     "turns": [
       {
         "question": "城管平台用了什么技术",
         "assert": {
-          "mustIncludeAnySteps": [["plan_executor", "retrieval"]],
+          "mustIncludeAnySteps": [["km_retrieve", "list_retrieve", "plan_merge", "retrieval", "plan_executor"]],
           "answerRe": "城管|城市管理平台|技术|React|TypeScript"
         }
       },
@@ -278,7 +278,7 @@
         "question": "城管平台用了什么技术",
         "assert": {
           "mustIncludeAnySteps": [
-            ["plan_executor", "retrieval", "repeat_respond_early"]
+            ["km_retrieve", "list_retrieve", "plan_merge", "retrieval", "plan_executor", "repeat_respond_early"]
           ],
           "answerRe": "城管|城市管理平台|技术|React|TypeScript"
         },
@@ -294,15 +294,15 @@
       {
         "question": "列出全部项目名称",
         "assert": {
-          "mustIncludeSteps": ["retrieval", "analyst"],
-          "mustNotIncludeSteps": ["plan_executor"],
+          "mustIncludeSteps": ["list_retrieve", "analyst"],
+          "mustNotIncludeSteps": ["plan_executor", "plan_merge"],
           "answerRe": "agents-monorepo|城管"
         }
       },
       {
         "question": "更多项目",
         "assert": {
-          "mustIncludeSteps": ["retrieval", "analyst"],
+          "mustIncludeSteps": ["list_retrieve", "analyst"],
           "answerRe": "城市管理平台|96611|帮扶宝",
           "minAnswerLength": 200
         }
@@ -317,8 +317,8 @@
       {
         "question": "列出项目经历和从业经历",
         "assert": {
-          "mustIncludeSteps": ["retrieval", "analyst"],
-          "mustNotIncludeSteps": ["plan_executor"],
+          "mustIncludeSteps": ["list_retrieve", "analyst"],
+          "mustNotIncludeSteps": ["plan_executor", "plan_merge"],
           "answerMustIncludeAll": ["云联智慧", "友谊时光"],
           "answerRe": "agents-monorepo|aky"
         }
@@ -326,7 +326,7 @@
       {
         "question": "更多项目",
         "assert": {
-          "mustIncludeSteps": ["retrieval", "analyst"],
+          "mustIncludeSteps": ["list_retrieve", "analyst"],
           "answerRe": "城市管理平台|96611|帮扶宝",
           "minAnswerLength": 120
         }
@@ -349,7 +349,7 @@
       {
         "question": "我叫什么？今年多大？列出我的履历。近两年开源项目的GitHub地址是什么？",
         "assert": {
-          "mustIncludeAnySteps": [["plan_executor", "retrieval"]],
+          "mustIncludeAnySteps": [["km_retrieve", "list_retrieve", "plan_merge", "retrieval", "plan_executor"]],
           "mustIncludeSteps": ["analyst"],
           "answerRe": "潘展飞",
           "answerMustIncludeAll": ["潘展飞"],
@@ -368,7 +368,7 @@
       {
         "question": "我叫什么，我做过什么项目，我在那几家公司上过班，近两年在干什么？",
         "assert": {
-          "mustIncludeAnySteps": [["plan_executor", "retrieval"]],
+          "mustIncludeAnySteps": [["km_retrieve", "list_retrieve", "plan_merge", "retrieval", "plan_executor"]],
           "mustIncludeSteps": ["analyst"],
           "answerRe": "潘展飞|姓名",
           "answerMustIncludeAll": ["云联智慧", "友谊时光", "奖多多", "奥卡云"]
@@ -384,7 +384,7 @@
       {
         "question": "我在哪几家公司上过班？",
         "assert": {
-          "mustIncludeAnySteps": [["plan_executor", "retrieval"]],
+          "mustIncludeAnySteps": [["km_retrieve", "list_retrieve", "plan_merge", "retrieval", "plan_executor"]],
           "mustIncludeSteps": ["analyst"],
           "answerMustIncludeAll": ["云联智慧", "友谊时光", "奖多多", "奥卡云"]
         }
@@ -392,7 +392,7 @@
       {
         "question": "1. 我在哪几家公司上过班？",
         "assert": {
-          "mustIncludeAnySteps": [["plan_executor", "retrieval"]],
+          "mustIncludeAnySteps": [["km_retrieve", "list_retrieve", "plan_merge", "retrieval", "plan_executor"]],
           "mustIncludeSteps": ["analyst"],
           "answerMustIncludeAll": ["云联智慧", "友谊时光", "奖多多", "奥卡云"]
         }

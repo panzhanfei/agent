@@ -62,9 +62,13 @@ const CLARIFY_ANSWER =
 const hasStep = (steps: string[], name: string): boolean =>
   steps.includes(name);
 
-/** PathPlan 后主检索步：plan_executor；旧图或纯 list 仍可能报 retrieval */
+/** PathPlan 后主检索步：km_retrieve / list_retrieve / plan_merge；兼容旧 retrieval / plan_executor */
 const hasRetrievalStep = (steps: string[]): boolean =>
-  hasStep(steps, "plan_executor") || hasStep(steps, "retrieval");
+  hasStep(steps, "km_retrieve") ||
+  hasStep(steps, "list_retrieve") ||
+  hasStep(steps, "plan_merge") ||
+  hasStep(steps, "retrieval") ||
+  hasStep(steps, "plan_executor");
 
 /** 检索主链（档 B / PathPlan：无独立 fact_checker 图节点） */
 const hasRetrievalChain = (steps: string[]): boolean =>
@@ -159,7 +163,7 @@ const GOLDEN_CASES: GoldenCase[] = [
         hasStep(steps, "fact_checker") ||
         hasStep(steps, "plan_executor")
       )
-        return "不应进入 retrieval / plan_executor / fact_checker";
+        return "不应进入 retrieval / km_retrieve / plan_merge / fact_checker";
       if (!answer.trim()) return "answer 为空";
       return null;
     },

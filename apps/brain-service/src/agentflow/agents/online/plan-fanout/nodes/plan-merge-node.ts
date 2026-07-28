@@ -129,7 +129,9 @@ export const runPlanMergeNode = async (
     toolResults: mergedToolResults,
     stepResults,
     checkerPassed: true,
-    // 清工人通道，避免污染后续轮（本图单次 compile）
+    // 清工人通道
+    fanOutKmPatch: null,
+    fanOutListPatch: null,
     fanOutSlotPatch: null,
     fanOutDagPatch: null,
   };

@@ -8,6 +8,7 @@ import { runAnalystNode } from "@/agentflow/agents/online/information-analyst";
 import { runListRetrieverNode } from "@/agentflow/agents/online/corpus-lister/nodes";
 import {
   runKmRetrieveNode,
+  runListRetrieveNode,
   runPlanSlotPostNode,
   runPlanDagNode,
   runPlanMergeNode,
@@ -41,6 +42,7 @@ const buildPipelineGraph = () => {
     .addNode("intake", runIntakeNode)
     .addNode("listRetriever", runListRetrieverNode)
     .addNode("kmRetrieve", runKmRetrieveNode)
+    .addNode("listRetrieve", runListRetrieveNode)
     .addNode("planSlotPost", runPlanSlotPostNode)
     .addNode("planDag", runPlanDagNode)
     .addNode("userFactSide", runUserFactSideNode)
@@ -59,11 +61,11 @@ const buildPipelineGraph = () => {
     .addEdge("listRetriever", "contentOrganizer")
     .addEdge("userFact", "persistTurnEnd")
     .addEdge("repeatRespondEarly", "persistTurnEnd")
-    // 槽路径：KM 检索 → FC/tools → merge；与 dag / remember 并行汇合
     .addEdge("kmRetrieve", "planSlotPost")
+    .addEdge("listRetrieve", "planSlotPost")
+    .addEdge("userFactSide", "planSlotPost")
     .addEdge("planSlotPost", "planMerge")
     .addEdge("planDag", "planMerge")
-    .addEdge("userFactSide", "planMerge")
     .addConditionalEdges("planMerge", routeAfterPlanMerge)
     .addConditionalEdges("contentOrganizer", routeAfterContentOrganizer)
     .addConditionalEdges("contentSummarizer", routeAfterContentSummarizer)

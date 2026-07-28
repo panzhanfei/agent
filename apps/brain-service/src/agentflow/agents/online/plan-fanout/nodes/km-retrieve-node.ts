@@ -1,9 +1,11 @@
 /**
- * kmRetrieve：复合槽路径的 KnowledgeManager 图节点（仅检索，不含 FC/tools）。
- * 结果写入 fanOutSlotPatch，再经 planSlotPost → planMerge。
+ * kmRetrieve：仅跑 executor≠list_corpus 的槽；写入 fanOutKmPatch。
  */
 import { logAgentOut } from "@fambrain/brain-shared/agent-log";
-import { runRetrievalNode } from "@/agentflow/agents/online/knowledge-manager";
+import {
+  mergeCompositeRetrieval,
+  retrieveKmCompositeSlots,
+} from "@/agentflow/agents/online/knowledge-manager";
 import type { PipelineGraphState } from "@/agentflow/pipeline/graph/state";
 import type { PlanSlotsPatch } from "../interface";
 
@@ -13,53 +15,49 @@ export const runKmRetrieveNode = async (
   const decision = state.decision;
   if (!decision) {
     return {
-      fanOutSlotPatch: { error: "缺少入口路由决策", hits: [], coverage: "none" },
+      fanOutKmPatch: { error: "缺少入口路由决策", hits: [], coverage: "none" },
     };
-  }
-
-  const hasSlots = (decision.compositeSlots?.length ?? 0) > 0;
-  if (!hasSlots) {
-    return { fanOutSlotPatch: null };
   }
 
   logAgentOut("KnowledgeManager", "进入", {
-    slotCount: decision.compositeSlots.length,
-    composeMode: decision.composeMode,
     via: "kmRetrieve",
+    slotCount: decision.compositeSlots?.length ?? 0,
   });
 
-  const retrievalPatch = await runRetrievalNode(state);
-  if (retrievalPatch.error) {
+  const km = await retrieveKmCompositeSlots(state);
+  if (km.error) {
     return {
-      fanOutSlotPatch: {
-        error: retrievalPatch.error,
-        hits: [],
-        coverage: "none",
-      },
+      fanOutKmPatch: { error: km.error, hits: [], coverage: "none" },
     };
   }
+  if (km.subResults.length === 0) {
+    return { fanOutKmPatch: null };
+  }
 
+  const merged = mergeCompositeRetrieval(km.subResults);
   const patch: PlanSlotsPatch = {
-    hits: retrievalPatch.hits ?? [],
-    coverage: retrievalPatch.coverage ?? "none",
-    notes: retrievalPatch.notes ?? null,
-    confidenceTier: retrievalPatch.confidenceTier ?? null,
-    enumerationMeta: retrievalPatch.enumerationMeta ?? null,
-    retrievalCacheHit: Boolean(retrievalPatch.retrievalCacheHit),
-    retrievalCacheSlotHits: retrievalPatch.retrievalCacheSlotHits ?? null,
-    compositeSubResults: retrievalPatch.compositeSubResults ?? null,
-    compositeIncrementalPlan: retrievalPatch.compositeIncrementalPlan ?? null,
-    compositeFacetCacheHits: retrievalPatch.compositeFacetCacheHits ?? null,
+    hits: merged.hits,
+    coverage: merged.coverage,
+    notes: merged.notes,
+    confidenceTier: merged.confidenceTier,
+    compositeSubResults: km.subResults,
+    compositeIncrementalPlan: km.incremental,
+    compositeFacetCacheHits: km.incremental?.facetCacheHits ?? 0,
+    retrievalCacheSlotHits: km.cacheHits,
+    retrievalCacheHit:
+      Boolean(km.incremental) &&
+      km.incremental!.activeRetrievalSlots.length > 0 &&
+      km.cacheHits === km.incremental!.activeRetrievalSlots.length,
     checkerPassed: true,
     retryCount: state.retryCount,
     error: null,
   };
 
   logAgentOut("KnowledgeManager", "出去", {
+    via: "kmRetrieve",
     hitCount: patch.hits?.length ?? 0,
     coverage: patch.coverage,
-    cacheHit: patch.retrievalCacheHit,
   });
 
-  return { fanOutSlotPatch: patch };
+  return { fanOutKmPatch: patch };
 };

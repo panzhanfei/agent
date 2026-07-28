@@ -145,7 +145,7 @@
 | `path-plan/from-llm.ts` | LLM pathPlan **合法化**（steps[] 或旧四桶）+ 按 steps 顺序 **派生** compositeSlots / retrievalPlan / answerOrder |
 | `path-plan/compile-path-plan.ts` | 旧分桶编译（测试/兼容；主 pipeline 不再走） |
 | `path-plan/dag-templates.ts` | 仅 `hybrid_multi_source`（多源汇合；禁止场景 named DAG） |
-| `tool-orchestrator/plan-executor.ts` → **`plan-fanout/`** | LangGraph Send：kmRetrieve→planSlotPost ∥ planDag ∥ userFactSide → planMerge |
+| `tool-orchestrator/plan-executor.ts` → **`plan-fanout/`** | LangGraph Send：kmRetrieve∥listRetrieve∥userFactSide→planSlotPost ∥ planDag → planMerge |
 | `corpus-lister/nodes/list-retriever-node.ts` | LangGraph **`listRetriever`**：纯 list 短路径（跳过 FC/tool） |
 | `corpus-lister/enumeration/` | 列举分页 / UI **exact-match**（Intake barrel re-export） |
 | `tools/lib/extract-external-links.ts` | `extract_external_links_from_hits`（tools 层；Intake 只声明 queryType+toolId；strip 时间口语） |

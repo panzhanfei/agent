@@ -15,6 +15,7 @@ import {
 } from "@/agentflow/agents/online/content-summarizer/summarize-route";
 import { isPureListDecision } from "@/agentflow/agents/online/corpus-lister/pure-list-route";
 import { intakeRequiresKmRetrieval } from "@/agentflow/agents/online/intake-coordinator/pipeline/intake-km-routing";
+import { describeFanOutPlan } from "@/agentflow/agents/online/plan-fanout";
 import { isUserFactIntent } from "@/agentflow/agents/online/user-fact";
 import { buildLangGraphRunConfig } from "@fambrain/brain-config/langsmith";
 import { logAgentOut } from "@fambrain/brain-shared/agent-log";
@@ -202,6 +203,8 @@ async function* runPipelineStreamInner(
   const input = buildInitialState(history, context, userQuestion);
   let finalState: PipelineGraphState = input;
   let activeStep: PipelineStepName | null = "prepare_turn_start";
+  /** 并行 fan-out 时可同时 running 多个 step */
+  const runningSteps = new Set<PipelineStepName>(["prepare_turn_start"]);
   timing.markNodeStart("prepare_turn_start");
   setPipelineActiveNode("prepare_turn_start");
   upsertCollectedStep(collectedSteps, {
@@ -221,35 +224,41 @@ async function* runPipelineStreamInner(
       }),
     }
   );
-  /** 结束当前 activeStep：记耗时、yield step done、刷 pipeline_log */
+  /** 结束 step：记耗时、yield step done（支持并行多 step） */
   const finishStep = function* (name: PipelineStepName) {
+    if (!runningSteps.has(name) && activeStep !== name) return;
+    const durationMs = timing.markNodeEnd(name);
+    runningSteps.delete(name);
     if (activeStep === name) {
-      const durationMs = timing.markNodeEnd(name);
-      setPipelineActiveNode(null);
-      upsertCollectedStep(collectedSteps, {
-        name,
-        status: "done",
-        ...(durationMs !== undefined ? { durationMs } : {}),
-      });
-      yield {
-        type: "step",
-        name,
-        status: "done",
-        ...(durationMs !== undefined ? { durationMs } : {}),
-      } as const;
-      yield* flushPipelineLogs(collectedLogs);
       activeStep = null;
+      setPipelineActiveNode(
+        runningSteps.size > 0
+          ? ([...runningSteps].at(-1) as PipelineStepName)
+          : null
+      );
     }
+    upsertCollectedStep(collectedSteps, {
+      name,
+      status: "done",
+      ...(durationMs !== undefined ? { durationMs } : {}),
+    });
+    yield {
+      type: "step",
+      name,
+      status: "done",
+      ...(durationMs !== undefined ? { durationMs } : {}),
+    } as const;
+    yield* flushPipelineLogs(collectedLogs);
   };
-  /** 开始下一 step：记耗时起点、更新 activeNode、yield step running */
+  /** 开始 step：支持并行（不强制结束其它 running） */
   const startStep = function* (name: PipelineStepName) {
-    if (activeStep !== name) {
-      timing.markNodeStart(name);
-      setPipelineActiveNode(name);
-      upsertCollectedStep(collectedSteps, { name, status: "running" });
-      yield { type: "step", name, status: "running" } as const;
-      activeStep = name;
-    }
+    if (runningSteps.has(name)) return;
+    timing.markNodeStart(name);
+    runningSteps.add(name);
+    setPipelineActiveNode(name);
+    activeStep = name;
+    upsertCollectedStep(collectedSteps, { name, status: "running" });
+    yield { type: "step", name, status: "running" } as const;
   };
   for await (const chunk of stream) {
     const [mode, payload] = chunk as ["updates" | "values" | "custom", unknown];
@@ -347,35 +356,28 @@ async function* runPipelineStreamInner(
       }
       const decision = finalState.decision;
       if (decision && isUserFactIntent(decision.intent)) {
-        // 与 routeAfterIntake → userFact 对齐；勿依赖 decision.userFact（Intake 早退未必挂载）
         yield* startStep("user_fact");
       } else if (decision && isPureSummarizeDecision(decision)) {
         yield* startStep("content_summarizer");
       } else if (decision && isPureListDecision(decision)) {
-        // 纯列举短路：listRetriever 节点对外仍报 retrieval（兼容旧 SSE）
-        yield* startStep("retrieval");
+        yield* startStep("list_retrieve");
       } else if (
         decision &&
-        (intakeRequiresKmRetrieval(decision) ||
+        (decision.routeMode === "planFanOut" ||
+          intakeRequiresKmRetrieval(decision) ||
           (decision.pathPlan &&
-            (decision.pathPlan.steps?.length ?? 0) > 0) ||
-          decision.routeMode === "planFanOut")
+            (decision.pathPlan.steps?.length ?? 0) > 0))
       ) {
-        // PathPlan 主路径：plan fan-out（SSE 仍报 plan_executor，兼容 golden）
-        yield* startStep("plan_executor");
-        // 同轮 remember side-effect 并行时额外报 user_fact
-        if (
-          decision.intent === "retrieve_and_answer" &&
-          decision.userFactKey?.trim() &&
-          decision.userFactValue?.trim()
-        ) {
-          yield* startStep("user_fact");
-        }
+        const fan = describeFanOutPlan(finalState);
+        if (fan.hasKm) yield* startStep("km_retrieve");
+        if (fan.hasList) yield* startStep("list_retrieve");
+        if (fan.hasDag) yield* startStep("plan_dag");
+        if (fan.hasSideRemember) yield* startStep("user_fact");
       }
       continue;
     }
     if (nodeName === "listRetriever") {
-      yield* finishStep("retrieval");
+      yield* finishStep("list_retrieve");
       yield {
         type: "retrieval_meta",
         cacheHit: false,
@@ -400,18 +402,55 @@ async function* runPipelineStreamInner(
     }
     if (nodeName === "userFactSide") {
       yield* finishStep("user_fact");
+      // 汇入 planSlotPost；若无 km/list 也会单独触发 post
+      if (
+        !runningSteps.has("km_retrieve") &&
+        !runningSteps.has("list_retrieve")
+      ) {
+        yield* startStep("plan_slot_post");
+      }
       continue;
     }
-    if (
-      nodeName === "kmRetrieve" ||
-      nodeName === "planSlotPost" ||
-      nodeName === "planDag"
-    ) {
-      // 工人节点：聚合 SSE 在 planMerge 收口
+    if (nodeName === "kmRetrieve") {
+      yield* finishStep("km_retrieve");
+      if (
+        !runningSteps.has("list_retrieve") &&
+        !runningSteps.has("user_fact")
+      ) {
+        yield* startStep("plan_slot_post");
+      }
+      continue;
+    }
+    if (nodeName === "listRetrieve") {
+      yield* finishStep("list_retrieve");
+      if (
+        !runningSteps.has("km_retrieve") &&
+        !runningSteps.has("user_fact")
+      ) {
+        yield* startStep("plan_slot_post");
+      }
+      continue;
+    }
+    if (nodeName === "planSlotPost") {
+      yield* finishStep("plan_slot_post");
+      if (!runningSteps.has("plan_dag")) {
+        yield* startStep("plan_merge");
+      }
+      continue;
+    }
+    if (nodeName === "planDag") {
+      yield* finishStep("plan_dag");
+      if (!runningSteps.has("plan_slot_post")) {
+        yield* startStep("plan_merge");
+      }
       continue;
     }
     if (nodeName === "planMerge") {
-      yield* finishStep("plan_executor");
+      yield* finishStep("plan_merge");
+      // 兜底：若 post 仍标 running（竞态），收掉
+      if (runningSteps.has("plan_slot_post")) {
+        yield* finishStep("plan_slot_post");
+      }
       yield {
         type: "retrieval_meta",
         cacheHit: Boolean(finalState.retrievalCacheHit),

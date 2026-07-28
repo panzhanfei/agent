@@ -77,11 +77,30 @@ export const PipelineGraphAnnotation = Annotation.Root({
     toolResults: Annotation<PipelineToolResults | null>,
     /** planMerge 每 step 结果（含 per-step FC） */
     stepResults: Annotation<StepResult[] | null>,
-    /** kmRetrieve / planSlotPost 工人补丁（汇合前） */
-    fanOutSlotPatch: Annotation<PlanSlotsPatch | null>,
-    /** planDag 工人补丁（汇合前） */
-    fanOutDagPatch: Annotation<PlanDagPatch | null>,
-    /** 同轮 remember side-effect 确认文案（Analyst 并入终稿） */
-    sideEffectAnswer: Annotation<string | null>,
+    /** kmRetrieve 工人补丁（并行写，last-write-wins） */
+    fanOutKmPatch: Annotation<PlanSlotsPatch | null>({
+        reducer: (_prev, next) => next,
+        default: () => null,
+    }),
+    /** listRetrieve 工人补丁 */
+    fanOutListPatch: Annotation<PlanSlotsPatch | null>({
+        reducer: (_prev, next) => next,
+        default: () => null,
+    }),
+    /** planSlotPost 汇合后补丁 */
+    fanOutSlotPatch: Annotation<PlanSlotsPatch | null>({
+        reducer: (_prev, next) => next,
+        default: () => null,
+    }),
+    /** planDag 工人补丁 */
+    fanOutDagPatch: Annotation<PlanDagPatch | null>({
+        reducer: (_prev, next) => next,
+        default: () => null,
+    }),
+    /** 同轮 remember side-effect 确认文案 */
+    sideEffectAnswer: Annotation<string | null>({
+        reducer: (_prev, next) => next,
+        default: () => null,
+    }),
 });
 export type PipelineGraphState = typeof PipelineGraphAnnotation.State;

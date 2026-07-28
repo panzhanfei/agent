@@ -43,6 +43,8 @@ export const buildInitialState = (
         asOfDate: new Date().toISOString().slice(0, 10),
         toolResults: null,
         stepResults: null,
+        fanOutKmPatch: null,
+        fanOutListPatch: null,
         fanOutSlotPatch: null,
         fanOutDagPatch: null,
         sideEffectAnswer: null,

@@ -13,7 +13,7 @@
 | `IntakeCoordinator` | 入口接线员 | 接收输入、理解意图、拆分任务、产出路由 JSON + **PathPlan** |
 | `KnowledgeManager` | 知识管理员 | hybrid 检索（vector ∥ sparse），返回 `hits` / `coverage` / `notes` |
 | **`CorpusLister`** | **语料列举器** | 纯 list 路径：目录扫盘分页（projects / experience）；**不经 KM hybrid** |
-| **`PlanFanOut`** | **计划并行执行** | 复合路径：LangGraph `Send` 并行（`kmRetrieve`→`planSlotPost` ∥ `planDag` ∥ `userFactSide`）→ `planMerge` |
+| **`PlanFanOut`** | **计划并行执行** | 复合路径：LangGraph `Send` 并行（`kmRetrieve`∥`listRetrieve`∥`userFactSide`→`planSlotPost` ∥ `planDag`）→ `planMerge` |
 | `FactChecker` | 事实核查员 | （独立节点已并入 planSlotPost）审查单步证据；不足时局部打回再检索 |
 | `ContentOrganizer` | 内容整理师 | **核查通过后**对 `hits` 做 Zod 规范化与 path 去重，再交给分析师 |
 | **`ToolOrchestrator`** | **工具编排器** | planSlotPost 内调用：年龄计算、列举合成、联网搜索 |
@@ -22,7 +22,7 @@
 
 **链路：** 用户提问 → **轮次开始** → 意图识别 → **PathPlan fan-out**（按 `steps[]`：km / list / tool / dag 并行工人 + per-step FC）→ **内容整理** → **Compose**（qa / composite / summarize）→ 回答 → **轮次结束**。跨轮 **两层 cache**（同问短路 + 检索结果 cache）见 [坑点 §2.2](./04-pitfalls.md)。
 
-**PathPlan 有序 steps（2026-07 · 端到端）：** Intake LLM 直接产出 `pathPlan.steps[]` + `composeMode`（数组顺序 = 回答/执行顺序；`answerOrder` 可选，默认由 `steps.map(s => s.id)` 派生）；pipeline **合法化并派生** `compositeSlots`（不再 `retrievalPlan→compilePathPlan` 猜桶；`legalize` 仍兼容旧四桶）。LangGraph：**纯 list** → `listRetriever` → `contentOrganizer` → `analyst`；**纯总结（无查库）** → `contentSummarizer`；**复合 / km / 需查库的总结** → `planFanOut`（`Send`→`kmRetrieve`→`planSlotPost` ∥ `planDag` ∥ `userFactSide`→`planMerge`）→ `contentOrganizer` →（`composeMode=summarize` 才进 `contentSummarizer`，否则）→ `analyst`。SSE 对外仍报 `plan_executor`（兼容 eval/UI）。
+**PathPlan 有序 steps（2026-07 · 端到端）：** Intake LLM 直接产出 `pathPlan.steps[]` + `composeMode`（数组顺序 = 回答/执行顺序；`answerOrder` 可选，默认由 `steps.map(s => s.id)` 派生）；pipeline **合法化并派生** `compositeSlots`（不再 `retrievalPlan→compilePathPlan` 猜桶；`legalize` 仍兼容旧四桶）。LangGraph：**纯 list** → `listRetriever`（SSE=`list_retrieve`）→ `contentOrganizer` → `analyst`；**纯总结（无查库）** → `contentSummarizer`；**复合** → `planFanOut`（`Send`→`kmRetrieve`∥`listRetrieve`∥`userFactSide`→`planSlotPost` ∥ `planDag`→`planMerge`）→ `contentOrganizer` →（`composeMode=summarize` 才进 `contentSummarizer`，否则）→ `analyst`。SSE 按真实图节点报步骤（不再聚合为 `plan_executor`）。
 
 **架构双线（2026-06，目录 2026-07 对齐）：**
 

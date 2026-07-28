@@ -79,7 +79,9 @@ const legalizeEnumerationControl = (
   ) {
     return null;
   }
-  const listKindRaw = String(o.listKind ?? o.list_kind ?? "").trim().toLowerCase();
+  const listKindRaw = String(o.listKind ?? o.list_kind ?? "")
+    .trim()
+    .toLowerCase();
   let listKind: EnumerationControl["listKind"] | null = null;
   if (listKindRaw === "project" || listKindRaw === "projects") {
     listKind = "project";
@@ -108,9 +110,7 @@ const legalizeEnumerationControl = (
   return { action, listKind, excludeHint, timeWindowYears };
 };
 
-const legalizeIdentityField = (
-  v: unknown
-): ExecutionStep["identityField"] => {
+const legalizeIdentityField = (v: unknown): ExecutionStep["identityField"] => {
   if (typeof v !== "string") return null;
   const allowed = [
     "name",
@@ -172,7 +172,8 @@ const legalizeStep = (raw: unknown, index: number): ExecutionStep | null => {
       id: trimId(o.id, `dag-${index}`),
       kind: "dag",
       label: String(o.label ?? "多源综合评估").trim() || "多源综合评估",
-      searchQuery: String(o.searchQuery ?? o.search_query ?? "").trim() || "多源综合评估",
+      searchQuery:
+        String(o.searchQuery ?? o.search_query ?? "").trim() || "多源综合评估",
       queryType: "default",
       topics: Array.isArray(o.topics)
         ? o.topics.map((t) => String(t).trim()).filter(Boolean)
@@ -348,10 +349,7 @@ export const legalizeComposeMode = (
 };
 
 /** answerOrder = steps 顺序；若 LLM 另给 order 则校验并重排（合法 id） */
-export const legalizeAnswerOrder = (
-  raw: unknown,
-  plan: PathPlan
-): string[] => {
+export const legalizeAnswerOrder = (raw: unknown, plan: PathPlan): string[] => {
   const allIds = plan.steps.map((s) => s.id);
   const idSet = new Set(allIds);
   const fromLlm = Array.isArray(raw)

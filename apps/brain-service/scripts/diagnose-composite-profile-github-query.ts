@@ -123,8 +123,13 @@ const checks: { name: string; ok: boolean; detail: string }[] = [
         detail: `composeMode=${decision.composeMode} slots=${decision.compositeSlots?.length}`,
     },
     {
-        name: "含 plan_executor 步骤",
-        ok: steps.includes("plan_executor"),
+        name: "含检索主路径步骤",
+        ok:
+          steps.includes("km_retrieve") ||
+          steps.includes("list_retrieve") ||
+          steps.includes("plan_merge") ||
+          steps.includes("retrieval") ||
+          steps.includes("plan_executor"),
         detail: steps.join(","),
     },
     {

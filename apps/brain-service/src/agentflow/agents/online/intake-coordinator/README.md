@@ -187,7 +187,7 @@ LLM 原始 JSON
 | `userFact` | userFact（纯 remember/recall） |
 | `contentSummarizer` | contentSummarizer（纯摘要、无检索） |
 | `listRetriever` | listRetriever（纯 list 槽） |
-| `planFanOut` | `Send` → kmRetrieve→planSlotPost ∥ planDag ∥ userFactSide → planMerge（SSE 仍报 `plan_executor`） |
+| `planFanOut` | `Send` → kmRetrieve∥listRetrieve∥userFactSide→planSlotPost ∥ planDag → planMerge（SSE 报真实步骤，非 `plan_executor`） |
 
 ```text
 pathPlan.steps[]

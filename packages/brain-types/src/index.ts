@@ -30,6 +30,12 @@ export type PipelineStepName =
     | "intake"
     | "user_fact"
     | "retrieval"
+    | "km_retrieve"
+    | "list_retrieve"
+    | "plan_slot_post"
+    | "plan_dag"
+    | "plan_merge"
+    /** @deprecated 旧 SSE 聚合名；新图不再 emit */
     | "plan_executor"
     | "fact_checker"
     | "content_summarizer"

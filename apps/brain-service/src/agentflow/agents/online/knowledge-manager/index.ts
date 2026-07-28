@@ -50,6 +50,13 @@ export {
 } from "./composite";
 export { runRetrievalNode } from "./nodes/retrieval-node";
 export {
+  splitCompositeSlotsByExecutor,
+  retrieveKmCompositeSlots,
+  retrieveListCompositeSlots,
+  mergeKmAndListRetrieveBundles,
+  orderSubResultsBySlots,
+} from "./nodes/retrieve-slot-bundles";
+export {
     assessConfidence,
     deriveCoverageFromTier,
     shouldCoalesceEmptyHits,
