@@ -2,10 +2,12 @@ export type {
   ComposeMode,
   DagRun,
   DagTemplateId,
+  ExecutionStep,
   KmStep,
   ListStep,
   PathKind,
   PathPlan,
+  PathPlanCounts,
   PathStepBase,
   StepFactCheck,
   StepResult,
@@ -29,6 +31,13 @@ export {
   legalizeAnswerOrder,
   legalizeComposeMode,
   legalizePathPlan,
+  reorderPathPlanByAnswerOrder,
 } from "./from-llm";
 
-export { emptyPathPlan, defaultComposeMode } from "./defaults";
+export {
+  emptyPathPlan,
+  defaultComposeMode,
+  countPathPlan,
+  pathPlanBuckets,
+  stepsOfKind,
+} from "./defaults";

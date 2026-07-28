@@ -88,7 +88,7 @@ describe("applyToolPlanGuard", () => {
             q
         );
         const routed = applyPathPlanGuard(withTools, q);
-        expect(routed.routeMode).toBe("planExecutor");
+        expect(routed.routeMode).toBe("planFanOut");
         expect(routed.executionPlan?.some((n) => n.id === "synthesis")).toBe(true);
     });
 });

@@ -1,13 +1,6 @@
 /**
- * 将 RoutedIntakeDecision（compositeSlots / retrievalPlan）编译为 PathPlan + composeMode。
- *
- * 规则（声明式，无场景 if-else）：
- * - enumeration + list_corpus → list
- * - topics.external → tool(search_web)
- * - 其余（identity / external_link / preview enum / …）→ km
- * - topics.external + corpus 并存 → 唯一通用 DAG：多源汇合（hybrid）
- *
- * 槽位回答顺序：始终保留 Intake compositeSlots 顺序，PathPlan 只做执行分桶。
+ * 兼容路径：从 compositeSlots 编译有序 PathPlan.steps。
+ * 主路径已是 LLM 直接出 steps[]；本文件仅兜底/测试。
  */
 import type { CompositeRetrievalSlot } from "@/agentflow/agents/online/intake-coordinator/composite/interface";
 import type { RoutedIntakeDecision } from "@/agentflow/agents/online/intake-coordinator/guards/interface";
@@ -21,50 +14,21 @@ import { emptyPathPlan } from "./defaults";
 import { resolveIntakeGraphRouteMode } from "@/agentflow/agents/online/intake-coordinator/pipeline/resolve-graph-route-mode";
 import type {
   ComposeMode,
-  DagRun,
-  KmStep,
-  ListStep,
+  ExecutionStep,
   PathPlan,
-  ToolStep,
 } from "./interface";
-
-const countSteps = (plan: PathPlan): number =>
-  plan.km.length + plan.list.length + plan.tool.length + plan.dag.length;
-
-const slotToKm = (slot: CompositeRetrievalSlot, index: number): KmStep => ({
-  id: String(slot.id || `km-${index}`),
-  pathKind: "km",
-  label: slot.label,
-  searchQuery: slot.searchQuery,
-  queryType: slot.queryType,
-  topics: [...slot.topics],
-  identityField: slot.identityField ?? null,
-});
-
-const slotToList = (slot: CompositeRetrievalSlot, index: number): ListStep => ({
-  id: String(slot.id || `list-${index}`),
-  pathKind: "list",
-  label: slot.label,
-  searchQuery: slot.searchQuery,
-  queryType: "enumeration",
-  topics: [...slot.topics],
-  identityField: slot.identityField ?? null,
-  enumerationControl: slot.enumerationControl ?? null,
-  enumerationPage: slot.enumerationPage,
-  enumerationPageSize: slot.enumerationPageSize,
-});
 
 const resolveComposeMode = (
   decision: RoutedIntakeDecision,
   plan: PathPlan
 ): ComposeMode => {
   if (decision.intent === "summarize_content") return "summarize";
-  if (countSteps(plan) >= 2) return "composite";
+  if (plan.steps.length >= 2) return "composite";
   return "qa";
 };
 
 /**
- * 从 compositeSlots / topics 编译 PathPlan（分桶，不重排回答顺序）。
+ * 从 compositeSlots / topics 编译有序 PathPlan（不重排：信 slots 顺序）。
  */
 export const compilePathPlan = (
   decision: RoutedIntakeDecision,
@@ -72,12 +36,12 @@ export const compilePathPlan = (
 ): { pathPlan: PathPlan; composeMode: ComposeMode } => {
   if (decision.intent !== "retrieve_and_answer") {
     if (decision.intent === "summarize_content") {
-      const km: KmStep[] =
+      const steps: ExecutionStep[] =
         decision.searchQuery.trim().length > 0
           ? [
               {
                 id: "km-0",
-                pathKind: "km",
+                kind: "km",
                 label: "摘要检索",
                 searchQuery: decision.searchQuery,
                 queryType: decision.queryType ?? "default",
@@ -86,7 +50,7 @@ export const compilePathPlan = (
             ]
           : [];
       return {
-        pathPlan: { ...emptyPathPlan(), km },
+        pathPlan: { steps },
         composeMode: "summarize",
       };
     }
@@ -102,12 +66,14 @@ export const compilePathPlan = (
 
   if (hybrid) {
     const pathPlan: PathPlan = {
-      ...emptyPathPlan(),
-      dag: [
+      steps: [
         {
           id: "dag-hybrid",
-          pathKind: "dag",
+          kind: "dag",
           label: "多源综合评估",
+          searchQuery: decision.searchQuery || _userQuestion,
+          queryType: "default",
+          topics: [...decision.topics],
           template: "hybrid_multi_source",
           deps: [],
         },
@@ -116,27 +82,34 @@ export const compilePathPlan = (
     return { pathPlan, composeMode: "qa" };
   }
 
-  const km: KmStep[] = [];
-  const list: ListStep[] = [];
-  const tool: ToolStep[] = [];
-  const dag: DagRun[] = [];
-
-  let listIndex = 0;
-  let kmIndex = 0;
+  const steps: ExecutionStep[] = [];
 
   for (const slot of slots) {
     const isList =
       slot.queryType === "enumeration" && slot.executor === "list_corpus";
 
     if (isList) {
-      list.push(slotToList(slot, listIndex++));
+      steps.push({
+        id: String(slot.id || `list-${steps.length}`),
+        kind: "list",
+        label: slot.label,
+        searchQuery: slot.searchQuery,
+        queryType: "enumeration",
+        topics: [...slot.topics],
+        identityField: null,
+        enumerationControl: slot.enumerationControl ?? null,
+        enumerationPage: slot.enumerationPage,
+        enumerationPageSize: slot.enumerationPageSize,
+        toolId: "compose_enumeration",
+        dataSource: "corpus",
+      });
       continue;
     }
 
     if (topicsSuggestWebSource(slot.topics)) {
-      tool.push({
-        id: String(slot.id || `tool-${tool.length}`),
-        pathKind: "tool",
+      steps.push({
+        id: String(slot.id || `tool-${steps.length}`),
+        kind: "tool",
         label: slot.label,
         searchQuery: slot.searchQuery,
         queryType: slot.queryType,
@@ -148,20 +121,27 @@ export const compilePathPlan = (
       continue;
     }
 
-    // identity / external_link / preview enumeration / default → km
-    // compute 工具在 retrieve 后由 toolId 触发；仍记入 km 取 hits
-    km.push(slotToKm(slot, kmIndex++));
+    steps.push({
+      id: String(slot.id || `km-${steps.length}`),
+      kind: "km",
+      label: slot.label,
+      searchQuery: slot.searchQuery,
+      queryType: slot.queryType,
+      topics: [...slot.topics],
+      identityField: slot.identityField ?? null,
+      toolId: slot.toolId ?? null,
+      dataSource: slot.dataSource ?? "corpus",
+    });
   }
 
-  // 顶层 topics 声明 web 且尚无 tool 槽
   if (
-    tool.length === 0 &&
+    !steps.some((s) => s.kind === "tool") &&
     topicsSuggestWebSource(decision.topics) &&
-    km.length + list.length + dag.length > 0
+    steps.length > 0
   ) {
-    tool.push({
+    steps.push({
       id: "tool-web",
-      pathKind: "tool",
+      kind: "tool",
       label: "外部检索",
       searchQuery: decision.searchQuery || _userQuestion,
       queryType: decision.queryType ?? "default",
@@ -171,36 +151,36 @@ export const compilePathPlan = (
     });
   }
 
-  const pathPlan: PathPlan = { km, list, tool, dag };
+  const pathPlan: PathPlan = { steps };
   return {
     pathPlan,
     composeMode: resolveComposeMode(decision, pathPlan),
   };
 };
 
-/** pathPlan → compositeSlots（仅 Intake 未给槽时的兜底；顺序：list→km） */
+/** pathPlan → compositeSlots（仅兜底） */
 export const pathPlanToCompositeSlots = (
   plan: PathPlan
 ): CompositeRetrievalSlot[] => {
   const slots: CompositeRetrievalSlot[] = [];
-
-  for (const s of plan.list) {
-    slots.push({
-      id: s.id,
-      label: s.label,
-      searchQuery: s.searchQuery,
-      queryType: "enumeration",
-      topics: s.topics,
-      subTasks: [s.label],
-      executor: "list_corpus",
-      enumerationControl: s.enumerationControl ?? null,
-      identityField: s.identityField ?? null,
-      enumerationPage: s.enumerationPage,
-      enumerationPageSize: s.enumerationPageSize,
-    });
-  }
-
-  for (const s of plan.km) {
+  for (const s of plan.steps) {
+    if (s.kind === "dag") continue;
+    if (s.kind === "list") {
+      slots.push({
+        id: s.id,
+        label: s.label,
+        searchQuery: s.searchQuery,
+        queryType: "enumeration",
+        topics: s.topics,
+        subTasks: [s.label],
+        executor: "list_corpus",
+        enumerationControl: s.enumerationControl ?? null,
+        identityField: null,
+        enumerationPage: s.enumerationPage,
+        enumerationPageSize: s.enumerationPageSize,
+      });
+      continue;
+    }
     slots.push({
       id: s.id,
       label: s.label,
@@ -210,9 +190,10 @@ export const pathPlanToCompositeSlots = (
       subTasks: [s.label],
       executor: "km_retrieve",
       identityField: s.identityField ?? null,
+      toolId: s.toolId ?? null,
+      dataSource: s.dataSource ?? "corpus",
     });
   }
-
   return slots;
 };
 
@@ -226,28 +207,17 @@ const normalizeSlotForPathPlan = (
 });
 
 /**
- * Intake guard ⑨：编译执行四桶 PathPlan + composeMode。
- *
- * 本步新增/改写：
- *   + pathPlan.km / .list / .tool / .dag（分桶，不重排回答顺序）
- *   + composeMode（qa | summarize | composite）
- *   Δ compositeSlots（normalize executor + enrich）
- *   Δ routeMode（resolveIntakeGraphRouteMode → 图边）
- *   + executionPlan（若 hybrid 且此前未建）
- *
- * 规则摘要：list_corpus→list；topics.external→tool/web；其余→km；
- * external+corpus→唯一 DAG hybrid_multi_source。
+ * Intake guard 兜底：编译有序 PathPlan + composeMode。
  */
 export const applyPathPlanGuard = (
   decision: RoutedIntakeDecision,
   userQuestion: string
 ): RoutedIntakeDecision => {
   const { pathPlan, composeMode } = compilePathPlan(decision, userQuestion);
-  const isHybrid = pathPlan.dag.some(
-    (d) => d.template === "hybrid_multi_source"
+  const isHybrid = pathPlan.steps.some(
+    (d) => d.kind === "dag" && d.template === "hybrid_multi_source"
   );
 
-  // 回答顺序 = Intake compositeSlots 顺序；PathPlan 仅分桶，不重排
   const orderedSlots =
     (decision.compositeSlots?.length ?? 0) > 0
       ? decision.compositeSlots!.map(normalizeSlotForPathPlan)

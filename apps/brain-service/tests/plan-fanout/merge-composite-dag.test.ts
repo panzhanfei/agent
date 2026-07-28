@@ -3,28 +3,32 @@ import {
   buildDagStepResults,
   mergeCompositeWithDagSteps,
   mergeStepResultsByAnswerOrder,
-} from "@/agentflow/agents/online/plan-executor/merge-composite-dag";
-import { emptyPathPlan } from "@/agentflow/agents/online/intake-coordinator";
+} from "@/agentflow/agents/online/plan-fanout";
+import {
+  emptyPathPlan,
+  stepsOfKind,
+} from "@/agentflow/agents/online/intake-coordinator";
 
-describe("planExecutor merge helpers", () => {
+describe("planFanOut merge helpers", () => {
   it("merges stepResults by answerOrder with dag after slots", () => {
     const pathPlan = {
       ...emptyPathPlan(),
-      km: [
+      steps: [
         {
           id: "km-age",
-          pathKind: "km" as const,
+          kind: "km" as const,
           label: "年龄",
           searchQuery: "年龄",
           queryType: "identity" as const,
           topics: [],
         },
-      ],
-      dag: [
         {
           id: "dag-fit",
-          pathKind: "dag" as const,
+          kind: "dag" as const,
           label: "适合度",
+          searchQuery: "适合度",
+          queryType: "default" as const,
+          topics: [],
           template: "hybrid_multi_source" as const,
         },
       ],
@@ -55,11 +59,14 @@ describe("planExecutor merge helpers", () => {
   it("inserts dag compositeSubResults in answerOrder", () => {
     const pathPlan = {
       ...emptyPathPlan(),
-      dag: [
+      steps: [
         {
           id: "dag-fit",
-          pathKind: "dag" as const,
+          kind: "dag" as const,
           label: "适合度",
+          searchQuery: "适合度",
+          queryType: "default" as const,
+          topics: [],
           template: "hybrid_multi_source" as const,
         },
       ],
@@ -99,7 +106,7 @@ describe("planExecutor merge helpers", () => {
       } as never,
       pathPlan,
       ["km-age", "dag-fit"],
-      pathPlan.dag,
+      stepsOfKind(pathPlan, "dag"),
       {
         hits: [],
         coverage: "partial",

@@ -7,11 +7,7 @@ export const isPureListDecision = (
     const slots = decision.compositeSlots ?? [];
     if (slots.length === 0) return false;
     if (!slots.every((s) => s.executor === "list_corpus")) return false;
-    const pathPlan = decision.pathPlan;
-    if (!pathPlan) return true;
-    return (
-        pathPlan.km.length === 0 &&
-        pathPlan.tool.length === 0 &&
-        pathPlan.dag.length === 0
-    );
+    const steps = decision.pathPlan?.steps ?? [];
+    if (steps.length === 0) return true;
+    return steps.every((s) => s.kind === "list");
 };

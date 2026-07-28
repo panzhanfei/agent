@@ -14,6 +14,12 @@ export const runAnalystNode = async (
     }
     const write = getWriter(config);
     try {
+        if (state.sideEffectAnswer?.trim()) {
+            write?.({
+                type: "assistant",
+                text: `${state.sideEffectAnswer.trim()}\n\n`,
+            });
+        }
         const gen = streamAnalyzeInformation({
             userQuestion: state.userQuestion,
             language: decision.language,
@@ -44,7 +50,14 @@ export const runAnalystNode = async (
             write?.(result.value);
             result = await gen.next();
         }
-        return { answer: result.value.answer, assistantBlocks: result.value.blocks ?? [] };
+        const side = state.sideEffectAnswer?.trim();
+        return {
+            answer: side
+                ? `${side}\n\n${result.value.answer}`
+                : result.value.answer,
+            assistantBlocks: result.value.blocks ?? [],
+            sideEffectAnswer: null,
+        };
     }
     catch (e) {
         const msg = e instanceof Error ? e.message : "信息分析师调用失败";

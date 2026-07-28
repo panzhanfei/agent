@@ -10,7 +10,6 @@ import {
     type ToolRunResult,
 } from "../src/agentflow/agents/online/tool-orchestrator";
 import {
-    emptyPathPlan,
     type RoutedIntakeDecision,
 } from "../src/agentflow/agents/online/intake-coordinator";
 
@@ -27,15 +26,17 @@ const decision = (): RoutedIntakeDecision => ({
     searchQuery: "奥卡云 机会 评估",
     queryType: "default",
     retrievalPlan: [],
-    routeMode: "planExecutor",
+    routeMode: "planFanOut",
     compositeSlots: [],
     pathPlan: {
-        ...emptyPathPlan(),
-        dag: [
+        steps: [
             {
                 id: "dag-hybrid",
-                pathKind: "dag",
+                kind: "dag",
                 label: "综合评估",
+                searchQuery: "综合评估",
+                queryType: "default",
+                topics: [],
                 template: "hybrid_multi_source",
             },
         ],

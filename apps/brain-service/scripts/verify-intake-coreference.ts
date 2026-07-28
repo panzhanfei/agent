@@ -41,7 +41,7 @@ const clarifyJson = JSON.stringify({
   clarifyingQuestion: "你指的是哪一段经历或哪个项目？",
   briefReply: null,
   retrievalPlan: [],
-  pathPlan: { km: [], list: [], tool: [], dag: [] },
+  pathPlan: { steps: [] },
   answerOrder: [],
   composeMode: "qa",
   coreference: "unresolved",
@@ -59,10 +59,10 @@ const retrieveWithEntityJson = JSON.stringify({
   briefReply: null,
   retrievalPlan: [],
   pathPlan: {
-    km: [
+    steps: [
       {
         id: "km-0",
-        pathKind: "km",
+        kind: "km",
         label: "城管平台技术栈",
         searchQuery: "西安奥卡云 城市管理平台 技术栈",
         queryType: "tech",
@@ -72,9 +72,6 @@ const retrieveWithEntityJson = JSON.stringify({
         dataSource: "corpus",
       },
     ],
-    list: [],
-    tool: [],
-    dag: [],
   },
   answerOrder: ["km-0"],
   composeMode: "qa",
@@ -223,10 +220,10 @@ await assertCase("pipeline：多问 retrieve → composite", async () => {
     briefReply: null,
     retrievalPlan: [],
     pathPlan: {
-      km: [
+      steps: [
         {
           id: "km-name",
-          pathKind: "km",
+          kind: "km",
           label: "姓名",
           searchQuery: "个人简介 简历 姓名 全名",
           queryType: "identity",
@@ -237,7 +234,7 @@ await assertCase("pipeline：多问 retrieve → composite", async () => {
         },
         {
           id: "km-age",
-          pathKind: "km",
+          kind: "km",
           label: "年龄",
           searchQuery: "个人简介 简历 年龄 出生年份",
           queryType: "identity",
@@ -246,11 +243,9 @@ await assertCase("pipeline：多问 retrieve → composite", async () => {
           toolId: "compute_age_from_hits",
           dataSource: "compute",
         },
-      ],
-      list: [
         {
           id: "list-projects",
-          pathKind: "list",
+          kind: "list",
           label: "项目经历",
           searchQuery: "项目经历 全部项目 项目名称 职责",
           queryType: "enumeration",
@@ -263,8 +258,6 @@ await assertCase("pipeline：多问 retrieve → composite", async () => {
           },
         },
       ],
-      tool: [],
-      dag: [],
     },
     answerOrder: ["km-name", "km-age", "list-projects"],
     composeMode: "composite",
@@ -284,7 +277,7 @@ await assertCase("pipeline：多问 retrieve → composite", async () => {
     throw new Error("retrieve 不应早退");
   }
   if (
-    decision.routeMode !== "planExecutor" ||
+    decision.routeMode !== "planFanOut" ||
     (decision.compositeSlots?.length ?? 0) < 2
   ) {
     throw new Error(
@@ -362,10 +355,10 @@ const entitySwapRetrieveJson = JSON.stringify({
     briefReply: null,
     retrievalPlan: [],
     pathPlan: {
-        km: [
+        steps: [
             {
                 id: "km-0",
-                pathKind: "km",
+                kind: "km",
                 label: "友谊时光入职年份",
                 searchQuery: "友谊时光 入职 年份 哪一年 工作经历 时间线",
                 queryType: "default",
@@ -375,9 +368,6 @@ const entitySwapRetrieveJson = JSON.stringify({
                 dataSource: "corpus",
             },
         ],
-        list: [],
-        tool: [],
-        dag: [],
     },
     answerOrder: ["km-0"],
     composeMode: "qa",
@@ -544,11 +534,7 @@ await assertLive(
         s.label,
         s.searchQuery,
       ]),
-      ...(decision.pathPlan?.km ?? []).flatMap((s) => [
-        s.label,
-        s.searchQuery,
-      ]),
-      ...(decision.pathPlan?.list ?? []).flatMap((s) => [
+      ...(decision.pathPlan?.steps ?? []).flatMap((s) => [
         s.label,
         s.searchQuery,
       ]),
@@ -584,12 +570,7 @@ await assertLive(
       decision.queryType ?? "",
       ...plan.flatMap((p) => [p.label, p.searchQuery, p.queryType ?? ""]),
       ...slots.flatMap((s) => [s.label, s.searchQuery, s.queryType ?? ""]),
-      ...(decision.pathPlan?.km ?? []).flatMap((s) => [
-        s.label,
-        s.searchQuery,
-        s.queryType,
-      ]),
-      ...(decision.pathPlan?.list ?? []).flatMap((s) => [
+      ...(decision.pathPlan?.steps ?? []).flatMap((s) => [
         s.label,
         s.searchQuery,
         s.queryType,

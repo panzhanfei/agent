@@ -1,5 +1,5 @@
 /**
- * planExecutor：slots + dag 混排时，按 answerOrder 合并 stepResults / compositeSubResults。
+ * plan-fanout：slots + dag 混排时，按 answerOrder 合并 stepResults / compositeSubResults。
  */
 import type {
   CompositeSlotPlan,
@@ -7,7 +7,7 @@ import type {
   IncrementalCompositePlan,
 } from "@/agentflow/agents/online/knowledge-manager/composite/interface";
 import type {
-  DagRun,
+  ExecutionStep,
   PathPlan,
   StepResult,
 } from "@/agentflow/agents/online/intake-coordinator/path-plan/interface";
@@ -15,11 +15,11 @@ import type { PipelineGraphState } from "@/agentflow/pipeline/graph/state";
 import type { PipelineToolResults } from "@/agentflow/agents/online/tool-orchestrator/types";
 
 const isDagStepId = (pathPlan: PathPlan, stepId: string): boolean =>
-  pathPlan.dag.some((d) => d.id === stepId);
+  pathPlan.steps.some((d) => d.kind === "dag" && d.id === stepId);
 
 export const mergeStepResultsByAnswerOrder = (
   answerOrder: string[],
-  pathPlan: PathPlan,
+  _pathPlan: PathPlan,
   slotResults: StepResult[],
   dagResults: StepResult[]
 ): StepResult[] => {
@@ -49,8 +49,8 @@ export const buildDagStepResults = (
   pathPlan: PathPlan,
   dagPatch: Partial<PipelineGraphState>
 ): StepResult[] => {
-  const hybridRuns = pathPlan.dag.filter(
-    (d) => d.template === "hybrid_multi_source"
+  const hybridRuns = pathPlan.steps.filter(
+    (d) => d.kind === "dag" && d.template === "hybrid_multi_source"
   );
   if (hybridRuns.length === 0) {
     return [
@@ -80,7 +80,7 @@ export const mergeCompositeWithDagSteps = (
   state: PipelineGraphState,
   pathPlan: PathPlan,
   answerOrder: string[],
-  dagRuns: DagRun[],
+  dagRuns: ExecutionStep[],
   dagPatch: Partial<PipelineGraphState>
 ): Pick<
   PipelineGraphState,

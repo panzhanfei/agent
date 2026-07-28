@@ -241,26 +241,32 @@ const normalizePlanItem = (
 
 const normalizePathPlanStep = (
   item: Record<string, unknown>
-): Record<string, unknown> => ({
-  ...item,
-  searchQuery: pickIntakeField(item, "searchQuery", "search_query"),
-  queryType: pickIntakeField(item, "queryType", "query_type"),
-  pathKind: pickIntakeField(item, "pathKind", "path_kind"),
-  identityField: pickIntakeField(item, "identityField", "identity_field"),
-  toolId: pickIntakeField(item, "toolId", "tool_id"),
-  dataSource: pickIntakeField(item, "dataSource", "data_source"),
-  enumerationControl: pickIntakeField(
-    item,
-    "enumerationControl",
-    "enumeration_control"
-  ),
-  enumerationPage: pickIntakeField(item, "enumerationPage", "enumeration_page"),
-  enumerationPageSize: pickIntakeField(
-    item,
-    "enumerationPageSize",
-    "enumeration_page_size"
-  ),
-});
+): Record<string, unknown> => {
+  const kind =
+    pickIntakeField(item, "kind", "kind") ??
+    pickIntakeField(item, "pathKind", "path_kind");
+  return {
+    ...item,
+    kind,
+    pathKind: kind,
+    searchQuery: pickIntakeField(item, "searchQuery", "search_query"),
+    queryType: pickIntakeField(item, "queryType", "query_type"),
+    identityField: pickIntakeField(item, "identityField", "identity_field"),
+    toolId: pickIntakeField(item, "toolId", "tool_id"),
+    dataSource: pickIntakeField(item, "dataSource", "data_source"),
+    enumerationControl: pickIntakeField(
+      item,
+      "enumerationControl",
+      "enumeration_control"
+    ),
+    enumerationPage: pickIntakeField(item, "enumerationPage", "enumeration_page"),
+    enumerationPageSize: pickIntakeField(
+      item,
+      "enumerationPageSize",
+      "enumeration_page_size"
+    ),
+  };
+};
 
 const normalizePathPlanBucket = (raw: unknown): unknown => {
   if (!Array.isArray(raw)) return [];
@@ -286,12 +292,18 @@ const normalizeIntakeRaw = (
   let pathPlan: unknown = pathPlanRaw;
   if (pathPlanRaw && typeof pathPlanRaw === "object" && !Array.isArray(pathPlanRaw)) {
     const pp = pathPlanRaw as Record<string, unknown>;
+    const stepsRaw = Array.isArray(pp.steps) ? pp.steps : null;
     pathPlan = {
       ...pp,
+      steps: stepsRaw
+        ? normalizePathPlanBucket(stepsRaw)
+        : undefined,
+      // 保留旧四桶供 legalize 兼容转换
       km: normalizePathPlanBucket(pp.km),
       list: normalizePathPlanBucket(pp.list),
       tool: normalizePathPlanBucket(pp.tool),
       dag: normalizePathPlanBucket(pp.dag),
+      answerOrder: pickIntakeField(pp, "answerOrder", "answer_order"),
     };
   }
   return {

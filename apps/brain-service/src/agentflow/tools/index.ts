@@ -33,6 +33,14 @@ export {
     isAgeSubQuestion,
     type BirthDate,
 } from "./lib/compute-age";
+export {
+    extractExternalLinksFromHits,
+    buildExternalLinksAnswer,
+    resolveExternalLinkScope,
+    extractExternalLinkEntityTokens,
+    type ExtractedLink,
+    type ExternalLinkScope,
+} from "./lib/extract-external-links";
 
 /** FamBrain 在线能力对应的 LangChain StructuredTool（主 pipeline 仍走 LangGraph 编排节点 + orchestrated 工具表） */
 export const createFambrainTools = (): StructuredToolInterface[] => [

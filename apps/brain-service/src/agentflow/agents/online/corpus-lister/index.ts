@@ -5,6 +5,18 @@ export { flattenListRetrieval } from "./flatten-list-retrieval";
 export type { FlattenedListRetrieval, ListSlotRetrieval } from "./interface";
 export { isPureListDecision } from "./pure-list-route";
 export {
+    ENUMERATION_ACTION_PROMPTS,
+    enumerationActionPrompt,
+    matchUiEnumerationPrompt,
+    findLastEnumerationBlock,
+    resolveEnumerationPagination,
+    enumerationBlockListKind,
+    type EnumerationControl,
+    type EnumerationControlAction,
+    type EnumerationListKind,
+    type SlotExecutor,
+} from "./enumeration";
+export {
     listCorpusEntriesPage,
     listAllCorpusEntries,
     corpusEntryToHit,

@@ -9,18 +9,12 @@ export const isSummarizeComposeDecision = (
     decision.intent === "summarize_content";
 
 /**
- * 纯总结短路：用户粘贴长文 / 无 searchQuery，不经 planExecutor。
+ * 纯总结短路：用户粘贴长文 / 无 searchQuery，不经 planFanOut。
  */
 export const isPureSummarizeDecision = (
     decision: RoutedIntakeDecision
 ): boolean => {
     if (!isSummarizeComposeDecision(decision)) return false;
-    const pathPlan = decision.pathPlan;
-    const hasPathSteps =
-        (pathPlan?.km.length ?? 0) +
-            (pathPlan?.list.length ?? 0) +
-            (pathPlan?.tool.length ?? 0) +
-            (pathPlan?.dag.length ?? 0) >
-        0;
+    const hasPathSteps = (decision.pathPlan?.steps?.length ?? 0) > 0;
     return !hasPathSteps && !intakeRequiresKmRetrieval(decision);
 };

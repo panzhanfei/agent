@@ -108,6 +108,12 @@ type GoldenFile = {
         conversationIdPrefix: string;
         turns: ListPaginationTurn[];
     };
+    fiveCompositeProbe?: {
+        id: string;
+        label: string;
+        conversationIdPrefix: string;
+        turns: ListPaginationTurn[];
+    };
 };
 
 type CaseResult = {
@@ -154,6 +160,7 @@ type EvalReport = {
     profileProbe?: CaseResult[];
     listPaginationProbe?: CaseResult[];
     dualListPaginationProbe?: CaseResult[];
+    fiveCompositeProbe?: CaseResult[];
 };
 
 const chromaUrl = (): string => {
@@ -607,6 +614,14 @@ const formatMarkdown = (report: EvalReport): string => {
             );
         }
     }
+    if (report.fiveCompositeProbe?.length) {
+        lines.push(``, `## 五连问探测`, ``);
+        for (const r of report.fiveCompositeProbe) {
+            lines.push(
+                `- ${r.id}: ${r.pass ? "✅" : "❌"} ${r.reason} (${r.latencyMs}ms)`
+            );
+        }
+    }
     return lines.join("\n");
 };
 
@@ -744,6 +759,14 @@ const main = async (): Promise<void> => {
                   corpusUserId
               );
 
+    const fiveCompositeProbe =
+        caseFilter || !golden.fiveCompositeProbe
+            ? []
+            : await runListPaginationProbe(
+                  golden.fiveCompositeProbe,
+                  corpusUserId
+              );
+
     const report: EvalReport = {
         generatedAt: new Date().toISOString(),
         corpusUserId,
@@ -758,6 +781,9 @@ const main = async (): Promise<void> => {
             : undefined,
         dualListPaginationProbe: dualListPaginationProbe.length
             ? dualListPaginationProbe
+            : undefined,
+        fiveCompositeProbe: fiveCompositeProbe.length
+            ? fiveCompositeProbe
             : undefined,
     };
 
@@ -788,6 +814,9 @@ const main = async (): Promise<void> => {
     const dualListPaginationFailed = (
         report.dualListPaginationProbe ?? []
     ).filter((r) => !r.pass);
+    const fiveCompositeFailed = (report.fiveCompositeProbe ?? []).filter(
+        (r) => !r.pass
+    );
     const coalesceBad = report.metrics.coalesceFailures > 0;
     if (
         failed.length > 0 ||
@@ -795,6 +824,7 @@ const main = async (): Promise<void> => {
         profileFailed.length > 0 ||
         listPaginationFailed.length > 0 ||
         dualListPaginationFailed.length > 0 ||
+        fiveCompositeFailed.length > 0 ||
         coalesceBad
     ) {
         process.exit(1);

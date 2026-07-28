@@ -78,7 +78,7 @@ await assertCase("Intake LLM 声明 external_link + 1 项 plan → 保留路由"
     if (decision.queryType !== "external_link") {
         throw new Error(`期望 external_link，实际 ${decision.queryType}`);
     }
-    if (decision.routeMode !== "planExecutor") {
+    if (decision.routeMode !== "planFanOut") {
         throw new Error(`期望 slots，实际 ${decision.routeMode}`);
     }
     if ((decision.compositeSlots?.length ?? 0) !== 1) {

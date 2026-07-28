@@ -17,7 +17,7 @@ import {
 import { composeEnumerationAnswer } from "../src/agentflow/agents/online/information-analyst/compose-message";
 import { listCorpusEntriesPage } from "../src/agentflow/agents/online/corpus-lister";
 import { retrieveEnumerationPage } from "../src/agentflow/agents/online/corpus-lister";
-import { resolveEnumerationPagination } from "../src/agentflow/agents/online/intake-coordinator/enumeration";
+import { resolveEnumerationPagination } from "../src/agentflow/agents/online/corpus-lister/enumeration";
 import { ENUMERATION_EXHAUSTIVE_PAGE_SIZE } from "../src/agentflow/agents/online/corpus-lister";
 
 console.log("verify-enumeration-pagination");
@@ -46,7 +46,7 @@ const guarded = applyEnumerationSlotGuard(
     {
         ...exhaustiveDecision,
         listIntent: null,
-        routeMode: "planExecutor",
+        routeMode: "planFanOut",
         compositeSlots: [
             {
                 id: "projects",
@@ -83,10 +83,10 @@ const mixedRaw = JSON.stringify({
     clarifyingQuestion: null,
     briefReply: null,
     pathPlan: {
-        km: [
+        steps: [
             {
                 id: "km-tech",
-                pathKind: "km",
+                kind: "km",
                 label: "城管平台技术栈",
                 searchQuery: "城市管理平台 技术栈",
                 queryType: "tech",
@@ -95,11 +95,9 @@ const mixedRaw = JSON.stringify({
                 toolId: null,
                 dataSource: "corpus",
             },
-        ],
-        list: [
             {
                 id: "list-projects",
-                pathKind: "list",
+                kind: "list",
                 label: "其它项目全部列出",
                 searchQuery: "项目经历 全部项目",
                 queryType: "enumeration",
@@ -112,8 +110,6 @@ const mixedRaw = JSON.stringify({
                 },
             },
         ],
-        tool: [],
-        dag: [],
     },
     answerOrder: ["km-tech", "list-projects"],
     composeMode: "composite",
@@ -128,7 +124,7 @@ const { decision: mixed } = await runIntakePipeline({
         "城管平台用了那些技术？他除了城管还做了其他那些项目全部列出。",
     intakeHistory: [],
 });
-assert.equal(mixed.routeMode, "planExecutor");
+assert.equal(mixed.routeMode, "planFanOut");
 assert.ok(mixed.compositeSlots.length >= 2, "mixed ≥2 slots");
 const execs = mixed.compositeSlots.map((s) => s.executor ?? "km_retrieve");
 assert.ok(execs.includes("km_retrieve"), "tech slot km");

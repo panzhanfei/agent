@@ -1,5 +1,5 @@
 import { Annotation } from "@langchain/langgraph";
-import type { AgentPipelineContext, DbChatTurn, } from "@fambrain/brain-types";
+import type { AgentPipelineContext, DbChatTurn } from "@fambrain/brain-types";
 import type { AssistantMessageBlock } from "@fambrain/brain-types";
 import type { RoutedIntakeDecision } from "@/agentflow/agents/online/intake-coordinator";
 import type { InformationAnalystInput } from "@/agentflow/agents/online/information-analyst";
@@ -11,8 +11,12 @@ import type {
 } from "@/agentflow/agents/online/knowledge-manager";
 import type { PipelineToolResults } from "@/agentflow/agents/online/tool-orchestrator";
 import type { StepResult } from "@/agentflow/agents/online/intake-coordinator/path-plan";
+import type {
+    PlanDagPatch,
+    PlanSlotsPatch,
+} from "@/agentflow/agents/online/plan-fanout/interface";
 /**
- * LangGraph 编排共享状态（Intake → planExecutor → Compose；摘要分支 composeMode=summarize）。
+ * LangGraph 编排共享状态（Intake → plan fan-out → Compose；摘要分支 composeMode=summarize）。
  * 初始值由 `runtime/initial-state.ts` 的 `buildInitialState()` 注入；prepareTurnStart 填充 memory 字段；节点只返回需要更新的字段。
  *
  * 字段词典：Cursor Canvas「intake-field-dictionary」
@@ -32,7 +36,7 @@ export const PipelineGraphAnnotation = Annotation.Root({
     /** 检索证据是否充分：sufficient / partial / none */
     coverage: Annotation<InformationAnalystInput["coverage"]>,
     /** 知识管理员给分析师的备注；无则为 null */
-    notes: Annotation<InformationAnalystInput["notes"]>,
+    notes: Annotation<string | null>,
     /** EV-04：KM 置信分档 */
     confidenceTier: Annotation<ConfidenceTier | null>,
     /** 列举分页元数据（total/page/hasMore） */
@@ -71,7 +75,13 @@ export const PipelineGraphAnnotation = Annotation.Root({
     asOfDate: Annotation<string>,
     /** ToolOrchestrator / DagExecutor 产出，Analyst 优先消费 */
     toolResults: Annotation<PipelineToolResults | null>,
-    /** planExecutor 每 step 结果（含 per-step FC） */
+    /** planMerge 每 step 结果（含 per-step FC） */
     stepResults: Annotation<StepResult[] | null>,
+    /** kmRetrieve / planSlotPost 工人补丁（汇合前） */
+    fanOutSlotPatch: Annotation<PlanSlotsPatch | null>,
+    /** planDag 工人补丁（汇合前） */
+    fanOutDagPatch: Annotation<PlanDagPatch | null>,
+    /** 同轮 remember side-effect 确认文案（Analyst 并入终稿） */
+    sideEffectAnswer: Annotation<string | null>,
 });
 export type PipelineGraphState = typeof PipelineGraphAnnotation.State;

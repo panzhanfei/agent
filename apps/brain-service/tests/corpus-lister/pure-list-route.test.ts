@@ -1,6 +1,7 @@
 import { describe, expect, it } from "vitest";
 import { buildEnumerationListDecision } from "@/agentflow/agents/online/intake-coordinator/guards/enumeration-list-intent";
 import { isPureListDecision } from "@/agentflow/agents/online/corpus-lister/pure-list-route";
+import { stepsOfKind } from "@/agentflow/agents/online/intake-coordinator/path-plan";
 
 describe("isPureListDecision", () => {
     it("returns true for UI exhaustive list decision", () => {
@@ -12,8 +13,8 @@ describe("isPureListDecision", () => {
             pageSize: 20,
         });
         expect(isPureListDecision(decision)).toBe(true);
-        expect(decision.pathPlan.list.length).toBe(1);
-        expect(decision.pathPlan.km.length).toBe(0);
+        expect(stepsOfKind(decision.pathPlan, "list").length).toBe(1);
+        expect(stepsOfKind(decision.pathPlan, "km").length).toBe(0);
     });
 
     it("returns false when km slot present", () => {
@@ -36,10 +37,17 @@ describe("isPureListDecision", () => {
                 },
             ],
             pathPlan: {
-                km: [{ id: "km-0", pathKind: "km" as const, label: "tech", searchQuery: "react", queryType: "tech" as const, topics: [] }],
-                list: listOnly.pathPlan.list,
-                tool: [],
-                dag: [],
+                steps: [
+                    {
+                        id: "km-0",
+                        kind: "km" as const,
+                        label: "tech",
+                        searchQuery: "react",
+                        queryType: "tech" as const,
+                        topics: [],
+                    },
+                    ...stepsOfKind(listOnly.pathPlan, "list"),
+                ],
             },
         };
         expect(isPureListDecision(mixed)).toBe(false);

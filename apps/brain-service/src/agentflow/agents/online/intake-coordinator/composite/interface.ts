@@ -5,7 +5,7 @@ import type {
   IntakeRetrievalPlanItem,
   IntakeRoutingDecision,
 } from "@/agentflow/agents/online/intake-coordinator/contract";
-import type { EnumerationControl, SlotExecutor } from "../enumeration";
+import type { EnumerationControl, SlotExecutor } from "@/agentflow/agents/online/corpus-lister/enumeration";
 import type { IntakeIdentityField } from "@/agentflow/agents/online/intake-coordinator/contract";
 import type {
   DataSource,

@@ -169,9 +169,11 @@ export const runPerStepFactChecks = async (input: {
                     ? [{ ...primary, searchQuery: refined }]
                     : input.decision.compositeSlots,
             pathPlan: {
-                ...input.decision.pathPlan,
-                km: input.decision.pathPlan.km.map((s, i) =>
-                    i === 0 ? { ...s, searchQuery: refined } : s
+                steps: input.decision.pathPlan.steps.map((s, i) =>
+                    i === 0 ||
+                    (primary != null && s.id === String(primary.id))
+                        ? { ...s, searchQuery: refined }
+                        : s
                 ),
             },
         };

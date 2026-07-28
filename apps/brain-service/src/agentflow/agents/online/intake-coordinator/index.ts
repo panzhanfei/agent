@@ -1,6 +1,6 @@
 /**
  * IntakeCoordinator 对外 API；子目录经各自 index 聚合。
- * 端到端：LLM 产出 pathPlan + answerOrder；代码合法化并派生 compositeSlots。
+ * 端到端：LLM 产出 pathPlan.steps[]；代码合法化并派生 compositeSlots / answerOrder。
  */
 
 export {
@@ -21,7 +21,7 @@ export {
   type EnumerationControl,
   type EnumerationListKind,
   type SlotExecutor,
-} from "./enumeration";
+} from "@/agentflow/agents/online/corpus-lister/enumeration";
 
 export {
   decisionRequestsExternalLink,
@@ -103,6 +103,9 @@ export {
   pathPlanToCompositeSlots,
   emptyPathPlan,
   defaultComposeMode,
+  countPathPlan,
+  pathPlanBuckets,
+  stepsOfKind,
   expandHybridMultiSourceTemplate,
   deriveCompositeSlotsFromPathPlan,
   deriveRetrievalPlanFromPathPlan,
@@ -118,4 +121,5 @@ export {
   type KmStep,
   type StepResult,
   type DagTemplateId,
+  type ExecutionStep,
 } from "./path-plan";

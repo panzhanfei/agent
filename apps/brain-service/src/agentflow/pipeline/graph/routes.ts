@@ -1,5 +1,7 @@
+import { Send } from "@langchain/langgraph";
 import { isSummarizeComposeDecision } from "@/agentflow/agents/online/content-summarizer/summarize-route";
 import type { IntakeRouteMode } from "@/agentflow/agents/online/intake-coordinator/guards/interface";
+import { fanOutPlanWorkers } from "@/agentflow/agents/online/plan-fanout";
 import type { PipelineGraphState } from "./state";
 
 export const routeAfterRepeat = (
@@ -17,25 +19,32 @@ export const routeAfterPrepareMemory = (
 };
 
 /**
- * Intake 之后：只信 decision.routeMode（与图节点名 1:1）。
- * 复杂判定在 Intake 出口 resolveIntakeGraphRouteMode，不在本文件展开。
+ * Intake 之后：只信 decision.routeMode（与图节点名 1:1，planFanOut 除外）。
+ * planFanOut → LangGraph Send 并行工人；其余字符串直接跳节点。
  */
 export const routeAfterIntake = (
   state: PipelineGraphState
-): IntakeRouteMode => {
+): IntakeRouteMode | Send[] | "planMerge" => {
   if (state.exitEarly || state.error || !state.decision) {
     return "respondEarly";
   }
-  return state.decision.routeMode;
+  const mode = state.decision.routeMode;
+  if (mode === "planFanOut") {
+    return fanOutPlanWorkers(state);
+  }
+  return mode;
 };
 
-/** planExecutor 之后进入 contentOrganizer */
-export const routeAfterPlanExecutor = (
+/** planMerge 之后进入 contentOrganizer */
+export const routeAfterPlanMerge = (
   state: PipelineGraphState
 ): "contentOrganizer" | "respondEarly" => {
   if (state.error) return "respondEarly";
   return "contentOrganizer";
 };
+
+/** @deprecated 旧名；等同 routeAfterPlanMerge */
+export const routeAfterPlanExecutor = routeAfterPlanMerge;
 
 /** contentOrganizer 之后：仅 summarize 意图进 contentSummarizer；qa / list / composite → analyst */
 export const routeAfterContentOrganizer = (
@@ -58,7 +67,7 @@ export const routeAfterContentSummarizer = (
 };
 
 /** @deprecated 保留导出名供旧脚本；图已不再使用 */
-export const routeAfterRetrieval = routeAfterPlanExecutor;
+export const routeAfterRetrieval = routeAfterPlanMerge;
 
 /** @deprecated 图已内嵌 per-step FC */
 export const routeAfterFactChecker = (

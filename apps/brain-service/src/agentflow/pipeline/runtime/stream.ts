@@ -127,10 +127,13 @@ const summarizePipelineOut = (
   composeMode: state.decision?.composeMode ?? null,
   pathPlanCounts: state.decision?.pathPlan
     ? {
-        km: state.decision.pathPlan.km.length,
-        list: state.decision.pathPlan.list.length,
-        tool: state.decision.pathPlan.tool.length,
-        dag: state.decision.pathPlan.dag.length,
+        km: state.decision.pathPlan.steps.filter((s) => s.kind === "km").length,
+        list: state.decision.pathPlan.steps.filter((s) => s.kind === "list")
+          .length,
+        tool: state.decision.pathPlan.steps.filter((s) => s.kind === "tool")
+          .length,
+        dag: state.decision.pathPlan.steps.filter((s) => s.kind === "dag")
+          .length,
       }
     : null,
   stepResultCount: state.stepResults?.length ?? 0,
@@ -355,14 +358,19 @@ async function* runPipelineStreamInner(
         decision &&
         (intakeRequiresKmRetrieval(decision) ||
           (decision.pathPlan &&
-            decision.pathPlan.km.length +
-              decision.pathPlan.list.length +
-              decision.pathPlan.tool.length +
-              decision.pathPlan.dag.length >
-              0))
+            (decision.pathPlan.steps?.length ?? 0) > 0) ||
+          decision.routeMode === "planFanOut")
       ) {
-        // PathPlan 主路径：planExecutor（不再有独立 retrieval / fact_checker 图节点）
+        // PathPlan 主路径：plan fan-out（SSE 仍报 plan_executor，兼容 golden）
         yield* startStep("plan_executor");
+        // 同轮 remember side-effect 并行时额外报 user_fact
+        if (
+          decision.intent === "retrieve_and_answer" &&
+          decision.userFactKey?.trim() &&
+          decision.userFactValue?.trim()
+        ) {
+          yield* startStep("user_fact");
+        }
       }
       continue;
     }
@@ -390,7 +398,19 @@ async function* runPipelineStreamInner(
       yield* startStep("persist_turn_end");
       continue;
     }
-    if (nodeName === "planExecutor") {
+    if (nodeName === "userFactSide") {
+      yield* finishStep("user_fact");
+      continue;
+    }
+    if (
+      nodeName === "kmRetrieve" ||
+      nodeName === "planSlotPost" ||
+      nodeName === "planDag"
+    ) {
+      // 工人节点：聚合 SSE 在 planMerge 收口
+      continue;
+    }
+    if (nodeName === "planMerge") {
       yield* finishStep("plan_executor");
       yield {
         type: "retrieval_meta",

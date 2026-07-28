@@ -52,7 +52,7 @@ const chitchatStub = (
     clarifyingQuestion: null,
     briefReply,
     retrievalPlan: [],
-    pathPlan: { km: [], list: [], tool: [], dag: [] },
+    pathPlan: { steps: [] },
     answerOrder: [],
     composeMode: "qa",
     userFactKey: null,

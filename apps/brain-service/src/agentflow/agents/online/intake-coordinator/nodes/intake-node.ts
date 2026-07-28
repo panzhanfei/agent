@@ -2,7 +2,7 @@ import { completeIntakeCoordinator } from "../llm/ollama-chat";
 import {
   matchUiEnumerationPrompt,
   resolveEnumerationPagination,
-} from "../enumeration";
+} from "@/agentflow/agents/online/corpus-lister/enumeration";
 import {
   buildEnumerationListDecision,
   buildIncompleteUtteranceDecision,
@@ -186,7 +186,7 @@ export const runIntakeNode = async (
      * 【步骤 2】pipeline 规则链（LLM 之后）。
      * parse → clarify/chitchat/userFact 早退 → link harmonize →
      * legalizePathPlan → fillListPages → derive compositeSlots / retrievalPlan / executionPlan。
-     * 出口 decision 写入 state，由 routeAfterIntake 分流 planExecutor / listRetriever / respondEarly 等。
+     * 出口 decision 写入 state，由 routeAfterIntake 分流 planFanOut / listRetriever / respondEarly 等。
      */
     const { decision } = await runIntakePipeline({
       intakeRaw,

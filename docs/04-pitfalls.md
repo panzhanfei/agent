@@ -71,7 +71,7 @@
 
 | Agent | 只负责 | 禁止 |
 |--------|--------|------|
-| IntakeCoordinator | **执行终稿 / 任务规划**：`intent`、`pathPlan`、`answerOrder`、`composeMode`、`searchQuery`、`coreference` 等（`retrievalPlan`/`compositeSlots` 由代码派生） | 写长答案、编造履历、口语二次拆槽、决定「下一个 Agent 名字」 |
+| IntakeCoordinator | **执行终稿 / 任务规划**：`intent`、`pathPlan.steps[]`、`composeMode`、`searchQuery`、`coreference` 等（`answerOrder`/`retrievalPlan`/`compositeSlots` 由 steps 派生） | 写长答案、编造履历、口语二次拆槽、决定「下一个 Agent 名字」 |
 | KnowledgeManager | 从 **candidates** 选 `hits`（path / excerpt / relevance） | 对用户说话、归纳终稿、编造未出现在候选中的事实 |
 | FactChecker | 审当轮 `hits`/`coverage`；产出 `passed`、`refinedSearchQuery`、`checkerNotes` | 写用户终稿、编造 hits、跨轮缓存「已验过」 |
 | ContentOrganizer | 规范化 / 去重 `hits`；空 hits 时 `coverage=none` | 调 LLM、写终稿、跨轮改 searchQuery |
@@ -108,7 +108,7 @@
 | P0-25 | Intake / KM / Analyst | 问「开源项目 **GitHub 链接**」→ 答 **aky 内部路径**；应 **2 条 URL** 只给 release-bot；「不止这一个」→ **clarify** 或 LLM 写齐 plan；点名物联网/工具库 → 一未覆盖、一错绑 release-bot | Intake 误标 **enumeration** → KM **projects fill** 扫 offline 文档；会话 **stale subTasks** 继承；省略续问误 clarify；Analyst 跨槽借 URL | **`queryType=external_link`** + **`applyIntakeLinkLookupGuard`**（harmonize only）+ KM **`applyExternalLinkGuard`** + Analyst external_link 规则；**LLM 写齐 `retrievalPlan`** | ✅ **已解决**（2026-07）← §2.5.9 |
 | P0-26 | Intake / KM / 编排 | **混合问**「React 经验 + **列出全部项目**」→ 整句走 list、tech 段丢失；续问「更多项目」靠 **口语 regex** 误判 | P0-22 用 **整句 `routeMode=list`** 表达穷举；`enumeration-list-intent` 堆 regex，与 per-slot composite 冲突；KM 无 **按槽 executor** | **per-slot** `enumerationControl` + `executor=km_retrieve\|list_corpus`；`applyEnumerationSlotGuard`；UI **`ENUMERATION_ACTION_PROMPTS`** exact-match；`retrieval-node` 按槽执行 | ✅ **已解决**（2026-07）← §2.5.10 · [架构 v2 §10](./05-architecture-v2-tool-orchestration.md#10-列举执行-per-slot-演进-2026-07) |
 | P0-27 | Intake / Web | 「列出全部项目 + **开源** GitHub/线上地址」→ 第 2 段变成「**每个**项目的 GitHub」且无 URL；前端无分页按钮 | LLM 双槽皆标 enumeration；link guard 误 aggregate；槽 id 撞车；Web BFF `pipeline_done` **丢 blocks** | Intake 示例 16 + `harmonizeRetrievalPlanQueryTypes`（`inferQueryProfile`）+ 保留混合 plan；`planItemToSlot` 唯一 id；BFF 透传 blocks；分页文案对齐 `ENUMERATION_ACTION_PROMPTS` | ✅ **已解决**（2026-07）← §2.5.10 · diagnose-mixed-projects-github-query |
-| **P0-28** | Intake / KM / FC / 编排 | **混合问**「列举项目 + 开源 GitHub 链接」→ composite 只答 **一段**（或 external_link 槽被 label regex 漏掉）；FC 对 composite≥2 **整轮跳过** | `routeMode` / `compositeSlots` / `executionPlan` / toolPlan **四套多槽互斥**；opensource 与 enumeration **并行 KM** 而非依赖链；FC 一次失败拖垮全答 | **PathPlan** 四桶 + **`planExecutor`**；external_link 作 km 槽 + extract 工具（无场景 DAG）；**per-step FC**；`composeMode` 一次 composite | ✅ **已解决**（2026-07）← **§2.8** · [架构 v2 §11](./05-architecture-v2-tool-orchestration.md#11-pathplan-统一执行计划-2026-07) |
+| **P0-28** | Intake / KM / FC / 编排 | **混合问**「列举项目 + 开源 GitHub 链接」→ composite 只答 **一段**（或 external_link 槽被 label regex 漏掉）；FC 对 composite≥2 **整轮跳过** | `routeMode` / `compositeSlots` / `executionPlan` / toolPlan **四套多槽互斥**；opensource 与 enumeration **并行 KM** 而非依赖链；FC 一次失败拖垮全答 | **PathPlan** 有序 `steps[]` + **`planFanOut`（LangGraph Send）**；external_link 作 km 步 + extract 工具（无场景 DAG）；**per-step FC**；`composeMode` 一次 composite | ✅ **已解决**（2026-07）← **§2.8** · [架构 v2 §11](./05-architecture-v2-tool-orchestration.md#11-pathplan-统一执行计划-2026-07) |
 | **P0-29** | Intake | `verify:intake-chitchat` 偶发「你好」→ **`retrieve_and_answer`**；脚本断言逻辑反了 | 小模型对极短句非确定性；prompt 检索示例偏多；parse 失败 → `defaultIntakeDecision`；测试在 intent=chitchat 时误 throw | **`isPureSocialUtterance`** 入口跳过 LLM；chitchat briefReply 仍走 P0-13 模板 | ✅ **已解决**（2026-07）← **§2.8.1** · `verify:intake-chitchat` |
 | **P0-30** | Intake / KM / Analyst / Web | 超长复合履历问：重复「工作经历/任职」、表头误「项目名称」、年限只算近段、近两年未过滤；`labels` 口语二次规划 | Intake 过拆 + repair 口语注入；canonicalize 盖掉 tenure 检索词；UI 写死表头；list 无时间窗 | **LLM 主导合并拆分**；schema 合法化 + facet 去重；`tenure` + `timeWindowYears`；职位/链接 UI；单测迁 `tests/` | ✅ **已解决**（2026-07）← **§2.9** · [架构 v2 §12](./05-architecture-v2-tool-orchestration.md#12-intake-llm-主导--schema-兜底2026-07--去问句硬编码) |
 | **P0-31** | Intake | 单字乱敲浪费 token；短续问**盲预合并**误伤换题；散文当指代信号；复盘时「代码像二次 Intake」 | 结构启发当语义；散文兜底驱动重试；规划与纠偏缠在一起 | **档 B 定型**：主路径=LLM 任务规划；旁路=normalize / JSON 修复 / 指代拼接≤1 / guard 纠偏；`coreference` 字段 | ✅ **已解决**（2026-07）← **§2.10** · [架构 v2 §13](./05-architecture-v2-tool-orchestration.md#13-intake-档-b主路径规划--旁路纠偏-2026-07) |
@@ -132,7 +132,7 @@
 | 层 | 问题 | 说明 |
 |----|------|------|
 | **路由模型** | ~~routes 堆判定~~ → **`routeMode` 图边 1:1** | 复杂判定在 Intake `resolveIntakeGraphRouteMode`；routes 只分发 |
-| **多槽实现分裂** | compositeSlots / toolPlan / executionPlan 各维护一套 | Intake 与 PlanExecutor 语义不一致，guard 顺序敏感 |
+| **多槽实现分裂** | compositeSlots / toolPlan / executionPlan 各维护一套 | Intake 与 planFanOut 语义不一致，guard 顺序敏感 |
 | **opensource 链接** | external_link 与 enumeration **并行 KM** | 应 **先 list 实体 → 再抽 URL**（有 deps 的子图） |
 | **FactChecker** | 单次、composite≥2 跳过 | 不符合「每路径审证据」；一段 hallucination 污染 composite |
 | **硬编码** | label 口语猜 external_link 槽 | 与 P0-25「只信 queryType」原则冲突 |
@@ -141,17 +141,19 @@
 
 | 模块 | 改动 |
 |------|------|
-| `path-plan/interface.ts` | `PathPlan` 四桶：`km` / `list` / `tool` / `dag`；`ComposeMode` |
-| `path-plan/from-llm.ts` | LLM pathPlan **合法化** + 按 `answerOrder` **派生** compositeSlots / retrievalPlan |
+| `path-plan/interface.ts` | `PathPlan` = 有序 `steps[]`（`kind`: km\|list\|tool\|dag）；`ComposeMode`；legalize 兼容旧四桶 |
+| `path-plan/from-llm.ts` | LLM pathPlan **合法化**（steps[] 或旧四桶）+ 按 steps 顺序 **派生** compositeSlots / retrievalPlan / answerOrder |
 | `path-plan/compile-path-plan.ts` | 旧分桶编译（测试/兼容；主 pipeline 不再走） |
-| `path-plan/dag-templates.ts` | 仅 `hybrid_multi_source`（多源汇合） |
-| `tool-orchestrator/plan-executor.ts` → **`plan-executor/`** | LangGraph 节点：复合路径调度 km/list/tool/dag + **per-step FC** |
+| `path-plan/dag-templates.ts` | 仅 `hybrid_multi_source`（多源汇合；禁止场景 named DAG） |
+| `tool-orchestrator/plan-executor.ts` → **`plan-fanout/`** | LangGraph Send：planSlots / planDag / userFactSide → planMerge + **per-step FC** |
 | `corpus-lister/nodes/list-retriever-node.ts` | LangGraph **`listRetriever`**：纯 list 短路径（跳过 FC/tool） |
-| `pipeline/graph/compile.ts` | `listRetriever` + `planExecutor` 条件边 |
+| `corpus-lister/enumeration/` | 列举分页 / UI **exact-match**（Intake barrel re-export） |
+| `tools/lib/extract-external-links.ts` | `extract_external_links_from_hits`（tools 层；Intake 只声明 queryType+toolId；strip 时间口语） |
+| `pipeline/graph/compile.ts` | `listRetriever` + planFanOut 工人条件边 |
 | `composite-slot-queries.ts` | `EXTERNAL_LINK_SLOT` canonical searchQuery |
 | `information-analyst/stream.ts` | `composeMode=composite` 走 parallel composite 流 |
 
-**链路（通俗）：** Intake 把子任务分进四个桶并标依赖 → PlanExecutor 按桶取数、**每段各自核查** → 整理师规范化 → Analyst **只混剪一次** 出终稿。
+**链路（通俗）：** Intake 把子任务写成有序 `steps[]`（kind=执行类型）并标依赖 → planFanOut 并行取数、**每段各自核查** → 整理师规范化 → Analyst **只混剪一次** 出终稿。
 
 **验证：**
 
@@ -161,6 +163,7 @@ pnpm --filter @fambrain/brain-service run verify:composite-incremental
 pnpm --filter @fambrain/brain-service run verify:tool-orchestration
 pnpm --filter @fambrain/brain-service run verify:dag-hybrid
 pnpm --filter @fambrain/brain-service exec tsx --env-file=../../.env scripts/diagnose-mixed-projects-github-query.ts
+pnpm --filter @fambrain/brain-service run eval:run   # E2E-five-composite + fiveCompositeProbe
 ```
 
 详见 [架构 v2 §11 PathPlan](./05-architecture-v2-tool-orchestration.md#11-pathplan-统一执行计划-2026-07)、[Agent 流程图](./02-agent-flows.md)。
@@ -231,7 +234,7 @@ pnpm --filter @fambrain/brain-service run verify:intake-chitchat   # CHITCHAT_RU
 |------|----------|--------------|------|
 | **单字 / 乱敲** | 几乎原样进 LLM；`呢呢呢！！！` 也烧一轮 | 浪费 token；单字判定未先规范化，附和/残缺与续问边界糊 | **normalize**：trim + 压连续相同码点 → 再判单字短路；喂 LLM 用压后问句。**不做** NFKC（全角 `？`→`?` 曾导致与 history 对不上、本轮被当成 prior） |
 | **续问指代** | 调用前按句长**盲预合并**「上轮；本轮」；或把 `clarifyFallbackFromProse` 当 peek 触发拼接 | 换题短句被误并；散文不是结构化信号，却驱动第二次昂贵 LLM；根因常是 **没吐 JSON**，却用代码假装「已标 unresolved」 | 先原文（normalize 后）调 LLM；**只认 JSON peek**；**仅** `coreference=unresolved` 才拼接 **≤1 次**；散文 → **JSON 格式修复 1 次**（修输出纪律，不当指代触发器） |
-| **Intake 架构** | 规划 / 发明槽 / 纠偏缠在同一条 guard 叙事里（含曾有的 `filled_fallback`） | 复盘成本高；违反「意图归 LLM」与 no-scene-hardcoding | **端到端 PathPlan**：`retrieve_and_answer` 须 LLM **`pathPlan`≥1 + `answerOrder`**；代码只合法化 / 补页码 / 派生 slots；空 pathPlan → **clarify** |
+| **Intake 架构** | 规划 / 发明槽 / 纠偏缠在同一条 guard 叙事里（含曾有的 `filled_fallback`） | 复盘成本高；违反「意图归 LLM」与 no-scene-hardcoding | **端到端 PathPlan**：`retrieve_and_answer` 须 LLM **`pathPlan.steps`≥1**（`answerOrder` 可选）；代码只合法化 / 补页码 / 派生 slots；空 pathPlan → **clarify** |
 
 #### 心智模型（复盘顺序）
 
@@ -240,7 +243,7 @@ pnpm --filter @fambrain/brain-service run verify:intake-chitchat   # CHITCHAT_RU
   │
   ├─【旁路·短路】纯社交 / 单字残缺(normalize 后) / UI 列举按钮 → 不调 Intake LLM
   │
-  ├─【主路径·规划】Intake LLM → JSON 执行终稿（intent + pathPlan + answerOrder + coreference…）
+  ├─【主路径·规划】Intake LLM → JSON 执行终稿（intent + pathPlan.steps[] + composeMode + coreference…）
   │     ├─ 非 JSON → 格式修复 1×（仍是要 JSON，不是二次猜意图）
   │     └─ JSON 且 coreference=unresolved + 有上轮 → 拼接「上轮；本轮」再规划 1×
   │
@@ -248,7 +251,7 @@ pnpm --filter @fambrain/brain-service run verify:intake-chitchat   # CHITCHAT_RU
         legalize PathPlan → fill list 页码 → 派生 compositeSlots
 ```
 
-复盘时：**先看 LLM 工单（pathPlan+answerOrder）对不对 → 再看日志里哪一层纠偏改过字段**（`JSON格式修复重试` / `指代拼接重试` / `guard_*`），不要默认「代码又 Intake 了一次」。
+复盘时：**先看 LLM 工单（pathPlan.steps）对不对 → 再看日志里哪一层纠偏改过字段**（`JSON格式修复重试` / `指代拼接重试` / `guard_*`），不要默认「代码又 Intake 了一次」。
 
 #### 关键文件
 
@@ -1166,7 +1169,8 @@ pnpm run verify:fact-checker
 - [ ] 若出现**两次** `fact_checker` step：查 FactChecker 第一次是否 `passed=false`、是否打回再检索（D5-1，常伴 `retryCount: 1`）← §2.2
 - [ ] 若**新一条消息**与上轮同句仍全链路：查 `repeatQuestionHit` 是否为 false（history 未含上轮 assistant 答，或 normalize 不一致）← §2.2
 
-- [ ] Intake 原始 JSON 是否合理（`intent` / `searchQuery` / `retrievalPlan` / **`coreference`**）；若日志有 `JSON格式修复重试` / `指代拼接重试`，先分清是格式问题还是指代未消解 ← **P0-31** §2.10
+- [ ] Intake 原始 JSON 是否合理（`intent` / `searchQuery` / **`pathPlan.steps`** / **`coreference`**）；若日志有 `JSON格式修复重试` / `指代拼接重试`，先分清是格式问题还是指代未消解 ← **P0-31** §2.10
+- [ ] remember/recall 是否进 **`user_fact`** step（非 respondEarly 空答）← routeMode 优先级
 - [ ] KM 预扫 `paths` 是否有内容；**`hits` 是否非空（若 `candidateCount > 0`）** ← D3-2
 - [ ] KM 日志 **`resultSource` 应为 `"rule"`**（不应再出现 `"llm"`）← D3-3 / P0-4
 - [ ] 预扫 paths 是否同一 md 重复过多（chunk 去重）← D3-6

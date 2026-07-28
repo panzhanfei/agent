@@ -22,13 +22,13 @@ import type {
 
 /**
  * Intake → 下一图节点（与 StateGraph.addNode 名一致）。
- * km/list/tool/dag 并存时一律 planExecutor。
+ * km/list/tool/dag 并存时一律 planFanOut（Send 并行工人）。
  */
 export type IntakeRouteMode =
   | "respondEarly"
   | "userFact"
   | "listRetriever"
-  | "planExecutor"
+  | "planFanOut"
   | "contentSummarizer";
 
 /** 为何走到当前 routeMode（写进日志 routeReason） */
@@ -46,16 +46,16 @@ export type IntakeRetrievalPlanGuardReason =
 
 /**
  * Intake 编排工单（写入 state.decision）。
- * 主契约：pathPlan + answerOrder + composeMode；compositeSlots 由 pathPlan 派生。
+ * 主契约：pathPlan.steps[]（有序）+ composeMode；compositeSlots / answerOrder 由 steps 派生。
  */
 export type RoutedIntakeDecision = IntakeRoutingDecision & {
   /** 图路由：与 LangGraph 节点名 1:1；routes.ts 只读本字段 */
   routeMode: IntakeRouteMode;
-  /** 由 pathPlan 派生的检索槽（dag 步不进槽） */
+  /** 由 pathPlan.steps 派生的检索槽（dag 步不进槽） */
   compositeSlots: CompositeRetrievalSlot[];
-  /** 四桶执行计划（km / list / tool / dag）；LLM 产出，代码合法化 */
+  /** 有序执行计划；LLM 产出 steps[]，代码合法化（兼容旧四桶） */
   pathPlan: PathPlan;
-  /** 回答顺序（step id）；与 pathPlan 对齐 */
+  /** 回答顺序（step id）；默认 = steps.map(s => s.id) */
   answerOrder: string[];
   /** 出稿模式：qa | summarize | composite */
   composeMode: ComposeMode;
@@ -68,7 +68,7 @@ export type RoutedIntakeDecision = IntakeRoutingDecision & {
   enumerationPage?: number;
   enumerationPageSize?: number;
   enumerationListKind?: "project" | "experience";
-  /** 混合 DAG：planExecutor 内执行 */
+  /** 混合 DAG：planFanOut 内 planDag 工人执行 */
   executionPlan?: ExecutionPlanNode[];
   /** retrievalPlan 平行 enrich（toolId/dataSource）；槽级以 compositeSlots 上挂载为准 */
   enrichedPlan?: EnrichedPlanItem[];

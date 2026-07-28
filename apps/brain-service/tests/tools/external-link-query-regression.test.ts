@@ -66,4 +66,13 @@ describe("external link query regression (web session)", () => {
             /未找到与「我开源项目的GitHub地址都给我」相关的 GitHub/
         );
     });
+
+    it("近两年开源项目的GitHub地址 → 不把「近两年」当实体过滤空", () => {
+        const { answer, insufficientEvidence } = answerFor(
+            "近两年开源项目的GitHub地址是什么？"
+        );
+        expect(insufficientEvidence).toBe(false);
+        expect(answer).toMatch(/github\.com\/panzhanfei/);
+        expect(answer).not.toMatch(/未找到与「近两年/);
+    });
 });

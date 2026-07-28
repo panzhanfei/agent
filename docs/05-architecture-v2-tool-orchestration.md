@@ -238,33 +238,48 @@ flowchart LR
 | 旧层 | 表达什么 | 冲突点 |
 |------|----------|--------|
 | `routeMode` | ~~整句互斥 / 可观测 skip\|plan~~ → **与图节点 1:1** | Intake 出口写入；`routes.ts` 只读分发；执行在节点内 |
-| `compositeSlots` | KM / list 并行槽 | dag 步不进槽，但进 `answerOrder` |
+| `compositeSlots` | KM / list 并行槽 | dag 步不进槽；顺序跟 `pathPlan.steps` |
 | `executionPlan` | 混合 DAG | 与槽并存于 planExecutor |
 | FactChecker | 整轮一次；composite≥2 **跳过** | 一段 FC 失败拖垮全答；跳 FC 又丢证据审查 |
 
-### 11.2 PathPlan 四桶 + Compose 一层
+### 11.2 PathPlan 有序 steps[] + Compose 一层
 
-Intake LLM **直接产出**四桶 + `answerOrder`；pipeline **`legalizePathPlan`** 后按顺序派生 `compositeSlots`（旧 `compilePathPlan` 分桶推断已退出主路径）：
+Intake LLM **直接产出**有序 `pathPlan.steps[]` + `composeMode`；pipeline **`legalizePathPlan`** 后按数组顺序派生 `compositeSlots`（旧 `compilePathPlan` 分桶推断已退出主路径；legalize **仍兼容**旧四桶 `{km,list,tool,dag}+answerOrder`）：
 
 ```typescript
-type PathPlan = {
-  km: KmStep[];      // hybrid / identity / tech …
-  list: ListStep[];  // enumeration + list_corpus
-  tool: ToolStep[];  // search_web / compute 后置
-  dag: DagRun[];     // 仅 hybrid_multi_source（多源汇合；禁止场景 named DAG）
+type PathKind = "km" | "list" | "tool" | "dag"; // 执行类型，非场景名
+
+type ExecutionStep = {
+  id: string;
+  kind: PathKind;
+  label: string;
+  searchQuery: string;
+  queryType: "identity" | "enumeration" | "tech" | "external_link" | "default";
+  topics: string[];
+  identityField?: string | null;
+  toolId?: string | null;
+  dataSource?: string | null;
+  enumerationControl?: EnumerationControl | null;
+  template?: "hybrid_multi_source"; // 仅 dag
+  deps?: string[];
 };
+
+type PathPlan = {
+  steps: ExecutionStep[]; // 数组顺序 = 回答/执行顺序
+};
+
 type ComposeMode = "qa" | "summarize" | "composite";
-// answerOrder: string[]  // 步 id 列表，决定回答/检索顺序
+// answerOrder?: string[]  // 可选；缺省 = steps.map(s => s.id)
 ```
 
-| 桶 | 执行 | FC |
-|----|------|-----|
+| kind | 执行 | FC |
+|------|------|-----|
 | `km` | `retrieval-node` 按槽 | **per-step** |
 | `list` | `list_corpus` 分页 | **per-step** |
 | `tool` | `ToolOrchestrator` | 规则 / 工具输出 |
-| `dag` | `DagExecutor`（模板展开） | 节点级或整 DAG pass |
+| `dag` | `DagExecutor`（**仅** `hybrid_multi_source`） | 节点级或整 DAG pass |
 
-**Compose 只做一次：** 全部 step 完成后，Analyst 按 `composeMode` 输出单答 / 多段 composite / 摘要；**回答顺序 = `answerOrder`**，不做 list→km 重排。
+**Compose 只做一次：** 全部 step 完成后，Analyst 按 `composeMode` 输出单答 / 多段 composite / 摘要；**回答顺序 = `pathPlan.steps` 数组顺序**（不做 list→km 重排）。
 
 ### 11.3 列举 + 外链（无场景 DAG）
 
@@ -272,30 +287,41 @@ type ComposeMode = "qa" | "summarize" | "composite";
 
 ```mermaid
 flowchart LR
-  IC[Intake pathPlan<br/>list + km/external_link] --> Val[legalize + derive slots]
-  Val --> L[按 answerOrder 执行]
-  L --> PE[PlanExecutor]
-  PE --> T[extract_external_links_from_hits]
-  PE --> FC[per-step FC]
+  IC[Intake pathPlan.steps<br/>list + km/external_link] --> Val[legalize + derive slots]
+  Val --> L[routeMode=planFanOut]
+  L --> PE[kmRetrieve→planSlotPost ∥ planDag ∥ userFactSide]
+  PE --> M[planMerge]
+  M --> T[extract_external_links_from_hits]
+  M --> FC[per-step FC in planSlotPost]
   FC --> CO[ContentOrganizer]
   CO --> IA[Analyst composeMode=composite]
 ```
 
-- `external_link` 进 **km** 槽 + 声明式 `toolId=extract_external_links_from_hits`；**禁止**再加 `opensource_links` 一类场景 named DAG。
-- 回答顺序 = Intake `compositeSlots` 顺序；searchQuery 用 **`EXTERNAL_LINK_SLOT`** canonical（P0-27）。
+- `external_link` 进 **km** 步 + 声明式 `toolId=extract_external_links_from_hits`（实现在 **`tools/lib/extract-external-links.ts`**；Intake 只填 queryType + toolId）；**禁止**再加 `opensource_links` / `dag-github-links` 一类场景 named DAG。
+- 工具层 strip「近两年」等时间口语（实体 token）；时间窗走 `enumerationControl.timeWindowYears`。
+- dag **仅** `hybrid_multi_source`（多源汇合）。
+- 回答顺序 = Intake `steps[]` / 派生 `compositeSlots` 顺序；searchQuery 用 **`EXTERNAL_LINK_SLOT`** canonical（P0-27）。
+- 列举分页 / UI exact-match 实现在 **`corpus-lister/enumeration`**（Intake 经 barrel re-export，无独立 enumeration 目录）。
 
 ### 11.4 新 Pipeline 拓扑
 
 ```mermaid
 flowchart TD
-  IC[IntakeCoordinator<br/>guard ⑨ applyPathPlanGuard] --> R{routeAfterIntake}
-  R -->|retrieve| PE[PlanExecutor<br/>km/list/tool/dag + per-step FC]
-  R -->|早退| EARLY[respondEarly / userFact / summarizer]
-  PE --> CO[ContentOrganizer]
+  IC[IntakeCoordinator] --> R{routeAfterIntake}
+  R -->|planFanOut| S[Send 并行]
+  S --> PS[kmRetrieve]
+  S --> PD[planDag]
+  S --> UF[userFactSide]
+  PS --> POST[planSlotPost]
+  POST --> M[planMerge]
+  PD --> M
+  UF --> M
+  R -->|早退| EARLY[respondEarly / userFact / summarizer / listRetriever]
+  M --> CO[ContentOrganizer]
   CO --> IA[InformationAnalyst<br/>composeMode]
 ```
 
-**代码：** `intake-coordinator/path-plan/*` · `plan-executor/` · `corpus-lister/` · `pipeline/graph/compile.ts`（`listRetriever` + `planExecutor`）。
+**代码：** `intake-coordinator/path-plan/*` · `plan-fanout/` · `corpus-lister/` · `pipeline/graph/compile.ts`。
 
 **验证：**
 
@@ -304,6 +330,7 @@ pnpm --filter @fambrain/brain-service run verify:composite-route
 pnpm --filter @fambrain/brain-service run verify:composite-incremental
 pnpm --filter @fambrain/brain-service run verify:tool-orchestration
 pnpm --filter @fambrain/brain-service run verify:dag-hybrid
+pnpm --filter @fambrain/brain-service run eval:run   # 含 E2E-five-composite + fiveCompositeProbe
 ```
 
 ---
@@ -335,7 +362,7 @@ pnpm --filter @fambrain/brain-service run verify:dag-hybrid
 |------|------|
 | `intake-coordinator/composite/identity-field-search.ts` | 仅 `displayLabel` + `searchQuery`（**无**口语 labels） |
 | `intake-coordinator/composite/repair-retrieval-plan.ts` | schema normalize + facet 去重 |
-| `intake-coordinator/path-plan/` | PathPlan 编译；禁止场景 named DAG |
+| `intake-coordinator/path-plan/` | PathPlan `steps[]` 合法化/派生；禁止场景 named DAG |
 | `tools/lib/compute-tenure.ts` / `extract-*.ts` | 确定性工具 |
 | `corpus-lister/list/entry-time-window.ts` | 时间窗 / 角色抽取 |
 | `apps/brain-service/tests/` | 单元测试集中目录（勿再写 `src/**/*.test.ts`） |
@@ -358,11 +385,11 @@ pnpm --filter @fambrain/brain-service exec tsx --env-file=../../.env scripts/dia
 
 | 层 | 职责 | 禁止 |
 |----|------|------|
-| **主路径（LLM）** | 产出执行终稿：`intent` / **`pathPlan`≥1 + `answerOrder`**（retrieve 时）/ `composeMode` / `searchQuery` / `coreference` | 依赖代码猜口语、发明多槽、按 queryType 猜桶 |
+| **主路径（LLM）** | 产出执行终稿：`intent` / **`pathPlan.steps`≥1**（retrieve 时；`answerOrder` 可选）/ `composeMode` / `searchQuery` / `coreference` | 依赖代码猜口语、发明多槽、按 queryType 猜桶 |
 | **旁路·入口** | normalize（压连续重复码点）→ 单字/社交/UI 短路 | NFKC 改写标点导致与 history 对不上；盲预合并 |
 | **旁路·格式** | 非 JSON → 格式修复 **1** 次 | 把散文当 `coreference` 信号 |
 | **旁路·指代** | **coreference=unresolved** + **JSON peek** → 拼接「上轮；本轮」再调 **1** 次 | 无限重试；代码猜 intent/plan；无上文硬拼 |
-| **旁路·guard** | toolId 白名单、link **harmonize**、list 页码、**派生** compositeSlots（空 pathPlan→clarify） | `filled_fallback` / continuation 补 prior / 口语二次规划 / retrievalPlan 编译猜桶 |
+| **旁路·guard** | toolId 白名单、link **harmonize**、list 页码、**派生** compositeSlots（空 steps→clarify） | `filled_fallback` / continuation 补 prior / 口语二次规划 / retrievalPlan 编译猜桶 |
 
 ### 13.2 为何比「调用前合并」更合理
 

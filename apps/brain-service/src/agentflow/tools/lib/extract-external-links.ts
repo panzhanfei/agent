@@ -16,12 +16,16 @@ export type ExternalLinkScope = {
 };
 
 const GENERIC_SCOPE_TERMS =
-    /^(?:GitHub|gitlab|gitee|开源|开源链接|链接|地址|URL|仓库|项目|项目的|对外|线上|线上链接|预览|部署|上线|是什么|什么|的|与|和|及|跟|请|给|我|你|他|她|它|这|那|哪些|哪个|几个|全部|所有|都|开源项目|仓库地址|线上地址|线上预览|开源链接|github|gitlab|gitee)$/i;
+    /^(?:GitHub|gitlab|gitee|开源|开源链接|链接|地址|URL|仓库|项目|项目的|对外|线上|线上链接|预览|部署|上线|是什么|什么|的|与|和|及|跟|请|给|我|你|他|她|它|这|那|哪些|哪个|几个|全部|所有|都|开源项目|仓库地址|线上地址|线上预览|开源链接|github|gitlab|gitee|近两年|近三年|近几年|最近|今年|去年|本年)$/i;
+
+/** 时间口语：近 N 年 / 最近…（非项目实体；时间窗应走 enumerationControl.timeWindowYears） */
+const TEMPORAL_SCOPE_PHRASE_RE =
+    /近\s*\d+\s*年|最近\s*\d+\s*年|近两年|近三年|近几年|最近|今年|去年|本年/giu;
 
 /** 结构信号：泛指「全部/都给我」列举多个链接（非项目名） */
 const PLURAL_LIST_SCOPE_RE = /都给我|都要|全都|全部|所有|哪些|几个|两款|两个/u;
 
-/** 从 label 去掉 GitHub/开源/链接 等泛词，剩余视为点名实体 */
+/** 从 label 去掉 GitHub/开源/链接/时间口语 等泛词，剩余视为点名实体 */
 const GENERIC_SCOPE_PHRASES = [
     "个人简介",
     "简历",
@@ -49,6 +53,13 @@ const GENERIC_SCOPE_PHRASES = [
     "所有",
     "哪些",
     "几个",
+    "近两年",
+    "近三年",
+    "近几年",
+    "最近",
+    "今年",
+    "去年",
+    "本年",
     "我",
     "你",
     "的",
@@ -60,7 +71,7 @@ const GENERIC_SCOPE_PHRASES = [
 ] as const;
 
 const stripGenericScopeText = (text: string): string => {
-    let s = text;
+    let s = text.replace(TEMPORAL_SCOPE_PHRASE_RE, " ");
     for (const phrase of GENERIC_SCOPE_PHRASES) {
         s = s.replace(new RegExp(phrase, "gi"), " ");
     }

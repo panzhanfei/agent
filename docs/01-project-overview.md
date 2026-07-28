@@ -98,7 +98,7 @@ pnpm run dev
 | `cd apps/brain-service && pnpm run verify:memory` | Mem0 / LangMem 本地验证（LangMem 可不依赖 Mem0） |
 | `cd apps/brain-service && pnpm run verify:learning-extract` | 自主学习候选抽取单测（无 Ollama） |
 | `cd apps/brain-service && pnpm run verify:langchain-tools` | LangChain StructuredTool 注册 + invoke 冒烟 |
-| `cd apps/brain-service && pnpm run eval:run` | Eval MVP：G1～G5c + KM + E2E + memProbe/profileProbe |
+| `cd apps/brain-service && pnpm run eval:run` | Eval MVP：G1～G5c + KM + E2E（含 **E2E-five-composite**）+ memProbe/profileProbe/**fiveCompositeProbe** |
 | `cd apps/brain-service && pnpm run verify:user-fact` | P0-16：Intake 结构化 remember/recall + Mem0 跨 conversationId |
 | `cd apps/brain-service && pnpm run verify:doc-parser` | DocParser 格式与路径单测 |
 | `pnpm run summarize:document -- <file.md>` | 内容摘要师（需 Ollama） |
@@ -194,7 +194,7 @@ pnpm run dev
 
 **约定：** `@fambrain/brain-service` 不直接访问数据库；编排层不把中间 Agent 输出写入 `messages`。
 
-**架构演进（2026-07）：** 原 `agentflow/brain-service/` 重命名为 **`agents/`**；`tool-orchestration/` 移入 **`agents/online/tool-orchestrator/`**；列举执行从整句 `routeMode=list` 改为 **per-slot** `enumerationControl`（P0-26）；**PathPlan + PlanExecutor** 统一 km/list/tool/dag 四桶执行与 per-step FC（P0-28）。详见 [架构 v2 §11 PathPlan](./05-architecture-v2-tool-orchestration.md#11-pathplan-统一执行计划-2026-07)、[坑点 §2.8](./04-pitfalls.md#28-pathplan-统一编排-p0-28--2026-07)。
+**架构演进（2026-07）：** 原 `agentflow/brain-service/` 重命名为 **`agents/`**；`tool-orchestration/` 移入 **`agents/online/tool-orchestrator/`**；列举执行从整句 `routeMode=list` 改为 **per-slot** `enumerationControl`（P0-26）；**PathPlan + planFanOut（LangGraph Send）** 统一有序 `pathPlan.steps[]`（kind=km|list|tool|dag）并行执行与 per-step FC（P0-28；legalize 兼容旧四桶；原单体 `plan-executor` 已删除）。详见 [架构 v2 §11 PathPlan](./05-architecture-v2-tool-orchestration.md#11-pathplan-统一执行计划-2026-07)、[坑点 §2.8](./04-pitfalls.md#28-pathplan-统一编排-p0-28--2026-07)。
 
 ## P0 已落地能力（代码索引）
 
@@ -206,8 +206,9 @@ pnpm run dev
 | `getCompiledPipelineGraph` | `pipeline/graph/compile.ts` + `routes.ts` | **prepareTurnStart** → Intake → … → **persistTurnEnd** → END |
 | `userFactNode` / `routeUserFactFromIntake` | `user-fact/nodes/user-fact-node.ts`、`user-fact/user-fact.ts` | P0-16：跨会话 remember/recall；绕过 KM / FC / Analyst |
 | `parseIntakeDecision` / `defaultIntakeDecision` | `intake-coordinator/pipeline/parse-intake.ts` | 解析 Intake 路由 JSON；失败 → **clarify**（不发明 retrieve） |
-| `runListRetrieverNode` | `agentflow/agents/online/corpus-lister/nodes/` | 纯 list 短路径：目录扫盘分页，跳过 planExecutor/FC |
-| `runRetrievalNode` | `knowledge-manager/nodes/retrieval-node.ts` | planExecutor 内：km hybrid + composite 混槽 list |
+| `runListRetrieverNode` | `agentflow/agents/online/corpus-lister/nodes/` | 纯 list 短路径：目录扫盘分页，跳过 planFanOut/FC |
+| `runRetrievalNode` | `knowledge-manager/nodes/retrieval-node.ts` | 图节点 `kmRetrieve` 调用：km hybrid + composite 混槽 list |
+| `runKmRetrieveNode` / `runPlanSlotPostNode` / `runPlanDagNode` / `runPlanMergeNode` / `runUserFactSideNode` | `agentflow/agents/online/plan-fanout/` | 复合路径：Send 并行 KM/DAG/remember；KM 后串 FC+tools → merge |
 | `isPureListDecision` | `corpus-lister/pure-list-route.ts` | routeAfterIntake → listRetriever 判定 |
 | `addStructuredUserFact` / `searchUserFactMemories` | `packages/brain-memory/src/mem0/store.ts` | Mem0 结构化写入 + 按 factKey 语义检索 |
 | `completeIntakeCoordinator` | `agentflow/agents/online/intake-coordinator/` | 一次 `invoke` → 路由 JSON |
@@ -242,18 +243,19 @@ pnpm run dev
 | `verify:user-fact` | `apps/brain-service/scripts/` | P0-16：Intake schema + Mem0 跨会话 QQ remember/recall |
 | `resolveEnumerationTarget` | `intake-coordinator/composite/enumeration-target.ts` | plan label/topics → project \| experience 列举分流（P0-21） |
 | `query-signals.ts` | `intake-coordinator/signals/` | 问句结构工具：编号/并列/stale multipart 对齐（P0-25） |
-| `ENUMERATION_ACTION_PROMPTS` | `intake-coordinator/enumeration/` | 列举 UI 按钮 exact-match prompt（P0-26/27） |
+| `ENUMERATION_ACTION_PROMPTS` | `corpus-lister/enumeration/`（Intake `enumeration/` re-export） | 列举 UI 按钮 exact-match prompt（P0-26/27） |
 | `harmonizeRetrievalPlanQueryTypes` | `intake-coordinator/guards/intake-link-lookup-guard.ts` | 混合问 enum+link 纠偏（P0-27） |
 | `maxAnalystHitsForProfile` | `information-analyst/analyst-recall-limits.ts` | Analyst hits 上限与 KM profile 对齐（P0-20） |
 | `clear-pipeline-cache.ts` | `apps/brain-service/scripts/` | 清空 检索 hits 缓存 / 槽答案缓存 Redis + 进程 memory；见 `.env.example` 三层 cache 开关 |
 | `diagnose-age-query.ts` | `apps/brain-service/scripts/` | 年龄单问：路由 + KM 检索 + 语料字段诊断（需 Chroma） |
-| `eval:run` | `apps/brain-service/scripts/eval/` | Eval MVP：G1～G5c + KM + E2E + **memProbe/cacheProbe/profileProbe**；`--mem-only` → **GMem**；`--profile-only` → **G-履历综合** |
+| `eval:run` | `apps/brain-service/scripts/eval/` | Eval MVP：G1～G5c + KM + E2E（**E2E-five-composite**）+ **memProbe/cacheProbe/profileProbe/fiveCompositeProbe**；`--mem-only` → **GMem**；`--profile-only` → **G-履历综合** |
 | `verify:learning-extract` | `apps/brain-service/scripts/` | 自主学习候选抽取（Phase A 前置） |
 | `verify-test-env.ts` | `apps/brain-service/scripts/` | verify 脚本内覆盖 `.env` cache 开关；**勿**在生产入口引用 |
 | `createFambrainTools` | `agentflow/tools/` | LangChain **StructuredTool**：`retrieve_corpus` / `remember_user_fact` / `recall_user_fact` / `list_vault_files` / `summarize_text` |
-| `runPlanExecutorNode` | `agentflow/agents/online/plan-executor/` | 复合路径：PathPlan 四桶 + per-step FC + 后置 tool |
+| `runKmRetrieveNode` / `runPlanSlotPostNode` / … | `agentflow/agents/online/plan-fanout/` | LangGraph Send：KM → FC/tools ∥ DAG ∥ remember → merge |
 | `compilePathPlan` / `applyPathPlanGuard` | `intake-coordinator/path-plan/` | 旧分桶编译（兼容/测试）；主路径见 `from-llm.ts` |
-| `legalizePathPlan` / `deriveCompositeSlotsFromPathPlan` | `intake-coordinator/path-plan/from-llm.ts` | LLM PathPlan → 合法化 + 派生 slots |
+| `legalizePathPlan` / `deriveCompositeSlotsFromPathPlan` | `intake-coordinator/path-plan/from-llm.ts` | LLM PathPlan（steps[] 或旧四桶）→ 合法化 + 派生 slots |
+| `extract_external_links_from_hits` | `tools/lib/extract-external-links.ts` | 从 hits 抽对外 URL（Intake 只声明 external_link + toolId） |
 | `repairRetrievalPlanItems` / `IDENTITY_FIELD_SEARCH` | `intake-coordinator/composite/` | P0-30：schema 合法化 + facet 去重（无口语 labels） |
 | `compute_tenure_from_hits` | `tools/lib/compute-tenure.ts` | P0-30：从业年限（简历时间线最早起点） |
 | `diagnose-long-composite-career-query` | `apps/brain-service/scripts/` | P0-30：超长复合履历回归 |

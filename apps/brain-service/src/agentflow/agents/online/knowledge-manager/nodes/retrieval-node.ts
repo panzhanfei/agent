@@ -1,5 +1,5 @@
 /**
- * KM 检索节点（planExecutor 内）：km_retrieve 槽 + composite 混槽时的 list 槽。
+ * KM 检索节点（planFanOut 内）：km_retrieve 槽 + composite 混槽时的 list 槽。
  *
  * 纯 list（UI 分页 / exhaustive / continue）走图节点 listRetriever，不经此节点。
  * 是否检索只看 compositeSlots，不看 routeMode。

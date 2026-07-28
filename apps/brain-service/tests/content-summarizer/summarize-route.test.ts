@@ -26,23 +26,22 @@ describe("summarize-route", () => {
             routeMode: "respondEarly" as const,
             compositeSlots: [],
             answerOrder: [],
-            routeReason: null,
-            routePlanSource: null,
+            routeReason: undefined,
+            routePlanSource: undefined,
         };
         expect(isPureSummarizeDecision(decision)).toBe(true);
     });
 
-    it("requires planExecutor when summarize has searchQuery", () => {
+    it("requires planFanOut when summarize has searchQuery", () => {
         const decision = {
             intent: "summarize_content" as const,
             composeMode: "summarize" as const,
             searchQuery: "城管平台 技术栈",
             pathPlan: {
-                ...emptyPathPlan(),
-                km: [
+                steps: [
                     {
                         id: "km-0",
-                        pathKind: "km" as const,
+                        kind: "km" as const,
                         label: "摘要检索",
                         searchQuery: "城管平台 技术栈",
                         queryType: "tech" as const,
@@ -64,8 +63,8 @@ describe("summarize-route", () => {
             routeMode: "respondEarly" as const,
             compositeSlots: [],
             answerOrder: ["km-0"],
-            routeReason: null,
-            routePlanSource: null,
+            routeReason: undefined,
+            routePlanSource: undefined,
         };
         expect(isPureSummarizeDecision(decision)).toBe(false);
         expect(isSummarizeComposeDecision(decision)).toBe(true);

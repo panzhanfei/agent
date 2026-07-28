@@ -6,7 +6,7 @@ import { ENUMERATION_EXHAUSTIVE_PAGE_SIZE } from "@/agentflow/agents/online/corp
 import {
     ENUMERATION_ACTION_PROMPTS,
     type EnumerationListKind,
-} from "@/agentflow/agents/online/intake-coordinator/enumeration";
+} from "@/agentflow/agents/online/corpus-lister/enumeration";
 
 export const hitDisplayTitle = (hit: KnowledgeHit): string => {
     const title = hit.title?.trim();

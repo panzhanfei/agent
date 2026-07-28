@@ -16,7 +16,7 @@ const base = (): RoutedIntakeDecision => ({
   searchQuery: "q",
   queryType: "default",
   retrievalPlan: [],
-  routeMode: "planExecutor",
+  routeMode: "planFanOut",
   compositeSlots: [],
   pathPlan: emptyPathPlan(),
   answerOrder: [],
@@ -55,11 +55,10 @@ describe("resolveIntakeGraphRouteMode", () => {
       resolveIntakeGraphRouteMode({
         ...base(),
         pathPlan: {
-          ...emptyPathPlan(),
-          list: [
+          steps: [
             {
               id: "list-0",
-              pathKind: "list",
+              kind: "list",
               label: "项目",
               searchQuery: "项目",
               queryType: "enumeration",
@@ -92,27 +91,27 @@ describe("resolveIntakeGraphRouteMode", () => {
     ).toBe("listRetriever");
   });
 
-  it("maps km+dag to planExecutor (coexist)", () => {
+  it("maps km+dag to planFanOut (coexist)", () => {
     expect(
       resolveIntakeGraphRouteMode({
         ...base(),
         pathPlan: {
-          ...emptyPathPlan(),
-          km: [
+          steps: [
             {
               id: "km-0",
-              pathKind: "km",
+              kind: "km",
               label: "年龄",
               searchQuery: "年龄",
               queryType: "identity",
               topics: [],
             },
-          ],
-          dag: [
             {
               id: "dag-0",
-              pathKind: "dag",
+              kind: "dag",
               label: "评估",
+              searchQuery: "评估",
+              queryType: "default",
+              topics: [],
               template: "hybrid_multi_source",
             },
           ],
@@ -137,6 +136,41 @@ describe("resolveIntakeGraphRouteMode", () => {
           },
         ],
       })
-    ).toBe("planExecutor");
+    ).toBe("planFanOut");
+  });
+
+  it("maps retrieve + remember side-effect fields to planFanOut (not exclusive userFact)", () => {
+    expect(
+      resolveIntakeGraphRouteMode({
+        ...base(),
+        intent: "retrieve_and_answer",
+        userFactKey: "qq",
+        userFactLabel: "QQ号",
+        userFactValue: "734858469",
+        pathPlan: {
+          steps: [
+            {
+              id: "km-0",
+              kind: "km",
+              label: "姓名",
+              searchQuery: "姓名",
+              queryType: "identity",
+              topics: ["personal"],
+              identityField: "name",
+            },
+          ],
+        },
+        compositeSlots: [
+          {
+            id: "km-0",
+            label: "姓名",
+            searchQuery: "姓名",
+            queryType: "identity",
+            topics: ["personal"],
+            subTasks: ["姓名"],
+          },
+        ],
+      })
+    ).toBe("planFanOut");
   });
 });

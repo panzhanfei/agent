@@ -183,6 +183,22 @@ export const routeUserFactFromIntake = (
     return null;
 };
 
+/**
+ * 同轮 remember side-effect：retrieve_and_answer 且已填 userFactKey+Value。
+ * 供 plan-fanout 并行 userFactSide；不改变纯 remember/recall 早退路径。
+ */
+export const routeUserFactSideEffect = (
+    decision: IntakeRoutingDecision
+): UserFactRoute | null => {
+    if (decision.intent !== "retrieve_and_answer") return null;
+    const factKey = normalizeFactKey(decision.userFactKey ?? "");
+    if (!factKey) return null;
+    const value = decision.userFactValue?.trim();
+    if (!value) return null;
+    const label = decision.userFactLabel?.trim() || factKey;
+    return { action: "remember", factKey, label, value };
+};
+
 export const findUserFactValueInTexts = (
     texts: string[],
     factKey: string,

@@ -5,7 +5,7 @@ import type {
     KnowledgeRetrievalResult,
 } from "@/agentflow/agents/online/knowledge-manager";
 
-/** list 槽检索结果（与 fetchListSlot 输出对齐；planExecutor 混槽仍走 KM merge） */
+/** list 槽检索结果（与 fetchListSlot 输出对齐；planFanOut 混槽仍走 KM merge） */
 export type ListSlotRetrieval = {
     hits: KnowledgeHit[];
     coverage: KnowledgeRetrievalResult["coverage"];

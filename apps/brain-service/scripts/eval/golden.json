@@ -1,6 +1,6 @@
 {
   "version": 2,
-  "description": "Eval：对齐 PathPlan 架构（plan_executor 主检索；user_fact 记忆；listRetriever 对外仍报 retrieval；无独立 fact_checker 图节点）",
+  "description": "Eval：对齐 PathPlan + planFanOut（SSE 仍报 plan_executor；user_fact 记忆/side-effect；listRetriever 对外仍报 retrieval）",
   "cases": [
     {
       "id": "G1",
@@ -222,6 +222,20 @@
         "answerMustIncludeAll": ["云联智慧", "友谊时光"],
         "answerRe": "项目|城管|agents|aky|flattening|独立开源"
       }
+    },
+    {
+      "id": "E2E-five-composite",
+      "tier": "pipeline",
+      "label": "五连问：姓名+年龄+记住QQ side-effect+履历list+开源链接",
+      "question": "我叫什么？今年多大？我的qq是734858469，请帮我记住。列出我的履历。近两年开源项目的GitHub地址是什么？",
+      "assert": {
+        "mustIncludeSteps": ["plan_executor", "analyst"],
+        "mustIncludeAnySteps": [["user_fact", "plan_executor"]],
+        "minAnswerLength": 40,
+        "answerRe": "潘展飞",
+        "answerMustIncludeAll": ["潘展飞"],
+        "answerMustNotRe": "未能生成回复|未找到与「近两年"
+      }
     }
   ],
   "memProbe": {
@@ -315,6 +329,32 @@
           "mustIncludeSteps": ["retrieval", "analyst"],
           "answerRe": "城市管理平台|96611|帮扶宝",
           "minAnswerLength": 120
+        }
+      }
+    ]
+  },
+  "fiveCompositeProbe": {
+    "id": "E2E-five-composite-probe",
+    "label": "五连问分轮：remember QQ 单轮 + 四槽语料复合",
+    "conversationIdPrefix": "eval-five",
+    "turns": [
+      {
+        "question": "我的qq是734858469，请帮我记住",
+        "assert": {
+          "mustIncludeSteps": ["user_fact"],
+          "answerRe": "734858469",
+          "answerMustNotRe": "未能生成回复"
+        }
+      },
+      {
+        "question": "我叫什么？今年多大？列出我的履历。近两年开源项目的GitHub地址是什么？",
+        "assert": {
+          "mustIncludeAnySteps": [["plan_executor", "retrieval"]],
+          "mustIncludeSteps": ["analyst"],
+          "answerRe": "潘展飞",
+          "answerMustIncludeAll": ["潘展飞"],
+          "minAnswerLength": 40,
+          "answerMustNotRe": "未能生成回复"
         }
       }
     ]

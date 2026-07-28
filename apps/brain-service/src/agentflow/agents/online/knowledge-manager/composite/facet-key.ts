@@ -12,7 +12,7 @@
 import { normalizeSearchQuery } from "@fambrain/infra";
 import type { CachedFacetAnswer } from "@fambrain/infra";
 import type { CompositeRetrievalSlot } from "@/agentflow/agents/online/intake-coordinator";
-import type { EnumerationControlAction } from "@/agentflow/agents/online/intake-coordinator/enumeration";
+import type { EnumerationControlAction } from "@/agentflow/agents/online/corpus-lister/enumeration";
 import {
     canonicalizePlanItem,
     resolveEnumerationTarget,

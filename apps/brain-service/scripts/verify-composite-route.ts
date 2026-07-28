@@ -66,7 +66,7 @@ assertSync("retrievalPlan ≥2 → slots×2", () => {
     subTasks: ["姓名", "项目经历"],
   };
   const out = applyCompositeRouteGuard(decision, "综合问");
-  if (out.routeMode !== "planExecutor" || out.compositeSlots.length !== 2) {
+  if (out.routeMode !== "planFanOut" || out.compositeSlots.length !== 2) {
     throw new Error(`期望 slots×2，实际 ${out.routeMode}/${out.compositeSlots.length}`);
   }
   if (out.routeReason !== "intake_retrieval_plan") {
@@ -132,7 +132,7 @@ assertSync("P0-15 五连问（有 plan）→ Intake retrievalPlan slots", () => 
     },
     q
   );
-  if (out.routeMode !== "planExecutor" || out.compositeSlots.length < 5) {
+  if (out.routeMode !== "planFanOut" || out.compositeSlots.length < 5) {
     throw new Error(
       `期望 slots≥5槽，实际 ${out.routeMode}/${out.compositeSlots.length}`
     );
@@ -232,7 +232,7 @@ assertSync("有 retrievalPlan 列举 → plan×1 employers 语义", () => {
     "供职过哪些单位？"
   );
   if (
-    out.routeMode !== "planExecutor" ||
+    out.routeMode !== "planFanOut" ||
     out.compositeSlots.length !== 1 ||
     out.compositeSlots[0]?.queryType !== "enumeration"
   ) {
@@ -259,7 +259,7 @@ assertSync("有 retrievalPlan tech → plan×1", () => {
     },
     "城管平台用了什么技术"
   );
-  if (out.routeMode !== "planExecutor" || out.compositeSlots.length !== 1) {
+  if (out.routeMode !== "planFanOut" || out.compositeSlots.length !== 1) {
     throw new Error(`实际 ${out.routeMode}/${out.compositeSlots.length}`);
   }
 });
@@ -296,7 +296,7 @@ assertSync("有 retrievalPlan 年龄 → plan×1 identity", () => {
     },
     q
   );
-  if (out.routeMode !== "planExecutor" || out.compositeSlots.length !== 1) {
+  if (out.routeMode !== "planFanOut" || out.compositeSlots.length !== 1) {
     throw new Error(`期望 plan×1，实际 ${out.routeMode}/${out.compositeSlots.length}`);
   }
   if (!out.searchQuery.includes("个人简介") || !out.searchQuery.includes("年龄")) {
@@ -328,7 +328,7 @@ assertSync("有 retrievalPlan 年龄口语 → plan×1 identity", () => {
     q
   );
   if (
-    out.routeMode !== "planExecutor" ||
+    out.routeMode !== "planFanOut" ||
     out.compositeSlots.length !== 1 ||
     out.compositeSlots[0]?.queryType !== "identity"
   ) {

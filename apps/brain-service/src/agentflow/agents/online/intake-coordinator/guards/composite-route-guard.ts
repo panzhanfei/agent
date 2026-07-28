@@ -54,7 +54,7 @@ const applySlotsDecision = (
   const routed: RoutedIntakeDecision = {
     ...decision,
     intent: "retrieve_and_answer",
-    routeMode: "planExecutor",
+    routeMode: "planFanOut",
     compositeSlots: slots,
     pathPlan: emptyPathPlan(),
     answerOrder: slots.map((s) => String(s.id)),

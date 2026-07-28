@@ -17,11 +17,11 @@ import {
     resolveEnumerationPagination,
     type EnumerationControl,
     type EnumerationListKind,
-} from "../enumeration";
+} from "@/agentflow/agents/online/corpus-lister/enumeration";
 import {
     deriveCompositeSlotsFromPathPlan,
     deriveRetrievalPlanFromPathPlan,
-    type ListStep,
+    type ExecutionStep,
     type PathPlan,
 } from "@/agentflow/agents/online/intake-coordinator/path-plan";
 import type {
@@ -53,7 +53,7 @@ const listSlotTemplate = (
     };
 };
 
-/** 合成单槽 list 路由（UI exact-match / 脚本用）；直接构造 pathPlan.list + answerOrder */
+/** 合成单槽 list 路由（UI exact-match / 脚本用）；直接构造 pathPlan.steps */
 export const buildEnumerationListDecision = (input: {
     userQuestion: string;
     listKind: EnumerationListKind;
@@ -72,9 +72,9 @@ export const buildEnumerationListDecision = (input: {
     const slot = listSlotTemplate(input.listKind, control);
     slot.enumerationPage = input.page;
     slot.enumerationPageSize = input.pageSize;
-    const listStep: ListStep = {
+    const listStep: ExecutionStep = {
         id: String(slot.id),
-        pathKind: "list",
+        kind: "list",
         label: slot.label,
         searchQuery: slot.searchQuery,
         queryType: "enumeration",
@@ -83,22 +83,15 @@ export const buildEnumerationListDecision = (input: {
         enumerationControl: control,
         enumerationPage: input.page,
         enumerationPageSize: input.pageSize,
+        toolId: "compose_enumeration",
+        dataSource: "corpus",
     };
     const pathPlan: PathPlan = {
-        km: [],
-        list: [listStep],
-        tool: [],
-        dag: [],
+        steps: [listStep],
     };
     const answerOrder = [listStep.id];
-    const compositeSlots = deriveCompositeSlotsFromPathPlan(
-        pathPlan,
-        answerOrder
-    );
-    const retrievalPlan = deriveRetrievalPlanFromPathPlan(
-        pathPlan,
-        answerOrder
-    );
+    const compositeSlots = deriveCompositeSlotsFromPathPlan(pathPlan);
+    const retrievalPlan = deriveRetrievalPlanFromPathPlan(pathPlan);
     const routed: RoutedIntakeDecision = {
         intent: "retrieve_and_answer",
         searchQuery: slot.searchQuery,
@@ -268,7 +261,7 @@ export const applyEnumerationSlotGuard = (
                 ? decision.queryType
                 : "enumeration"
             : decision.queryType,
-        routeMode: "planExecutor",
+        routeMode: "planFanOut",
     };
     next.routeMode = resolveIntakeGraphRouteMode(next);
     return next;

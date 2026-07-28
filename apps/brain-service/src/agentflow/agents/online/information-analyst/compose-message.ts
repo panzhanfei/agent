@@ -9,7 +9,7 @@ import type {
 import type { KnowledgeHit } from "@/agentflow/agents/online/knowledge-manager";
 import type { EnumerationMeta } from "@/agentflow/agents/online/knowledge-manager";
 import { isProjectEnumeration } from "@/agentflow/agents/online/intake-coordinator";
-import { enumerationActionPrompt } from "@/agentflow/agents/online/intake-coordinator/enumeration";
+import { enumerationActionPrompt } from "@/agentflow/agents/online/corpus-lister/enumeration";
 import { formatSubQuestionSection } from "./analyze-helpers";
 import {
     enumerationStartIndex,

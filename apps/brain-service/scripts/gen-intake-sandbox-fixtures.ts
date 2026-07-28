@@ -23,6 +23,7 @@ import {
   legalizeAnswerOrder,
   legalizeComposeMode,
   legalizePathPlan,
+  pathPlanBuckets,
 } from "@/agentflow/agents/online/intake-coordinator/path-plan";
 import { resolveIntakeGraphRouteMode } from "@/agentflow/agents/online/intake-coordinator/pipeline/resolve-graph-route-mode";
 import { isUserFactIntent } from "@/agentflow/agents/online/user-fact";
@@ -69,11 +70,12 @@ const pick = (d: IntakeRoutingDecision | RoutedIntakeDecision) => {
       identityField: s.identityField ?? null,
       enumerationControl: s.enumerationControl ?? null,
     }));
+    const buckets = pathPlanBuckets(r.pathPlan);
     base.pathPlan = {
-      km: r.pathPlan?.km?.length ?? 0,
-      list: r.pathPlan?.list?.length ?? 0,
-      tool: r.pathPlan?.tool?.length ?? 0,
-      dag: (r.pathPlan?.dag ?? []).map((x) => x.template),
+      km: buckets.km.length,
+      list: buckets.list.length,
+      tool: buckets.tool.length,
+      dag: buckets.dag.map((x) => x.template),
     };
     base.listIntent = r.listIntent ?? null;
     base.enrichedToolIds = (r.enrichedPlan ?? [])
@@ -341,7 +343,7 @@ const runChain = async (input: {
     composeMode,
     retrievalPlan,
     compositeSlots,
-    routeMode: "planExecutor",
+    routeMode: "planFanOut",
     routeReason: "intake_path_plan",
     routePlanSource: "intake_path_plan",
     executionPlan,
@@ -469,10 +471,10 @@ const main = async () => {
         subTasks: ["开源 GitHub"],
         confidence: 0.88,
         pathPlan: {
-          km: [
+          steps: [
             {
               id: "km-links",
-              pathKind: "km",
+              kind: "km",
               label: "开源 GitHub 链接",
               searchQuery: "个人简介 简历 开源 GitHub 对外链接",
               queryType: "external_link",
@@ -482,9 +484,6 @@ const main = async () => {
               dataSource: "corpus",
             },
           ],
-          list: [],
-          tool: [],
-          dag: [],
         },
         answerOrder: ["km-links"],
         composeMode: "qa",
@@ -520,10 +519,10 @@ const main = async () => {
         confidence: 0.7,
         subTasks: ["姓名"],
         pathPlan: {
-          km: [
+          steps: [
             {
               id: "km-name",
-              pathKind: "km",
+              kind: "km",
               label: "姓名",
               searchQuery: "个人简介 简历 姓名",
               queryType: "identity",
@@ -533,9 +532,6 @@ const main = async () => {
               dataSource: "corpus",
             },
           ],
-          list: [],
-          tool: [],
-          dag: [],
         },
         answerOrder: ["km-name"],
         composeMode: "qa",
@@ -568,10 +564,10 @@ const main = async () => {
         subTasks: ["年龄"],
         confidence: 0.92,
         pathPlan: {
-          km: [
+          steps: [
             {
               id: "km-age",
-              pathKind: "km",
+              kind: "km",
               label: "年龄",
               searchQuery: "个人简介 简历 年龄 出生年份 出生日期",
               queryType: "identity",
@@ -581,9 +577,6 @@ const main = async () => {
               dataSource: "compute",
             },
           ],
-          list: [],
-          tool: [],
-          dag: [],
         },
         answerOrder: ["km-age"],
         composeMode: "qa",
@@ -629,24 +622,10 @@ const main = async () => {
         subTasks: ["列举所有项目", "开源 GitHub"],
         confidence: 0.9,
         pathPlan: {
-          km: [
-            {
-              id: "km-links",
-              pathKind: "km",
-              label: "开源项目的 GitHub 与线上地址",
-              searchQuery:
-                "个人简介 简历 开源 对外链接 仓库地址 线上预览 URL GitHub",
-              queryType: "external_link",
-              topics: ["personal", "resume", "project"],
-              identityField: null,
-              toolId: "extract_external_links_from_hits",
-              dataSource: "corpus",
-            },
-          ],
-          list: [
+          steps: [
             {
               id: "list-projects",
-              pathKind: "list",
+              kind: "list",
               label: "列举所有项目名称",
               searchQuery: "项目经历 全部项目 项目名称",
               queryType: "enumeration",
@@ -658,9 +637,19 @@ const main = async () => {
                 timeWindowYears: null,
               },
             },
+            {
+              id: "km-links",
+              kind: "km",
+              label: "开源项目的 GitHub 与线上地址",
+              searchQuery:
+                "个人简介 简历 开源 对外链接 仓库地址 线上预览 URL GitHub",
+              queryType: "external_link",
+              topics: ["personal", "resume", "project"],
+              identityField: null,
+              toolId: "extract_external_links_from_hits",
+              dataSource: "corpus",
+            },
           ],
-          tool: [],
-          dag: [],
         },
         answerOrder: ["list-projects", "km-links"],
         composeMode: "composite",
@@ -680,11 +669,10 @@ const main = async () => {
         subTasks: ["项目经历"],
         confidence: 0.93,
         pathPlan: {
-          km: [],
-          list: [
+          steps: [
             {
               id: "list-projects",
-              pathKind: "list",
+              kind: "list",
               label: "项目经历",
               searchQuery: "项目经历 全部项目 项目名称",
               queryType: "enumeration",
@@ -697,8 +685,6 @@ const main = async () => {
               },
             },
           ],
-          tool: [],
-          dag: [],
         },
         answerOrder: ["list-projects"],
         composeMode: "qa",

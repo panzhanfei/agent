@@ -6,7 +6,13 @@ import { runRespondEarlyNode } from "@/agentflow/agents/online/respond-early";
 import { userFactNode } from "@/agentflow/agents/online/user-fact";
 import { runAnalystNode } from "@/agentflow/agents/online/information-analyst";
 import { runListRetrieverNode } from "@/agentflow/agents/online/corpus-lister/nodes";
-import { runPlanExecutorNode } from "@/agentflow/agents/online/plan-executor";
+import {
+  runKmRetrieveNode,
+  runPlanSlotPostNode,
+  runPlanDagNode,
+  runPlanMergeNode,
+  runUserFactSideNode,
+} from "@/agentflow/agents/online/plan-fanout";
 import {
   runPreparePipelineMemory,
   runPrepareTurnStart,
@@ -19,7 +25,7 @@ import { runPersistTurnEnd } from "@/agentflow/agents/online/persist-turn-end";
 import { PipelineGraphAnnotation } from "./state";
 import {
   routeAfterIntake,
-  routeAfterPlanExecutor,
+  routeAfterPlanMerge,
   routeAfterContentOrganizer,
   routeAfterContentSummarizer,
   routeAfterPrepareMemory,
@@ -34,7 +40,11 @@ const buildPipelineGraph = () => {
     .addNode("preparePipelineMemory", runPreparePipelineMemory)
     .addNode("intake", runIntakeNode)
     .addNode("listRetriever", runListRetrieverNode)
-    .addNode("planExecutor", runPlanExecutorNode)
+    .addNode("kmRetrieve", runKmRetrieveNode)
+    .addNode("planSlotPost", runPlanSlotPostNode)
+    .addNode("planDag", runPlanDagNode)
+    .addNode("userFactSide", runUserFactSideNode)
+    .addNode("planMerge", runPlanMergeNode)
     .addNode("contentSummarizer", runContentSummarizerNode)
     .addNode("contentOrganizer", runContentOrganizerNode)
     .addNode("analyst", runAnalystNode)
@@ -49,7 +59,12 @@ const buildPipelineGraph = () => {
     .addEdge("listRetriever", "contentOrganizer")
     .addEdge("userFact", "persistTurnEnd")
     .addEdge("repeatRespondEarly", "persistTurnEnd")
-    .addConditionalEdges("planExecutor", routeAfterPlanExecutor)
+    // 槽路径：KM 检索 → FC/tools → merge；与 dag / remember 并行汇合
+    .addEdge("kmRetrieve", "planSlotPost")
+    .addEdge("planSlotPost", "planMerge")
+    .addEdge("planDag", "planMerge")
+    .addEdge("userFactSide", "planMerge")
+    .addConditionalEdges("planMerge", routeAfterPlanMerge)
     .addConditionalEdges("contentOrganizer", routeAfterContentOrganizer)
     .addConditionalEdges("contentSummarizer", routeAfterContentSummarizer)
     .addEdge("analyst", "persistTurnEnd")

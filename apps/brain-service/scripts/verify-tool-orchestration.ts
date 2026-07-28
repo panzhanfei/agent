@@ -142,11 +142,11 @@ console.log("\n— hybrid DAG intent —");
         },
         q
     );
-    assert.equal(routed.routeMode, "planExecutor");
+    assert.equal(routed.routeMode, "planFanOut");
     assert.ok((routed.executionPlan?.length ?? 0) >= 3);
     const synth = routed.executionPlan?.find((n) => n.id === "synthesis");
     assert.ok(synth?.deps.includes("resume"));
-    ok("topics 含 external+corpus → routeMode=planExecutor + executionPlan");
+    ok("topics 含 external+corpus → routeMode=planFanOut + executionPlan");
 }
 
 console.log("\n— resolvePostRetrievalToolRuns —");

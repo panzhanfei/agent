@@ -17,7 +17,7 @@ import {
   parseIntakeDecision,
 } from "./parse-intake";
 import type { IntakeRoutingDecision } from "@/agentflow/agents/online/intake-coordinator/contract";
-import {
+  import {
   defaultComposeMode,
   deriveCompositeSlotsFromPathPlan,
   deriveRetrievalPlanFromPathPlan,
@@ -28,6 +28,7 @@ import {
   legalizeAnswerOrder,
   legalizeComposeMode,
   legalizePathPlan,
+  reorderPathPlanByAnswerOrder,
 } from "@/agentflow/agents/online/intake-coordinator/path-plan";
 import { isUserFactIntent } from "@/agentflow/agents/online/user-fact";
 import { logAgentOut } from "@fambrain/brain-shared/agent-log";
@@ -49,12 +50,15 @@ const summarizeDecision = (
   retrievalPlanLabels: (decision.retrievalPlan ?? []).map((p) => p.label),
   answerOrder: decision.answerOrder ?? [],
   pathPlanCounts: decision.pathPlan
-    ? {
-        km: decision.pathPlan.km?.length ?? 0,
-        list: decision.pathPlan.list?.length ?? 0,
-        tool: decision.pathPlan.tool?.length ?? 0,
-        dag: decision.pathPlan.dag?.length ?? 0,
-      }
+    ? (() => {
+        const steps = decision.pathPlan.steps ?? [];
+        return {
+          km: steps.filter((s) => s.kind === "km").length,
+          list: steps.filter((s) => s.kind === "list").length,
+          tool: steps.filter((s) => s.kind === "tool").length,
+          dag: steps.filter((s) => s.kind === "dag").length,
+        };
+      })()
     : null,
   userFactKey: decision.userFactKey,
   userFactLabel: decision.userFactLabel,
@@ -81,19 +85,24 @@ const guardChanged = (
 
 /**
  * 早退包装：把 IntakeRoutingDecision 升成 RoutedIntakeDecision，但不安排检索。
+ * routeMode 走 resolveIntakeGraphRouteMode（remember/recall → userFact，勿一律 respondEarly）。
  */
 export const buildEarlyExitRoutedDecision = (
   decision: IntakeRoutingDecision
-): RoutedIntakeDecision => ({
-  ...decision,
-  routeMode: "respondEarly",
-  compositeSlots: [],
-  pathPlan: emptyPathPlan(),
-  answerOrder: [],
-  composeMode: defaultComposeMode(),
-  routeReason: "skip_non_retrieve",
-  routePlanSource: "none",
-});
+): RoutedIntakeDecision => {
+  const routed: RoutedIntakeDecision = {
+    ...decision,
+    routeMode: "respondEarly",
+    compositeSlots: [],
+    pathPlan: emptyPathPlan(),
+    answerOrder: [],
+    composeMode: defaultComposeMode(),
+    routeReason: "skip_non_retrieve",
+    routePlanSource: "none",
+  };
+  routed.routeMode = resolveIntakeGraphRouteMode(routed);
+  return routed;
+};
 
 /** LLM 判定需反问（无上下文或指代无法消解）→ pipeline 早退 */
 export const isClarifyEarlyExit = (decision: IntakeRoutingDecision): boolean =>
@@ -324,6 +333,7 @@ export const runIntakePipeline = async (
   }
 
   const answerOrder = legalizeAnswerOrder(decision.answerOrder, pathPlan);
+  pathPlan = reorderPathPlanByAnswerOrder(pathPlan, answerOrder);
   const composeMode =
     decision.intent === "summarize_content"
       ? "summarize"
@@ -332,23 +342,29 @@ export const runIntakePipeline = async (
   logAgentOut("IntakeCoordinator", "guard_PathPlan", {
     reason: "legalized",
     composeMode,
-    answerOrder,
-    km: pathPlan.km.length,
-    list: pathPlan.list.length,
-    tool: pathPlan.tool.length,
-    dag: pathPlan.dag.map((d) => d.template),
+    answerOrder: pathPlan.steps.map((s) => s.id),
+    steps: pathPlan.steps.map((s) => ({
+      id: s.id,
+      kind: s.kind,
+      queryType: s.queryType,
+      toolId: s.toolId ?? null,
+    })),
+    km: pathPlan.steps.filter((s) => s.kind === "km").length,
+    list: pathPlan.steps.filter((s) => s.kind === "list").length,
+    tool: pathPlan.steps.filter((s) => s.kind === "tool").length,
+    dag: pathPlan.steps
+      .filter((s) => s.kind === "dag")
+      .map((d) => d.template),
   });
 
   /** ⑦ list 步补页码（从 history blocks） */
   const paginationHistory = input.history ?? input.intakeHistory;
   pathPlan = fillListPagesInPathPlan(pathPlan, paginationHistory);
 
-  /** ⑧ 按 answerOrder 派生 compositeSlots / retrievalPlan；hybrid DAG 展开 */
-  const compositeSlots = deriveCompositeSlotsFromPathPlan(
-    pathPlan,
-    answerOrder
-  );
-  const retrievalPlan = deriveRetrievalPlanFromPathPlan(pathPlan, answerOrder);
+  /** ⑧ 按 steps 顺序派生 compositeSlots / retrievalPlan；hybrid DAG 展开 */
+  const finalAnswerOrder = pathPlan.steps.map((s) => s.id);
+  const compositeSlots = deriveCompositeSlotsFromPathPlan(pathPlan);
+  const retrievalPlan = deriveRetrievalPlanFromPathPlan(pathPlan);
   const executionPlan = executionPlanFromPathPlanDag(
     pathPlan,
     input.userQuestion,
@@ -377,7 +393,9 @@ export const runIntakePipeline = async (
   if (executionPlan) {
     logAgentOut("IntakeCoordinator", "guard_工具计划", {
       executionPlanCount: executionPlan.length,
-      dagTemplates: pathPlan.dag.map((d) => d.template),
+      dagTemplates: pathPlan.steps
+        .filter((d) => d.kind === "dag")
+        .map((d) => d.template),
       compositeSlotCount: compositeSlots.length,
     });
   }
@@ -385,11 +403,11 @@ export const runIntakePipeline = async (
   const routed: RoutedIntakeDecision = {
     ...decision,
     pathPlan,
-    answerOrder,
+    answerOrder: finalAnswerOrder,
     composeMode,
     retrievalPlan,
     compositeSlots,
-    routeMode: "planExecutor",
+    routeMode: "planFanOut",
     routeReason: "intake_path_plan",
     routePlanSource: "intake_path_plan",
     executionPlan,
@@ -410,10 +428,10 @@ export const runIntakePipeline = async (
     ...summarizeDecision(routed),
     composeMode: routed.composeMode,
     pathPlanCounts: {
-      km: routed.pathPlan.km.length,
-      list: routed.pathPlan.list.length,
-      tool: routed.pathPlan.tool.length,
-      dag: routed.pathPlan.dag.length,
+      km: routed.pathPlan.steps.filter((s) => s.kind === "km").length,
+      list: routed.pathPlan.steps.filter((s) => s.kind === "list").length,
+      tool: routed.pathPlan.steps.filter((s) => s.kind === "tool").length,
+      dag: routed.pathPlan.steps.filter((s) => s.kind === "dag").length,
     },
   });
   return { decision: routed, parseUsedFallback, earlyExit: false };

@@ -8,7 +8,7 @@ import { flattenListRetrieval } from "../flatten-list-retrieval";
  * LangGraph `listRetriever` 节点：纯列举分页（UI 短路 / exhaustive / continue）。
  *
  * 入口：Intake 将 routeMode 收成 `listRetriever`（pathPlan 仅 list 槽、无 km/tool/dag）。
- * 跳过 planExecutor、FC、tool 编排；后段 contentOrganizer → analyst（不经 contentSummarizer）。
+ * 跳过 planFanOut、FC、tool 编排；后段 contentOrganizer → analyst（不经 contentSummarizer）。
  */
 export const runListRetrieverNode = async (
     state: PipelineGraphState

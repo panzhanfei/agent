@@ -12,6 +12,7 @@ import { listCorpusUserIds } from "@/agentflow/agents/offline/knowledge-indexer/
 import { runPipelineStream } from "@/agentflow/index";
 import {
     completeIntakeCoordinator,
+    pathPlanBuckets,
     runIntakePipeline,
 } from "@/agentflow/agents/online/intake-coordinator";
 import { bootstrapBrainServiceRuntime } from "@/config";
@@ -52,11 +53,12 @@ console.log("  composeMode:", decision.composeMode);
 console.log("  routeReason:", decision.routeReason);
 const pp = decision.pathPlan;
 if (pp) {
+    const buckets = pathPlanBuckets(pp);
     console.log("  pathPlan:", {
-        km: pp.km.map((s) => `${s.id}:${s.label}(${s.queryType})`),
-        list: pp.list.map((s) => `${s.id}:${s.label}`),
-        tool: pp.tool.map((s) => `${s.id}:${s.toolId}`),
-        dag: pp.dag.map((s) => `${s.id}:${s.template}`),
+        km: buckets.km.map((s) => `${s.id}:${s.label}(${s.queryType})`),
+        list: buckets.list.map((s) => `${s.id}:${s.label}`),
+        tool: buckets.tool.map((s) => `${s.id}:${s.toolId}`),
+        dag: buckets.dag.map((s) => `${s.id}:${s.template}`),
     });
 }
 console.log("  compositeSlots:", (decision.compositeSlots ?? []).length);

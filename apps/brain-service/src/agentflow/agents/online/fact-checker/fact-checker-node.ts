@@ -1,5 +1,5 @@
 /**
- * @deprecated 图已改用 planExecutor 内嵌 per-step FC。
+ * @deprecated 图已改用 planFanOut 内嵌 per-step FC。
  * 保留节点实现供旧脚本 / 调试直接调用。
  */
 import { runPerStepFactChecks } from "./check-step";

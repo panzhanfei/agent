@@ -2,6 +2,7 @@
 
 export {
     routeUserFactFromIntake,
+    routeUserFactSideEffect,
     isUserFactIntent,
     parseUserFactRecord,
     serializeUserFactRecord,

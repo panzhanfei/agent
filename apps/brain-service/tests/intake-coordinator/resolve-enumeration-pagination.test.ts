@@ -3,7 +3,7 @@ import type { AssistantMessageBlock } from "@fambrain/brain-types";
 import {
     findLastEnumerationBlock,
     resolveEnumerationPagination,
-} from "@/agentflow/agents/online/intake-coordinator/enumeration";
+} from "@/agentflow/agents/online/corpus-lister/enumeration";
 import { ENUMERATION_EXHAUSTIVE_PAGE_SIZE } from "@/agentflow/agents/online/corpus-lister/list";
 
 const previewBlock = (

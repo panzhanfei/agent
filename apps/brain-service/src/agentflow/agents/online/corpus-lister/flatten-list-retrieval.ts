@@ -2,7 +2,7 @@ import type { FlattenedListRetrieval, ListSlotRetrieval } from "./interface";
 
 /**
  * 纯 list 线路：将 fetchListSlot 结果摊平为 PipelineGraphState 检索字段。
- * 不调用 KM mergeCompositeRetrieval（多槽合并留在 planExecutor / retrieval-node）。
+ * 不调用 KM mergeCompositeRetrieval（多槽合并留在 planFanOut / retrieval-node）。
  */
 export const flattenListRetrieval = (
     subResults: ListSlotRetrieval[]

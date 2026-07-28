@@ -133,7 +133,7 @@ export const applyToolPlanGuard = (
     ) {
         const next: RoutedIntakeDecision = {
             ...decision,
-            routeMode: "planExecutor",
+            routeMode: "planFanOut",
             compositeSlots: enrichedSlots,
             retrievalPlan: enrichedPlan.map(
                 ({ label, searchQuery, queryType, topics }) => ({

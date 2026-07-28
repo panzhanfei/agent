@@ -4,6 +4,7 @@ import {
     applyPathPlanGuard,
     compilePathPlan,
     emptyPathPlan,
+    stepsOfKind,
     type RoutedIntakeDecision,
 } from "@/agentflow/agents/online/intake-coordinator";
 
@@ -39,7 +40,7 @@ const base = (): RoutedIntakeDecision => ({
     userFactKey: null,
     userFactLabel: null,
     userFactValue: null,
-    routeMode: "planExecutor",
+    routeMode: "planFanOut",
     compositeSlots: [],
     pathPlan: emptyPathPlan(),
     answerOrder: [],
@@ -56,13 +57,17 @@ describe("compilePathPlan", () => {
             routed,
             "列出所有项目并告诉我开源 GitHub"
         );
-        expect(pathPlan.dag).toHaveLength(0);
+        expect(stepsOfKind(pathPlan, "dag")).toHaveLength(0);
         expect(
-            pathPlan.km.some((k) => k.queryType === "external_link")
+            stepsOfKind(pathPlan, "km").some(
+                (k) => k.queryType === "external_link"
+            )
         ).toBe(true);
         expect(
-            pathPlan.list.length > 0 ||
-                pathPlan.km.some((k) => k.queryType === "enumeration")
+            stepsOfKind(pathPlan, "list").length > 0 ||
+                stepsOfKind(pathPlan, "km").some(
+                    (k) => k.queryType === "enumeration"
+                )
         ).toBe(true);
         expect(composeMode).toBe("composite");
     });
@@ -122,7 +127,7 @@ describe("compilePathPlan", () => {
             routed,
             "我今年多大了？叫什么？列出项目和开源地址"
         );
-        expect(withPlan.pathPlan.dag).toHaveLength(0);
+        expect(stepsOfKind(withPlan.pathPlan, "dag")).toHaveLength(0);
         expect(withPlan.composeMode).toBe("composite");
         expect(withPlan.compositeSlots.map((s) => s.queryType)).toEqual([
             "identity",

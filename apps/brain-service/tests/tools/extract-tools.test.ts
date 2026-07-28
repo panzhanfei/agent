@@ -138,6 +138,27 @@ describe("extractExternalLinks", () => {
         ]);
     });
 
+    it("strips temporal oral tokens so「近两年」does not filter all links", () => {
+        const excerpt = [
+            "- Sentinel GitHub：<https://github.com/acme/sentinel-monorepo>",
+            "- release-bot GitHub：<https://github.com/acme/release-bot>",
+        ].join("\n");
+        const scope = { label: "近两年开源项目的GitHub地址是什么" };
+        const links = extractExternalLinksFromHits([hit(excerpt)], scope);
+        expect(links.map((l) => l.url)).toEqual([
+            "https://github.com/acme/sentinel-monorepo",
+            "https://github.com/acme/release-bot",
+        ]);
+        const { answer, insufficientEvidence } = buildExternalLinksAnswer({
+            links,
+            language: "zh",
+            scope,
+        });
+        expect(insufficientEvidence).toBe(false);
+        expect(answer).not.toMatch(/近两年/);
+        expect(answer).toMatch(/github\.com/);
+    });
+
     it("keeps github and preview when scope asks for both", () => {
         const excerpt = [
             "- Sentinel GitHub：<https://github.com/acme/sentinel-monorepo>",
