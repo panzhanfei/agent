@@ -1,29 +1,35 @@
 ---
-description: 禁止问句侧硬编码 / 场景分支；Intake LLM 主导合并拆分，代码只做 schema 与执行
+description: 禁止问句/字段名硬编码与场景分支；Intake LLM 主导规划，代码只做 schema 合法化与执行映射
 alwaysApply: true
 ---
 
-# 禁止场景硬编码（Intake / PathPlan / DAG / 路由）
+# 禁止硬编码（Intake / PathPlan / 路由 / Mem0 / KM 推断）
 
 适用于 `apps/brain-service`、`packages/*`、`apps/web` 等**生产代码**（`src/`）。  
 **允许例外**：`**/*.test.ts`、`**/scripts/verify-*.ts`、`**/scripts/diagnose-*.ts`、文档 few-shot 示例。
 
+**一句话：不许硬编码** — 生产路径不得用用户问句口语、字段名表（qq/wechat/…）、公司/项目/人名、问候词表、口语 refresh 词表去**猜意图或补 plan**；只信 Intake 结构化 JSON + schema→executor 映射。
+
 ## 原则
 
 1. **Intake LLM 负责合并/拆分**：语义相同的子问合并、独立意图拆槽；代码**不得**用口语词表「再规划」替代 LLM。
-2. **路由与执行只信结构化字段**：`queryType` / `identityField` / `topics` / `enumerationControl` / `toolId` / `executor`。
-3. **禁止**用用户问句口语词表、项目名、人名、仓库名、年份驱动分支。
-4. **回答顺序** = Intake `compositeSlots` / `retrievalPlan` 顺序；禁止编译层按 list→km→dag 重排展示。
-5. **DAG 是通用编排原语**（带 `deps` 的多步拓扑），不是「开源链接」等单场景 shortcut。
+2. **路由与执行只信结构化字段**：`queryType` / `identityField` / `topics` / `enumerationControl` / `toolId` / `dataSource` / `userFactKey` / `executor` / `kind`。
+3. **禁止**用用户问句口语词表、Mem0 字段名闭集、项目名、人名、仓库名、年份驱动分支。
+4. **回答顺序** = Intake `pathPlan.steps` / `answerOrder` 顺序；禁止编译层按 list→km→dag 重排展示。
+5. **DAG 是通用编排原语**（带 `deps` 的多步拓扑），不是单场景 named template。
+6. **Mem0 走结构规则**：`dataSource=mem0` / `kind=mem` / `userFactKey`（Intake 产出）；**禁止** `MEM0_ONLY_FACT_KEYS` 或 `factKey===qq` 生产分支。
+7. **KM queryProfile**：Pipeline 主路径**禁止** `inferQueryProfile` 口语正则；只信 Intake `queryType`（未传 → `default`）。
 
 ## 硬编码分类
 
 | 类型 | 例子 | 生产路径 |
 |------|------|----------|
-| A. 问句口语词表 | `labels.includes("多大")`、`/开源\|GitHub/.test(q)`、`IDENTITY_FIELD_SEARCH.labels` 猜意图 | **禁止** |
+| A. 问句/问候口语词表 | `isPureSocialUtterance("你好")`、`/开源\|GitHub/.test(q)`、labels 猜意图 | **禁止** |
+| A2. 用户事实字段名表 | `if (factKey==="qq")`、`extractByFactKey` 按 qq/wechat 分支 | **禁止** |
 | B. 场景/人名/项目名分支 | `if (sentinel)` / named DAG `opensource_links` | **禁止** |
 | C. Schema → 执行映射 | `identityField: age` → `compute_age_from_hits`；`listKind: experience` → 扫 `experience/` | **允许** |
-| D. 语料结构抽取 | 表头 `\| 姓名 \|`、日期区间正则、URL | **允许**（对文档，不对用户口语） |
+| D. 语料结构抽取 | 表头 `\| 姓名 \|`、日期区间、URL（对 **excerpt**，不对用户口语） | **允许** |
+| E. 结构信号（非语义） | 多问号/顿号 multipart、超短无问号≤2 码点→chitchat、UI 按钮 exact-match | **允许**（见下） |
 
 ## 禁止（生产路径）
 
@@ -36,18 +42,24 @@ if (hasEnum && hasExternalLink) {
 // ❌ 按项目名 / 用户名 / 年份分支
 if (label.includes("sentinel") || /潘展飞/.test(q) || year === 2017) { ... }
 
-// ❌ 用口语正则或 labels 词表猜意图（应信 Intake 结构化字段）
+// ❌ 用口语正则或 labels 词表猜意图
 if (/开源|GitHub/.test(userQuestion)) route = "external_link";
-if (IDENTITY_FIELD_SEARCH.age.labels.some((l) => q.includes(l))) { ... }
+
+// ❌ Mem0 字段名注册表或按 key 猜格式
+const MEM0_ONLY = ["qq", "wechat"];
+if (factKey === "qq") return /^\d{5,12}$/.test(v);
+
+// ❌ 无 userFactKey 时用 label 发明字段名（复合 mem 步须 Intake 填 key）
+userFactKey: normalizeFactKey(label) || "问候语"
 
 // ❌ 代码按口语拆/补 retrievalPlan（二次 Intake）
 repairByOralLabels(userQuestion);
 
-// ❌ 编译 PathPlan 时打乱槽顺序再交给 Analyst
-slots = [...listSlots, ...kmSlots, ...dagAsSlots];
+// ❌ 口语 refresh 清 composite cache
+/全部重来|重新介绍/.test(userQuestion)
 
-// ❌ UI 写死 enumeration 表头为「项目名称」（须信 listKind）
-<th>项目名称</th>
+// ❌ normalize 压扁拉丁字母（qq→q）
+if (prev === ch) continue; // 对 a-zA-Z0-9 也 dedupe
 ```
 
 ## 允许
@@ -55,31 +67,37 @@ slots = [...listSlots, ...kmSlots, ...dagAsSlots];
 ```ts
 // ✅ schema → executor / 检索模板（类型系统，不是猜问句）
 IDENTITY_FIELD_BY_ID.age.toolId = "compute_age_from_hits";
-IDENTITY_FIELD_SEARCH.tenure.searchQuery = "…工作经历 时间线…"; // 无 labels 匹配
+POST_RETRIEVAL_TOOL_IDS + isPostRetrievalToolId(toolId);
 
-// ✅ 按结构化 key 去重（非口语）
+// ✅ pathPlan 结构归一（无字段名表）
+dataSource === "mem0" || kind === "mem" → mem 步;
+userFactKey 有 && !identityField → mem;
+
+// ✅ 按结构化 key 去重
 dedupeKey = `${queryType}|${identityField}|${listKind}|${timeWindowYears ?? ""}`;
 
-// ✅ 通用多源 DAG（topics.external + corpus）
-if (decisionSuggestsHybridDag({ topics, planTopics })) {
-  dag.push({ template: "hybrid_multi_source", ... });
-}
+// ✅ 从 excerpt / Intake label 通用抽取（remember 补 value）
+extractLooseValueAfterLabel(text, intakeLabel);
 
-// ✅ 从 excerpt 通用抽取（URL、表头、日期段）
-extractExternalLinksFromHits(hits);
-computeTenureFromHits(hits);
+// ✅ UI 列举按钮 exact-match（ENUMERATION_ACTION_PROMPTS）
+matchUiEnumerationPrompt(userQuestion);
 ```
 
 ## 代码兜底白名单（仅限）
 
 1. Zod/schema 合法化（非法 `queryType` → `default`，不整表丢弃）
-2. 按结构化 key 去重 / 合并重复槽
-3. 空 plan / 解析失败 → clarify 或单槽 default retrieve（**禁止**口语词表拆问）
+2. 按结构化 key 去重 / 合并重复槽；无 key 的 mem 步丢弃或 clarify（**禁止** label→key 发明）
+3. 空 plan / 解析失败 → clarify；无 `{` 散文含问号 → clarifyFallbackFromProse
+4. JSON 解析失败 → **一次** `jsonFormatRepair`（修输出纪律，不当指代触发器）
 
-## 新增能力时的检查清单
+## 新增/改动后检查清单
 
-1. 能否只用 `queryType` / `identityField` / `topics` / `toolId` / `enumerationControl` 表达？能则**不要**新 template / 口语 if。
-2. 若需要多步依赖：用**通用** `ExecutionPlanNode[]` + `deps`，或扩展现有 `hybrid_multi_source`。
-3. 常量字符串仅用于：语料目录约定、UI 按钮 exact-match、空结果文案、schema 枚举、测试断言。
-4. 测试/diagnose 可断言语料事实；**生产路径**不可写死年份/公司/项目名。
-5. 改完后跑相关 `verify:*` / `test:unit`。
+1. 能否只用结构化字段表达？能则**不要**新 template / 口语 if / 字段名表。
+2. 多步依赖：通用 `ExecutionPlanNode[]` + `deps`，或 `hybrid_multi_source`。
+3. 常量仅用于：语料目录、UI exact-match、空结果文案、schema 枚举、测试断言。
+4. 改完后跑 `test:unit` + 相关 `verify:*` + `eval:run`（或子集）。
+
+## 相关文档
+
+- 坑点：[docs/04-pitfalls.md](../docs/04-pitfalls.md)（P0-30、P0-32）
+- 流程：[docs/02-agent-flows.md](../docs/02-agent-flows.md)

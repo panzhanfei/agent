@@ -17,4 +17,8 @@ This version has breaking changes — APIs, conventions, and file structure may 
 - 每个职责文件夹：`index.ts`（聚合导出）+ `interface.ts`（类型）
 - 图节点出口：`<capability>/node/{index.ts, interface.ts}`（`node/` 最多两文件）
 - 同级 import 用 `./`；跨目录用 `@.../<folder>`，禁止深挖实现文件
+
+## Agent 硬编码（必读）
+
+生产路径**不许硬编码**问句口语、Mem0 字段名表、场景/人名分支来猜意图或补 plan；只信 Intake 结构化字段 + schema→executor。详见 `.cursor/rules/no-scene-hardcoding.mdc`（`alwaysApply: true`）。
 <!-- END:nextjs-agent-rules -->
