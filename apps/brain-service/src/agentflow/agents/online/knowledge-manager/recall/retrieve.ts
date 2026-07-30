@@ -14,7 +14,7 @@
  * KM-06 兜底：ensureNonEmptyHits 与 rank 共用 rankCandidates。
  * KM-08/09：queryProfile 分档 vectorTopK / maxHits；Intake queryType 优先。
  * KM-10：表格 excerpt；KM-11：identityGuard。
- * KM-13～15：列举 experience 专扫 + fill + coverage；KM-16：同 path merge body。
+ * KM-16：同 path merge body。
  * EV-01～04：confidenceTier 分档 + coverage 由 tier 推导 + 低置信弱 coalesce。
  */
 import { readFile } from "node:fs/promises";
@@ -35,17 +35,9 @@ import {
 } from "../profile/km-config";
 import { resolveQueryProfile } from "../profile/query-profile";
 import {
-    resolveEnumerationTarget,
-    type EnumerationTarget,
-} from "@/agentflow/agents/online/intake-coordinator";
-import {
-    applyEnumerationFill,
     applyIdentityGuard,
     applyExternalLinkGuard,
-    buildEnumerationCoverage,
     findPersonalResumeCandidate,
-    isExperienceEntryPath,
-    isProjectEntryPath,
     isPersonalResumePath,
     mergeCandidatesByPath,
     mergeChunkBodies,
@@ -178,29 +170,6 @@ const loadPersonalResumeCandidate = async (
     return findPersonalResumeCandidate(personalFiles);
 };
 
-/** KM-13：列举问法时加载 experience/ 下全部任职 md。 */
-const loadExperienceEntryCandidates = async (
-    corpusUserId: string
-): Promise<CandidateRow[]> => {
-    const scanRoots = await listCorpusScanRoots(corpusUserId, listMarkdownFiles);
-    const entries: CandidateRow[] = [];
-    for (const { root: corpusRoot } of scanRoots) {
-        const dir = path.join(corpusRoot, "experience");
-        for (const abs of await listMarkdownFiles(dir)) {
-            const repoPath = toRepoPath(abs);
-            if (!isExperienceEntryPath(repoPath)) continue;
-            const body = await readFile(abs, "utf8").catch(() => "");
-            if (!body) continue;
-            entries.push({
-                path: repoPath,
-                title: titleFromMarkdown(path.basename(abs), body),
-                body: body.slice(0, SCAN_BODY_MAX),
-            });
-        }
-    }
-    return entries.sort((a, b) => a.path.localeCompare(b.path));
-};
-
 const ensureIdentityPersonalCandidate = async (
     corpusUserId: string,
     queryProfile: QueryProfile,
@@ -211,101 +180,6 @@ const ensureIdentityPersonalCandidate = async (
     const loaded = await loadPersonalResumeCandidate(corpusUserId);
     if (!loaded) return candidates;
     return mergeCandidates([loaded], candidates, Math.max(candidates.length + 1, MAX_CANDIDATES));
-};
-
-const ensureEnumerationExperienceCandidates = async (
-    corpusUserId: string,
-    queryProfile: QueryProfile,
-    candidates: CandidateRow[]
-): Promise<{ candidates: CandidateRow[]; expectedPaths: string[] }> => {
-    if (queryProfile !== "enumeration") {
-        return { candidates, expectedPaths: [] };
-    }
-    const loaded = await loadExperienceEntryCandidates(corpusUserId);
-    const expectedPaths = loaded.map((c) => c.path);
-    if (loaded.length === 0) return { candidates, expectedPaths: [] };
-    const merged = mergeCandidates(
-        loaded,
-        candidates,
-        Math.max(candidates.length + loaded.length, MAX_CANDIDATES * 2)
-    );
-    return {
-        candidates: mergeCandidatesByPath(
-            merged,
-            MAX_CANDIDATES * 2,
-            MAX_CANDIDATES * 2
-        ),
-        expectedPaths,
-    };
-};
-
-/** KM-13b：列举项目时加载 projects/ 下全部项目 md。 */
-const loadProjectEntryCandidates = async (
-    corpusUserId: string
-): Promise<CandidateRow[]> => {
-    const scanRoots = await listCorpusScanRoots(corpusUserId, listMarkdownFiles);
-    const entries: CandidateRow[] = [];
-    for (const { root: corpusRoot } of scanRoots) {
-        const dir = path.join(corpusRoot, "projects");
-        for (const abs of await listMarkdownFiles(dir)) {
-            const repoPath = toRepoPath(abs);
-            if (!isProjectEntryPath(repoPath)) continue;
-            const body = await readFile(abs, "utf8").catch(() => "");
-            if (!body) continue;
-            entries.push({
-                path: repoPath,
-                title: titleFromMarkdown(path.basename(abs), body),
-                body: body.slice(0, SCAN_BODY_MAX),
-            });
-        }
-    }
-    return entries.sort((a, b) => a.path.localeCompare(b.path));
-};
-
-const ensureEnumerationProjectCandidates = async (
-    corpusUserId: string,
-    queryProfile: QueryProfile,
-    candidates: CandidateRow[]
-): Promise<{ candidates: CandidateRow[]; expectedPaths: string[] }> => {
-    if (queryProfile !== "enumeration") {
-        return { candidates, expectedPaths: [] };
-    }
-    const loaded = await loadProjectEntryCandidates(corpusUserId);
-    const expectedPaths = loaded.map((c) => c.path);
-    if (loaded.length === 0) return { candidates, expectedPaths: [] };
-    const merged = mergeCandidates(
-        loaded,
-        candidates,
-        Math.max(candidates.length + loaded.length, MAX_CANDIDATES * 2)
-    );
-    return {
-        candidates: mergeCandidatesByPath(
-            merged,
-            MAX_CANDIDATES * 2,
-            MAX_CANDIDATES * 2
-        ),
-        expectedPaths,
-    };
-};
-
-const resolveKmEnumerationTarget = (
-    input: KnowledgeManagerInput
-): EnumerationTarget | null => {
-    if (
-        resolveQueryProfile(
-            input.searchQuery,
-            input.subTasks,
-            input.queryType
-        ) !== "enumeration"
-    ) {
-        return null;
-    }
-    return resolveEnumerationTarget({
-        label: input.subTasks[0] ?? "",
-        searchQuery: input.searchQuery,
-        topics: input.topics,
-        subTasks: input.subTasks,
-    });
 };
 
 const retrieveByKeywords = (
@@ -403,14 +277,11 @@ const finalizeHits = (
         recallSource: RecallSource;
         topCandidate?: KnowledgeCandidate;
     },
-    expectedEnumerationPaths: string[] = [],
-    enumerationTarget: EnumerationTarget | null = null,
     feedbackByPath?: Map<string, number>
 ): {
     result: KnowledgeRetrievalResult;
     ranked: ReturnType<typeof rankCandidates>;
     guardApplied: boolean;
-    fillApplied: boolean;
     confidenceTier: ConfidenceTier;
     confidenceScore: number;
 } => {
@@ -441,9 +312,7 @@ const finalizeHits = (
         recallSource: recallMeta.recallSource,
         topCandidate: recallMeta.topCandidate ?? candidates[0],
         guardApplied: false,
-        fillApplied: false,
         candidateCount: candidates.length,
-        expectedExperienceCount: expectedEnumerationPaths.length,
     });
 
     result = ensureNonEmptyHits(
@@ -491,80 +360,31 @@ const finalizeHits = (
     );
     result = { ...result, hits: linkGuarded.hits };
 
-    const fillTarget = enumerationTarget ?? "experience";
-    const filled = applyEnumerationFill(
-        result.hits,
-        candidates,
-        ranked,
+    const assessment = assessConfidence({
         queryProfile,
-        maxHits,
-        expectedEnumerationPaths,
-        tokens,
-        fillTarget
-    );
-    result = { ...result, hits: filled.hits };
-
-    if (queryProfile === "enumeration" && expectedEnumerationPaths.length > 0) {
-        const entityLabel = fillTarget === "project" ? "项目" : "经历";
-        const { coverage, notes } = buildEnumerationCoverage(
+        hits: result.hits,
+        ranked,
+        recallSource: recallMeta.recallSource,
+        topCandidate: recallMeta.topCandidate ?? candidates[0],
+        guardApplied: guarded.guardApplied,
+        candidateCount: candidates.length,
+    });
+    result = {
+        ...result,
+        coverage: deriveCoverageFromTier(
+            assessment.tier,
             result.hits,
-            expectedEnumerationPaths.length,
-            filled.filledCount,
-            entityLabel
-        );
-        const assessment = assessConfidence({
-            queryProfile,
-            hits: result.hits,
-            ranked,
-            recallSource: recallMeta.recallSource,
-            topCandidate: recallMeta.topCandidate ?? candidates[0],
-            guardApplied: guarded.guardApplied,
-            fillApplied: filled.fillApplied,
-            candidateCount: candidates.length,
-            expectedExperienceCount: expectedEnumerationPaths.length,
-        });
-        result = {
-            ...result,
-            coverage,
-            notes: tierNotes(assessment.tier, notes),
-            confidenceTier: assessment.tier,
-            confidenceScore: assessment.score,
-            enumerationMeta: {
-                listKind: fillTarget === "project" ? "project" : "experience",
-                totalExpected: expectedEnumerationPaths.length,
-                shown: result.hits.length,
-            },
-        };
-    } else {
-        const assessment = assessConfidence({
-            queryProfile,
-            hits: result.hits,
-            ranked,
-            recallSource: recallMeta.recallSource,
-            topCandidate: recallMeta.topCandidate ?? candidates[0],
-            guardApplied: guarded.guardApplied,
-            fillApplied: filled.fillApplied,
-            candidateCount: candidates.length,
-            expectedExperienceCount: expectedEnumerationPaths.length,
-        });
-        result = {
-            ...result,
-            coverage: deriveCoverageFromTier(
-                assessment.tier,
-                result.hits,
-                assessment.top1Relevance
-            ),
-            notes: tierNotes(assessment.tier, result.notes),
-            confidenceTier: assessment.tier,
-            confidenceScore: assessment.score,
-        };
-    }
+            assessment.top1Relevance
+        ),
+        notes: tierNotes(assessment.tier, result.notes),
+        confidenceTier: assessment.tier,
+        confidenceScore: assessment.score,
+    };
 
     return {
         result,
         ranked,
         guardApplied: guarded.guardApplied,
-        fillApplied: filled.fillApplied,
         confidenceTier: result.confidenceTier ?? "low",
         confidenceScore: result.confidenceScore ?? 0,
     };
@@ -657,25 +477,6 @@ export const retrieveKnowledge = async (
         queryProfile,
         candidates
     );
-    const enumerationTarget = resolveKmEnumerationTarget(input);
-    let expectedEnumerationPaths: string[] = [];
-    if (queryProfile === "enumeration" && enumerationTarget === "project") {
-        const loaded = await ensureEnumerationProjectCandidates(
-            input.corpusUserId,
-            queryProfile,
-            candidates
-        );
-        candidates = loaded.candidates;
-        expectedEnumerationPaths = loaded.expectedPaths;
-    } else {
-        const loaded = await ensureEnumerationExperienceCandidates(
-            input.corpusUserId,
-            queryProfile,
-            candidates
-        );
-        candidates = loaded.candidates;
-        expectedEnumerationPaths = loaded.expectedPaths;
-    }
 
     if (candidates.length === 0) {
         const empty: KnowledgeRetrievalResult = {
@@ -709,7 +510,6 @@ export const retrieveKnowledge = async (
         result: ruleResult,
         ranked: topRankedList,
         guardApplied,
-        fillApplied,
         confidenceTier,
         confidenceScore,
     } = finalizeHits(
@@ -721,8 +521,6 @@ export const retrieveKnowledge = async (
             recallSource,
             topCandidate: rawCandidates[0],
         },
-        expectedEnumerationPaths,
-        enumerationTarget,
         feedbackByPath
     );
 
@@ -739,12 +537,10 @@ export const retrieveKnowledge = async (
         vectorTopK,
         maxHits,
         guardApplied,
-        fillApplied,
         confidenceTier,
         confidenceScore,
         fusionScore: rawCandidates[0]?.fusionScore ?? null,
         recallChannel: rawCandidates[0]?.recallChannel ?? null,
-        expectedExperienceCount: expectedEnumerationPaths.length,
         candidateCount: candidates.length,
         candidatesPreview: summarizeCandidate(candidates[0]!, 0),
         topRank: topRanked

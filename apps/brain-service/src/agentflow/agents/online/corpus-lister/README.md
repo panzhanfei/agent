@@ -35,6 +35,6 @@ corpus-lister/
 
 | | CorpusLister | KnowledgeManager |
 |---|---|---|
-| 触发 | exhaustive / continue / UI 分页 | identity / tech / preview 列举 / 复合 km 槽 |
+| 触发 | preview / continue / exhaustive / UI 分页 | identity / tech / external_link / 复合 km 槽 |
 | 检索 | 目录扫盘 + 分页 | hybrid vector ∥ sparse |
 | 图节点 | `listRetriever` / `listRetrieve` | `kmRetrieve` |

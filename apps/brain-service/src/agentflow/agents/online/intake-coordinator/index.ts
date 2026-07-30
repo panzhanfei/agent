@@ -127,6 +127,7 @@ export {
   expandHybridMultiSourceTemplate,
   deriveCompositeSlotsFromPathPlan,
   deriveRetrievalPlanFromPathPlan,
+  ensureMemRecallStepFromTopUserFact,
   legalizePathPlan,
   legalizeAnswerOrder,
   legalizeComposeMode,

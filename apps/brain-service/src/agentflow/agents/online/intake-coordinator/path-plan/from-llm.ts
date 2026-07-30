@@ -7,7 +7,10 @@ import type { IntakeRoutingDecision } from "@/agentflow/agents/online/intake-coo
 import type { CompositeRetrievalSlot } from "@/agentflow/agents/online/intake-coordinator/composite/interface";
 import type { EnumerationControl } from "@/agentflow/agents/online/corpus-lister/enumeration";
 import type { SlotExecutor } from "@/agentflow/agents/online/corpus-lister/enumeration";
-import { ENUMERATION_EXHAUSTIVE_PAGE_SIZE } from "@/agentflow/agents/online/corpus-lister/list";
+import {
+  ENUMERATION_EXHAUSTIVE_PAGE_SIZE,
+  ENUMERATION_PREVIEW_PAGE_SIZE,
+} from "@/agentflow/agents/online/corpus-lister/list";
 import type { DbChatTurn } from "@fambrain/brain-types";
 import { resolveEnumerationPagination } from "@/agentflow/agents/online/corpus-lister/enumeration";
 import { normalizeFactKey } from "@/agentflow/agents/online/user-fact/user-fact";
@@ -505,6 +508,55 @@ export const legalizeComposeMode = (
   return defaultComposeMode();
 };
 
+/**
+ * 复合 retrieve 时 LLM 有时在顶层填 userFactKey（无 Value = recall），却漏写 kind=mem 步。
+ * 按结构化顶层 key 补一步 mem recall（非口语猜意图）；remember side-effect（有 Value）不补。
+ */
+export const ensureMemRecallStepFromTopUserFact = (
+  decision: Pick<
+    IntakeRoutingDecision,
+    "intent" | "userFactKey" | "userFactLabel" | "userFactValue"
+  >,
+  plan: PathPlan
+): PathPlan => {
+  if (decision.intent !== "retrieve_and_answer") return plan;
+  const factKey = normalizeFactKey(decision.userFactKey ?? "");
+  if (!factKey || decision.userFactValue?.trim()) return plan;
+  if (plan.steps.length === 0) return plan;
+
+  const hasMem = plan.steps.some(
+    (s) =>
+      s.kind === "mem" &&
+      normalizeFactKey(s.userFactKey ?? "") === factKey
+  );
+  if (hasMem) return plan;
+
+  const label = decision.userFactLabel?.trim() || factKey;
+  const memStep: ExecutionStep = {
+    id: `mem-${factKey}`,
+    kind: "mem",
+    label,
+    searchQuery: label,
+    queryType: "identity",
+    topics: ["personal"],
+    identityField: null,
+    toolId: null,
+    dataSource: "mem0",
+    userFactKey: factKey,
+    userFactLabel: label,
+    enumerationControl: null,
+  };
+
+  const ageIdx = plan.steps.findIndex(
+    (s) => s.identityField === "age" || s.id === "km-age"
+  );
+  const insertIdx =
+    ageIdx >= 0 ? ageIdx + 1 : Math.min(1, plan.steps.length);
+  const steps = [...plan.steps];
+  steps.splice(insertIdx, 0, memStep);
+  return { steps };
+};
+
 /** answerOrder = steps 顺序；若 LLM 另给 order 则校验并重排（合法 id） */
 export const legalizeAnswerOrder = (raw: unknown, plan: PathPlan): string[] => {
   const allIds = plan.steps.map((s) => s.id);
@@ -552,13 +604,17 @@ export const fillListPagesInPathPlan = (
         ...step,
         enumerationPage: step.enumerationPage ?? 1,
         enumerationPageSize:
-          step.enumerationPageSize ?? ENUMERATION_EXHAUSTIVE_PAGE_SIZE,
+          step.enumerationPageSize ?? ENUMERATION_PREVIEW_PAGE_SIZE,
       };
     }
+    const defaultPageSize =
+      control.action === "preview"
+        ? ENUMERATION_PREVIEW_PAGE_SIZE
+        : ENUMERATION_EXHAUSTIVE_PAGE_SIZE;
     const { page, pageSize } = resolveEnumerationPagination(
       control,
       history,
-      step.enumerationPageSize ?? ENUMERATION_EXHAUSTIVE_PAGE_SIZE
+      step.enumerationPageSize ?? defaultPageSize
     );
     return {
       ...step,
@@ -570,13 +626,10 @@ export const fillListPagesInPathPlan = (
 };
 
 const executorForStep = (step: ExecutionStep): SlotExecutor => {
+  if (step.kind === "list" || step.queryType === "enumeration") {
+    return "list_corpus";
+  }
   switch (step.kind) {
-    case "list": {
-      const isListAction =
-        step.enumerationControl?.action === "continue" ||
-        step.enumerationControl?.action === "exhaustive";
-      return isListAction ? "list_corpus" : "km_retrieve";
-    }
     case "mem":
       return "mem_recall";
     case "tool":

@@ -56,7 +56,6 @@ assert("identity + personal → high", () => {
             recallChannel: "hybrid",
         },
         guardApplied: true,
-        fillApplied: false,
         candidateCount: 5,
     });
     if (a.tier !== "high") throw new Error(`expected high, got ${a.tier}`);
@@ -69,7 +68,6 @@ assert("无 hits → low", () => {
         ranked: [],
         recallSource: "empty",
         guardApplied: false,
-        fillApplied: false,
         candidateCount: 0,
     });
     if (a.tier !== "low") throw new Error(`expected low, got ${a.tier}`);

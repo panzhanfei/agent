@@ -311,7 +311,7 @@ flowchart TD
 | 1 | Hybrid 召回 | 向量 + BM25 **并行**；RRF 融合；topK 按 profile | `hybrid-recall.ts`、`fusion-rrf.ts` | `hybridRecall()` |
 | 2 | 关键词扫盘 | ~~向量空或低置信时扫三目录~~ **已移除**（由 BM25 sparse 替代） | — | — |
 | 3 | 规则精排 | **token + vector + pathBoost**；`pickExcerpt`（表格行优先） | `retrieve-helpers.ts` | `rankCandidates()`、`pickTableExcerpt()` |
-| 4 | identity / 列举保底 | identity 补注入 personal + Top1；**enumeration 按 target**：`experience` → experience fill；`project` → projects fill（`resolveEnumerationTarget`） | `retrieve.ts`、`enumeration-target.ts`、`retrieve-helpers.ts` | `ensureIdentityPersonalCandidate()`、`ensureEnumerationExperienceCandidates()`、`ensureEnumerationProjectCandidates()`、`applyEnumerationFill(..., target)` |
+| 4 | identity 保底 | identity 补注入 personal + Top1 | `retrieve.ts`、`retrieve-helpers.ts` | `ensureIdentityPersonalCandidate()`、`applyIdentityGuard()` |
 | 5 | 兜底 | **低置信**才 `ensureNonEmptyHits`；高/中置信不硬塞 Top1 | `retrieve.ts`、`score-candidate.ts` | `shouldCoalesceEmptyHits()`、`ensureNonEmptyHits()` |
 | 6 | 置信分档 | 融合分 + gap + path 权威 → `high` / `mid` / `low` | `score-candidate.ts` | `assessConfidence()`、`deriveCoverageFromTier()` |
 | 7 | 输出 | **maxHits 按 profile**；列举型 notes 标明覆盖段数；可选 `confidenceTier` | `types.ts` | `KnowledgeRetrievalResult` |

@@ -35,8 +35,8 @@ export type IntakeRetrievalPlanItem = {
   queryType: "identity" | "enumeration" | "tech" | "external_link" | "default";
   topics: string[];
   /**
-   * 列举控制（仅 enumeration 子问需要）：
-   * preview=语义/Top-K 预览；continue=下一页；exhaustive=目录扫盘穷举。
+   * 列举控制（仅 kind=list / queryType=enumeration 需要）：
+   * preview=首屏目录分页（8 条）；continue=下一页；exhaustive=目录扫盘穷举（通常 20 条/页）。
    * 混合问时只给「列出全部」那一项填此字段，勿整句套用。
    */
   enumerationControl?: EnumerationControl | null;
@@ -185,8 +185,8 @@ export const prompt = `你是 FamBrain 系统中的「入口接线员」（Intak
 形状：\`pathPlan: { "steps": [ { id, kind, label, searchQuery, queryType, topics, identityField?, toolId?, dataSource?, userFactKey?, userFactLabel?, enumerationControl?, template?, deps? } ] }\`
 - **数组顺序 = 回答顺序**；勿按 km→list→tool 重排。\`answerOrder\` 可省略。
 - \`kind\` ∈ \`km\` | \`list\` | \`mem\` | \`tool\` | \`summarize\` | \`dag\`（**Send 工人族**，不是业务场景名）。
-- \`kind=km\`：向量/混合检索（姓名/年龄/技术/外链抽取前检索、preview 列举等）。可带 \`identityField\`、可选 **post-retrieval** \`toolId\`（\`compute_age_from_hits\` / \`extract_identity_from_hits\` / \`extract_external_links_from_hits\` / \`compute_tenure_from_hits\`）。\`dataSource\`：corpus|compute。
-- \`kind=list\`：目录扫盘穷举/续页。须 \`enumerationControl\`（action=continue|exhaustive，listKind=project|experience）。preview **不要**进 list，用 km。
+- \`kind=km\`：向量/混合检索（姓名/年龄/技术/外链抽取前检索等）。可带 \`identityField\`、可选 **post-retrieval** \`toolId\`（\`compute_age_from_hits\` / \`extract_identity_from_hits\` / \`extract_external_links_from_hits\` / \`compute_tenure_from_hits\`）。\`dataSource\`：corpus|compute。
+- \`kind=list\`：目录扫盘列举（preview / continue / exhaustive）。须 \`enumerationControl\`（action=preview|continue|exhaustive，listKind=project|experience）。
 - \`kind=mem\`：召回用户此前口述并记住的字段（Mem0）。须 \`userFactKey\` + \`dataSource: "mem0"\`；可选 \`userFactLabel\`。**禁止** \`identityField\` / post-toolId。**禁止**用 km 查 QQ/微信等自述字段。
 - \`kind=tool\`：独立工具步（如 \`search_web\`；未来天气等同族）。须合法 \`toolId\` + \`dataSource\`（多为 web）。**禁止**把 remember/recall 做成 tool 步；**禁止**把需 hits 的 post-tool 写成独立 tool 步。
 - \`kind=summarize\`：复合内**子步**总结用户粘贴/原文（\`dataSource: "user_text"\`）；整轮「请总结…」仍用 intent=\`summarize_content\` + composeMode=summarize。
@@ -229,9 +229,11 @@ export const prompt = `你是 FamBrain 系统中的「入口接线员」（Intak
 5. 信息不足 → clarify。
 6. **只输出一个 JSON 对象**。
 
-## enumerationControl（list 步必填；km/external_link 有时间窗时也可填）
-\`{ "action": "continue"|"exhaustive", "listKind": "project"|"experience", "excludeHint": string|null, "timeWindowYears": number|null }\`
-- exhaustive=全部列出；continue=下一页；近 N 年填 timeWindowYears（**不要**把「近两年」写进实体 label）。
+## enumerationControl（kind=list 步必填；external_link 有时间窗时也可填 timeWindowYears）
+\`{ "action": "preview"|"continue"|"exhaustive", "listKind": "project"|"experience", "excludeHint": string|null, "timeWindowYears": number|null }\`
+- **凡列举一律 \`kind=list\`**（preview / continue / exhaustive 均目录扫盘，**禁止** kind=km + queryType=enumeration）。
+- preview=首次列举首屏（8 条）；exhaustive=全部列出；continue=下一页。
+- 近 N 年填 timeWindowYears（**不要**把「近两年」写进实体 label）。
 - **重要：** timeWindowYears **只**挂在用户明确要求「近 N 年 / 近两年」的那一步；「全部公司 / 全部履历 / 那几家公司」exhaustive 步必须 \`timeWindowYears: null\`（否则旧公司会被滤掉）。
 - 混合「技术 + 全部列出」→ km(tech) + list(exhaustive)；开源链接 → km + queryType=external_link + toolId=extract_external_links_from_hits。
 

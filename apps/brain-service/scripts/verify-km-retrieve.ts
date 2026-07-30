@@ -4,7 +4,6 @@
  *   pnpm --filter @fambrain/brain-service run verify:km-retrieve
  */
 import {
-  applyEnumerationFill,
   applyIdentityGuard,
   computeRelevance,
   findPersonalResumeCandidate,
@@ -285,7 +284,7 @@ assert("mergeCandidatesByPath 同 path 合并", () => {
   if (!ex.includes("Vue")) throw new Error(`合并后应能摘到技术栈，实际 ${ex}`);
 });
 
-console.log("\n— KM-13～15 列举 experience —");
+console.log("\n— path helpers —");
 
 assert("isExperienceEntryPath 排除 README", () => {
   if (
@@ -295,47 +294,6 @@ assert("isExperienceEntryPath 排除 README", () => {
   }
   if (isExperienceEntryPath("data/doc/u/corpus/experience/README.md")) {
     throw new Error("README 不应算 entry");
-  }
-});
-
-assert("enumerationFill 补全缺失经历并剔除 projects", () => {
-  const exp1 = "data/doc/u/corpus/experience/2016-a.md";
-  const exp2 = "data/doc/u/corpus/experience/2018-b.md";
-  const proj = "data/doc/u/corpus/projects/_TEMPLATE.md";
-  const body1 = "# A 公司";
-  const body2 = "# B 公司";
-  const candidates = [
-    { path: proj, title: "tpl", body: "公司 模板", score: 0.9 },
-    { path: exp1, title: "A", body: body1, score: 0.2 },
-    { path: exp2, title: "B", body: body2, score: 0.1 },
-  ];
-  const tokens = tokenize("哪几家公司");
-  const ranked = rankCandidates(candidates, tokens, pickExcerpt, "enumeration");
-  const hitsBefore = [
-    {
-      path: proj,
-      title: "tpl",
-      excerpt: "wrong",
-      relevance: 0.9,
-    },
-  ];
-  const { hits, fillApplied, filledCount } = applyEnumerationFill(
-    hitsBefore,
-    candidates,
-    ranked,
-    "enumeration",
-    8,
-    [exp1, exp2],
-    tokens
-  );
-  if (!fillApplied) throw new Error("fillApplied 应为 true");
-  if (filledCount !== 2)
-    throw new Error(`应补全 2 段经历，实际 ${filledCount}`);
-  if (hits.some((h) => h.path === proj)) {
-    throw new Error("列举 hits 不应含 projects");
-  }
-  if (!hits.every((h) => isExperienceEntryPath(h.path))) {
-    throw new Error("列举 hits 应均为 experience entry");
   }
 });
 

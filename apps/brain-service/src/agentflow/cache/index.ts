@@ -25,4 +25,3 @@ export {
     type ResolveCompositeCachePlanInput,
 } from "./read";
 export { writeHitsCache, writeFacetSession, type WriteFacetSessionInput } from "./write";
-export { executeKmSlotSub, type ExecuteKmSlotSubInput } from "./km-slot";

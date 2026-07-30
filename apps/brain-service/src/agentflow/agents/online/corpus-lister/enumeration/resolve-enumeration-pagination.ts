@@ -1,5 +1,8 @@
 import type { AssistantMessageBlock, DbChatTurn } from "@fambrain/brain-types";
-import { ENUMERATION_EXHAUSTIVE_PAGE_SIZE } from "@/agentflow/agents/online/corpus-lister/list";
+import {
+    ENUMERATION_EXHAUSTIVE_PAGE_SIZE,
+    ENUMERATION_PREVIEW_PAGE_SIZE,
+} from "@/agentflow/agents/online/corpus-lister/list";
 import type { EnumerationControl, EnumerationListKind } from "./action-prompts";
 
 type EnumerationBlock = Extract<AssistantMessageBlock, { type: "enumeration" }>;
@@ -34,6 +37,9 @@ export const resolveEnumerationPagination = (
     history: DbChatTurn[],
     defaultPageSize: number = ENUMERATION_EXHAUSTIVE_PAGE_SIZE
 ): { page: number; pageSize: number } => {
+    if (control.action === "preview") {
+        return { page: 1, pageSize: ENUMERATION_PREVIEW_PAGE_SIZE };
+    }
     if (control.action === "exhaustive") {
         return { page: 1, pageSize: ENUMERATION_EXHAUSTIVE_PAGE_SIZE };
     }

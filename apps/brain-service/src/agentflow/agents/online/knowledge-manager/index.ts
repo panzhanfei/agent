@@ -52,6 +52,7 @@ export {
 } from "./profile/score-candidate";
 export { hybridRecall } from "./recall/hybrid-recall";
 export { fuseRrf } from "./recall/fusion-rrf";
+export { executeKmSlotSub, type ExecuteKmSlotSubInput } from "./slot";
 
 /** @deprecated 请用 @/agentflow/cache */
 export {
@@ -62,7 +63,6 @@ export {
   buildFacetKey,
   detectCompositeRefreshIntent,
   attachFacetKey,
-  executeKmSlotSub,
   writeHitsCache,
   type CompositeCachePlan,
   type CompositeSlotPlan,

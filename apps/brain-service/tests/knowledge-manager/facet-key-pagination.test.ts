@@ -33,19 +33,21 @@ describe("buildFacetKey pagination", () => {
         ).toBe("enum:projects:p2");
     });
 
-    it("keeps preview enumeration without page suffix", () => {
+    it("scopes list_corpus preview by enumerationPage p1", () => {
         expect(
             buildFacetKey({
                 label: "项目",
                 searchQuery: "x",
                 queryType: "enumeration",
                 topics: ["project"],
+                executor: "list_corpus",
+                enumerationPage: 1,
                 enumerationControl: {
                     action: "preview",
                     listKind: "project",
                 },
             })
-        ).toBe("enum:projects");
+        ).toBe("enum:projects:p1");
     });
 });
 

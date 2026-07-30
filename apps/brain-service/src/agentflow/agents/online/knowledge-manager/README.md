@@ -52,7 +52,7 @@ knowledge-manager/
 │   ├── merge.ts
 │   └── index.ts
 │
-├── slot/                  ← kmRetrieve Send 工人（读 state 预置 cache + FC）
+├── slot/                  ← kmRetrieve Send 工人（retrieve + FC）
 │   └── index.ts
 │
 ├── recall/                ← 核心检索（无 LLM）
@@ -71,8 +71,8 @@ knowledge-manager/
 
 ### 推荐阅读顺序
 
-1. `knowledge-manager/slot/` — 复合路径 kmRetrieve Send 工人：retrieve + FC + 局部重检
-2. `recall/retrieve.ts` — Hybrid → rank → coverage 主路径
+1. `corpus-lister/` — 列举 preview/continue/exhaustive（目录扫盘分页）
+2. `recall/retrieve.ts` — Hybrid → rank → coverage 主路径（identity/tech/external_link）
 3. `agentflow/cache/` — planCacheResolve 全量 facet+hits；Analyst 写 facet 会话缓存
 4. `profile/query-profile.ts` + `profile/km-config.ts` — 分档参数
 5. `recall/retrieve-helpers.ts` — identityGuard、enumerationFill
@@ -110,7 +110,7 @@ contentOrganizer → analyst
 
 ### 3.2 单槽检索（每槽 Send）
 
-复合路径：`planCacheResolve` 预置 facet+hits 标记；km worker 经 `executeKmSlotSub`（retrieve + `writeHitsCache`）；FC 重检 `liveRetrieve`。
+复合路径：`planCacheResolve` 预拼 `resolvedSub`；`slot/execute-sub`（retrieve + writeHitsCache）；`slot/index` FC。
 
 ### 3.3 单问检索内部（`retrieveKnowledge`）
 

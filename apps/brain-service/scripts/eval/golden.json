@@ -139,14 +139,13 @@
       }
     },
     {
-      "id": "K3",
-      "tier": "km",
-      "label": "列举经历",
-      "km": {
-        "searchQuery": "我在哪几家公司上过班？",
-        "queryType": "enumeration",
-        "topics": [],
-        "subTasks": []
+      "id": "L3",
+      "tier": "list",
+      "label": "列举经历（corpus-lister 目录扫盘）",
+      "list": {
+        "listKind": "experience",
+        "action": "preview",
+        "page": 1
       },
       "assert": {
         "expectProfile": "enumeration",
@@ -154,7 +153,7 @@
         "minHits": 1,
         "minExperienceHits": 4,
         "noProjectsInHits": true,
-        "notesRe": "列举已覆盖|列举覆盖"
+        "notesRe": "列举分页"
       }
     },
     {

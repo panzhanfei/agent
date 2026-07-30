@@ -7,7 +7,11 @@
 import { resolveEnumerationTarget } from "@/agentflow/agents/online/intake-coordinator";
 import type { CompositeRetrievalSlot } from "@/agentflow/agents/online/intake-coordinator";
 import type { CompositeSubRetrieval } from "@/agentflow/agents/online/knowledge-manager";
-import { retrieveEnumerationPage } from "../list";
+import {
+    ENUMERATION_EXHAUSTIVE_PAGE_SIZE,
+    ENUMERATION_PREVIEW_PAGE_SIZE,
+    retrieveEnumerationPage,
+} from "../list";
 
 /**
  * 对单个 list 槽执行语料目录分页检索，返回 composite 子问结构。
@@ -27,7 +31,12 @@ export const fetchListSlot = async (
       listKind: slot.enumerationControl?.listKind ?? null,
     });
   const page = slot.enumerationPage ?? 1;
-  const pageSize = slot.enumerationPageSize ?? 20;
+  const action = slot.enumerationControl?.action;
+  const pageSize =
+    slot.enumerationPageSize ??
+    (action === "preview"
+      ? ENUMERATION_PREVIEW_PAGE_SIZE
+      : ENUMERATION_EXHAUSTIVE_PAGE_SIZE);
 
   const retrieval = await retrieveEnumerationPage({
     corpusUserId,

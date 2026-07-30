@@ -7,7 +7,6 @@
 import { normalizeSearchQuery } from "@fambrain/infra";
 import type { CachedFacetAnswer } from "@fambrain/infra";
 import type { CompositeRetrievalSlot } from "@/agentflow/agents/online/intake-coordinator";
-import type { EnumerationControlAction } from "@/agentflow/agents/online/corpus-lister/enumeration";
 import {
     canonicalizePlanItem,
     resolveEnumerationTarget,
@@ -32,17 +31,13 @@ type FacetSource =
 const labelNorm = (label: string): string =>
     normalizeSearchQuery(label).replace(/\s+/g, " ");
 
-const isPaginatedListCorpusAction = (
-    action: EnumerationControlAction | undefined
-): action is "continue" | "exhaustive" =>
-    action === "continue" || action === "exhaustive";
-
-/** list_corpus + exhaustive/continue → facet 缓存按页分桶 */
-export const isPaginatedListCorpusSlot = (
+const isListCorpusEnumerationSlot = (
     slot: Pick<CompositeRetrievalSlot, "executor" | "enumerationControl">
 ): boolean =>
-    slot.executor === "list_corpus" &&
-    isPaginatedListCorpusAction(slot.enumerationControl?.action);
+    slot.executor === "list_corpus" && Boolean(slot.enumerationControl);
+
+/** list_corpus 列举槽 → facet 缓存按页分桶（preview = p1） */
+export const isPaginatedListCorpusSlot = isListCorpusEnumerationSlot;
 
 /** 槽答案缓存命中时校验列举页码（防 continue 复用上一页终稿） */
 export const facetAnswerMatchesSlot = (
@@ -111,11 +106,7 @@ export const buildFacetKey = (source: FacetSource): string => {
         const base = target === "project" ? "enum:projects" : "enum:employers";
         const executor =
             "executor" in source ? source.executor : undefined;
-        const action = item.enumerationControl?.action;
-        if (
-            executor === "list_corpus" &&
-            isPaginatedListCorpusAction(action)
-        ) {
+        if (executor === "list_corpus" && item.enumerationControl) {
             const page =
                 "enumerationPage" in source &&
                 typeof source.enumerationPage === "number"

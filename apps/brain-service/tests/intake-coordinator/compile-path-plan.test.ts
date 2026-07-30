@@ -3,6 +3,7 @@ import {
     applyPathPlanGuard,
     deriveCompositeSlotsFromPathPlan,
     emptyPathPlan,
+    ensureMemRecallStepFromTopUserFact,
     legalizePathPlan,
     stepsOfKind,
     type RoutedIntakeDecision,
@@ -202,5 +203,83 @@ describe("legalizePathPlan + deriveCompositeSlots", () => {
             "项目经历",
             "开源链接",
         ]);
+    });
+
+    it("routes preview enumeration to list_corpus", () => {
+        const pathPlan = legalizePathPlan({
+            steps: [
+                {
+                    id: "list-preview",
+                    kind: "list",
+                    label: "项目经历",
+                    searchQuery: "项目经历 全部项目",
+                    queryType: "enumeration",
+                    topics: ["project"],
+                    enumerationControl: {
+                        action: "preview",
+                        listKind: "project",
+                        excludeHint: null,
+                    },
+                },
+            ],
+        });
+        const slots = deriveCompositeSlotsFromPathPlan(pathPlan);
+        expect(slots).toHaveLength(1);
+        expect(slots[0]?.executor).toBe("list_corpus");
+        expect(slots[0]?.enumerationControl?.action).toBe("preview");
+    });
+
+    it("injects mem step when top-level userFactKey has no value", () => {
+        const pathPlan = legalizePathPlan({
+            steps: [
+                {
+                    id: "km-name",
+                    kind: "km",
+                    label: "姓名",
+                    searchQuery: "姓名",
+                    queryType: "identity",
+                    topics: ["personal"],
+                    identityField: "name",
+                    toolId: "extract_identity_from_hits",
+                    dataSource: "corpus",
+                },
+                {
+                    id: "km-age",
+                    kind: "km",
+                    label: "年龄",
+                    searchQuery: "年龄",
+                    queryType: "identity",
+                    topics: ["personal"],
+                    identityField: "age",
+                    toolId: "compute_age_from_hits",
+                    dataSource: "compute",
+                },
+                {
+                    id: "km-phone",
+                    kind: "km",
+                    label: "手机号",
+                    searchQuery: "手机",
+                    queryType: "identity",
+                    topics: ["personal"],
+                    identityField: "phone",
+                    toolId: "extract_identity_from_hits",
+                    dataSource: "corpus",
+                },
+            ],
+        });
+        const patched = ensureMemRecallStepFromTopUserFact(
+            {
+                intent: "retrieve_and_answer",
+                userFactKey: "qq",
+                userFactLabel: "QQ号",
+                userFactValue: null,
+            },
+            pathPlan
+        );
+        expect(stepsOfKind(patched, "mem")).toHaveLength(1);
+        expect(patched.steps[2]?.id).toBe("mem-qq");
+        expect(patched.steps[2]?.userFactKey).toBe("qq");
+        const slots = deriveCompositeSlotsFromPathPlan(patched);
+        expect(slots.some((s) => s.executor === "mem_recall")).toBe(true);
     });
 });

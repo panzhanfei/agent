@@ -2,8 +2,8 @@
  * Eval MVP：golden.json → Pipeline / KM 断言 → JSON + Markdown 报告。
  *
  *   pnpm --filter @fambrain/brain-service run eval:run
- *   pnpm --filter @fambrain/brain-service run eval:run -- --list-pagination-only
- *   pnpm --filter @fambrain/brain-service run eval:run -- --json-only
+ *   pnpm --filter @fambrain/brain-service run eval:run -- --case L3
+ *   pnpm --filter @fambrain/brain-service run eval:run -- --mem-only
  *   pnpm --filter @fambrain/brain-service run eval:run -- --identity-composite-only
  *   EVAL_WRITE_REPORT=1 pnpm --filter @fambrain/brain-service run eval:run
  *
@@ -14,6 +14,11 @@ import path from "node:path";
 import { fileURLToPath } from "node:url";
 import type { AgentPipelineContext, DbChatTurn } from "@fambrain/brain-types";
 import { listCorpusUserIds } from "@/agentflow/agents/offline/knowledge-indexer/list-corpus-users";
+import {
+    retrieveEnumerationPage,
+    ENUMERATION_EXHAUSTIVE_PAGE_SIZE,
+    ENUMERATION_PREVIEW_PAGE_SIZE,
+} from "@/agentflow/agents/online/corpus-lister/list";
 import { hybridRecall } from "@/agentflow/agents/online/knowledge-manager/recall/hybrid-recall";
 import { getProfileRecallParams } from "@/agentflow/agents/online/knowledge-manager/profile/km-config";
 import { resolveQueryProfile } from "@/agentflow/agents/online/knowledge-manager/profile/query-profile";
@@ -32,7 +37,7 @@ import { enableRepeatGuardForVerify } from "../verify-test-env";
 const __dirname = path.dirname(fileURLToPath(import.meta.url));
 const GOLDEN_PATH = path.join(__dirname, "golden.json");
 
-type GoldenTier = "pipeline" | "km";
+type GoldenTier = "pipeline" | "km" | "list";
 
 type GoldenCase = {
     id: string;
@@ -41,6 +46,12 @@ type GoldenCase = {
     question?: string;
     /** QU-02：多轮 history（不含本轮 question） */
     history?: DbChatTurn[];
+    list?: {
+        listKind: "experience" | "project";
+        action?: "preview" | "continue" | "exhaustive";
+        page?: number;
+        pageSize?: number;
+    };
     km?: {
         searchQuery: string;
         queryType: "identity" | "enumeration" | "tech" | "default";
@@ -297,6 +308,41 @@ const runKmCase = async (
     };
 };
 
+const runListCase = async (
+    corpusUserId: string,
+    list: NonNullable<GoldenCase["list"]>
+): Promise<KmEvalSnapshot> => {
+    const started = Date.now();
+    const action = list.action ?? "preview";
+    const pageSize =
+        list.pageSize ??
+        (action === "preview"
+            ? ENUMERATION_PREVIEW_PAGE_SIZE
+            : ENUMERATION_EXHAUSTIVE_PAGE_SIZE);
+    const result = await retrieveEnumerationPage({
+        corpusUserId,
+        listKind: list.listKind,
+        page: list.page ?? 1,
+        pageSize,
+    });
+    const totalExpected = result.enumerationMeta?.totalExpected ?? result.hits.length;
+    return {
+        hits: result.hits.map((h) => ({
+            path: h.path,
+            excerpt: h.excerpt,
+            relevance: h.relevance,
+        })),
+        coverage: result.coverage,
+        notes: result.notes,
+        queryProfile: "enumeration",
+        candidateCount: totalExpected,
+        recallSource: "list_corpus",
+        confidenceTier: result.confidenceTier,
+        confidenceScore: result.confidenceScore,
+        latencyMs: Date.now() - started,
+    };
+};
+
 const evaluateCase = async (
     spec: GoldenCase,
     corpusUserId: string,
@@ -329,6 +375,32 @@ const evaluateCase = async (
                     : issues.join("; "),
             latencyMs: snap.latencyMs,
             coalesceViolation,
+        };
+    }
+
+    if (spec.tier === "list") {
+        if (!spec.list) {
+            return {
+                id: spec.id,
+                tier: spec.tier,
+                label: spec.label,
+                pass: false,
+                reason: "list 用例缺少 list 字段",
+                latencyMs: 0,
+            };
+        }
+        const snap = await runListCase(corpusUserId, spec.list);
+        const issues = assertKm(snap, spec.assert);
+        return {
+            id: spec.id,
+            tier: spec.tier,
+            label: spec.label,
+            pass: issues.length === 0,
+            reason:
+                issues.length === 0
+                    ? `ok (${snap.recallSource}, total=${snap.candidateCount}, hits=${snap.hits.length})`
+                    : issues.join("; "),
+            latencyMs: snap.latencyMs,
         };
     }
 

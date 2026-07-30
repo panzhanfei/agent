@@ -154,9 +154,10 @@ export const planItemToSlot = (
     );
     const control = canonical.enumerationControl ?? null;
     const needsListScan =
+        canonical.queryType === "enumeration" ||
+        control?.action === "preview" ||
         control?.action === "continue" ||
         control?.action === "exhaustive" ||
-        // 时间窗须目录扫盘后再过滤；preview+KM 无法保证近 N 年覆盖
         (control?.timeWindowYears != null && control.timeWindowYears > 0);
     /** 多槽时 id 必须唯一（同 template 如 projects 不可撞 slot_projects） */
     const baseId = template?.id ?? "plan";

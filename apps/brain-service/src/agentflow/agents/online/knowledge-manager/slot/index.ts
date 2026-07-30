@@ -1,8 +1,8 @@
 /**
- * km 单槽工人：executeKmSlotSub（检索 + hits 写）→ FC →（可）局部重检。
- * 不读缓存；查缓存仅在 planCacheResolve。
+ * km 单槽工人：executeKmSlotSub → FC →（可）局部重检。
+ * 查缓存仅在 planCacheResolve；本模块为 km 主逻辑入口。
  */
-import { executeKmSlotSub } from "@/agentflow/cache";
+import { executeKmSlotSub } from "./execute-sub";
 import type { CompositeSubRetrieval } from "../composite/interface";
 import {
   checkStepFacts,
@@ -13,6 +13,8 @@ import type { CompositeRetrievalSlot } from "@/agentflow/agents/online/intake-co
 import { resolveActiveSlot } from "@/agentflow/agents/online/plan-fanout/active-slot";
 import type { PlanSlotWorkerPatch } from "@/agentflow/agents/online/plan-fanout/interface";
 import type { PipelineGraphState } from "@/agentflow/pipeline/graph/state";
+
+export { executeKmSlotSub, type ExecuteKmSlotSubInput } from "./execute-sub";
 
 const emptySub = (
   slotId: string,
@@ -50,7 +52,7 @@ const failedStep = (
   },
 });
 
-/** km 单槽：retrieve + hits 写 → FC →（可）局部重检 */
+/** km 单槽 LangGraph 工人：retrieve → FC →（可）局部重检 */
 export const runKmSlotWorker = async (
   state: PipelineGraphState
 ): Promise<PlanSlotWorkerPatch> => {

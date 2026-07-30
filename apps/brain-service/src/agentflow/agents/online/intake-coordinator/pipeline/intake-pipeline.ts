@@ -22,6 +22,7 @@ import {
   deriveCompositeSlotsFromPathPlan,
   deriveRetrievalPlanFromPathPlan,
   emptyPathPlan,
+  ensureMemRecallStepFromTopUserFact,
   executionPlanFromPathPlanDag,
   fillListPagesInPathPlan,
   isPathPlanEmpty,
@@ -30,7 +31,7 @@ import {
   legalizePathPlan,
   reorderPathPlanByAnswerOrder,
 } from "@/agentflow/agents/online/intake-coordinator/path-plan";
-import { isUserFactIntent } from "@/agentflow/agents/online/user-fact";
+import { isUserFactIntent, normalizeFactKey } from "@/agentflow/agents/online/user-fact";
 import { logAgentOut } from "@fambrain/brain-shared/agent-log";
 import type { DbChatTurn } from "@fambrain/brain-types";
 import { resolveIntakeGraphRouteMode } from "./resolve-graph-route-mode";
@@ -335,6 +336,16 @@ export const runIntakePipeline = async (
     };
   }
 
+  const pathPlanBeforeMemRecall = pathPlan;
+  pathPlan = ensureMemRecallStepFromTopUserFact(decision, pathPlan);
+  if (pathPlan.steps.length !== pathPlanBeforeMemRecall.steps.length) {
+    logAgentOut("IntakeCoordinator", "guard_顶层userFactKey→mem步", {
+      userFactKey: decision.userFactKey,
+      userFactLabel: decision.userFactLabel,
+      memStepId: pathPlan.steps.find((s) => s.kind === "mem")?.id ?? null,
+    });
+  }
+
   // 结构规则：仅一步 mem → 等价纯 recall 早退（缺 key 时用占位 key + Intake label）
   if (
     decision.intent === "retrieve_and_answer" &&
@@ -350,6 +361,9 @@ export const runIntakePipeline = async (
     const factKey =
       mem.userFactKey?.trim() ||
       decision.userFactKey?.trim() ||
+      normalizeFactKey(mem.userFactLabel ?? "") ||
+      normalizeFactKey(mem.label) ||
+      normalizeFactKey(mem.searchQuery) ||
       "user_fact";
     decision = {
       ...decision,

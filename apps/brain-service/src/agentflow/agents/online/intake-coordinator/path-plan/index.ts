@@ -20,6 +20,7 @@ export {
 export {
   deriveCompositeSlotsFromPathPlan,
   deriveRetrievalPlanFromPathPlan,
+  ensureMemRecallStepFromTopUserFact,
   executionPlanFromPathPlanDag,
   fillListPagesInPathPlan,
   isPathPlanEmpty,

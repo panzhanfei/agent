@@ -544,7 +544,7 @@ Web：「我今年多大了」→ `routeMode=slots`（1 槽），KM hits 含 `�
 | `analyze-helpers.ts` | `formatHitsAsAnswerList`；fallback 无「根据知识库摘录」 |
 | `organize-knowledge.ts` | `queryProfile` → `organizeHits(maxHits)` |
 | `enumeration-target.ts` | `resolveEnumerationTarget`：**plan label 优先于 topics** |
-| `retrieve.ts` | `ensureEnumerationProjectCandidates` + `applyEnumerationFill(..., target)` |
+| `retrieve.ts` | 列举已迁至 `corpus-lister/`；KM 仅 identity 补注入 + Guard |
 | `sub-question-prompt.ts` | project topics：禁止把 experience 公司当项目名 |
 
 **验证：**

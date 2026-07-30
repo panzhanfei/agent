@@ -25,9 +25,7 @@ export type ConfidenceInput = {
     recallSource: RecallSource;
     topCandidate?: KnowledgeCandidate;
     guardApplied: boolean;
-    fillApplied: boolean;
     candidateCount: number;
-    expectedExperienceCount?: number;
 };
 
 export type ConfidenceAssessment = {
@@ -106,25 +104,6 @@ export const assessConfidence = (
     if (input.guardApplied) {
         score = Math.max(score, CONFIDENCE_HIGH_MIN - 0.05);
         reasons.push("identityGuard");
-    }
-
-    if (
-        input.queryProfile === "enumeration" &&
-        input.fillApplied &&
-        input.expectedExperienceCount &&
-        input.expectedExperienceCount > 0
-    ) {
-        const expHits = input.hits.filter(
-            (h) =>
-                h.path.includes("/experience/") && !/readme/i.test(h.path)
-        ).length;
-        if (expHits >= input.expectedExperienceCount) {
-            score = Math.max(score, CONFIDENCE_HIGH_MIN);
-            reasons.push("enumerationFill完整");
-        } else if (expHits > 0) {
-            score = Math.max(score, CONFIDENCE_MID_MIN);
-            reasons.push("enumeration部分覆盖");
-        }
     }
 
     if (top1Top2Gap >= 0.12) reasons.push("top1-top2 gap 大");

@@ -10,7 +10,9 @@ import {
 } from "@/agentflow/agents/online/intake-coordinator/composite";
 import {
     ENUMERATION_EXHAUSTIVE_PAGE_SIZE,
+    ENUMERATION_PREVIEW_PAGE_SIZE,
 } from "@/agentflow/agents/online/corpus-lister/list";
+import { resolveEnumerationTarget } from "@/agentflow/agents/online/intake-coordinator";
 import type { DbChatTurn } from "@fambrain/brain-types";
 import {
     matchUiEnumerationPrompt,
@@ -36,6 +38,27 @@ const isListAction = (
     action: EnumerationControl["action"] | undefined
 ): action is "continue" | "exhaustive" =>
     action === "continue" || action === "exhaustive";
+
+const defaultEnumerationControl = (
+    slot: CompositeRetrievalSlot
+): EnumerationControl => {
+    const listKind =
+        slot.enumerationControl?.listKind ??
+        (resolveEnumerationTarget({
+            label: slot.label,
+            searchQuery: slot.searchQuery,
+            topics: slot.topics,
+            subTasks: slot.subTasks,
+            listKind: null,
+        }) === "project"
+            ? "project"
+            : "experience");
+    return {
+        action: "preview",
+        listKind,
+        excludeHint: null,
+    };
+};
 
 const listSlotTemplate = (
     listKind: EnumerationListKind,
@@ -142,20 +165,15 @@ const enrichSlotExecutor = (
         };
     }
 
-    const control = slot.enumerationControl;
-    if (!control || !isListAction(control.action)) {
-        return {
-            ...slot,
-            executor: slot.executor ?? "km_retrieve",
-            enumerationControl: control ?? null,
-        };
-    }
-    const pageSize =
-        slot.enumerationPageSize ?? ENUMERATION_EXHAUSTIVE_PAGE_SIZE;
+    const control = slot.enumerationControl ?? defaultEnumerationControl(slot);
+    const defaultPageSize =
+        control.action === "preview"
+            ? ENUMERATION_PREVIEW_PAGE_SIZE
+            : ENUMERATION_EXHAUSTIVE_PAGE_SIZE;
     const { page, pageSize: resolvedSize } = resolvePageForControl(
         control,
         history,
-        pageSize
+        slot.enumerationPageSize ?? defaultPageSize
     );
     return {
         ...slot,
@@ -170,7 +188,7 @@ const enrichSlotExecutor = (
 /**
  * Intake guard ⑦：列举分页 / per-slot executor。
  *
- * preview 列举仍 km_retrieve；continue/exhaustive → list_corpus（目录扫盘）。
+ * 凡 queryType=enumeration（preview / continue / exhaustive）→ list_corpus。
  * 续页页码从 history 末条 assistant enumeration block 读取。
  */
 export const applyEnumerationSlotGuard = (
