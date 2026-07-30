@@ -47,12 +47,12 @@ knowledge-manager/
 │   ├── types.ts           # KnowledgeHit / KnowledgeRetrievalResult / Candidate
 │   └── schema.ts          # Zod 校验 hits / coverage
 │
-├── composite/             ← 多槽增量（facet 计划 + 单槽 cache retrieve）
-│   ├── facet-key.ts
-│   ├── incremental-plan.ts
-│   ├── retrieve-with-cache.ts
+├── composite/             ← 多槽 merge / order（缓存见 agentflow/cache/）
 │   ├── order-sub-results.ts  # orderSubResultsBySlots()（join 用）
 │   ├── merge.ts
+│   └── index.ts
+│
+├── slot/                  ← kmRetrieve Send 工人（读 state 预置 cache + FC）
 │   └── index.ts
 │
 ├── recall/                ← 核心检索（无 LLM）
@@ -73,7 +73,7 @@ knowledge-manager/
 
 1. `knowledge-manager/slot/` — 复合路径 kmRetrieve Send 工人：retrieve + FC + 局部重检
 2. `recall/retrieve.ts` — Hybrid → rank → coverage 主路径
-3. `composite/` — facet 增量计划与单槽 hits cache
+3. `agentflow/cache/` — planCacheResolve 全量 facet+hits；Analyst 写 facet 会话缓存
 4. `profile/query-profile.ts` + `profile/km-config.ts` — 分档参数
 5. `recall/retrieve-helpers.ts` — identityGuard、enumerationFill
 
@@ -91,10 +91,10 @@ routeAfterIntake()                    pipeline/graph/routes.ts
     │
     ├─ 纯 list（全部槽 executor=list_corpus）→ listRetriever（../corpus-lister/）
     │
-    └─ 复合 / km / tool / dag → planFanOut
-          └─ 每槽 Send：kmRetrieve（`knowledge-manager`，retrieve+FC）/ listRetrieve（`corpus-lister`，扫盘不经 FC）
-                pathPlan 派生 slots（可与 dag 并存）
-                  ├─ executor=km_retrieve → retrieveSlotWithCache + FC
+    └─ 复合 / km / tool / dag → planCacheResolve（`agentflow/cache` 全量 facet+hits）
+          └─ planFanOut Send：kmRetrieve（读预置 cache + FC）/ listRetrieve / …
+                pathPlan 派生 slots
+                  ├─ executor=km_retrieve → 预置 hits / facet 短路 + FC
                   └─ executor=list_corpus → fetchListSlot（不经 FC）
     │
     ▼
@@ -110,7 +110,7 @@ contentOrganizer → analyst
 
 ### 3.2 单槽检索（每槽 Send）
 
-复合路径每槽独立工人；`retrieveSlotWithCache` + facet 增量计划（`resolveIncrementalCompositePlan`）。
+复合路径：`planCacheResolve` 预置 facet+hits；km worker 只读 state + FC；FC 重检走 `retrieveKmWithHitsCache`。
 
 ### 3.3 单问检索内部（`retrieveKnowledge`）
 

@@ -20,7 +20,7 @@ import {
     type InformationAnalystInput,
     type InformationAnalystResult,
 } from "./prompt";
-import { cachedFacetToAnalystResult } from "@/agentflow/agents/online/knowledge-manager";
+import { cachedFacetToAnalystResult } from "@/agentflow/cache";
 import { streamCompositeAnalyze } from "./stream-composite";
 
 import type { AssistantMessageBlock } from "@fambrain/brain-types";

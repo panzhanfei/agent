@@ -21,6 +21,7 @@ import {
   runPlanSlotJoinNode,
   runPlanMergeNode,
 } from "@/agentflow/agents/online/plan-fanout";
+import { runPlanCacheResolveNode } from "@/agentflow/agents/online/plan-fanout/cache-resolve";
 import {
   runPlanSlotPostNode,
   runPlanDagNode,
@@ -38,6 +39,7 @@ import { runPersistTurnEnd } from "@/agentflow/agents/online/persist-turn-end";
 import { PipelineGraphAnnotation } from "./state";
 import {
   routeAfterIntake,
+  routeAfterPlanCacheResolve,
   routeAfterPlanMerge,
   routeAfterContentOrganizer,
   routeAfterContentSummarizer,
@@ -46,7 +48,7 @@ import {
 } from "./routes";
 
 /**
- * intake → Send(每槽 km|list|mem|tool|summarize ∥ dag ∥ userFactSide)
+ * intake → planCacheResolve（facet+hits 全量缓存）→ Send(每槽 km|list|mem|tool|summarize ∥ dag ∥ userFactSide)
  *   kmRetrieve（FC）/ listRetrieve / memRetrieve / toolRetrieve / summarizeSlot / userFactSide
  *     → planSlotJoin → planSlotPost(post-retrieval) → planMerge
  *   planDag ────────────────────────────────────────────────→ planMerge
@@ -59,6 +61,7 @@ const buildPipelineGraph = () => {
     .addNode("repeatRespondEarly", runRepeatRespondEarlyNode)
     .addNode("preparePipelineMemory", runPreparePipelineMemory)
     .addNode("intake", runIntakeNode)
+    .addNode("planCacheResolve", runPlanCacheResolveNode)
     .addNode("listRetriever", runListRetrieverNode)
     .addNode("kmRetrieve", runKmRetrieveNode)
     .addNode("listRetrieve", runListRetrieveNode)
@@ -81,6 +84,7 @@ const buildPipelineGraph = () => {
     .addConditionalEdges("repeatQuestionGuard", routeAfterRepeat)
     .addConditionalEdges("preparePipelineMemory", routeAfterPrepareMemory)
     .addConditionalEdges("intake", routeAfterIntake)
+    .addConditionalEdges("planCacheResolve", routeAfterPlanCacheResolve)
     .addEdge("listRetriever", "contentOrganizer")
     .addEdge("userFact", "persistTurnEnd")
     .addEdge("repeatRespondEarly", "persistTurnEnd")

@@ -207,7 +207,7 @@ pnpm run dev
 | `userFactNode` / `runUserFactSideNode` / `routeUserFactFromIntake` | `user-fact/`（`index.ts` + `side/`） | remember/recall 主路径；复合路径并行 side-effect |
 | `parseIntakeDecision` / `defaultIntakeDecision` | `intake-coordinator/pipeline/parse-intake.ts` | 解析 Intake 路由 JSON；失败 → **clarify**（不发明 retrieve） |
 | `runListRetrieverNode` / `runListRetrieveNode` | `corpus-lister/` | 纯 list 短路径 / 复合 list Send 工人 |
-| `retrieveSlotWithCache` / `orderSubResultsBySlots` | `knowledge-manager/` | 单槽 hits cache；join 按 compositeSlots 顺序混排 |
+| `resolveCompositeCachePlan` / `retrieveKmWithHitsCache` / `orderSubResultsBySlots` | `agentflow/cache/` · `knowledge-manager/composite/` | planFanOut 前全量 facet+hits；join 按 compositeSlots 顺序混排 |
 | `runKmRetrieveNode` | `knowledge-manager/` | 复合路径 km Send 工人（retrieve+FC） |
 | `runPlanSlotJoinNode` / `runPlanMergeNode` | `plan-fanout/` | fan-out 槽汇合 + 与 DAG 线 merge |
 | `runPlanSlotPostNode` / `runPlanDagNode` | `tool-orchestrator/`（`plan-slot-post` / `plan-dag`） | post-retrieval tools / hybrid DAG 工人 |

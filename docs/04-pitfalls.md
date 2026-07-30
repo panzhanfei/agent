@@ -477,7 +477,7 @@ pnpm --filter @fambrain/brain-service run verify:r6-no-cache   # R6-1：同句�
 | **同问短路** | `prepare-turn-start/repeat-question-guard.ts` | 同会话**字面相同**问 → 复用 history 整答；`REPEAT_QUESTION_CACHE_DISABLED=1` 关闭 |
 | **检索结果 cache** | `retrieval-cache.ts` | 单槽 KM 结果 cache（`searchQuery+queryType`）；`RETRIEVAL_CACHE_DISABLED=1` 关闭 |
 | **composite 终稿 cache** | `composite-answer-cache.ts` + `stream-composite.ts` / `runtime/stream.ts` | 同 `conversationId` + `corpusUserId` 下按 **facetKey** 缓存子问终稿；slot 单槽命中时 `knowledge-manager/nodes/`、`knowledge-manager/pipeline/` 从 citations 还原 hits |
-| **增量 composite** | `knowledge-manager/composite/incremental-plan.ts` | Q2 = Q1 + 邮箱/电话：**终稿 cache 命中槽跳过真检索**，仅对新 facet 检索/流式；「全部重来」→ `clearCompositeSession` |
+| **增量 composite** | `agentflow/cache/resolve-composite-plan.ts` | Q2 = Q1 + 邮箱/电话：**planCacheResolve 终稿 cache 命中槽跳过真检索**，仅对新 facet 检索/流式 |
 
 **环境变量：** 见 `.env.example` 中 **Pipeline cache 开关**；未配 Redis 时检索/composite cache 用 memory fallback（清 cache 须重启 agents）。
 

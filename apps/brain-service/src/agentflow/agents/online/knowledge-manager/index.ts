@@ -15,7 +15,10 @@ export {
   getProfileRecallParams,
   PROFILE_MAX_HITS,
 } from "./profile/km-config";
-export { inferQueryProfile, resolveQueryProfile } from "./profile/query-profile";
+export {
+  inferQueryProfile,
+  resolveQueryProfile,
+} from "./profile/query-profile";
 export { searchCorpusVectors } from "@fambrain/corpus/corpus-vector";
 export {
   knowledgeHitSchema,
@@ -39,17 +42,8 @@ export {
   mergeCompositeHits,
   mergeCompositeRetrieval,
   orderSubResultsBySlots,
-  resolveIncrementalCompositePlan,
-  cachedFacetToAnalystResult,
-  analystResultToCachedFacet,
-  buildFacetKey,
-  detectCompositeRefreshIntent,
-  attachFacetKey,
-  retrieveSlotWithCache,
   type CompositeRetrievePlan,
   type CompositeSubRetrieval,
-  type CompositeSlotPlan,
-  type IncrementalCompositePlan,
 } from "./composite";
 export {
   assessConfidence,
@@ -58,6 +52,21 @@ export {
 } from "./profile/score-candidate";
 export { hybridRecall } from "./recall/hybrid-recall";
 export { fuseRrf } from "./recall/fusion-rrf";
+
+/** @deprecated 请用 @/agentflow/cache */
+export {
+  resolveCompositeCachePlan,
+  resolveIncrementalCompositePlan,
+  cachedFacetToAnalystResult,
+  analystResultToCachedFacet,
+  buildFacetKey,
+  detectCompositeRefreshIntent,
+  attachFacetKey,
+  retrieveKmWithHitsCache as retrieveSlotWithCache,
+  type CompositeCachePlan,
+  type CompositeSlotPlan,
+  type IncrementalCompositePlan,
+} from "@/agentflow/cache";
 
 /**
  * LangGraph `kmRetrieve` 节点：复合路径每槽 Send 工人（executor ≠ list_corpus）。

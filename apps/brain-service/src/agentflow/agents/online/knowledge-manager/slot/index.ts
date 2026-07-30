@@ -1,13 +1,15 @@
 /**
- * km 单槽工人：retrieve → FC →（失败且有 refinedQuery 时）局部重检一次。
+ * km 单槽工人：读 planCacheResolve 预置缓存 → FC →（可）局部重检。
  * 供 LangGraph kmRetrieve Send 节点调用。
  */
 import {
   attachFacetKey,
-  resolveIncrementalCompositePlan,
-  retrieveSlotWithCache,
-  type CompositeSubRetrieval,
-} from "../composite";
+  findSlotCachePlan,
+  retrieveKmWithHitsCache,
+  subFromFacetCache,
+  subFromHits,
+} from "@/agentflow/cache";
+import type { CompositeSubRetrieval } from "../composite/interface";
 import type { CompositeRetrievalSlot } from "@/agentflow/agents/online/intake-coordinator/composite/interface";
 import {
   checkStepFacts,
@@ -54,58 +56,39 @@ const failedStep = (
   },
 });
 
+/** 读 state 内预置 plan；FC 重检走 live hits cache */
 const retrieveKmOne = async (
   state: PipelineGraphState,
-  slot: CompositeRetrievalSlot
+  slot: CompositeRetrievalSlot,
+  options?: { liveRetrieve?: boolean }
 ): Promise<CompositeSubRetrieval> => {
-  const sessionKey = {
-    conversationId: state.context.conversationId,
-    corpusUserId: state.context.corpusUserId,
-  };
-  const allSlots = state.decision?.compositeSlots ?? [slot];
-  const incremental = await resolveIncrementalCompositePlan({
-    session: sessionKey,
-    userQuestion: state.userQuestion,
-    slots: allSlots,
-  });
-  const planSlot = incremental.slots.find(
-    (s) => String(s.id) === String(slot.id)
-  );
-  if (planSlot?.useCachedAnswer && planSlot.cachedAnswer) {
-    return {
-      slot: slot.id,
-      facetKey: planSlot.facetKey,
-      label: slot.label,
-      hits: planSlot.cachedAnswer.citations.map((c, i) => ({
-        path: c.path,
-        title: c.path.split("/").pop() ?? c.path,
-        excerpt: c.excerpt,
-        relevance: Math.max(0.5, 1 - i * 0.05),
-      })),
-      coverage: planSlot.cachedAnswer.coverage,
-      notes: null,
-      cacheHit: true,
-      facetAnswerCacheHit: true,
-    };
+  const planSlot = findSlotCachePlan(state.compositeIncrementalPlan, slot.id);
+  const withKey = attachFacetKey(slot);
+
+  if (
+    !options?.liveRetrieve &&
+    planSlot?.useCachedAnswer &&
+    planSlot.cachedAnswer
+  ) {
+    return subFromFacetCache(slot, planSlot);
   }
 
-  const withKey = attachFacetKey(slot);
-  const { retrieval, cacheHit } = await retrieveSlotWithCache({
+  if (!options?.liveRetrieve && planSlot?.preresolvedHits) {
+    return subFromHits(slot, withKey.facetKey, planSlot.preresolvedHits);
+  }
+
+  const { retrieval, cacheHit } = await retrieveKmWithHitsCache({
     corpusUserId: state.context.corpusUserId,
     slot: withKey,
   });
-  return {
-    slot: slot.id,
-    facetKey: withKey.facetKey,
-    label: slot.label,
+  return subFromHits(slot, withKey.facetKey, {
     hits: retrieval.hits,
     coverage: retrieval.coverage,
     notes: retrieval.notes,
     confidenceTier: retrieval.confidenceTier,
-    enumerationMeta: retrieval.enumerationMeta,
+    confidenceScore: retrieval.confidenceScore,
     cacheHit,
-    facetAnswerCacheHit: false,
-  };
+  });
 };
 
 /** km 单槽：retrieve → FC →（可）局部重检 */
@@ -136,16 +119,12 @@ export const runKmSlotWorker = async (
       retrievalCacheHit: Boolean(sub.cacheHit),
     });
 
-    if (
-      !fc.passed &&
-      fc.refinedSearchQuery &&
-      state.retryCount < 1
-    ) {
+    if (!fc.passed && fc.refinedSearchQuery && state.retryCount < 1) {
       const refinedSlot: CompositeRetrievalSlot = {
         ...slot,
         searchQuery: fc.refinedSearchQuery,
       };
-      sub = await retrieveKmOne(state, refinedSlot);
+      sub = await retrieveKmOne(state, refinedSlot, { liveRetrieve: true });
       retried = true;
       fc = await checkStepFacts({
         userQuestion: state.userQuestion,

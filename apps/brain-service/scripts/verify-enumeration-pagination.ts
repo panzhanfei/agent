@@ -13,7 +13,7 @@ import {
 import {
     analystResultToCachedFacet,
     cachedFacetToAnalystResult,
-} from "../src/agentflow/agents/online/knowledge-manager";
+} from "../src/agentflow/cache";
 import { composeEnumerationAnswer } from "../src/agentflow/agents/online/information-analyst/compose-message";
 import { listCorpusEntriesPage } from "../src/agentflow/agents/online/corpus-lister";
 import { retrieveEnumerationPage } from "../src/agentflow/agents/online/corpus-lister";

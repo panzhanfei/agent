@@ -20,19 +20,29 @@ export const routeAfterPrepareMemory = (
 
 /**
  * Intake 之后：只信 decision.routeMode（与图节点名 1:1，planFanOut 除外）。
- * planFanOut → LangGraph Send 并行工人；其余字符串直接跳节点。
+ * planFanOut → planCacheResolve（全量 facet+hits 缓存）→ Send 并行工人。
  */
 export const routeAfterIntake = (
   state: PipelineGraphState
-): IntakeRouteMode | Send[] | "planMerge" => {
+): IntakeRouteMode | "planCacheResolve" | "planMerge" => {
   if (state.exitEarly || state.error || !state.decision) {
     return "respondEarly";
   }
   const mode = state.decision.routeMode;
   if (mode === "planFanOut") {
-    return fanOutPlanWorkers(state);
+    return "planCacheResolve";
   }
   return mode;
+};
+
+/** planCacheResolve 之后：Send 每槽工人 */
+export const routeAfterPlanCacheResolve = (
+  state: PipelineGraphState
+): Send[] | "respondEarly" | "planMerge" => {
+  if (state.exitEarly || state.error || !state.decision) {
+    return "respondEarly";
+  }
+  return fanOutPlanWorkers(state);
 };
 
 /** planMerge 之后进入 contentOrganizer */

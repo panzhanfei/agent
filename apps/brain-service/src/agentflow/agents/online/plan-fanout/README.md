@@ -5,8 +5,9 @@ Intake 之后的并行工人汇合：`Send` 每槽检索/工具/记忆/总结 �
 ## 图
 
 ```text
-intake → planFanOut Send
-├── kmRetrieve      PathKind=km       dataSource=corpus|compute  → retrieve + FC
+intake → planCacheResolve（agentflow/cache）
+     → planFanOut Send
+├── kmRetrieve      读预置 facet+hits cache + FC
 ├── listRetrieve    PathKind=list     dataSource=corpus          → list，无 FC
 ├── memRetrieve     PathKind=mem      dataSource=mem0            → Mem0 结构化召回
 ├── toolRetrieve    PathKind=tool     dataSource=web|…           → 独立工具（search_web 等）

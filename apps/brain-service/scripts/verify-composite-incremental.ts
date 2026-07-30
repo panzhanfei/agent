@@ -12,7 +12,7 @@ import {
     analystResultToCachedFacet,
     buildFacetKey,
     resolveIncrementalCompositePlan,
-} from "../src/agentflow/agents/online/knowledge-manager";
+} from "../src/agentflow/cache";
 import { planItemToSlot } from "../src/agentflow/agents/online/intake-coordinator";
 
 process.env.REDIS_ENABLED = "0";
@@ -217,13 +217,13 @@ const q2Slots = [
         userQuestion: "全部重来，重新介绍",
         slots: q2Slots,
     });
-    if (plan.sessionCleared !== true || plan.facetCacheHits !== 0) {
+    if (plan.sessionCleared !== false || plan.facetCacheHits !== 2) {
         fail(
-            "refresh 意图清空 session",
+            "口语 refresh 不清 session",
             `cleared=${plan.sessionCleared} hits=${plan.facetCacheHits}`
         );
     }
-    ok("refresh 意图清空 session");
+    ok("口语 refresh 不清 session（facetKey 驱动失效）");
 }
 
 console.log("\nOK");

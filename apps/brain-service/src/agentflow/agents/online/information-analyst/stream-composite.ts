@@ -1,13 +1,13 @@
 import {
     analystResultToCachedFacet,
     cachedFacetToAnalystResult,
-    resolveQueryProfile,
+    writeFacetSession,
     type CompositeSlotPlan,
-} from "@/agentflow/agents/online/knowledge-manager";
+} from "@/agentflow/cache";
+import { resolveQueryProfile } from "@/agentflow/agents/online/knowledge-manager";
 import { organizeKnowledge } from "@/agentflow/agents/online/content-organizer";
 import { logAgentIn, logAgentOut } from "@fambrain/brain-shared/agent-log";
 import type { AssistantMessageBlock } from "@fambrain/brain-types";
-import { upsertFacetAnswers } from "@fambrain/infra";
 import {
     mergeSubQuestionAnswers,
     type SubQuestionAnalyzeInput,
@@ -220,7 +220,7 @@ export async function* streamCompositeAnalyze(
     );
 
     if (sessionKey) {
-        await upsertFacetAnswers(sessionKey, {
+        await writeFacetSession(sessionKey, {
             facets: completed.map((s) =>
                 analystResultToCachedFacet(
                     s.facetKey,

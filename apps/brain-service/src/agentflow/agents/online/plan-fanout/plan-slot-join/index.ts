@@ -7,7 +7,6 @@ import { logAgentOut } from "@fambrain/brain-shared/agent-log";
 import {
   mergeCompositeRetrieval,
   orderSubResultsBySlots,
-  resolveIncrementalCompositePlan,
 } from "@/agentflow/agents/online/knowledge-manager";
 import type { PipelineToolResults } from "@/agentflow/agents/online/tool-orchestrator/interface";
 import type { PipelineGraphState } from "@/agentflow/pipeline/graph/state";
@@ -64,19 +63,7 @@ export const runPlanSlotJoinNode = async (
   const cacheHits = subResults.filter((s) => s.cacheHit).length;
   const facetHits = subResults.filter((s) => s.facetAnswerCacheHit).length;
 
-  let incremental = null;
-  try {
-    incremental = await resolveIncrementalCompositePlan({
-      session: {
-        conversationId: state.context.conversationId,
-        corpusUserId: state.context.corpusUserId,
-      },
-      userQuestion: state.userQuestion,
-      slots,
-    });
-  } catch {
-    incremental = null;
-  }
+  const incremental = state.compositeIncrementalPlan ?? null;
 
   const patch: PlanSlotsPatch = {
     hits: merged.hits,

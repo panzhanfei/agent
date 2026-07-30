@@ -413,7 +413,7 @@ RoutedIntakeDecision:
   routeMode: plan
   compositeSlots: [ { id: plan-0, searchQuery: "...", queryType: tech } ]
 
-→ routeAfterIntake → planFanOut 每槽 Send → KM/list 单槽（retrieveSlotWithCache / fetchListSlot）
+→ routeAfterIntake → planCacheResolve → planFanOut 每槽 Send → KM/list 单槽（读预置 cache / fetchListSlot）
 ```
 
 ### 5.2 闲聊：「你好」
@@ -600,7 +600,7 @@ LLM 返回非 JSON / Zod 校验失败
 | `composite-slot-queries.ts` | 槽模板；planItem → slot；canonicalizePlanItem |
 | `enumeration-target.ts` | 列举问是「公司」还是「项目」 |
 
-> 槽答案缓存 / 增量计划在 `knowledge-manager/composite/`（`incremental-plan.ts`、`facet-key.ts`）。
+> 槽答案 / hits 缓存策略在 `agentflow/cache/`（`planCacheResolve` 节点 + Analyst 写回）。
 
 ### user-fact/
 

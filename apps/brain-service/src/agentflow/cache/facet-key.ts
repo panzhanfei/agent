@@ -1,13 +1,8 @@
 /**
- * facetKey：会话内「同一语义槽」的稳定键（KM 执行侧）。
- *
- * 用途：
- * - composite 会话 facets[facetKey] 存 Analyst 终稿（槽答案缓存）
- * - 同问不同说法应对齐到同一 key（如 id:name）
+ * facetKey：会话内「同一语义槽」的稳定键。
  *
  * 键按 queryType 分桶：enum:* / id:* / tech:* / link:* / default:*
- * 槽位模板仍来自 Intake（canonicalizePlanItem）；本文件只负责算 key。
- * identity / enumeration 子类信 identityField / listKind / topics，不用口语正则。
+ * 槽位模板来自 Intake；本文件只负责算 key。
  */
 import { normalizeSearchQuery } from "@fambrain/infra";
 import type { CachedFacetAnswer } from "@fambrain/infra";
@@ -62,7 +57,7 @@ export const facetAnswerMatchesSlot = (
 
 /**
  * @deprecated 禁止问句口语词表清 cache。
- * 槽答案失效靠 facetKey 变化 / 会话自然过期；不再匹配「重新来」等口语。
+ * 槽答案失效靠 facetKey 变化 / 会话自然过期。
  */
 export const detectCompositeRefreshIntent = (_userQuestion: string): boolean =>
     false;
@@ -77,13 +72,6 @@ const IDENTITY_FACET_KEY: Record<IntakeIdentityField, string> = {
     tenure: "id:tenure",
 };
 
-/**
- * 从 plan/槽推导 facetKey。
- * - enumeration + list_corpus 分页 → enum:projects:p{N} | enum:employers:p{N}
- * - enumeration preview/km → enum:projects | enum:employers
- * - identity → id:name | id:age | …（信 identityField）
- * - tech / default → 带 label 前缀的弱键
- */
 export const buildFacetKey = (source: FacetSource): string => {
     const item =
         "searchQuery" in source && "queryType" in source
@@ -157,7 +145,6 @@ export const buildFacetKey = (source: FacetSource): string => {
     return `default:${ln.slice(0, 32) || canonical.queryType}`;
 };
 
-/** 给槽挂上 facetKey，供增量计划查槽答案缓存 */
 export const attachFacetKey = (
     slot: CompositeRetrievalSlot
 ): CompositeRetrievalSlot & { facetKey: string } => ({

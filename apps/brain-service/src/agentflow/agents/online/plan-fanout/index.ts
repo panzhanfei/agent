@@ -1,3 +1,4 @@
+export { runPlanCacheResolveNode } from "./cache-resolve";
 export { fanOutPlanWorkers, pathHasHybridDag, describeFanOutPlan } from "./fan-out";
 export { resolveActiveSlot } from "./active-slot";
 export {

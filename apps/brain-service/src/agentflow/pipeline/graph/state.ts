@@ -7,8 +7,8 @@ import type {
     ConfidenceTier,
     CompositeSubRetrieval,
     EnumerationMeta,
-    IncrementalCompositePlan,
 } from "@/agentflow/agents/online/knowledge-manager";
+import type { CompositeCachePlan } from "@/agentflow/cache";
 import type { PipelineToolResults } from "@/agentflow/agents/online/tool-orchestrator";
 import type { StepResult } from "@/agentflow/agents/online/intake-coordinator/path-plan";
 import type {
@@ -46,7 +46,7 @@ export const PipelineGraphAnnotation = Annotation.Root({
     retrievalCacheHit: Annotation<boolean>,
     retrievalCacheSlotHits: Annotation<number | null>,
     compositeSubResults: Annotation<CompositeSubRetrieval[] | null>,
-    compositeIncrementalPlan: Annotation<IncrementalCompositePlan | null>,
+    compositeIncrementalPlan: Annotation<CompositeCachePlan | null>,
     compositeFacetCacheHits: Annotation<number | null>,
     asOfDate: Annotation<string>,
     toolResults: Annotation<PipelineToolResults | null>,

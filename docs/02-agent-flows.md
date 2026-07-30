@@ -23,7 +23,7 @@
 
 **链路：** 用户提问 → **轮次开始** → 意图识别 → **PathPlan fan-out**（按 `steps[]`：km / list / tool / dag 并行工人；km 槽 per-step FC，list 不经 FC）→ **内容整理** → **Compose**（qa / composite / summarize）→ 回答 → **轮次结束**。跨轮 **两层 cache**（同问短路 + 检索结果 cache）见 [坑点 §2.2](./04-pitfalls.md)。
 
-**PathPlan 有序 steps（2026-07 · 端到端）：** Intake LLM 直接产出 `pathPlan.steps[]` + `composeMode`（数组顺序 = 回答/执行顺序；`answerOrder` 可选）；pipeline **合法化 + 结构归一**（`dataSource`/`userFactKey`/`identityField`/`toolId` 族修正 kind）并派生 `compositeSlots`。LangGraph：**纯 list** → `listRetriever` → `contentOrganizer` → `analyst`；**纯总结（无查库）** → `contentSummarizer`；**复合** → `planFanOut`（每槽 `Send`→`kmRetrieve`（FC）/`listRetrieve`/`memRetrieve`/`toolRetrieve`/`summarizeSlot` ∥`userFactSide`→`planSlotJoin`→`planSlotPost`(仅 post-retrieval tools) ∥ `planDag`→`planMerge`）→ `contentOrganizer` →（`composeMode=summarize` 才进 `contentSummarizer`，否则）→ `analyst`。SSE 按真实图节点报步骤。
+**PathPlan 有序 steps（2026-07 · 端到端）：** Intake LLM 直接产出 `pathPlan.steps[]` + `composeMode`（数组顺序 = 回答/执行顺序；`answerOrder` 可选）；pipeline **合法化 + 结构归一**（`dataSource`/`userFactKey`/`identityField`/`toolId` 族修正 kind）并派生 `compositeSlots`。LangGraph：**纯 list** → `listRetriever` → `contentOrganizer` → `analyst`；**纯总结（无查库）** → `contentSummarizer`；**复合** → `planCacheResolve`（`agentflow/cache` 全量 facet+hits）→ `planFanOut`（每槽 `Send`→`kmRetrieve`（FC）/`listRetrieve`/… ∥`planDag`→`planMerge`）→ `contentOrganizer` → `analyst`。SSE 按真实图节点报步骤。
 
 **架构双线（2026-06，目录 2026-07 对齐）：**
 
@@ -68,7 +68,8 @@ flowchart TB
     P -->|remember/recall user_fact| UF[userFact 节点]
     P -->|clarify / chitchat| R1[respondEarly]
     P -->|summarize_content| SUM[ContentSummarizer]
-    P -->|retrieve_and_answer| PE[planFanOut<br/>km/list/mem/tool/summarize/dag]
+    P -->|retrieve_and_answer| PCR[planCacheResolve]
+    PCR --> PE[planFanOut<br/>km/list/mem/tool/summarize/dag]
     PE --> CO[ContentOrganizer]
     CO --> IA[InformationAnalyst<br/>composeMode]
     IA --> OUT[assistant 入库]
@@ -105,8 +106,8 @@ flowchart TB
 | 层 | 位置 | Key / 条件 | 命中后 | 关闭 |
 |----|------|------------|--------|------|
 | **同问短路** | **`repeatQuestionGuard` 节点**（`repeat-question-guard/nodes/repeat-question-node.ts`） | `normalize(userQuestion)` + history 中已有 assistant 答 | `repeat_respond_early` → 复用答案（`repeatQuestionHit`）→ `persistTurnEnd` | `REPEAT_QUESTION_CACHE_DISABLED=1` |
-| **检索结果 cache** | `knowledge-manager/composite/retrieve-with-cache.ts`（`retrieveSlotWithCache`） | `{prefix}:retrieval:v1:{corpusUserId}:{queryType}:{normalize(searchQuery)}` | 跳过真检索；仍走 FC / Analyst（`retrievalCacheHit`） | `RETRIEVAL_CACHE_DISABLED=1` |
-| **composite 终稿 cache** | `composite-answer-cache.ts` | 同会话 `conversationId` + `corpusUserId` + **facetKey** | composite/slot 增量：命中槽跳过 KM；**slot 单槽**时 Analyst 读 cache 或 citations 还原 hits | `COMPOSITE_ANSWER_CACHE_DISABLED=1` |
+| **检索结果 cache** | `agentflow/cache/slot-hits.ts`（`planCacheResolve` 预查 + FC 重检 `retrieveKmWithHitsCache`） | `{prefix}:retrieval:v1:{corpusUserId}:{queryType}:{normalize(searchQuery)}` | 进 KM 前预查；命中跳过真检索；仍走 FC / Analyst | `RETRIEVAL_CACHE_DISABLED=1` |
+| **composite 终稿 cache** | `agentflow/cache/resolve-composite-plan.ts` + `packages/infra/.../composite-answer-cache.ts` | 同会话 `conversationId` + `corpusUserId` + **facetKey** | `planCacheResolve` 全量 facet 查表；命中槽跳过 KM | `COMPOSITE_ANSWER_CACHE_DISABLED=1` |
 
 清空 Redis / memory：`pnpm --filter @fambrain/brain-service exec tsx --env-file=../../.env scripts/clear-pipeline-cache.ts`（改 env 后须**重启 agents** 清进程内 memory）。
 
@@ -122,7 +123,8 @@ flowchart TD
   C -->|clarify / chitchat| D[respondEarly]
   C -->|remember_user_fact / recall_user_fact| UF[userFact → Mem0]
   C -->|summarize_content| CS[ContentSummarizer → respondEarly]
-  C -->|retrieve_and_answer| PE[planFanOut<br/>km/list/mem/tool/summarize/dag]
+  C -->|retrieve_and_answer| PCR[planCacheResolve<br/>facet+hits 全量缓存]
+  PCR --> PE[planFanOut<br/>km/list/mem/tool/summarize/dag]
   PE -->|composeMode=summarize| CS
   PE -->|qa / composite| CO[ContentOrganizer]
   CO --> G[InformationAnalyst]

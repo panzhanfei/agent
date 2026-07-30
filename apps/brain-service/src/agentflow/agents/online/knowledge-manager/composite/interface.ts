@@ -1,7 +1,6 @@
 /**
  * KM composite（执行侧）类型约定。
  */
-import type { CachedFacetAnswer } from "@fambrain/infra";
 import type {
     CompositeRetrievalSlot,
     CompositeSlotId,
@@ -12,25 +11,6 @@ import type {
     KnowledgeHit,
     KnowledgeRetrievalResult,
 } from "../contract/types";
-
-/** 单槽计划：原槽位 + facetKey + 是否复用缓存答案 */
-export type CompositeSlotPlan = CompositeRetrievalSlot & {
-    facetKey: string;
-    useCachedAnswer: boolean;
-    cachedAnswer: CachedFacetAnswer | null;
-};
-
-/**
- * 增量检索计划。
- * - slots：全部槽（含命中/未命中标记）
- * - activeRetrievalSlots：需要真正调 retrieveKnowledge 的子集
- */
-export type IncrementalCompositePlan = {
-    slots: CompositeSlotPlan[];
-    activeRetrievalSlots: CompositeRetrievalSlot[];
-    facetCacheHits: number;
-    sessionCleared: boolean;
-};
 
 /** Mem0 召回结果（mem 槽；非 corpus hits） */
 export type RecalledUserFact = {

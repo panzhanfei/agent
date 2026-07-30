@@ -361,10 +361,11 @@ async function* runPipelineStreamInner(
         yield* startStep("content_summarizer");
       } else if (decision && isPureListDecision(decision)) {
         yield* startStep("list_retrieve");
+      } else if (decision && decision.routeMode === "planFanOut") {
+        yield* startStep("plan_cache_resolve");
       } else if (
         decision &&
-        (decision.routeMode === "planFanOut" ||
-          intakeRequiresKmRetrieval(decision) ||
+        (intakeRequiresKmRetrieval(decision) ||
           (decision.pathPlan &&
             (decision.pathPlan.steps?.length ?? 0) > 0))
       ) {
@@ -376,6 +377,18 @@ async function* runPipelineStreamInner(
         if (fan.hasKm || fan.hasList || fan.hasSideRemember) {
           yield* startStep("plan_slot_join");
         }
+      }
+      continue;
+    }
+    if (nodeName === "planCacheResolve") {
+      yield* finishStep("plan_cache_resolve");
+      const fan = describeFanOutPlan(finalState);
+      if (fan.hasKm) yield* startStep("km_retrieve");
+      if (fan.hasList) yield* startStep("list_retrieve");
+      if (fan.hasDag) yield* startStep("plan_dag");
+      if (fan.hasSideRemember) yield* startStep("user_fact");
+      if (fan.hasKm || fan.hasList || fan.hasSideRemember) {
+        yield* startStep("plan_slot_join");
       }
       continue;
     }

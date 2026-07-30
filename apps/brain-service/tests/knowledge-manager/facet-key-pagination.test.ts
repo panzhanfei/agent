@@ -2,7 +2,7 @@ import { describe, expect, it } from "vitest";
 import {
     buildFacetKey,
     facetAnswerMatchesSlot,
-} from "@/agentflow/agents/online/knowledge-manager/composite/facet-key";
+} from "@/agentflow/cache";
 import type { CachedFacetAnswer } from "@fambrain/infra";
 
 describe("buildFacetKey pagination", () => {

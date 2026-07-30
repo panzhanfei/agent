@@ -1,7 +1,7 @@
 /** CorpusLister：语料目录列举分页（projects / experience），不经 KM hybrid。 */
 
 import { logAgentOut } from "@fambrain/brain-shared/agent-log";
-import { resolveIncrementalCompositePlan } from "@/agentflow/agents/online/knowledge-manager";
+import { resolveCompositeCachePlan } from "@/agentflow/cache";
 import type { PipelineGraphState } from "@/agentflow/pipeline/graph/state";
 import { fetchListSlot } from "./fetch-list-slot";
 import { flattenListRetrieval } from "./flatten";
@@ -69,10 +69,12 @@ export const runListRetrieverNode = async (
       corpusUserId: state.context.corpusUserId,
     };
 
-    const incremental = await resolveIncrementalCompositePlan({
+    const incremental = await resolveCompositeCachePlan({
       session: sessionKey,
       userQuestion: state.userQuestion,
       slots,
+      corpusUserId: state.context.corpusUserId,
+      prefetchHits: false,
     });
 
     const subResults = await Promise.all(
