@@ -7,26 +7,12 @@ import {
 } from "@fambrain/infra";
 import type { AgentStreamEvent } from "@fambrain/brain-types";
 import { runAgentStream } from "@/agentflow";
-import { requireAuth } from "@/server/auth-middleware";
+import { requireAuth } from "@/server/middleware";
 import { pipelineStreamBodySchema } from "@/server/schema";
-import { initSseResponse, writeSse } from "@/server/sse";
+import { initSseResponse, readJsonBody, writeSse } from "@/server/http";
+
 const streamEventName = (ev: AgentStreamEvent): string => {
     return ev.type;
-};
-const readJsonBody = async (req: IncomingMessage, maxBytes = 512000): Promise<unknown> => {
-    const chunks: Buffer[] = [];
-    let total = 0;
-    for await (const chunk of req) {
-        const buf = Buffer.isBuffer(chunk) ? chunk : Buffer.from(chunk);
-        total += buf.length;
-        if (total > maxBytes) {
-            throw new Error("payload too large");
-        }
-        chunks.push(buf);
-    }
-    if (chunks.length === 0)
-        return {};
-    return JSON.parse(Buffer.concat(chunks).toString("utf8"));
 };
 export const handlePipelineStream = async (req: IncomingMessage, res: ServerResponse): Promise<void> => {
     if (req.method !== "POST") {

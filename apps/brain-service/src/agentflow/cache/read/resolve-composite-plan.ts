@@ -9,9 +9,10 @@ import {
     type CompositeSessionKey,
 } from "@fambrain/infra";
 import type { CompositeRetrievalSlot } from "@/agentflow/agents/online/intake-coordinator";
-import { attachFacetKey, facetAnswerMatchesSlot } from "./facet-key";
-import { lookupHitsCache } from "./slot-hits";
-import type { CompositeCachePlan, CompositeSlotPlan } from "./interface";
+import { attachFacetKey, facetAnswerMatchesSlot } from "../facet";
+import { lookupHitsCache } from "./lookup-hits";
+import { buildResolvedSub } from "./assemble-sub";
+import type { CompositeCachePlan, CompositeSlotPlan } from "../interface";
 
 const isKmExecutor = (slot: CompositeRetrievalSlot): boolean =>
     !slot.executor || slot.executor === "km_retrieve";
@@ -49,11 +50,7 @@ export const resolveCompositeCachePlan = async (
         if (useCachedAnswer) facetCacheHits++;
 
         let preresolvedHits = null;
-        if (
-            prefetchHits &&
-            !useCachedAnswer &&
-            isKmExecutor(slot)
-        ) {
+        if (prefetchHits && !useCachedAnswer && isKmExecutor(slot)) {
             preresolvedHits = await lookupHitsCache({
                 corpusUserId: input.corpusUserId,
                 slot: withKey,
@@ -61,11 +58,21 @@ export const resolveCompositeCachePlan = async (
             if (preresolvedHits?.cacheHit) hitsCacheHits++;
         }
 
+        const resolvedSub = buildResolvedSub(slot, {
+            facetKey: withKey.facetKey,
+            useCachedAnswer,
+            cachedAnswer: useCachedAnswer ? cached : null,
+            preresolvedHits,
+        });
+
+        const needsKmRetrieve = isKmExecutor(slot) && resolvedSub === null;
+
         const plan: CompositeSlotPlan = {
             ...withKey,
             useCachedAnswer,
             cachedAnswer: useCachedAnswer ? cached : null,
-            preresolvedHits,
+            resolvedSub,
+            needsKmRetrieve,
         };
         slots.push(plan);
         slotPlanById[String(slot.id)] = plan;

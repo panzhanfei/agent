@@ -110,7 +110,7 @@ contentOrganizer → analyst
 
 ### 3.2 单槽检索（每槽 Send）
 
-复合路径：`planCacheResolve` 预置 facet+hits；km worker 只读 state + FC；FC 重检走 `retrieveKmWithHitsCache`。
+复合路径：`planCacheResolve` 预置 facet+hits 标记；km worker 经 `executeKmSlotSub`（retrieve + `writeHitsCache`）；FC 重检 `liveRetrieve`。
 
 ### 3.3 单问检索内部（`retrieveKnowledge`）
 

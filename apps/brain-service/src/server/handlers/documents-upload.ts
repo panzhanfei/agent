@@ -1,7 +1,7 @@
 import type { IncomingMessage, ServerResponse } from "node:http";
 import { docParserLogger, docUploadFieldSchema, ingestDocumentBatch, } from "@/agentflow/agents/offline/doc-parser";
-import { requireAuth } from "@/server/auth-middleware";
-import { parseMultipartRequest } from "@/server/parse-multipart";
+import { requireAuth } from "@/server/middleware";
+import { parseMultipartRequest } from "@/server/http";
 const parseRelativePathsField = (raw: string | undefined): string[] | undefined => {
     if (!raw?.trim())
         return undefined;

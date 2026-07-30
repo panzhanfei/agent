@@ -47,6 +47,7 @@ const chatTurnSchema = z.object({
     content: z.string(),
     blocks: z.array(assistantMessageBlockSchema).optional(),
 });
+
 export const pipelineStreamBodySchema = z.object({
     history: z.array(chatTurnSchema).min(1),
     context: z.object({

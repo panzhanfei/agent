@@ -2,20 +2,8 @@ import type { IncomingMessage, ServerResponse } from "node:http";
 import { z } from "zod";
 import { MemoryCandidateTarget } from "@fambrain/db";
 import { promoteLearnedCandidate } from "@/agentflow/agents/offline/learning";
-import { requireAuth } from "@/server/auth-middleware";
-
-const readJsonBody = async (req: IncomingMessage, maxBytes = 512000): Promise<unknown> => {
-    const chunks: Buffer[] = [];
-    let total = 0;
-    for await (const chunk of req) {
-        const buf = Buffer.isBuffer(chunk) ? chunk : Buffer.from(chunk);
-        total += buf.length;
-        if (total > maxBytes) throw new Error("payload too large");
-        chunks.push(buf);
-    }
-    if (chunks.length === 0) return {};
-    return JSON.parse(Buffer.concat(chunks).toString("utf8"));
-};
+import { requireAuth } from "@/server/middleware";
+import { readJsonBody } from "@/server/http";
 
 const applyBodySchema = z.object({
     corpusUserId: z.string().min(1),

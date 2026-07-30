@@ -10,23 +10,19 @@ export {
     facetAnswerMatchesSlot,
     isPaginatedListCorpusSlot,
     detectCompositeRefreshIntent,
-} from "./facet-key";
-export {
     cachedFacetToAnalystResult,
     analystResultToCachedFacet,
-} from "./facet-bridge";
-export { writeFacetSession, type WriteFacetSessionInput } from "./write-session";
-export { lookupHitsCache, retrieveKmWithHitsCache } from "./slot-hits";
+} from "./facet";
 export {
     resolveCompositeCachePlan,
     resolveIncrementalCompositePlan,
-    type ResolveCompositeCachePlanInput,
-} from "./resolve-composite-plan";
-export {
+    lookupHitsCache,
+    buildResolvedSub,
     subFromFacetCache,
     subFromHits,
+    subFromRetrieval,
     findSlotCachePlan,
-} from "./sub-from-plan";
-
-/** @deprecated 用 retrieveKmWithHitsCache */
-export { retrieveKmWithHitsCache as retrieveSlotWithCache } from "./slot-hits";
+    type ResolveCompositeCachePlanInput,
+} from "./read";
+export { writeHitsCache, writeFacetSession, type WriteFacetSessionInput } from "./write";
+export { executeKmSlotSub, type ExecuteKmSlotSubInput } from "./km-slot";

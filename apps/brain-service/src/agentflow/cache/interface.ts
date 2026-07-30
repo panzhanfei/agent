@@ -5,14 +5,17 @@ import type {
     KnowledgeHit,
     KnowledgeRetrievalResult,
 } from "@/agentflow/agents/online/knowledge-manager/contract/types";
+import type { CompositeSubRetrieval } from "@/agentflow/agents/online/knowledge-manager/composite/interface";
 
-/** 单槽 plan：facet 会话缓存 + 可选 hits 预查结果 */
+/** 单槽 plan：facet 会话缓存 + resolve 阶段预拼 sub */
 export type CompositeSlotPlan = CompositeRetrievalSlot & {
     facetKey: string;
     useCachedAnswer: boolean;
     cachedAnswer: CachedFacetAnswer | null;
-    /** planCacheResolve 预查 hits；KM worker 只读，FC 重试用 live retrieve */
-    preresolvedHits: PreresolvedSlotHits | null;
+    /** planCacheResolve 预拼；facet / hits 命中时有值 */
+    resolvedSub: CompositeSubRetrieval | null;
+    /** km worker 是否需 live retrieve */
+    needsKmRetrieve: boolean;
 };
 
 /** hits 缓存预查载荷（进 KM 前 resolve） */

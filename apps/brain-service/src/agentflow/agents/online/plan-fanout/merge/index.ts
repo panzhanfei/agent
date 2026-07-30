@@ -113,6 +113,8 @@ export const mergeCompositeWithDagSteps = (
       facetKey: `dag:${dagRun.id}`,
       useCachedAnswer: false,
       cachedAnswer: null,
+      resolvedSub: null,
+      needsKmRetrieve: false,
     });
   }
 

@@ -1,21 +1,15 @@
 /**
- * km 单槽工人：读 planCacheResolve 预置缓存 → FC →（可）局部重检。
- * 供 LangGraph kmRetrieve Send 节点调用。
+ * km 单槽工人：executeKmSlotSub（检索 + hits 写）→ FC →（可）局部重检。
+ * 不读缓存；查缓存仅在 planCacheResolve。
  */
-import {
-  attachFacetKey,
-  findSlotCachePlan,
-  retrieveKmWithHitsCache,
-  subFromFacetCache,
-  subFromHits,
-} from "@/agentflow/cache";
+import { executeKmSlotSub } from "@/agentflow/cache";
 import type { CompositeSubRetrieval } from "../composite/interface";
-import type { CompositeRetrievalSlot } from "@/agentflow/agents/online/intake-coordinator/composite/interface";
 import {
   checkStepFacts,
   subToStepResult,
 } from "@/agentflow/agents/online/fact-checker";
 import type { StepResult } from "@/agentflow/agents/online/intake-coordinator/path-plan/interface";
+import type { CompositeRetrievalSlot } from "@/agentflow/agents/online/intake-coordinator/composite/interface";
 import { resolveActiveSlot } from "@/agentflow/agents/online/plan-fanout/active-slot";
 import type { PlanSlotWorkerPatch } from "@/agentflow/agents/online/plan-fanout/interface";
 import type { PipelineGraphState } from "@/agentflow/pipeline/graph/state";
@@ -56,42 +50,7 @@ const failedStep = (
   },
 });
 
-/** 读 state 内预置 plan；FC 重检走 live hits cache */
-const retrieveKmOne = async (
-  state: PipelineGraphState,
-  slot: CompositeRetrievalSlot,
-  options?: { liveRetrieve?: boolean }
-): Promise<CompositeSubRetrieval> => {
-  const planSlot = findSlotCachePlan(state.compositeIncrementalPlan, slot.id);
-  const withKey = attachFacetKey(slot);
-
-  if (
-    !options?.liveRetrieve &&
-    planSlot?.useCachedAnswer &&
-    planSlot.cachedAnswer
-  ) {
-    return subFromFacetCache(slot, planSlot);
-  }
-
-  if (!options?.liveRetrieve && planSlot?.preresolvedHits) {
-    return subFromHits(slot, withKey.facetKey, planSlot.preresolvedHits);
-  }
-
-  const { retrieval, cacheHit } = await retrieveKmWithHitsCache({
-    corpusUserId: state.context.corpusUserId,
-    slot: withKey,
-  });
-  return subFromHits(slot, withKey.facetKey, {
-    hits: retrieval.hits,
-    coverage: retrieval.coverage,
-    notes: retrieval.notes,
-    confidenceTier: retrieval.confidenceTier,
-    confidenceScore: retrieval.confidenceScore,
-    cacheHit,
-  });
-};
-
-/** km 单槽：retrieve → FC →（可）局部重检 */
+/** km 单槽：retrieve + hits 写 → FC →（可）局部重检 */
 export const runKmSlotWorker = async (
   state: PipelineGraphState
 ): Promise<PlanSlotWorkerPatch> => {
@@ -108,7 +67,14 @@ export const runKmSlotWorker = async (
   }
 
   try {
-    let sub = await retrieveKmOne(state, slot);
+    const corpusUserId = state.context.corpusUserId;
+    const plan = state.compositeIncrementalPlan;
+
+    let sub = await executeKmSlotSub({
+      corpusUserId,
+      plan,
+      slot,
+    });
     let retried = false;
 
     let fc = await checkStepFacts({
@@ -124,7 +90,12 @@ export const runKmSlotWorker = async (
         ...slot,
         searchQuery: fc.refinedSearchQuery,
       };
-      sub = await retrieveKmOne(state, refinedSlot, { liveRetrieve: true });
+      sub = await executeKmSlotSub({
+        corpusUserId,
+        plan,
+        slot: refinedSlot,
+        liveRetrieve: true,
+      });
       retried = true;
       fc = await checkStepFacts({
         userQuestion: state.userQuestion,

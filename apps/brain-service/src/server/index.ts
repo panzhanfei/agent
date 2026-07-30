@@ -1,10 +1,16 @@
 import { createServer } from "node:http";
-import { bootstrapBrainServiceRuntime, logLangSmithStartup, } from "@/config";
-import { handleAsync } from "@/server/handle-async";
-import { handleHealth, handleNotFound, handlePipelineStream, } from "@/server/routes";
-import { handleDocumentsUpload } from "@/server/documents-upload";
-import { handleLearningApply } from "@/server/learning-apply";
-import { handleEnumerationList } from "@/server/enumeration-list";
+import { bootstrapBrainServiceRuntime, logLangSmithStartup } from "@/config";
+import { handleAsync } from "@/server/http";
+import {
+    handleHealth,
+    handleNotFound,
+    handlePipelineStream,
+} from "@/server/routes";
+import {
+    handleDocumentsUpload,
+    handleEnumerationList,
+    handleLearningApply,
+} from "@/server/handlers";
 
 const { langSmith, port } = bootstrapBrainServiceRuntime();
 
