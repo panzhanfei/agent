@@ -142,13 +142,71 @@ export const addExplicitUserMemory = async (
     }
 };
 
-/** P0-16：结构化 user_fact 写入 Mem0（对话消息 + metadata，避免纯 JSON 触发抽取失败） */
+/** 结构化 value 归一（trim + 空白折叠；不猜语义） */
+export const normalizeStructuredFactValue = (value: string): string =>
+    value.trim().replace(/\s+/g, " ");
+
+type StructuredFactHit = { id: string; value: string };
+
+/** 按 metadata.factKey（及文本标记兜底）找已有结构化事实 */
+const listStructuredFactsForKey = async (
+    memory: Memory,
+    userId: string,
+    factKey: string
+): Promise<StructuredFactHit[]> => {
+    const key = factKey.trim();
+    if (!key) return [];
+    const queries = [`user_fact ${key}`, key, `字段 ${key}`];
+    const byId = new Map<string, string>();
+    for (const query of queries) {
+        try {
+            const raw = await memory.search(query, { userId, limit: 20 });
+            for (const item of raw.results ?? []) {
+                if (!item?.id) continue;
+                const meta = item.metadata ?? {};
+                const metaKey =
+                    typeof meta.factKey === "string" ? meta.factKey.trim() : "";
+                const metaVal =
+                    typeof meta.value === "string"
+                        ? normalizeStructuredFactValue(meta.value)
+                        : "";
+                if (metaKey === key && metaVal) {
+                    byId.set(item.id, metaVal);
+                    continue;
+                }
+                const text = (item.memory ?? "").trim();
+                if (
+                    text.includes(`（字段 ${key}）`) ||
+                    text.includes(`(字段 ${key})`)
+                ) {
+                    if (metaVal) {
+                        byId.set(item.id, metaVal);
+                    }
+                }
+            }
+        } catch {
+            /* 单次 search 失败不影响其余 query */
+        }
+    }
+    return [...byId.entries()].map(([id, value]) => ({ id, value }));
+};
+
+export type AddStructuredUserFactResult =
+    | "disabled"
+    | "skipped"
+    | "replaced"
+    | "added";
+
+/**
+ * P0-16 / 阶段 5：结构化 user_fact 写入 Mem0。
+ * 写时去重：同 factKey 同值 skip；同 key 异值先删旧再写。
+ */
 export const addStructuredUserFact = async (input: {
     userId: string;
     factKey: string;
     label: string;
     value: string;
-}): Promise<void> => {
+}): Promise<AddStructuredUserFactResult> => {
     const cfg = getMemoryConfig();
     if (!cfg.mem0Enabled) {
         logAgentOut("Mem0", "出去", {
@@ -157,41 +215,92 @@ export const addStructuredUserFact = async (input: {
             reason: "MEM0_ENABLED=false",
             userId: input.userId,
         });
-        return;
+        return "disabled";
     }
     const memory = await ensureClient();
-    if (!memory) return;
-    const content = `${input.label}：${input.value}`;
+    if (!memory) return "disabled";
+
+    const factKey = input.factKey.trim();
+    const label = input.label.trim() || factKey;
+    const value = normalizeStructuredFactValue(input.value);
+    if (!factKey || !value) return "skipped";
+
+    const existing = await listStructuredFactsForKey(
+        memory,
+        input.userId,
+        factKey
+    );
+    const sameValue = existing.filter((h) => h.value === value);
+    const different = existing.filter((h) => h.value !== value);
+
+    if (sameValue.length > 0 && different.length === 0) {
+        logAgentOut("Mem0", "出去", {
+            action: "add_structured",
+            userId: input.userId,
+            factKey,
+            dedupe: "skipped_same_value",
+            existingCount: sameValue.length,
+        });
+        return "skipped";
+    }
+
     logAgentIn("Mem0", "进入", {
         action: "add_structured",
         userId: input.userId,
-        factKey: input.factKey,
-        label: input.label,
-        value: input.value,
+        factKey,
+        label,
+        value,
+        existingCount: existing.length,
+        replaceCount: different.length,
     });
+
     try {
-        await memory.add([
+        for (const hit of different) {
+            await memory.delete(hit.id);
+        }
+        // 同值多条冗余时只保留一条语义：删多余后若已有同值则不再 add
+        if (sameValue.length > 0) {
+            for (const hit of sameValue.slice(1)) {
+                await memory.delete(hit.id);
+            }
+            logAgentOut("Mem0", "出去", {
+                action: "add_structured",
+                userId: input.userId,
+                ok: true,
+                dedupe: different.length > 0 ? "replaced_then_kept" : "skipped_same_value",
+            });
+            return different.length > 0 ? "replaced" : "skipped";
+        }
+
+        const content = `${label}：${value}`;
+        await memory.add(
+            [
+                {
+                    role: "user",
+                    content: `请记住我的${content}（字段 ${factKey}）`,
+                },
+            ],
             {
-                role: "user",
-                content: `请记住我的${content}（字段 ${input.factKey}）`,
-            },
-        ], {
-            userId: input.userId,
-            metadata: {
-                type: "user_fact",
-                source: "explicit_remember",
-                factKey: input.factKey,
-                label: input.label,
-                value: input.value,
-            },
-        });
+                userId: input.userId,
+                metadata: {
+                    type: "user_fact",
+                    source: "explicit_remember",
+                    factKey,
+                    label,
+                    value,
+                },
+            }
+        );
+        const result: AddStructuredUserFactResult =
+            different.length > 0 ? "replaced" : "added";
         logAgentOut("Mem0", "出去", {
             action: "add_structured",
             userId: input.userId,
             ok: true,
+            dedupe: result,
         });
-    }
-    catch (e) {
+        return result;
+    } catch (e) {
         const message = e instanceof Error ? e.message : String(e);
         console.warn("[Mem0] add_structured failed:", message);
         logAgentOut("Mem0", "出去", {

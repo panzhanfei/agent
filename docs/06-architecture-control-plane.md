@@ -80,7 +80,14 @@ Understand + Plan（可融合为一次 LLM）
 
 ## 8. 实现阶段
 
-0 约定 → 1 状态机+预算+DAG 裁剪 → 2 Turn 取消 → 3 子图壳 → **4 全局 B（本阶段）** → 5 写时去重+翻译 → 6 HITL → 7 Eval → 8 Dify/复盘  
+0 约定 → 1 状态机+预算+DAG 裁剪 → 2 Turn 取消 → 3 子图壳 → 4 全局 B → **5 写时去重+翻译（本阶段）** → 6 HITL → 7 Eval → 8 Dify/复盘  
+
+### 阶段 5 定稿（补充）
+
+- **写时去重**：仅结构化 `factKey`；同 key 同值 skip，异值删旧再写；挂在 `addStructuredUserFact`
+- **翻译**：`toolId=translate_text`；结构化 `text`（searchQuery）+ `targetLang`；供应商有道（`YOUDAO_APP_KEY`/`SECRET`）；无凭证 → disabled；无 Ollama fallback
+- **不做**：口语词表触发；本阶段不大改 golden 全表  
+
 
 ## 9. 代码兜底白名单（仅此）
 

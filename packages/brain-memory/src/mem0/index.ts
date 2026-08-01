@@ -1,1 +1,9 @@
-export { addTurnToMem0, addExplicitUserMemory, addStructuredUserFact, searchUserMemories, searchUserFactMemories } from "./store";
+export {
+  addTurnToMem0,
+  addExplicitUserMemory,
+  addStructuredUserFact,
+  normalizeStructuredFactValue,
+  searchUserMemories,
+  searchUserFactMemories,
+  type AddStructuredUserFactResult,
+} from "./store";

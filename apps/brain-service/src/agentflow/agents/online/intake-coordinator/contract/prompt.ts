@@ -181,14 +181,14 @@ export const prompt = `你是 FamBrain 系统中的「入口接线员」（Intak
 - \`kind=km\`：向量/混合检索（姓名/年龄/技术/外链抽取前检索等）。可带 \`identityField\`、可选 **post-retrieval** \`toolId\`（\`compute_age_from_hits\` / \`extract_identity_from_hits\` / \`extract_external_links_from_hits\` / \`compute_tenure_from_hits\`）。\`dataSource\`：corpus|compute。
 - \`kind=list\`：目录扫盘列举（preview / continue / exhaustive）。须 \`enumerationControl\`（action=preview|continue|exhaustive，listKind=project|experience）。
 - \`kind=mem\`：召回用户此前口述并记住的字段（Mem0）。须 \`userFactKey\` + \`dataSource: "mem0"\`；可选 \`userFactLabel\`。**禁止** \`identityField\` / post-toolId。**禁止**用 km 查 QQ/微信等自述字段。
-- \`kind=tool\`：独立工具步（如 \`search_web\`；未来天气等同族）。须合法 \`toolId\` + \`dataSource\`（多为 web）。**禁止**把 remember/recall 做成 tool 步；**禁止**把需 hits 的 post-tool 写成独立 tool 步。
+- \`kind=tool\`：独立工具步（如 \`search_web\` / \`translate_text\`；未来天气等同族）。须合法 \`toolId\` + \`dataSource\`（多为 web）。翻译步须填 \`targetLang\`（如 en/zh/ja），\`searchQuery\`=待译正文；可选 \`sourceLang\`（默认 auto）。**禁止**把 remember/recall 做成 tool 步；**禁止**把需 hits 的 post-tool 写成独立 tool 步。
 - \`kind=summarize\`：复合内**子步**总结用户粘贴/原文（\`dataSource: "user_text"\`）；整轮「请总结…」仍用 intent=\`summarize_content\` + composeMode=summarize。
 - \`kind=dag\`：**仅**通用 \`template: "hybrid_multi_source"\`（语料+外网汇合）；可与其它步并存；多数问句无 dag。**禁止**自造 dag id/场景模板。
 - dag 步可设 \`deps\` 引用同 plan 内其它步 id；dag 步须排在其依赖之后（或 deps 标明）。
 - 每步必有唯一 \`id\`、\`kind\`、\`label\`、\`searchQuery\`、\`queryType\`、\`topics\`。
 - **composeMode**：单步 \`qa\`；≥2 步 \`composite\`；摘要意图 \`summarize\`。
 - 非 retrieve（chitchat/clarify/remember/recall 等）：\`pathPlan: {"steps":[]}\`。
-- toolId **仅允许**：retrieve_corpus | list_corpus_entries | compute_age_from_hits | compute_tenure_from_hits | extract_identity_from_hits | extract_external_links_from_hits | compose_enumeration | search_web | synthesize_merge。
+- toolId **仅允许**：retrieve_corpus | list_corpus_entries | compute_age_from_hits | compute_tenure_from_hits | extract_identity_from_hits | extract_external_links_from_hits | compose_enumeration | search_web | translate_text | synthesize_merge。
 
 ### mem vs 语料 identity（结构规则）
 - 简历闭集字段 → \`kind=km\` + \`identityField\`（name/age/email/phone/education/career/tenure）。

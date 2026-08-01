@@ -2,6 +2,7 @@ import type { StructuredToolInterface } from "@langchain/core/tools";
 import { computeAgeFromHitsTool, getCurrentDateTool } from "./identity";
 import { listVaultFilesTool, retrieveCorpusTool } from "./corpus";
 import { searchWebTool } from "./web";
+import { translateTextTool } from "./translate";
 import { summarizeTextTool } from "./summarize";
 import { recallUserFactTool, rememberUserFactTool } from "./user-fact";
 
@@ -16,6 +17,7 @@ export { rememberUserFactTool, recallUserFactTool } from "./user-fact";
 export { summarizeTextTool } from "./summarize";
 export { computeAgeFromHitsTool, getCurrentDateTool } from "./identity";
 export { searchWebTool } from "./web";
+export { translateTextTool } from "./translate";
 
 export {
   ORCHESTRATED_TOOL_IDS,
@@ -51,6 +53,7 @@ export const createFambrainTools = (): StructuredToolInterface[] => [
   listVaultFilesTool,
   summarizeTextTool,
   searchWebTool,
+  translateTextTool,
   getCurrentDateTool,
 ];
 
@@ -62,5 +65,6 @@ export const FAMBRAIN_TOOL_NAMES = [
   "list_vault_files",
   "summarize_text",
   "search_web",
+  "translate_text",
   "get_current_date",
 ] as const;

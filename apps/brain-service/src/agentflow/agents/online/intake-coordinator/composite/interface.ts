@@ -37,6 +37,10 @@ export type CompositeRetrievalSlot = {
   /** 来自 LLM pathPlan 步；白名单工具 */
   toolId?: ToolRunId | null;
   dataSource?: DataSource | null;
+  /** translate_text：目标语 */
+  targetLang?: string | null;
+  /** translate_text：源语 */
+  sourceLang?: string | null;
   /** mem 步：用户自述字段 slug */
   userFactKey?: string | null;
   userFactLabel?: string | null;

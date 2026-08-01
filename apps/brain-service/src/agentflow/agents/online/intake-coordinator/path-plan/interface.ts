@@ -49,6 +49,10 @@ export type ExecutionStep = {
   /** 检索后或独立工具（白名单 ToolRunId） */
   toolId?: ToolRunId | null;
   dataSource?: DataSource | null;
+  /** translate_text：目标语码（如 en / zh） */
+  targetLang?: string | null;
+  /** translate_text：源语码，默认 auto */
+  sourceLang?: string | null;
   /** mem 步：用户自述字段 slug（开集，由 Intake 命名） */
   userFactKey?: string | null;
   /** mem 步：展示名 */

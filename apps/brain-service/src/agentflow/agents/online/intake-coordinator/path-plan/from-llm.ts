@@ -416,6 +416,10 @@ const legalizeStep = (raw: unknown, index: number): ExecutionStep | null => {
       dataSourceRaw && dataSourceRaw !== "mem0" && dataSourceRaw !== "user_text"
         ? dataSourceRaw
         : defaultDataSourceForStandaloneTool(toolId);
+    const targetLang =
+      String(o.targetLang ?? o.target_lang ?? "").trim() || null;
+    const sourceLang =
+      String(o.sourceLang ?? o.source_lang ?? "").trim() || null;
     return {
       id: trimId(o.id, `tool-${index}`),
       kind: "tool",
@@ -425,6 +429,8 @@ const legalizeStep = (raw: unknown, index: number): ExecutionStep | null => {
       topics,
       toolId,
       dataSource,
+      targetLang,
+      sourceLang,
       userFactKey: null,
       userFactLabel: null,
     };
@@ -669,6 +675,8 @@ export const deriveCompositeSlotsFromPathPlan = (
       enumerationPageSize: step.enumerationPageSize,
       toolId: step.toolId ?? null,
       dataSource: step.dataSource ?? null,
+      targetLang: step.targetLang ?? null,
+      sourceLang: step.sourceLang ?? null,
       userFactKey: step.userFactKey ?? null,
       userFactLabel: step.userFactLabel ?? null,
     });

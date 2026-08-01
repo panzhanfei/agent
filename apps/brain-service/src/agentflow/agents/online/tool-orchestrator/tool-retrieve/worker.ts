@@ -92,6 +92,8 @@ export const runToolSlotWorker = async (
     toolId,
     searchQuery: slot.searchQuery,
     webQuery: slot.searchQuery,
+    targetLang: slot.targetLang ?? null,
+    sourceLang: slot.sourceLang ?? null,
     queryType: slot.queryType,
     topics: slot.topics,
     field: slot.identityField ?? null,

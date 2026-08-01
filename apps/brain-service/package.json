@@ -47,6 +47,7 @@
     "verify:orchestrated-identity": "tsx scripts/verify-orchestrated-identity.ts",
     "verify:tool-orchestration": "tsx scripts/verify-tool-orchestration.ts",
     "verify:dag-hybrid": "tsx scripts/verify-dag-hybrid.ts",
+    "verify:translate": "tsx --env-file=../../.env scripts/verify-translate-youdao.ts",
     "test:unit": "pnpm --dir ../.. exec vitest run --config vitest.config.ts",
     "test:watch": "pnpm --dir ../.. exec vitest --config vitest.config.ts",
     "summarize:document": "tsx --env-file=../../.env scripts/summarize-document.ts",

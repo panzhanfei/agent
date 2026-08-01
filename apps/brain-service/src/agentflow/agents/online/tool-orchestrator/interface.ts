@@ -32,6 +32,7 @@ export const TOOL_RUN_IDS = [
     "extract_external_links_from_hits",
     "compose_enumeration",
     "search_web",
+    "translate_text",
     "synthesize_merge",
 ] as const;
 
@@ -105,6 +106,10 @@ export type ExecutionPlanNode = {
     toolId: ToolRunId;
     searchQuery?: string;
     webQuery?: string;
+    /** translate_text：目标语（结构化；非法由工具层拒绝） */
+    targetLang?: string | null;
+    /** translate_text：源语，默认 auto */
+    sourceLang?: string | null;
     queryType?: QueryProfile;
     topics?: string[];
     /** identity 字段 id（来自 field-catalog，非用户口语硬编码） */

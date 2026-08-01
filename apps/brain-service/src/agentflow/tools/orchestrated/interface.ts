@@ -5,8 +5,10 @@ export const ORCHESTRATED_TOOL_IDS = [
   "compute_tenure_from_hits",
   "extract_identity_from_hits",
   "extract_external_links_from_hits",
-  /** 预留：外部事实（公司背景等），Intake external 分支未来接入 */
+  /** 外部事实（公司背景等） */
   "search_web",
+  /** 在线翻译（有道） */
+  "translate_text",
 ] as const;
 
 export type OrchestratedToolId = (typeof ORCHESTRATED_TOOL_IDS)[number];

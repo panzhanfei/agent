@@ -203,6 +203,7 @@ export const runOrchestratedSubQuestion = (
         case "extract_external_links_from_hits":
             return extractExternalLinksFromHitsResult(input);
         case "search_web":
+        case "translate_text":
             return null;
         default:
             return null;
