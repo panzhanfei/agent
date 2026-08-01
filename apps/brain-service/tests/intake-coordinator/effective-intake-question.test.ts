@@ -1,9 +1,7 @@
 import { describe, expect, it } from "vitest";
-import type { DbChatTurn } from "@fambrain/brain-types";
 import {
   buildMergedCoreferenceQuestion,
   normalizeIntakeUtterance,
-  rewriteLastUserTurn,
   shouldRetryCoreferenceMerge,
   shouldShortCircuitIncompleteUtterance,
   surfaceForSingleCharSignal,
@@ -22,91 +20,25 @@ describe("normalizeIntakeUtterance", () => {
   });
 });
 
-describe("shouldRetryCoreferenceMerge", () => {
-  const historyWithPrior: DbChatTurn[] = [
-    { role: "user", content: "城管平台用了什么技术" },
-    { role: "assistant", content: "城市管理平台使用 React。" },
-    { role: "user", content: "那个项目呢？" },
-  ];
-
-  it("retries when coreference is unresolved and prior exists", () => {
-    const r = shouldRetryCoreferenceMerge(
-      { coreference: "unresolved" },
-      "那个项目呢？",
-      historyWithPrior
-    );
-    expect(r.retry).toBe(true);
-    expect(r.prior).toBe("城管平台用了什么技术");
-    expect(r.mergedQuestion).toBe("城管平台用了什么技术；那个项目呢？");
-  });
-
-  it("does not retry when peek is null (prose)", () => {
-    const r = shouldRetryCoreferenceMerge(null, "那个项目呢？", historyWithPrior);
-    expect(r.retry).toBe(false);
-  });
-
-  it("does not retry when coreference is none (LLM must set unresolved)", () => {
-    const r = shouldRetryCoreferenceMerge(
-      { coreference: "none" },
-      "那个项目呢？",
-      historyWithPrior
-    );
-    expect(r.retry).toBe(false);
-  });
-
-  it("does not retry when resolved", () => {
-    const r = shouldRetryCoreferenceMerge(
-      { coreference: "resolved" },
-      "那个项目呢？",
-      historyWithPrior
-    );
-    expect(r.retry).toBe(false);
-  });
-
-  it("does not retry when resolved (entity-swap shape)", () => {
-    const history: DbChatTurn[] = [
-      { role: "user", content: "我那一年入职奥卡云的？" },
-      {
-        role: "assistant",
-        content: "你于 2021 年 6 月入职西安奥卡云科技有限公司。",
-      },
-      { role: "user", content: "云联智慧呢" },
+describe("shouldRetryCoreferenceMerge (deprecated, always no-op)", () => {
+  it("never retries (Plan-level merge abolished)", () => {
+    const history = [
+      { role: "user" as const, content: "城管平台用了什么技术" },
+      { role: "assistant" as const, content: "城市管理平台使用 React。" },
+      { role: "user" as const, content: "那个项目呢？" },
     ];
-    const r = shouldRetryCoreferenceMerge(
-      { coreference: "resolved" },
-      "云联智慧呢",
-      history
-    );
-    expect(r.retry).toBe(false);
-  });
-
-  it("does not retry long standalone questions on clarify", () => {
-    const history: DbChatTurn[] = [
-      { role: "user", content: "城管平台用了什么技术" },
-      { role: "assistant", content: "React" },
-      { role: "user", content: "友谊时光阶段我负责什么前端工程化建设？" },
-    ];
-    const q = "友谊时光阶段我负责什么前端工程化建设？";
-    const r = shouldRetryCoreferenceMerge(
-      { coreference: "none" },
-      q,
-      history
-    );
-    expect(r.retry).toBe(false);
-  });
-
-  it("does not retry without prior", () => {
-    const r = shouldRetryCoreferenceMerge(
-      { coreference: "unresolved" },
-      "那个项目呢？",
-      [{ role: "user", content: "那个项目呢？" }]
-    );
-    expect(r.retry).toBe(false);
+    expect(
+      shouldRetryCoreferenceMerge(
+        { coreference: "unresolved" },
+        "那个项目呢？",
+        history
+      ).retry
+    ).toBe(false);
   });
 });
 
 describe("buildMergedCoreferenceQuestion", () => {
-  it("joins with Chinese semicolon", () => {
+  it("joins with Chinese semicolon (helper retained for tests/scripts)", () => {
     expect(buildMergedCoreferenceQuestion("上轮", "本轮")).toBe("上轮；本轮");
   });
 });
@@ -118,33 +50,23 @@ describe("shouldShortCircuitIncompleteUtterance", () => {
   });
 
   it("short-circuits repeated ack/punct spam after normalize", () => {
-    expect(shouldShortCircuitIncompleteUtterance("嗯嗯嗯！！！", [])).toBe(true);
-    expect(surfaceForSingleCharSignal("呢呢呢？？")).toBe("呢");
-    expect(shouldShortCircuitIncompleteUtterance("呢呢呢？？", [])).toBe(true);
+    expect(shouldShortCircuitIncompleteUtterance("嗯嗯嗯", [])).toBe(true);
+    expect(shouldShortCircuitIncompleteUtterance("？？？", [])).toBe(true);
   });
 
-  it("does not short-circuit continuable single char when prior exists", () => {
-    const history: DbChatTurn[] = [
-      { role: "user", content: "城管平台用了什么技术" },
-      { role: "assistant", content: "城市管理平台使用 React TypeScript。" },
-      { role: "user", content: "呢" },
-    ];
-    expect(shouldShortCircuitIncompleteUtterance("呢", history)).toBe(false);
-    expect(shouldShortCircuitIncompleteUtterance("呢呢呢", history)).toBe(
-      false
-    );
+  it("does not short-circuit multi-char questions", () => {
+    expect(
+      shouldShortCircuitIncompleteUtterance("那个项目呢？", [
+        { role: "user", content: "城管平台" },
+        { role: "assistant", content: "ok" },
+        { role: "user", content: "那个项目呢？" },
+      ])
+    ).toBe(false);
   });
 });
 
-describe("rewriteLastUserTurn", () => {
-  it("rewrites only the last user turn", () => {
-    const history: DbChatTurn[] = [
-      { role: "user", content: "上轮" },
-      { role: "assistant", content: "答" },
-      { role: "user", content: "呢" },
-    ];
-    const out = rewriteLastUserTurn(history, "上轮；呢");
-    expect(out[0]?.content).toBe("上轮");
-    expect(out[2]?.content).toBe("上轮；呢");
+describe("surfaceForSingleCharSignal", () => {
+  it("strips edge punct for single-char surface", () => {
+    expect(surfaceForSingleCharSignal("呢？？")).toBe("呢");
   });
 });

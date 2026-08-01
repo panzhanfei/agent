@@ -11,6 +11,10 @@ import {
 } from "@/agentflow/tools";
 import type { PipelineGraphState } from "@/agentflow/pipeline/graph/state";
 import type { RoutedIntakeDecision } from "@/agentflow/agents/online/intake-coordinator";
+import {
+    shouldSkipForDeps,
+    skippedDepsResult,
+} from "@/agentflow/execution";
 import { resolveIdentityField, resolveIdentityFieldFromPlan } from "../catalog";
 import type { IntakeIdentityField } from "@/agentflow/agents/online/intake-coordinator/contract";
 import {
@@ -482,9 +486,24 @@ export const executeDagPlan = async (
     state: PipelineGraphState
 ): Promise<PipelineToolResults> => {
     const results: PipelineToolResults = {};
+    let skippedForDeps = 0;
     for (const wave of topoWaves(plan)) {
         const settled = await Promise.all(
             wave.map(async (node) => {
+                if (shouldSkipForDeps(node.deps, results)) {
+                    skippedForDeps += 1;
+                    const missing = node.deps.filter(
+                        (d) => !results[d] || !results[d]?.ok
+                    );
+                    return [
+                        node.id,
+                        skippedDepsResult({
+                            toolId: node.toolId,
+                            label: node.label,
+                            missingDeps: missing,
+                        }),
+                    ] as const;
+                }
                 const result = await runExecutionPlanNode(node, {
                     state,
                     prior: results,
@@ -497,6 +516,7 @@ export const executeDagPlan = async (
     logAgentOut("DagExecutor", "完成", {
         nodeIds: Object.keys(results),
         synthesis: results.synthesis?.ok ?? null,
+        skippedForDeps,
     });
     return results;
 };

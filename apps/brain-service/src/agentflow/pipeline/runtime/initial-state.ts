@@ -1,4 +1,5 @@
 import type { AgentPipelineContext, DbChatTurn } from "@fambrain/brain-types";
+import { DEFAULT_RETRY_POLICY } from "@/agentflow/execution";
 import type { PipelineGraphState } from "../graph/state";
 
 /** 从 history 末尾向前取最后一条 user 消息，作为本轮 userQuestion */
@@ -15,6 +16,10 @@ export const buildInitialState = (
     context: AgentPipelineContext,
     userQuestion: string
 ): PipelineGraphState => {
+    const turnId =
+        typeof crypto !== "undefined" && "randomUUID" in crypto
+            ? crypto.randomUUID()
+            : `turn-${Date.now()}-${Math.random().toString(36).slice(2, 10)}`;
     return {
         history,
         context,
@@ -48,5 +53,10 @@ export const buildInitialState = (
         fanOutDagPatch: null,
         sideEffectAnswer: null,
         activeSlotId: null,
+        turnId,
+        turnAborted: false,
+        retryPolicy: { ...DEFAULT_RETRY_POLICY },
+        slotRuntimeById: {},
+        globalRebatchUsed: false,
     };
 };

@@ -437,9 +437,25 @@ const loadCandidates = async (
     };
 };
 
+/**
+ * KM 检索主入口：把 Intake 给的 searchQuery / queryType 变成「带摘录的文档片段列表」。
+ *
+ * 整体像一条流水线，没有 LLM 参与排序或改写摘录：
+ *
+ *   1. 判断问法类型（queryProfile）→ 决定召回要多宽、最终留几条
+ *   2. 去向量库 + BM25 捞候选（或直接用上游已算好的 candidates）
+ *   3. 同文件多 chunk 合并、身份类问法补个人简历
+ *   4. 规则打分 + guard + 置信度 → 输出 hits / coverage / notes
+ *
+ * 下游 Analyst 只读 hits，不再二次检索；所以 KM 的职责是「找对、截好、说清够不够」。
+ */
 export const retrieveKnowledge = async (
     input: KnowledgeManagerInput
 ): Promise<KnowledgeRetrievalResult> => {
+    // ── ① 问法分档 ──────────────────────────────────────────────────────────
+    // Intake 的 queryType（identity / external_link / default…）优先；
+    // 否则从 searchQuery + subTasks 推断 profile。
+    // profile 决定：向量召回宽度 vectorTopK、最终保留条数 maxHits。
     const queryProfile: QueryProfile = resolveQueryProfile(
         input.searchQuery,
         input.subTasks,
@@ -459,6 +475,10 @@ export const retrieveKnowledge = async (
         candidatesProvided: input.candidates.length,
     });
 
+    // ── ② 召回候选 ──────────────────────────────────────────────────────────
+    // loadCandidates 两条路：
+    //   - input.candidates 非空 → 复用（例如 facet 缓存 / 上游已 hybrid）
+    //   - 否则 → Chroma 向量 + 语料 BM25 并行，RRF 融合成候选列表
     const {
         candidates: rawCandidates,
         recallSource,
@@ -467,17 +487,24 @@ export const retrieveKnowledge = async (
         uniquePathCount,
         fusionTopPath,
     } = await loadCandidates(input, vectorTopK);
+
+    // 同一 markdown 文件可能被切成多个 chunk；按 path 合并 body，避免重复占名额。
     let candidates = mergeCandidatesByPath(
         rawCandidates,
         MAX_CANDIDATES,
         MAX_CANDIDATES
     );
+
+    // 问姓名/年龄等 identity 类问题时，若召回里还没有「个人简历」，
+    // 主动扫盘补一条 personal/resume 候选，避免向量漏掉主简历。
     candidates = await ensureIdentityPersonalCandidate(
         input.corpusUserId,
         queryProfile,
         candidates
     );
 
+    // ── ③ 空结果早退 ────────────────────────────────────────────────────────
+    // 语料里完全找不到相关文档 → 直接 low 置信 + coverage=none，不再走精排。
     if (candidates.length === 0) {
         const empty: KnowledgeRetrievalResult = {
             hits: [],
@@ -502,10 +529,20 @@ export const retrieveKnowledge = async (
         return empty;
     }
 
+    // ── ④ 用户反馈加权（可选）──────────────────────────────────────────────
+    // 从 DB 读该用户历史上点过「有用/无用」的路径；精排时可微调分数。
+    // 读失败不影响主流程，退化为空 Map。
     const feedbackByPath = await aggregateFeedbackByPath(input.corpusUserId).catch(
         () => new Map<string, number>()
     );
 
+    // ── ⑤ 规则精排 + guard + 置信度 ─────────────────────────────────────────
+    // finalizeHits 内部依次做：
+    //   rankCandidates（关键词 + 向量/sparse 分 + pathBoost）
+    //   → pickExcerpt 截摘录
+    //   → identityGuard / externalLinkGuard 等场景 guard
+    //   → assessConfidence 算 tier（high/medium/low）和 coverage
+    // 列举类（enumeration）已迁到 corpus-lister，KM 不再在此补全列表。
     const {
         result: ruleResult,
         ranked: topRankedList,
@@ -526,6 +563,7 @@ export const retrieveKnowledge = async (
 
     const topRanked = topRankedList[0];
 
+    // ── ⑥ 结构化日志（便于 eval / 线上复盘）────────────────────────────────
     logAgentOut("KnowledgeManager", "出去", summarizeRetrievalOut(ruleResult, {
         recallSource,
         resultSource: "rule",

@@ -104,6 +104,11 @@ const baseState = (
     compositeSubResults: null,
     compositeIncrementalPlan: null,
     compositeFacetCacheHits: null,
+    turnId: "verify-turn",
+    turnAborted: false,
+    retryPolicy: { maxAttempts: 2, deadlineMs: 60_000 },
+    slotRuntimeById: {},
+    globalRebatchUsed: false,
     ...overrides,
 });
 

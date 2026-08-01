@@ -1,6 +1,7 @@
 /**
- * Intake 指代：进线 normalize → 单字短路；首次 JSON peek 后「未消解 → 拼接再调一次」。
- * 不在调用 LLM 前盲合并；散文不触发指代重试（走 JSON 格式修复）。
+ * Intake 进线：normalize → 单字短路。
+ * 指代：单次 Understand+Plan；上轮实质问作结构化上下文字段喂入。
+ * **已废除** Plan 级「unresolved → 拼接再调 Intake」。
  */
 import type { DbChatTurn } from "@fambrain/brain-types";
 import type { IntakeRoutingDecision } from "@/agentflow/agents/online/intake-coordinator/contract";
@@ -103,36 +104,18 @@ export type CoreferenceMergeRetry = {
 };
 
 /**
- * 首次 Intake **JSON** 解析后是否拼接再调 LLM（最多 1 次）。
- * 只认 parse 成功的决策；peek=null（散文）不触发。
- * 唯一信号：`coreference === "unresolved"`（由 LLM 标注；代码不猜 intent/plan）。
+ * @deprecated 阶段 0：废除 Plan 级指代拼接重试；恒不重试。
+ * 保留签名供旧 verify/测试迁移；新逻辑见 priorSubstantiveQuestion 输入增强。
  */
 export const shouldRetryCoreferenceMerge = (
-  peek: Pick<IntakeRoutingDecision, "coreference"> | null,
-  userQuestion: string,
-  history: DbChatTurn[]
-): CoreferenceMergeRetry => {
-  const current =
-    normalizeIntakeUtterance(userQuestion) || userQuestion.trim();
-  const none = {
-    retry: false,
-    prior: null as string | null,
-    mergedQuestion: null as string | null,
-  };
-  if (!current || !peek) return none;
-  if ((peek.coreference ?? "none") !== "unresolved") return none;
-  if (!historySupportsContinuation(history)) return none;
-  const prior = lastSubstantiveUserQuestion(history, current);
-  if (!prior || prior === current) {
-    return { retry: false, prior, mergedQuestion: null };
-  }
-
-  return {
-    retry: true,
-    prior,
-    mergedQuestion: buildMergedCoreferenceQuestion(prior, current),
-  };
-};
+  _peek: Pick<IntakeRoutingDecision, "coreference"> | null,
+  _userQuestion: string,
+  _history: DbChatTurn[]
+): CoreferenceMergeRetry => ({
+  retry: false,
+  prior: null,
+  mergedQuestion: null,
+});
 
 export const buildMergedCoreferenceQuestion = (
   prior: string,

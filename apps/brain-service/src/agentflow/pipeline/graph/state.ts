@@ -16,6 +16,10 @@ import type {
     PlanSlotWorkerPatch,
     PlanSlotsPatch,
 } from "@/agentflow/agents/online/plan-fanout/interface";
+import type {
+    RetryPolicy,
+    SlotRuntimeState,
+} from "@/agentflow/execution";
 
 /**
  * LangGraph 编排共享状态（Intake → plan fan-out → Compose）。
@@ -83,5 +87,17 @@ export const PipelineGraphAnnotation = Annotation.Root({
         reducer: (_prev, next) => next,
         default: () => null,
     }),
+    /** 本轮 turn；cancel/supersede 后 aborted=true，禁止写回 */
+    turnId: Annotation<string>,
+    turnAborted: Annotation<boolean>,
+    /** 统一预算初值；分档留待后续 */
+    retryPolicy: Annotation<RetryPolicy>,
+    /** 槽运行时状态（按 slotId）；工人/join 更新 */
+    slotRuntimeById: Annotation<Record<string, SlotRuntimeState>>({
+        reducer: (prev, next) => ({ ...prev, ...next }),
+        default: () => ({}),
+    }),
+    /** 全局协调 B 是否已触发过（最多 1 次） */
+    globalRebatchUsed: Annotation<boolean>,
 });
 export type PipelineGraphState = typeof PipelineGraphAnnotation.State;

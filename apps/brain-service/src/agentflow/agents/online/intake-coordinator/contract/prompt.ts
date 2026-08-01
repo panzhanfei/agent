@@ -23,7 +23,7 @@ export type IntakeIdentityField =
   | "career"
   | "tenure";
 
-/** 多轮指代状态（由 LLM 标注；服务端仅在 unresolved 时最多合并重试 1 次） */
+/** 多轮指代状态（由 LLM 标注；unresolved → clarify；服务端不再拼接二次调用） */
 export type IntakeCoreferenceStatus = "none" | "resolved" | "unresolved";
 
 /** 多问 / 综合档案：每项对应一次独立检索或列举（编排器主路由信号） */
@@ -135,22 +135,15 @@ export type IntakeRoutingDecision = {
    * 多轮指代状态：
    * - none：无指代 / 不涉及
    * - resolved：本轮已在 searchQuery/plan 写明实体
-   * - unresolved：指代未消解（通常配合 clarify）；服务端可与上轮实质问拼接后**再调你一次**
+   * - unresolved：指代未消解 → clarify；服务端**不再**拼接二次调用
    */
   coreference?: IntakeCoreferenceStatus;
 };
 
-/** 指代拼接重试时追加的系统说明（最多一轮，禁止无限累加） */
-export const COREFERENCE_MERGE_RETRY_NOTE = `【服务端指代拼接重试 · 仅此一轮】
-最后一条 user 消息已是「上一轮实质用户问；本轮问句」的拼接，不是用户原始单句。
-请基于该**合并句**重新做统一语义终稿（intent + pathPlan.steps + searchQuery）。
-要求：
-1. 在 searchQuery / pathPlan.steps 中写明实体与意图，禁止保留「那个/这个/它」等指代词。
-2. coreference 填 "resolved"（已消解）或无法消解则 "none" 并 clarify；**禁止**再填 "unresolved"（服务端不会再次拼接）。
-3. 按合并后的完整意图规划，不要只回应当前半句。
-4. **继承上轮问句框架（实体替换 · 必读）**：合并句形如「哪一年入职奥卡云；云联智慧呢」→ 完整意图是「哪一年入职**云联智慧**」；pathPlan.steps **必须含后半实体（云联智慧）**，**禁止**只保留前半实体；**禁止** list 整表列举。
-5. 若拼接前已误标 list/enumeration 或漏写新实体：本轮改成 **km 单步**（入职年份等），searchQuery 含**新实体 + 属性**。
-6. **只输出一个 JSON 对象**，禁止散文。`;
+/**
+ * @deprecated 阶段 0 废除 Plan 级指代拼接；保留导出以免旧脚本 import 崩。
+ */
+export const COREFERENCE_MERGE_RETRY_NOTE = `【已废弃·勿依赖】服务端不再做指代拼接二次调用。请一次输出终稿；不能消解则 clarify + coreference=unresolved。`;
 
 /** 散文/非 JSON 时追加的格式修复说明（最多一轮；不触发指代拼接） */
 export const JSON_FORMAT_REPAIR_NOTE = `【服务端格式修复 · 仅此一轮】
@@ -179,7 +172,7 @@ export const prompt = `你是 FamBrain 系统中的「入口接线员」（Intak
 - **禁止依赖**服务端替你拆多问、猜 kind、发明 toolId、用口语词表改步序。
 - **凡 \`retrieve_and_answer\`**：必须写齐 **\`pathPlan: { steps: [...] }\`（至少 1 步）** + \`composeMode\`。\`answerOrder\` **可选**（省略或以 step id 镜像数组顺序）。空 \`{"steps":[]}\` → 服务端 clarify。
 - 顶层 searchQuery / queryType 须与 **steps[0]** 语义一致；指代须在 searchQuery **与** 各步中写明实体。
-- 指代未消解 → \`clarify\` + \`coreference: "unresolved"\`（**禁止** \`coreference: "none"\`）。服务端仅在 \`unresolved\` 时拼接上轮再调你**一次**。
+- 指代未消解 → \`clarify\` + \`coreference: "unresolved"\`（**禁止** \`coreference: "none"\`）。服务端**不会**再因指代二次调用；请一次消解或 clarify。
 
 ## pathPlan（retrieve 必填 · 有序 steps[]）
 形状：\`pathPlan: { "steps": [ { id, kind, label, searchQuery, queryType, topics, identityField?, toolId?, dataSource?, userFactKey?, userFactLabel?, enumerationControl?, template?, deps? } ] }\`
@@ -214,10 +207,10 @@ export const prompt = `你是 FamBrain 系统中的「入口接线员」（Intak
 - 「项目」→ \`listKind: "project"\`
 
 ## 多轮指代补全（必读）
-0. **先读 history**：能消解 → \`retrieve_and_answer\` + \`coreference: "resolved"\`，\`pathPlan.steps\`/\`searchQuery\` 写明实体，禁止留指代词。
-1. **不能消解** → \`clarify\` + \`coreference: "unresolved"\` + \`clarifyingQuestion\`；服务端会把「上轮实质问；本轮」拼接后再调你**一次**。
-2. **有 history 的短续问/省略/实体替换**：**禁止** \`coreference: "none"\`。要么首轮 \`resolved\`（plan 已写对），要么 \`unresolved\`（需拼接）；**禁止**用 \`none\` 代替 \`unresolved\`。
-3. 指代拼接重试：合并句统一规划，\`coreference\` 不得再 \`unresolved\`。
+0. **先读 history**（及系统里「上轮实质用户问」结构化上下文）：能消解 → \`retrieve_and_answer\` + \`coreference: "resolved"\`，\`pathPlan.steps\`/\`searchQuery\` 写明实体，禁止留指代词。
+1. **不能消解** → \`clarify\` + \`coreference: "unresolved"\` + \`clarifyingQuestion\`。**服务端不会拼接再调**；一次定稿。
+2. **有 history 的短续问/省略/实体替换**：**禁止** \`coreference: "none"\`。要么 \`resolved\`（plan 已写对），要么 \`unresolved\`+clarify。
+3. Understand+Plan 融合为**一次** JSON；失败视为需 clarify 或换更强模型，不靠服务端二次规划。
 4. Mem0 仅作线索。
 5. **实体替换续问**：上轮属性问 + 本轮「【实体】呢」→ 首轮即 \`resolved\` + **km 单步**；**禁止** \`list\` 整表。见示例 6c/6d。
 
@@ -276,8 +269,8 @@ export const prompt = `你是 FamBrain 系统中的「入口接线员」（Intak
 - **能消解**：\`retrieve_and_answer\` + \`coreference: "resolved"\`；searchQuery/pathPlan.steps 禁止留「那个/这个/它」。
 - **实体替换**：继承 queryType/框架，只换实体；禁止 list（见 6c/6d）；首轮即 \`resolved\`。
 - **须 clarify**：无实体或多候选歧义 → \`coreference: "unresolved"\`（**禁止** \`none\`）。
-- **服务端拼接**：仅当 \`coreference: "unresolved"\`；代码**不**根据 intent/plan 猜测是否拼接。
-- 拼接重试时 \`coreference\` 不得再 \`unresolved\`。
+- **服务端**：提供 history +「上轮实质用户问」结构化上下文；**不**做指代拼接二次调用。
+- 不能消解 → clarify；勿指望服务端再调一轮。
 
 ## searchQuery 写法
 - 陈述式或关键词；补全实体；个人信息含「个人简介」「简历」；保留英文技术词；去掉礼貌套话。

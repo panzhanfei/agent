@@ -16,9 +16,9 @@ import {
 } from "./guards";
 import {
   historySupportsContinuation,
+  lastSubstantiveUserQuestion,
   normalizeIntakeUtterance,
   rewriteLastUserTurn,
-  shouldRetryCoreferenceMerge,
   shouldShortCircuitIncompleteUtterance,
   surfaceForSingleCharSignal,
   utteranceCodePointLength,
@@ -213,19 +213,25 @@ export const runIntakeNode = async (
       };
     }
 
-    let effectiveQuestion = normalizedQuestion;
-    let intakeHistoryForLlm =
+    const effectiveQuestion = normalizedQuestion;
+    const intakeHistoryForLlm =
       normalizedQuestion !== rawQuestion.trim()
         ? rewriteLastUserTurn(state.intakeHistory, normalizedQuestion)
         : state.intakeHistory;
 
+    // 结构化上下文字段（输入增强）；废除 Plan 级指代拼接二次 LLM
+    const priorSubstantive =
+      historySupportsContinuation(state.intakeHistory)
+        ? lastSubstantiveUserQuestion(state.intakeHistory, effectiveQuestion)
+        : null;
+
     let intakeRaw = await completeIntakeCoordinator(intakeHistoryForLlm, {
       memoryBlock: state.memoryBlock,
       intakeHistory: intakeHistoryForLlm,
+      priorSubstantiveQuestion: priorSubstantive,
     });
 
-    let peek = parseIntakeDecision(intakeRaw);
-    if (!peek) {
+    if (!parseIntakeDecision(intakeRaw)) {
       logAgentOut("IntakeCoordinator", "JSON格式修复重试", {
         userQuestion: effectiveQuestion,
         rawPreview:
@@ -234,34 +240,8 @@ export const runIntakeNode = async (
       intakeRaw = await completeIntakeCoordinator(intakeHistoryForLlm, {
         memoryBlock: state.memoryBlock,
         intakeHistory: intakeHistoryForLlm,
+        priorSubstantiveQuestion: priorSubstantive,
         jsonFormatRepair: true,
-      });
-      peek = parseIntakeDecision(intakeRaw);
-    }
-
-    const mergeRetry = shouldRetryCoreferenceMerge(
-      peek,
-      effectiveQuestion,
-      state.intakeHistory
-    );
-    if (mergeRetry.retry && mergeRetry.mergedQuestion) {
-      effectiveQuestion = mergeRetry.mergedQuestion;
-      intakeHistoryForLlm = rewriteLastUserTurn(
-        state.intakeHistory,
-        effectiveQuestion
-      );
-      logAgentOut("IntakeCoordinator", "指代拼接重试", {
-        original: rawQuestion,
-        normalizedQuestion,
-        prior: mergeRetry.prior,
-        effectiveQuestion,
-        peekCoreference: peek?.coreference ?? null,
-        peekIntent: peek?.intent ?? null,
-      });
-      intakeRaw = await completeIntakeCoordinator(intakeHistoryForLlm, {
-        memoryBlock: state.memoryBlock,
-        intakeHistory: intakeHistoryForLlm,
-        coreferenceMergeRetry: true,
       });
     }
 

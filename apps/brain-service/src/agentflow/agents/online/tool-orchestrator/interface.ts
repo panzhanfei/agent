@@ -93,6 +93,9 @@ export type ToolRunResult = {
     insufficientEvidence: boolean;
     confidence: number;
     webSnippets?: Array<{ title: string; url: string; snippet: string }>;
+    /** DAG 执行期裁剪：结构化 skip（非口语规则） */
+    skipped?: boolean;
+    skipReason?: "deps" | "timeout" | "budget" | "cancelled";
 };
 
 export type ExecutionPlanNode = {

@@ -11,7 +11,6 @@ import { recordLangChainOllamaUsage } from "@fambrain/brain-shared/pipeline-run-
 import type { DbChatTurn } from "@fambrain/brain-types";
 import { textFromResponse } from "@/agentflow/utils";
 import {
-  COREFERENCE_MERGE_RETRY_NOTE,
   JSON_FORMAT_REPAIR_NOTE,
   prompt,
 } from "@/agentflow/agents/online/intake-coordinator/contract";
@@ -32,10 +31,13 @@ export const completeIntakeCoordinator = async (
   options?: {
     memoryBlock?: string | null;
     intakeHistory?: DbChatTurn[];
-    /** 指代拼接重试：追加系统说明，禁止再标 unresolved */
-    coreferenceMergeRetry?: boolean;
-    /** 散文/非 JSON：追加格式修复说明（与指代拼接互斥使用） */
+    /** 散文/非 JSON：追加格式修复说明（仅 1 次） */
     jsonFormatRepair?: boolean;
+    /**
+     * 上轮实质用户问（结构化上下文字段，输入增强）。
+     * 非二次规划；消不了指代 → clarify。
+     */
+    priorSubstantiveQuestion?: string | null;
   }
 ): Promise<string> => {
   const recent = options?.intakeHistory ?? history;
@@ -46,19 +48,25 @@ export const completeIntakeCoordinator = async (
     userQuestion: lastUser,
     turnCount: trimmed.length,
     hasMemoryBlock: Boolean(options?.memoryBlock),
-    coreferenceMergeRetry: Boolean(options?.coreferenceMergeRetry),
+    hasPriorSubstantive: Boolean(options?.priorSubstantiveQuestion?.trim()),
     jsonFormatRepair: Boolean(options?.jsonFormatRepair),
   });
   const messages: BaseMessage[] = [new SystemMessage(prompt)];
-  if (options?.coreferenceMergeRetry) {
-    messages.push(new SystemMessage(COREFERENCE_MERGE_RETRY_NOTE));
-  } else if (options?.jsonFormatRepair) {
+  if (options?.jsonFormatRepair) {
     messages.push(new SystemMessage(JSON_FORMAT_REPAIR_NOTE));
   }
   if (options?.memoryBlock) {
     messages.push(
       new SystemMessage(
         `以下为用户记忆上下文（Mem0 / LangMem），供理解指代与偏好，勿当作知识库 hits：\n\n${options.memoryBlock}`
+      )
+    );
+  }
+  const prior = options?.priorSubstantiveQuestion?.trim();
+  if (prior) {
+    messages.push(
+      new SystemMessage(
+        `【结构化上下文·上轮实质用户问】\n${prior}\n（供本轮 Understand+Plan 消解指代/实体替换；能消解则 pathPlan 写明实体并 coreference=resolved；不能则 clarify + unresolved。服务端不会再因指代二次调用你。）`
       )
     );
   }
@@ -74,7 +82,6 @@ export const completeIntakeCoordinator = async (
   });
   logAgentOut("IntakeCoordinator", "出去", {
     routeJsonPreview: raw.length > 800 ? `${raw.slice(0, 800)}…` : raw,
-    coreferenceMergeRetry: Boolean(options?.coreferenceMergeRetry),
     jsonFormatRepair: Boolean(options?.jsonFormatRepair),
   });
   return raw;
