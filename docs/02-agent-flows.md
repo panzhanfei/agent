@@ -9,7 +9,7 @@
 | 英文名 | 中文名 | 职责 |
 |--------|--------|------|
 | **`TurnStart`** | **轮次开始** | LangGraph **START 后首节点**（非 LLM）：挂 ALS 记事本、同问短路、Mem0/LangMem 注入 |
-| **`TurnEnd`** | **轮次结束** | LangGraph **END 前末节点**（非 LLM）：Mem0/LangMem 写入、Learning 候选 |
+| **`TurnEnd`** | **轮次结束** | LangGraph **END 前末节点**（非 LLM）：LangMem 写入、可选静默用户记忆抽取 |
 | `IntakeCoordinator` | 入口接线员 | 接收输入、理解意图、拆分任务、产出路由 JSON + **PathPlan** |
 | `KnowledgeManager` | 知识管理员 | hybrid 检索（vector ∥ sparse），返回 `hits` / `coverage` / `notes` |
 | **`CorpusLister`** | **语料列举器** | 纯 list 路径：目录扫盘分页（projects / experience）；**不经 KM hybrid** |
@@ -31,7 +31,7 @@
 |----|------|------|
 | **在线 Agent 实现** | `agentflow/agents/online/`（含 `tool-orchestrator/`） | 各 `*-node.ts` 图节点 |
 | **编排骨架 + SSE** | `agentflow/pipeline/` | LangGraph `graph/` + `runtime/` |
-| **离线** | `agentflow/agents/offline/` | 手动脚本：Indexer / DocParser / Learning 等 |
+| **离线** | `agentflow/agents/offline/` | 手动脚本：Indexer / DocParser 等 |
 | **工具定义** | `agentflow/tools/` | LangChain StructuredTool（被 tool-orchestrator 调用） |
 
 架构演进详见 [架构 v2 §9 代码布局](./05-architecture-v2-tool-orchestration.md#9-代码布局演进2026-07)、[§10 列举 per-slot](./05-architecture-v2-tool-orchestration.md#10-列举执行-per-slot-演进-2026-07)。
@@ -93,7 +93,7 @@ flowchart TB
 | `pipeline/graph/` | **LangGraph 骨架**：状态、条件路由、节点注册 | `state.ts`、`routes.ts`、`compile.ts`（~50 行） |
 | `pipeline/runtime/` | **SSE 运行时**：初始 state、耗时、stream 消费 | `initial-state.ts`、`pipeline-timing.ts`、`stream.ts` |
 | `agents/online/*/` | **节点业务**：各 Agent 的 `*-node.ts`（含 **`tool-orchestrator/`**） | 见下表 |
-| `agents/offline/*/` | **离线脚本**：Indexer / DocParser / Learning | — |
+| `agents/offline/*/` | **离线脚本**：Indexer / DocParser | — |
 | `tools/` | LangChain 工具定义 | `retrieve-corpus.ts`、`search-web.ts` 等 |
 | `utils/` | 跨 Agent 小工具 | `json-parse.ts`、`zod-utils.ts` |
 
@@ -160,9 +160,9 @@ flowchart TD
 
 **职责：**
 
-1. `persistPipelineMemory` — Mem0 轮次写入 + LangMem 会话摘要
-2. `persistLearningAfterTurn` — Learning 候选（`userFact` 轮次跳过）
-3. **跳过：** `repeatQuestionHit`、空 `answer`
+1. `persistPipelineMemory` — **仅** LangMem 会话摘要（已废除整轮 `addTurnToMem0`）
+2. `persistUserMemoryAutoLearnAfterTurn` — 可选独立 LLM 静默抽结构化事实 → Mem0（`USER_MEMORY_AUTO_LEARN_ENABLED`；显式 userFact 轮次跳过）
+3. **跳过：** `repeatQuestionHit`、空 `answer`、`turnAborted`
 
 **代码：** `agentflow/agents/online/persist-turn-end/` · SSE step 名 **`persist_turn_end`**（UI：写入记忆）
 
@@ -482,7 +482,7 @@ flowchart LR
   BL --> IC[IntakeCoordinator]
   BL --> IA[InformationAnalyst]
   OUT[assistant 终稿] --> PST[persistTurnEnd 节点]
-  PST --> PERS["persistPipelineMemory()<br/>persistLearningAfterTurn()"]
+  PST --> PERS["persistPipelineMemory()<br/>persistUserMemoryAutoLearnAfterTurn()"]
 ```
 
 | 步骤 | 做什么 | 配置 | 文件 | 方法 |
@@ -490,7 +490,7 @@ flowchart LR
 | 0 | 开关 | `MEM0_ENABLED` / `LANGMEM_ENABLED`（默认开） | `memory/config.ts` | `getMemoryConfig()` |
 | 1 | 加载 | 检索 Mem0 + 读会话摘要；裁剪 Intake 历史 | `prepare-context.ts` | `preparePipelineMemory()` |
 | 2 | 注入 | `memoryBlock` 拼入 system/human | `build-prompt-block.ts` | `buildMemoryPromptBlock()` |
-| 3 | 持久化 | 本轮 user/assistant 写入 Mem0；LangMem 摘要；Learning 候选 | `agents/online/persist-turn-end/`、`packages/brain-memory/persist-turn.ts` | `runPersistTurnEnd()` → `persistPipelineMemory()` |
+| 3 | 持久化 | LangMem 摘要；可选静默 Mem0 结构化事实 | `persist-turn-end/`、`user-memory-extract/`、`persist-turn.ts` | `runPersistTurnEnd()` |
 
 **验证：** `pnpm run verify:memory`（需 Ollama；可 `MEM0_ENABLED=false` 仅测 LangMem）。
 
@@ -538,36 +538,34 @@ flowchart TD
 
 **验证：** `pnpm run verify:vault-list`（vault 列举单测）。
 
-### 11. 自主学习管道 — Learning Phase A–D ✅
+### 11. 用户记忆通道（显式 / 静默 / 检索反馈）✅
 
-**触发：** 每轮 LangGraph **`persistTurnEnd` 节点**内调用（`agents/offline/learning/persist-learning.ts`）。**`LEARNING_PIPELINE_ENABLED=false` 时跳过。**
+**三通道（互不替代）：**
 
-**Phase 概览：**
+| 通道 | 能力 | 代码 / 数据 |
+|------|------|-------------|
+| **A 显式 remember** | Intake `remember_user_fact` → `addStructuredUserFact` | `user-fact/` · 写时去重 |
+| **B 静默自学** | 轮次后**独立 LLM**抽 `{factKey,label,value,confidence}` → 仅 Mem0 | `user-memory-extract/` · `USER_MEMORY_AUTO_LEARN_ENABLED`（默认 **false**） |
+| **C 检索反馈** | 聊天消息下 👍/👎 → path 聚合 boost KM rerank | `RetrievalFeedback` · `aggregateFeedbackByPath` |
 
-| Phase | 能力 | 代码 / 数据 |
-|-------|------|-------------|
-| **A** HITL pending | 中置信候选写入 DB，Web `/learning` 人工审核 | `PendingMemoryFact` · `POST /api/pending-memory-facts` · Agents `POST /learning/apply` |
-| **B** 高置信 Mem0 | `confidence ≥ LEARNING_AUTO_MEM0_MIN_CONFIDENCE` 自动结构化写入 Mem0 | `persist-learning.ts` · 开启 learning 时 `persist-turn-end` 跳过盲目 `addTurnToMem0` |
-| **C** `corpus/learned/` | 更高置信写入 Markdown + 可选 reindex | `writeLearnedFactToCorpus` · BM25/KM 扫盘含 `learned/` · `PATH_BOOST_LEARNED` |
-| **D** 检索反馈 | 聊天消息下 👍/👎 → 按 path 聚合 boost KM rerank | `RetrievalFeedback` · `aggregateFeedbackByPath` · `message-retrieval-feedback.tsx` |
+**静默自学约定：** 只读用户本轮原话；不写 corpus；无 pending / `/learning`；同轮显式 userFact 跳过；置信 < `USER_MEMORY_AUTO_LEARN_MIN_CONFIDENCE`（默认 0.85）丢弃。语义归抽取 LLM；代码只做 Zod 合法化。
 
 ```mermaid
 flowchart LR
-  T[Pipeline 终稿] --> EX[extractLearnedCandidates]
-  EX --> R{置信度路由}
-  R -->|≥ auto corpus| LC[writeLearnedFactToCorpus + reindex]
-  R -->|≥ auto mem0| M[addStructuredUserFact]
-  R -->|pending 区间| P[(PendingMemoryFact)]
-  P -->|Web 审核 apply| LC
-  P -->|Web 审核 apply| M
+  T[Pipeline 终稿] --> PST[persistTurnEnd]
+  PST --> LM[LangMem 摘要]
+  PST --> EX[UserMemoryExtract LLM]
+  EX -->|confidence ≥ 阈值| M[addStructuredUserFact]
+  EX -->|无事实 / 低置信| DROP[静默丢弃]
+  REM[显式 remember] --> M
   FB[用户检索反馈] --> KM[KM rerank boost]
 ```
 
 **验证：**
 
 ```bash
-pnpm --filter @fambrain/brain-service run verify:learning-extract
-# Web：/learning 审核 pending；聊天助手消息下反馈按钮
+pnpm --filter @fambrain/brain-service run verify:user-memory-extract
+# Web：聊天助手消息下 👍👎 反馈按钮（非 Learning HITL）
 ```
 
 ### 12. LangChain StructuredTool 层 ✅

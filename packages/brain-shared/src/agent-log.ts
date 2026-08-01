@@ -15,7 +15,7 @@ export type AgentLogName =
   | "Pipeline"
   | "Mem0"
   | "UserFact"
-  | "Learning"
+  | "UserMemoryExtract"
   | "PlanSlotPost"
   | "PlanSlotJoin"
   | "GlobalRebatch"
@@ -44,7 +44,7 @@ const AGENT_EMOJI: Record<AgentLogName, string> = {
   Pipeline: "🛤️",
   Mem0: "💾",
   UserFact: "🪪",
-  Learning: "📖",
+  UserMemoryExtract: "🧠",
   PlanSlotPost: "⚙️",
   PlanSlotJoin: "🔗",
   GlobalRebatch: "♻️",

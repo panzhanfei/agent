@@ -19,9 +19,9 @@ export const VAULT_UPLOADS_DIR = "originals/uploads";
 /** 解析后的 Markdown 默认写入 corpus/<category>/imports/ */
 export const CORPUS_IMPORTS_DIR = "imports";
 export const SCAN_FOLDERS = ["experience", "projects", "personal"] as const;
-/** 自主学习写入目录（Phase C）；与 uploads imports 隔离 */
+/** 历史静默学习目录（已停写；仍参与扫盘以免遗留 md 失联） */
 export const LEARNED_DIR = "learned";
-/** BM25 / KM 扫盘时额外包含 learned */
+/** BM25 / KM 扫盘时额外包含遗留 learned/ */
 export const CORPUS_SCAN_FOLDERS = [...SCAN_FOLDERS, LEARNED_DIR] as const;
 export type CorpusCategory = (typeof SCAN_FOLDERS)[number];
 export type CorpusScanRoot = {

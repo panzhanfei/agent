@@ -3,7 +3,13 @@ import { indexAllCorpora } from "@/agentflow/agents/offline/knowledge-indexer";
 import { runPipelineStream } from "@/agentflow/pipeline";
 export { indexAllCorpora, runPipelineStream };
 export { ingestDocumentBatch, docParserLogger, detectDocFormat, isSupportedDocFile, resolveCorpusCategory, resolveDefaultIngestIdentity, formatDocParseBatchSummary, type DocParseBatchResult, type UploadFileInput, } from "@/agentflow/agents/offline/doc-parser";
-export { persistLearningAfterTurn, promoteLearnedCandidate, extractLearnedCandidates, getLearningConfig, type LearnedCandidate, } from "@/agentflow/agents/offline/learning";
+export {
+  persistUserMemoryAutoLearnAfterTurn,
+  extractUserMemoryFactsFromUtterance,
+  legalizeExtractedUserMemoryFacts,
+  getUserMemoryAutoLearnConfig,
+  type ExtractedUserMemoryFact,
+} from "@/agentflow/agents/online/user-memory-extract";
 export { summarizeContent, summarizeMarkdownFile, parseContentSummaryResult, contentSummaryResultSchema, type ContentSummarizerInput, type ContentSummaryResult, } from "@/agentflow/agents/online/content-summarizer";
 export { listVaultFiles, recallKeywordRetrieve, type VaultFileEntry, type RecallKeywordHit, } from "@fambrain/corpus";
 export { createFambrainTools, FAMBRAIN_TOOL_NAMES, retrieveCorpusTool, rememberUserFactTool, recallUserFactTool, listVaultFilesTool, summarizeTextTool, runWithToolContext, getToolContext, type FambrainToolContext, } from "@/agentflow/tools";

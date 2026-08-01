@@ -1,20 +1,14 @@
-/** PersistTurnEnd：在线 Pipeline 图末节点（LangGraph END 前）— Mem0/LangMem 写入、Learning。 */
+/** PersistTurnEnd：在线 Pipeline 图末节点（LangGraph END 前）— LangMem + 可选静默用户记忆。 */
 
 import { logAgentIn, logAgentOut } from "@fambrain/brain-shared/agent-log";
 import { persistPipelineMemory } from "@fambrain/brain-memory";
-import { persistLearningAfterTurn } from "@/agentflow/agents/offline/learning";
+import { isUserFactIntent } from "@/agentflow/agents/online/user-fact";
+import { persistUserMemoryAutoLearnAfterTurn } from "@/agentflow/agents/online/user-memory-extract";
 import type { PipelineGraphState } from "@/agentflow/pipeline/graph/state";
 
-const retrievalPathsFromState = (state: PipelineGraphState): string[] => {
-  const paths = state.hits
-    .map((h) => h.path?.trim())
-    .filter((p): p is string => Boolean(p));
-  return [...new Set(paths)];
-};
-
 /**
- * PersistTurnEnd：LangGraph END 前最后一个在线节点（非 LLM）。
- * 轮次结束后写 Mem0/LangMem、触发 Learning 候选抽取。
+ * PersistTurnEnd：LangGraph END 前最后一个在线节点（非 LLM 图节点）。
+ * 轮次结束后写 LangMem；可选独立 LLM 静默抽取 → Mem0。
  */
 export const runPersistTurnEnd = async (
   state: PipelineGraphState
@@ -33,7 +27,10 @@ export const runPersistTurnEnd = async (
   }
 
   if (state.repeatQuestionHit) {
-    logAgentOut("TurnEnd", "出去", { skipped: true, reason: "repeat_question_hit" });
+    logAgentOut("TurnEnd", "出去", {
+      skipped: true,
+      reason: "repeat_question_hit",
+    });
     return {};
   }
 
@@ -51,21 +48,20 @@ export const runPersistTurnEnd = async (
       answer,
     });
 
-    let learningRan = false;
-    if (!state.decision?.userFact) {
-      await persistLearningAfterTurn({
-        context: state.context,
-        userQuestion: state.userQuestion,
-        answer,
-        retrievalPaths: retrievalPathsFromState(state),
-      });
-      learningRan = true;
-    }
+    const skipAutoLearn =
+      Boolean(state.decision?.userFact) ||
+      (state.decision ? isUserFactIntent(state.decision.intent) : false);
+
+    const { wrote } = await persistUserMemoryAutoLearnAfterTurn({
+      context: state.context,
+      userQuestion: state.userQuestion,
+      skipBecauseExplicitUserFact: skipAutoLearn,
+    });
 
     logAgentOut("TurnEnd", "出去", {
-      mem0LangMem: true,
-      learningRan,
-      retrievalPathCount: retrievalPathsFromState(state).length,
+      langMem: true,
+      autoLearnWrote: wrote,
+      autoLearnSkipped: skipAutoLearn,
     });
     return {};
   } catch (e) {

@@ -6,7 +6,6 @@ import {
     PATH_BOOST_EXPERIENCE,
     PATH_BOOST_PERSONAL,
     PATH_BOOST_PROJECTS,
-    PATH_BOOST_LEARNED,
     PATH_BOOST_PROJECTS_RESUME,
     FEEDBACK_BOOST_MAX,
 } from "../profile/km-config";
@@ -121,7 +120,6 @@ export const computeKeywordRelevance = (
 export const getPathBoost = (repoPath: string): number => {
     const p = repoPath.replace(/\\/g, "/").toLowerCase();
     if (p.includes("/projects/resume.md")) return PATH_BOOST_PROJECTS_RESUME;
-    if (p.includes("/learned/")) return PATH_BOOST_LEARNED;
     if (p.includes("/personal/")) return PATH_BOOST_PERSONAL;
     if (p.includes("/experience/")) return PATH_BOOST_EXPERIENCE;
     if (p.includes("/projects/")) return PATH_BOOST_PROJECTS;

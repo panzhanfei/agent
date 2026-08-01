@@ -3,7 +3,6 @@ export { persistPipelineMemory } from "./persist-turn";
 export { buildMemoryPromptBlock } from "./build-prompt-block";
 export { getMemoryConfig, resetMemoryConfigCache } from "./config";
 export {
-  addTurnToMem0,
   addExplicitUserMemory,
   addStructuredUserFact,
   normalizeStructuredFactValue,

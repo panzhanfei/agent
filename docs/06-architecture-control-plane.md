@@ -88,6 +88,17 @@ Understand + Plan（可融合为一次 LLM）
 - **翻译**：`toolId=translate_text`；结构化 `text`（searchQuery）+ `targetLang`；供应商有道（`YOUDAO_APP_KEY`/`SECRET`）；无凭证 → disabled；无 Ollama fallback
 - **不做**：口语词表触发；本阶段不大改 golden 全表  
 
+### 记忆分层（自学重设计）
+
+| 层 | 职责 | 写入口 |
+|----|------|--------|
+| Working | 图 state | 运行时 |
+| LangMem | 会话摘要 | `persistPipelineMemory` |
+| Mem0 | 跨会话结构化用户事实 | 显式 remember / 静默 `user-memory-extract` |
+| Corpus/Chroma | 知识库 | HITL / 入库脚本（**禁止**静默自学写） |
+
+- **废除**：整轮 `addTurnToMem0`；旧 Learning pending / auto corpus / `/learning` HITL  
+- **静默自学**：`USER_MEMORY_AUTO_LEARN_ENABLED` 默认 **false**；独立 LLM（非 Intake）；只信抽取 JSON + Zod；不写 corpus  
 
 ## 9. 代码兜底白名单（仅此）
 

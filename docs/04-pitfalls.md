@@ -842,7 +842,7 @@ GOLDEN_RUNS=3 pnpm run golden:regression
 | 层级 | 根因 | 说明 |
 |------|------|------|
 | **LangMem** | 按 `conversationId` 隔离 | 对话 B **不会**读到对话 A 的会话摘要；跨会话只能靠 Mem0 |
-| **Mem0 写入** | 轮次结束 `addTurnToMem0` 依赖 LLM **抽取**事实 | 「记住 QQ」可能未抽成结构化记忆；**对策：** userFact 节点 **显式** `addStructuredUserFact` |
+| **Mem0 写入** | 已废除整轮 `addTurnToMem0`；跨会话事实只走结构化写入 | 「记住 QQ」靠显式 `userFact` → `addStructuredUserFact`；可选静默自学（默认关）同写入口 |
 | **Mem0 检索** | 语义 search 返回自然语言行如 `QQ号是734858469` | 旧 `extractLooseValueAfterLabel` 把标签 `QQ号` 只匹配前缀 → 误提取 **「码」**；**对策：** `extractByFactKey` + `validateFactValueForKey` |
 | **Analyst / Intake** | 问 QQ 走 **| **部署** | agents 未重启 | 改 `user-fact.ts` 后仍跑旧进程 → Web 仍见旧 bug |
 

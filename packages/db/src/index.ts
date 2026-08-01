@@ -9,21 +9,7 @@ export {
     cancelTurnBodySchema,
     turnIdParamSchema,
 } from "./schemas/chat";
-export {
-    memoryCandidateTargetSchema,
-    pendingMemoryFactStatusSchema,
-    patchPendingMemoryFactSchema,
-    createRetrievalFeedbackSchema,
-} from "./schemas/learning";
-export {
-    createPendingMemoryFact,
-    listPendingMemoryFactsForUser,
-    listAllPendingMemoryFacts,
-    findPendingMemoryFactForUser,
-    findPendingMemoryFactById,
-    updatePendingMemoryFactStatus,
-    type CreatePendingMemoryFactInput,
-} from "./repos/pending-memory-facts";
+export { createRetrievalFeedbackSchema } from "./schemas/retrieval-feedback";
 export {
     upsertRetrievalFeedback,
     getMessageRetrievalFeedbackSignal,
@@ -36,4 +22,4 @@ export {
     type UpsertTurnTraceInput,
     type TurnTraceRow,
 } from "./repos/turn-traces";
-export { ChatRole, UserRole, UserStatus, PendingMemoryFactStatus, MemoryCandidateTarget, } from "./generated/prisma/client";
+export { ChatRole, UserRole, UserStatus } from "./generated/prisma/client";

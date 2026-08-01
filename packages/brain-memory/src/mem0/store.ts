@@ -206,6 +206,8 @@ export const addStructuredUserFact = async (input: {
     factKey: string;
     label: string;
     value: string;
+    /** 写入来源：显式 remember 或轮次静默自学 */
+    source?: "explicit_remember" | "auto_learn";
 }): Promise<AddStructuredUserFactResult> => {
     const cfg = getMemoryConfig();
     if (!cfg.mem0Enabled) {
@@ -284,7 +286,7 @@ export const addStructuredUserFact = async (input: {
                 userId: input.userId,
                 metadata: {
                     type: "user_fact",
-                    source: "explicit_remember",
+                    source: input.source ?? "explicit_remember",
                     factKey,
                     label,
                     value,
@@ -349,33 +351,4 @@ export const searchUserFactMemories = async (
         }
     }
     return merged;
-};
-
-export const addTurnToMem0 = async (userId: string, userQuestion: string, assistantAnswer: string): Promise<void> => {
-    const cfg = getMemoryConfig();
-    if (!cfg.mem0Enabled) {
-        logAgentOut("Mem0", "出去", { action: "add", skipped: true, reason: "MEM0_ENABLED=false", userId });
-        return;
-    }
-    const memory = await ensureClient();
-    if (!memory)
-        return;
-    logAgentIn("Mem0", "进入", {
-        action: "add",
-        userId,
-        userQuestion,
-        assistantAnswerPreview: assistantAnswer.length > 200 ? `${assistantAnswer.slice(0, 200)}…` : assistantAnswer,
-    });
-    try {
-        await memory.add([
-            { role: "user", content: userQuestion },
-            { role: "assistant", content: assistantAnswer },
-        ], { userId, metadata: { source: "fambrain_pipeline" } });
-        logAgentOut("Mem0", "出去", { action: "add", userId, ok: true });
-    }
-    catch (e) {
-        const message = e instanceof Error ? e.message : String(e);
-        console.warn("[Mem0] add failed:", message);
-        logAgentOut("Mem0", "出去", { action: "add", userId, ok: false, error: message });
-    }
 };

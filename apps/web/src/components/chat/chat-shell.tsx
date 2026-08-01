@@ -1671,12 +1671,6 @@ export const ChatShell = ({ initialConversations, viewer }: ChatShellProps) => {
 
         <div className="mt-auto border-t border-[#eceeef] p-3">
           <Link
-            href="/learning"
-            className="mb-2 block rounded-lg px-2 py-1.5 text-center text-[12px] font-medium text-[#4f46e5] hover:bg-[#eef2ff]"
-          >
-            自主学习
-          </Link>
-          <Link
             href="/corpus"
             className="mb-2 block rounded-lg px-2 py-1.5 text-center text-[12px] font-medium text-[#4f46e5] hover:bg-[#eef2ff]"
           >

@@ -50,9 +50,3 @@ export {
 } from "./recall-keyword-retrieve";
 export { tokenizeForRecall } from "./recall-tokenize";
 export { buildBm25Index, type Bm25Index } from "./bm25";
-export {
-    buildLearnedMarkdown,
-    writeLearnedFactToCorpus,
-    type WriteLearnedFactInput,
-    type LearnedFactFrontmatter,
-} from "./write-learned-md";

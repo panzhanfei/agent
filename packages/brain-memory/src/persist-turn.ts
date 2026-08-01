@@ -1,7 +1,8 @@
 import type { AgentPipelineContext, DbChatTurn } from "@fambrain/brain-types";
 import { getMemoryConfig } from "./config";
 import { persistSessionSummary } from "./langmem";
-import { addTurnToMem0 } from "./mem0";
+
+/** 轮次结束只写 LangMem 会话摘要。Mem0 仅走结构化 remember / 静默 auto-learn。 */
 export const persistPipelineMemory = async (input: {
     context: AgentPipelineContext;
     history: DbChatTurn[];
@@ -10,14 +11,12 @@ export const persistPipelineMemory = async (input: {
 }): Promise<void> => {
     const cfg = getMemoryConfig();
     const trimmed = input.answer.trim();
-    if (!trimmed)
-        return;
-    const tasks: Promise<void>[] = [];
-    if (cfg.mem0Enabled && !cfg.learningPipelineEnabled) {
-        tasks.push(addTurnToMem0(input.context.actorUserId, input.userQuestion, trimmed));
-    }
+    if (!trimmed) return;
     if (cfg.langMemEnabled && input.context.conversationId) {
-        tasks.push(persistSessionSummary(input.context.conversationId, input.history, trimmed));
+        await persistSessionSummary(
+            input.context.conversationId,
+            input.history,
+            trimmed
+        );
     }
-    await Promise.all(tasks);
 };

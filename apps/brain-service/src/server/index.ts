@@ -10,7 +10,6 @@ import {
 import {
     handleDocumentsUpload,
     handleEnumerationList,
-    handleLearningApply,
 } from "@/server/handlers";
 
 const { langSmith, port } = bootstrapBrainServiceRuntime();
@@ -31,10 +30,6 @@ const server = createServer((req, res) => {
     }
     if (url === "/documents/upload") {
         handleAsync(handleDocumentsUpload)(req, res);
-        return;
-    }
-    if (url === "/learning/apply") {
-        handleAsync(handleLearningApply)(req, res);
         return;
     }
     if (url === "/enumeration/list") {

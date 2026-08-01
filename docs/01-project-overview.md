@@ -96,7 +96,7 @@ pnpm run dev
 | `pnpm run index:corpus` | **知识入库师**：全量扫描 `corpus/*.md` → embed → 写入 Chroma（语料变更后手动重跑） |
 | `pnpm run parse:documents -- <path...>` | **文档解析师**：CLI 批量解析（**自动分类**，无需 userId；语料归属见 `.env` `FAMBRAIN_CORPUS_USER_ID`） |
 | `cd apps/brain-service && pnpm run verify:memory` | Mem0 / LangMem 本地验证（LangMem 可不依赖 Mem0） |
-| `cd apps/brain-service && pnpm run verify:learning-extract` | 自主学习候选抽取单测（无 Ollama） |
+| `cd apps/brain-service && pnpm run verify:user-memory-extract` | 静默用户记忆 schema 合法化（无 Ollama） |
 | `cd apps/brain-service && pnpm run verify:langchain-tools` | LangChain StructuredTool 注册 + invoke 冒烟 |
 | `cd apps/brain-service && pnpm run eval:run` | Eval MVP：G1～G5c + KM + E2E（含 **E2E-five-composite**）+ memProbe/profileProbe/**fiveCompositeProbe** |
 | `cd apps/brain-service && pnpm run verify:user-fact` | P0-16：Intake 结构化 remember/recall + Mem0 跨 conversationId |
@@ -164,10 +164,9 @@ pnpm run dev
 | `LANGSMITH_API_KEY` | 否 | 配置后启用 LangSmith tracing（亦支持 `LANGCHAIN_API_KEY`） |
 | `LANGSMITH_PROJECT` | 否 | 项目名，默认 `fambrain` |
 | `LANGSMITH_TRACING` | 否 | 设为 `false` 可关闭（即使已配 Key） |
-| `LEARNING_PIPELINE_ENABLED` | 否 | 自主学习管道总开关，默认 `true` |
-| `LEARNING_AUTO_MEM0_MIN_CONFIDENCE` | 否 | 高置信自动写入 Mem0，默认 `0.85` |
-| `LEARNING_AUTO_CORPUS_MIN_CONFIDENCE` | 否 | 高置信自动写入 `corpus/learned/` 并 reindex，默认 `0.92` |
-| `LEARNING_PENDING_MIN_CONFIDENCE` | 否 | 低于此值丢弃候选，默认 `0.55` |
+| `USER_MEMORY_AUTO_LEARN_ENABLED` | 否 | 轮次后静默抽结构化事实 → Mem0，默认 `false` |
+| `USER_MEMORY_AUTO_LEARN_MIN_CONFIDENCE` | 否 | 静默写入最低置信，默认 `0.85` |
+| `OLLAMA_MODEL_USER_MEMORY_EXTRACT` | 否 | 静默抽取模型；未设则用 Intake / 默认模型 |
 
 单机内存限流不适用于多副本；上生产请在前端网关或 Redis 等侧做统一限流。
 
@@ -202,7 +201,7 @@ pnpm run dev
 |--------|----------|------|
 | `runAgentStream` + `runPipelineStream` | `agentflow/`、`pipeline/runtime/stream.ts` | SSE 运行时（步骤耗时 + SSE；业务在 agents/online） |
 | `runPrepareTurnStart` | `agentflow/agents/online/prepare-turn-start/` | 图首节点：ALS、同问短路、Mem0/LangMem **读** |
-| `runPersistTurnEnd` | `agentflow/agents/online/persist-turn-end/` | 图末节点：Mem0/LangMem **写**、Learning 候选 |
+| `runPersistTurnEnd` | `agentflow/agents/online/persist-turn-end/` | 图末节点：LangMem **写**、可选静默用户记忆 |
 | `getCompiledPipelineGraph` | `pipeline/graph/compile.ts` + `routes.ts` | **prepareTurnStart** → Intake → … → **persistTurnEnd** → END |
 | `userFactNode` / `runUserFactSideNode` / `routeUserFactFromIntake` | `user-fact/`（`index.ts` + `side/`） | remember/recall 主路径；复合路径并行 side-effect |
 | `parseIntakeDecision` / `defaultIntakeDecision` | `intake-coordinator/pipeline/parse-intake.ts` | 解析 Intake 路由 JSON；失败 → **clarify**（不发明 retrieve） |
@@ -252,7 +251,7 @@ pnpm run dev
 | `clear-pipeline-cache.ts` | `apps/brain-service/scripts/` | 清空 检索 hits 缓存 / 槽答案缓存 Redis + 进程 memory；见 `.env.example` 三层 cache 开关 |
 | `diagnose-age-query.ts` | `apps/brain-service/scripts/` | 年龄单问：路由 + KM 检索 + 语料字段诊断（需 Chroma） |
 | `eval:run` | `apps/brain-service/scripts/eval/` | Eval MVP：G1～G5c + KM + E2E（**E2E-five-composite**）+ **memProbe/cacheProbe/profileProbe/fiveCompositeProbe**；`--mem-only` → **GMem**；`--profile-only` → **G-履历综合** |
-| `verify:learning-extract` | `apps/brain-service/scripts/` | 自主学习候选抽取（Phase A 前置） |
+| `verify:user-memory-extract` | `apps/brain-service/scripts/` | 静默用户记忆 schema 合法化 |
 | `verify-test-env.ts` | `apps/brain-service/scripts/` | verify 脚本内覆盖 `.env` cache 开关；**勿**在生产入口引用 |
 | `createFambrainTools` | `agentflow/tools/` | LangChain **StructuredTool**：`retrieve_corpus` / `remember_user_fact` / `recall_user_fact` / `list_vault_files` / `summarize_text` |
 | `runKmRetrieveNode` / `runListRetrieveNode` | `knowledge-manager` / `corpus-lister` | 复合 Send 工人 |
@@ -270,8 +269,7 @@ pnpm run dev
 | `applyEnumerationSlotGuard` | `intake-coordinator/guards/enumeration-list-intent.ts` | P0-26 per-slot 列举 executor |
 | `configureLangSmithTracing` | `packages/brain-config/langsmith.ts` | 启动时启用 tracing；`stream.ts` 附加 conversationId 等 metadata |
 | `verify:langchain-tools` | `apps/brain-service/scripts/` | Tool 注册 + retrieve / Mem0 / vault invoke 冒烟 |
-| `persistLearningAfterTurn` | `agentflow/agents/offline/learning/` | 每轮结束后按置信度路由：Mem0 / `corpus/learned/` / `PendingMemoryFact` |
-| Web `/learning` | `apps/web/src/app/(main)/learning/` | 待审核事实 + 已写入 learned 文档列表 |
+| `persistUserMemoryAutoLearnAfterTurn` | `agentflow/agents/online/user-memory-extract/` | 轮次后独立 LLM 抽结构化事实 → Mem0（默认关） |
 | `golden:regression` | `apps/brain-service/scripts/` | **G1～G5c + GMem** 全链路回归（`GOLDEN_RUNS=3` 稳定性） |
 | `indexAllCorpora` | `agentflow/agents/offline/knowledge-indexer/` | 离线 corpus → Chroma |
 | `logAgentIn` / `logAgentOut` | `packages/brain-shared/src/agent-log.ts` | 调试：含 FactChecker 🔍、ContentOrganizer 📋 |
