@@ -2,8 +2,8 @@
  * 从环境变量加载单槽预算（结构配置，非业务规则）。
  * 非法/缺省 → legalizeRetryPolicy 统一初值。
  */
-import { legalizeRetryPolicy } from "./retry-policy";
 import type { RetryPolicy } from "./interface";
+import { legalizeRetryPolicy } from "./retry";
 
 const readEnv = (key: string): string | undefined => {
   const v = process.env[key];

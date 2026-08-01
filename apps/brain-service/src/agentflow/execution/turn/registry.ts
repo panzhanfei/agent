@@ -3,14 +3,9 @@
  * 供 HTTP cancel API 与 SSE 断流双保险。
  */
 import type { TurnAbortReason } from "@fambrain/brain-types";
+import type { RegisteredTurn } from "./interface";
 
-export type RegisteredTurn = {
-  turnId: string;
-  conversationId: string;
-  actorUserId: string;
-  controller: AbortController;
-  reason: TurnAbortReason | null;
-};
+export type { RegisteredTurn } from "./interface";
 
 const activeTurns = new Map<string, RegisteredTurn>();
 

@@ -1,11 +1,9 @@
 import type { IntakeIdentityField } from "@/agentflow/agents/online/intake-coordinator/contract";
 import { IDENTITY_CORPUS_FIELD_LABELS } from "@/agentflow/agents/online/tool-orchestrator/catalog";
 import type { KnowledgeHit } from "@/agentflow/agents/online/knowledge-manager";
+import type { IdentityFieldExtraction } from "./interface";
 
-export type IdentityFieldExtraction = {
-    value: string;
-    sourceHit?: KnowledgeHit;
-};
+export type { IdentityFieldExtraction } from "./interface";
 
 const EMPTY_CELL = /^[-—–/\\s]*$/;
 

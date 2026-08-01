@@ -1,18 +1,7 @@
 import type { KnowledgeHit } from "@/agentflow/agents/online/knowledge-manager";
+import type { AgeExtraction, BirthDate } from "./interface";
 
-export type BirthDate = {
-    year: number;
-    month?: number;
-    day?: number;
-};
-
-export type AgeExtraction = {
-    birth?: BirthDate;
-    explicitAge?: number;
-    sourceHit?: KnowledgeHit;
-    /** 展示用出生描述，如「1993 年 3 月」 */
-    birthLabel?: string;
-};
+export type { AgeExtraction, BirthDate } from "./interface";
 
 const AGE_QUESTION_RE =
     /年龄|出生|多大|几岁|周岁|今年|多大了|哪年.*生|birth|how old|age/i;

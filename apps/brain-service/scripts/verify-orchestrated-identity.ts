@@ -7,11 +7,11 @@ import assert from "node:assert/strict";
 import {
     computeAgeYears,
     extractBirthOrAgeFromText,
-} from "../src/agentflow/tools/lib/compute-age";
+} from "../src/agentflow/tools/identity";
 import {
     resolveOrchestratedTool,
     runOrchestratedSubQuestion,
-} from "../src/agentflow/tools/orchestrated/run-sub-question";
+} from "../src/agentflow/tools/orchestrated";
 import { completeAnalyzeSubQuestion } from "../src/agentflow/agents/online/information-analyst/complete-analyze";
 import type { KnowledgeHit } from "../src/agentflow/agents/online/knowledge-manager";
 

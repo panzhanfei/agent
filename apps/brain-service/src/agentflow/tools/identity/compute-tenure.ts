@@ -3,20 +3,9 @@
  * 解析表格/行内「YYYY.MM - YYYY.MM|至今」日期段，取最早起点。
  */
 import type { KnowledgeHit } from "@/agentflow/agents/online/knowledge-manager";
+import type { TenureExtraction, TenureRange } from "./interface";
 
-export type TenureRange = {
-    startYear: number;
-    startMonth?: number;
-    endYear?: number;
-    endMonth?: number;
-    ongoing: boolean;
-};
-
-export type TenureExtraction = {
-    earliest: TenureRange;
-    ranges: TenureRange[];
-    sourceHit?: KnowledgeHit;
-};
+export type { TenureExtraction, TenureRange } from "./interface";
 
 const RANGE_RE =
     /(\d{4})(?:[./年-](\d{1,2}))?\s*[-–—~至到]+\s*(?:(\d{4})(?:[./年-](\d{1,2}))?|至今|现在|present)/gi;

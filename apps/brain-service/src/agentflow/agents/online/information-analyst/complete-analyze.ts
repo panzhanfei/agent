@@ -11,7 +11,7 @@ import {
     resolveAnalystQueryProfile,
     sliceHitsForAnalystStream,
 } from "./analyst-recall-limits";
-import { resolveOrchestratedTool } from "@/agentflow/tools/orchestrated/run-sub-question";
+import { resolveOrchestratedTool } from "@/agentflow/tools/orchestrated";
 import { pickToolResultForSubQuestion } from "@/agentflow/agents/online/tool-orchestrator";
 import {
     buildSubQuestionFallbackAnswer,

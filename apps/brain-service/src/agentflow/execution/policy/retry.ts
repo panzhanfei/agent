@@ -1,8 +1,5 @@
-import {
-  DEFAULT_RETRY_POLICY,
-  type RetryPolicy,
-  type SlotRuntimeState,
-} from "./interface";
+import type { SlotRuntimeState } from "../slot/interface";
+import { DEFAULT_RETRY_POLICY, type RetryPolicy } from "./interface";
 
 /** 合法化预算：非法/缺省 → 统一初值（结构兜底，非业务猜意图） */
 export const legalizeRetryPolicy = (raw?: Partial<RetryPolicy> | null): RetryPolicy => {

@@ -12,7 +12,7 @@ import type { IntakeIdentityField } from "@/agentflow/agents/online/intake-coord
 import {
   resolveOrchestratedTool,
   runOrchestratedSubQuestion,
-} from "@/agentflow/tools/orchestrated/run-sub-question";
+} from "@/agentflow/tools/orchestrated";
 import {
   pickToolResultForSubQuestion,
   toolRunToAnalystResult,

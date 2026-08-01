@@ -7,12 +7,12 @@ import {
     resolveExternalLinkScope,
     resolveLinkTitle,
     scopeRequestsRepoHostOnly,
-} from "@/agentflow/tools/lib/extract-external-links";
+} from "@/agentflow/tools/links";
 import {
     buildIdentityFieldAnswer,
     extractIdentityFieldFromHits,
     extractIdentityFieldFromText,
-} from "@/agentflow/tools/lib/extract-identity-field";
+} from "@/agentflow/tools/identity";
 
 const hit = (excerpt: string, path = "personal/resume.md"): KnowledgeHit => ({
     path,

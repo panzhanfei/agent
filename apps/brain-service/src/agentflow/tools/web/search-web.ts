@@ -1,11 +1,8 @@
 import { tool } from "@langchain/core/tools";
 import { z } from "zod";
+import type { WebSearchSnippet } from "./interface";
 
-export type WebSearchSnippet = {
-    title: string;
-    url: string;
-    snippet: string;
-};
+export type { WebSearchSnippet } from "./interface";
 
 const searchTavily = async (
     query: string,

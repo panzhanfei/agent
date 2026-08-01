@@ -5,36 +5,20 @@ import { resolveAnalystQueryProfile } from "@/agentflow/agents/online/informatio
 import type { InformationAnalystResult } from "@/agentflow/agents/online/information-analyst/prompt";
 import {
     buildAgeAnswer,
-    extractBirthOrAgeFromHits,
-    isAgeSubQuestion,
-} from "../lib/compute-age";
-import {
     buildIdentityFieldAnswer,
+    buildTenureAnswer,
+    extractBirthOrAgeFromHits,
     extractIdentityFieldFromHits,
-} from "../lib/extract-identity-field";
+    extractTenureFromHits,
+    isAgeSubQuestion,
+} from "../identity";
 import {
     buildExternalLinksAnswer,
     extractExternalLinksFromHits,
     resolveExternalLinkScope,
-} from "../lib/extract-external-links";
-import {
-    buildTenureAnswer,
-    extractTenureFromHits,
-} from "../lib/compute-tenure";
+} from "../links";
 import { resolveIdentityFieldFromPlan } from "@/agentflow/agents/online/tool-orchestrator/catalog";
-
-/** 主 pipeline Analyst 编排工具（非 LLM ReAct） */
-export const ORCHESTRATED_TOOL_IDS = [
-    "compose_enumeration",
-    "compute_age_from_hits",
-    "compute_tenure_from_hits",
-    "extract_identity_from_hits",
-    "extract_external_links_from_hits",
-    /** 预留：外部事实（公司背景等），Intake external 分支未来接入 */
-    "search_web",
-] as const;
-
-export type OrchestratedToolId = (typeof ORCHESTRATED_TOOL_IDS)[number];
+import type { OrchestratedToolId } from "./interface";
 
 const ageContext = (input: SubQuestionAnalyzeInput): string =>
     [input.userQuestion, ...(input.topics ?? [])].join(" ");

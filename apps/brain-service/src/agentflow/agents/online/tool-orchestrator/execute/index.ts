@@ -19,16 +19,14 @@ import { resolveIdentityField, resolveIdentityFieldFromPlan } from "../catalog";
 import type { IntakeIdentityField } from "@/agentflow/agents/online/intake-coordinator/contract";
 import {
     buildIdentityFieldAnswer,
+    buildTenureAnswer,
     extractIdentityFieldFromHits,
-} from "@/agentflow/tools/lib/extract-identity-field";
+    extractTenureFromHits,
+} from "@/agentflow/tools/identity";
 import {
     buildExternalLinksAnswer,
     extractExternalLinksFromHits,
-} from "@/agentflow/tools/lib/extract-external-links";
-import {
-    buildTenureAnswer,
-    extractTenureFromHits,
-} from "@/agentflow/tools/lib/compute-tenure";
+} from "@/agentflow/tools/links";
 import type {
     ExecutionPlanNode,
     PipelineToolResults,

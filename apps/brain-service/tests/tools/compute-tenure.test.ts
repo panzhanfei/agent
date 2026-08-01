@@ -4,7 +4,7 @@ import {
     computeTenureYearsMonths,
     extractTenureFromHits,
     parseTenureRangesFromText,
-} from "@/agentflow/tools/lib/compute-tenure";
+} from "@/agentflow/tools/identity";
 
 describe("parseTenureRangesFromText", () => {
     it("parses resume timeline table rows", () => {

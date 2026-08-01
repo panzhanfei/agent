@@ -4,7 +4,7 @@ import {
     buildExternalLinksAnswer,
     extractExternalLinksFromHits,
     resolveExternalLinkScope,
-} from "@/agentflow/tools/lib/extract-external-links";
+} from "@/agentflow/tools/links";
 
 const RESUME_EXCERPT = [
     "- Sentinel GitHub：<https://github.com/panzhanfei/sentinel-monorepo>",

@@ -8,7 +8,9 @@ import type {
 } from "@/agentflow/agents/online/plan-fanout/interface";
 import type { CompositeSubRetrieval } from "@/agentflow/agents/online/knowledge-manager";
 import type { StepResult } from "@/agentflow/agents/online/intake-coordinator/path-plan/interface";
-import type { RetryPolicy, SlotRuntimeState } from "./interface";
+import type { TurnAbortReason } from "@fambrain/brain-types";
+import type { RetryPolicy } from "../policy/interface";
+import type { SlotRuntimeState } from "./interface";
 import {
   createPendingSlot,
   markSlotAborted,
@@ -16,8 +18,7 @@ import {
   markSlotDone,
   markSlotRunning,
   markSlotSkipped,
-} from "./slot-status";
-import type { TurnAbortReason } from "@fambrain/brain-types";
+} from "./status";
 
 const timeoutSub = (
   slotId: string,

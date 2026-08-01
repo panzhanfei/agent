@@ -5,7 +5,7 @@ import {
 } from "@fambrain/brain-memory";
 import { z } from "zod";
 import { findUserFactValueInTexts } from "@/agentflow/agents/online/user-fact";
-import { getToolContext } from "./context";
+import { getToolContext } from "../context";
 
 export const rememberUserFactTool = tool(
     async (input) => {

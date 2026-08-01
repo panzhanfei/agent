@@ -1,24 +1,14 @@
 /**
- * 执行控制面：槽状态 / 预算 / DAG 结构裁剪。
+ * 执行控制面：槽状态 / 预算 / DAG 结构裁剪 / Turn 取消。
  * 语义规划归 Intake + 单槽 L1；本包只做结构兜底。
  */
 export type {
-  RetryPolicy,
   SlotRuntimeState,
   SlotStatus,
   SlotStatusReason,
-  TurnControl,
-} from "./interface";
+} from "./slot";
 export {
-  DEFAULT_RETRY_POLICY,
   SLOT_TERMINAL,
-} from "./interface";
-export {
-  canAttemptAgain,
-  isDeadlineExceeded,
-  legalizeRetryPolicy,
-} from "./retry-policy";
-export {
   createPendingSlot,
   isTerminalSlotStatus,
   markSlotAborted,
@@ -27,25 +17,31 @@ export {
   markSlotRunning,
   markSlotSkipped,
   shouldTriggerGlobalRebatch,
-} from "./slot-status";
+  runWithSlotBudget,
+  type BudgetedSlotResult,
+} from "./slot";
+
+export type { RetryPolicy } from "./policy";
+export {
+  DEFAULT_RETRY_POLICY,
+  canAttemptAgain,
+  isDeadlineExceeded,
+  legalizeRetryPolicy,
+  loadRetryPolicyFromEnv,
+  isGlobalRebatchEnabledFromEnv,
+} from "./policy";
+
 export {
   isDepSatisfied,
   shouldSkipForDeps,
   skippedDepsResult,
-} from "./dag-prune";
-export {
-  loadRetryPolicyFromEnv,
-  isGlobalRebatchEnabledFromEnv,
-} from "./load-policy-from-env";
-export {
-  runWithSlotBudget,
-  type BudgetedSlotResult,
-} from "./with-slot-budget";
+} from "./dag";
+
+export type { RegisteredTurn, TurnControl } from "./turn";
 export {
   registerTurn,
   unregisterTurn,
   abortTurn,
   getTurn,
   getTurnAbortReason,
-  type RegisteredTurn,
-} from "./turn-registry";
+} from "./turn";
