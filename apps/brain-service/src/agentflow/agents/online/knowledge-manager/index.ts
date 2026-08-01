@@ -1,8 +1,3 @@
-import { logAgentOut } from "@fambrain/brain-shared/agent-log";
-import { emitBudgetedSlotPatch } from "@/agentflow/agents/online/plan-fanout/slot-budget";
-import type { PipelineGraphState } from "@/agentflow/pipeline/graph/state";
-import { runKmSlotWorker } from "./slot";
-
 export {
   pickExcerpt,
   isProjectEntryPath,
@@ -53,7 +48,13 @@ export {
 } from "./profile/score-candidate";
 export { hybridRecall } from "./recall/hybrid-recall";
 export { fuseRrf } from "./recall/fusion-rrf";
-export { executeKmSlotSub, type ExecuteKmSlotSubInput } from "./slot";
+export {
+  executeKmSlotSub,
+  getCompiledKmSlotGraph,
+  runKmRetrieveNode,
+  runKmSlotWorker,
+  type ExecuteKmSlotSubInput,
+} from "./slot";
 
 /** @deprecated 请用 @/agentflow/cache */
 export {
@@ -69,34 +70,3 @@ export {
   type CompositeSlotPlan,
   type IncrementalCompositePlan,
 } from "@/agentflow/cache";
-
-/**
- * LangGraph `kmRetrieve` 节点：复合路径每槽 Send 工人（executor ≠ list_corpus）。
- * retrieve + FC + 局部重检 → fanOutSlotPatches → planSlotJoin。
- */
-export const runKmRetrieveNode = async (
-  state: PipelineGraphState
-): Promise<Partial<PipelineGraphState>> => {
-  logAgentOut("KnowledgeManager", "进入", {
-    via: "kmRetrieve",
-    slotId: state.activeSlotId,
-  });
-
-  const out = await emitBudgetedSlotPatch(state, "km", () =>
-    runKmSlotWorker(state)
-  );
-  const patch = out.fanOutSlotPatches?.[0];
-
-  logAgentOut("KnowledgeManager", "出去", {
-    via: "kmRetrieve",
-    slotId: patch?.slotId ?? state.activeSlotId,
-    hitCount: patch?.sub.hits.length ?? 0,
-    coverage: patch?.sub.coverage ?? null,
-    fcPassed: patch?.stepResult.fc?.passed ?? null,
-    retried: Boolean(patch?.retried),
-    slotStatus: patch?.slotRuntime?.status ?? null,
-    slotReason: patch?.slotRuntime?.reason ?? null,
-  });
-
-  return out;
-};

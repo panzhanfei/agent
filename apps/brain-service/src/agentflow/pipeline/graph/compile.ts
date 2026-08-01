@@ -16,7 +16,7 @@ import {
   runListRetrieverNode,
   runListRetrieveNode,
 } from "@/agentflow/agents/online/corpus-lister";
-import { runKmRetrieveNode } from "@/agentflow/agents/online/knowledge-manager";
+import { getCompiledKmSlotGraph } from "@/agentflow/agents/online/knowledge-manager";
 import {
   runPlanSlotJoinNode,
   runPlanMergeNode,
@@ -25,7 +25,7 @@ import { runPlanCacheResolveNode } from "@/agentflow/agents/online/plan-fanout/c
 import {
   runPlanSlotPostNode,
   runPlanDagNode,
-  runToolRetrieveNode,
+  getCompiledToolSlotGraph,
 } from "@/agentflow/agents/online/tool-orchestrator";
 import {
   runPreparePipelineMemory,
@@ -48,10 +48,10 @@ import {
 } from "./routes";
 
 /**
- * intake → planCacheResolve（facet+hits 全量缓存）→ Send(每槽 km|list|mem|tool|summarize ∥ dag ∥ userFactSide)
- *   kmRetrieve（FC）/ listRetrieve / memRetrieve / toolRetrieve / summarizeSlot / userFactSide
- *     → planSlotJoin → planSlotPost(post-retrieval) → planMerge
- *   planDag ────────────────────────────────────────────────→ planMerge
+ * intake → planCacheResolve → Send(每槽 km|list|mem|tool|summarize ∥ dag ∥ userFactSide)
+ *   kmRetrieve / toolRetrieve = 单槽子图壳（阶段 3）；list/mem/summarize 仍扁平
+ *     → planSlotJoin → planSlotPost → planMerge
+ *   planDag → planMerge
  * → contentOrganizer → contentSummarizer? → analyst
  */
 const buildPipelineGraph = () => {
@@ -63,10 +63,10 @@ const buildPipelineGraph = () => {
     .addNode("intake", runIntakeNode)
     .addNode("planCacheResolve", runPlanCacheResolveNode)
     .addNode("listRetriever", runListRetrieverNode)
-    .addNode("kmRetrieve", runKmRetrieveNode)
+    .addNode("kmRetrieve", getCompiledKmSlotGraph())
     .addNode("listRetrieve", runListRetrieveNode)
     .addNode("memRetrieve", runMemRetrieveNode)
-    .addNode("toolRetrieve", runToolRetrieveNode)
+    .addNode("toolRetrieve", getCompiledToolSlotGraph())
     .addNode("summarizeSlot", runSummarizeSlotNode)
     .addNode("planSlotJoin", runPlanSlotJoinNode)
     .addNode("planSlotPost", runPlanSlotPostNode)

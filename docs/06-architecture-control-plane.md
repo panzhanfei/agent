@@ -79,13 +79,14 @@ Understand + Plan（可融合为一次 LLM）
 
 ## 7. 子图
 
-- km（及需要时 tool）= **单槽子图**，承载 L1 环  
-- 父图：cache resolve → Send → Join → Merge  
-- list/mem：先仅超时/取消，不强行上 L1  
+- km + tool = **单槽子图壳**（阶段 3 已落地）：`km-slot` / `tool-slot` 编译子图，父图 `addNode("kmRetrieve"|"toolRetrieve", compiled)`  
+- 壳内当前为**单执行节点**（工人 + 一层预算）；阶段 4 在壳内挂 L1 / 收编 FC  
+- 父图：cache resolve → Send → Join → Merge（节点名与 patch 合约不变）  
+- list/mem/summarize：仍扁平；仅超时/取消，不强行上 L1  
 
 ## 8. 实现阶段顺序（提醒）
 
-0 本约定 → 1 状态机+预算+DAG 裁剪 → 2 Turn 取消 → 3 子图壳 → 4 L1 环 → 5 写时去重+翻译 → 6 HITL → 7 Eval → 8 Dify/复盘  
+0 本约定 → 1 状态机+预算+DAG 裁剪 → 2 Turn 取消 → **3 子图壳（KM+tool，已落地）** → 4 L1 环 → 5 写时去重+翻译 → 6 HITL → 7 Eval → 8 Dify/复盘  
 
 ## 9. 代码兜底白名单（仅此）
 
