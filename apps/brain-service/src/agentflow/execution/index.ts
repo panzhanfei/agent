@@ -41,3 +41,11 @@ export {
   runWithSlotBudget,
   type BudgetedSlotResult,
 } from "./with-slot-budget";
+export {
+  registerTurn,
+  unregisterTurn,
+  abortTurn,
+  getTurn,
+  getTurnAbortReason,
+  type RegisteredTurn,
+} from "./turn-registry";

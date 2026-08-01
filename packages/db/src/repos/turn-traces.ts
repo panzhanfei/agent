@@ -12,7 +12,7 @@ export type UpsertTurnTraceInput = {
   messageId: string;
   userMessageId?: string | null;
   userQuestion?: string | null;
-  status?: "done" | "error";
+  status?: "done" | "error" | "cancelled" | "superseded";
   timing?: PipelineTiming | null;
   entries: PipelineLogEntry[];
   steps: TurnStepEvent[];

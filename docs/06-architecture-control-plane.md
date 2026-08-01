@@ -54,9 +54,16 @@ Understand + Plan（可融合为一次 LLM）
 
 ## 4. Turn / 取消
 
-- 每次用户提交 = 新 `turnId`；编辑重发 = 新 `turnId`，旧 turn → `aborted`  
+- 每次用户提交 = 新 `turnId`（**Web 生成并贯穿** BFF → Brain；Brain 缺省时兜底）  
+- 编辑重发 / 再发下一句 = 新 `turnId`，旧 turn → **supersede**（默认，不必先点停止）  
 - 阶段实现：**cancel + supersede**；**任意点 resume 不做**  
 - **resume 仅 HITL**（`awaiting_human` → 批准后继续）  
+- **双保险**：客户端 `AbortController` 断流 + `POST …/turns/:turnId/cancel` → Brain `POST /pipeline/cancel`  
+- **落库**：
+  - `cancelled` 且已有正文 → 落库截停内容 + 尾注「——用户已暂停」；几乎无正文 → 不写 assistant  
+  - `superseded` → 不写旧 turn 的 assistant；trace 记 `superseded`  
+  - trace `status`: `done` | `error` | `cancelled` | `superseded`  
+
 
 ## 5. 指代续问（与动态规划边界）
 

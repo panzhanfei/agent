@@ -10,7 +10,7 @@ export type ConversationTurnLog = {
     turnId: string;
     userQuestion: string;
     startedAt: number;
-    status: "running" | "done" | "error";
+    status: "running" | "done" | "error" | "cancelled" | "superseded";
     entries: PipelineLogEntry[];
     steps: TurnStepEvent[];
     timing?: PipelineTiming & { clientTotalMs?: number };

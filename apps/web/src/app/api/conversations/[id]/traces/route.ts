@@ -47,7 +47,14 @@ export const GET = async (
       turnId: r.messageId,
       userQuestion: r.userQuestion ?? "",
       startedAt: r.createdAt.getTime(),
-      status: r.status === "error" ? "error" : "done",
+      status:
+        r.status === "error"
+          ? "error"
+          : r.status === "cancelled"
+            ? "cancelled"
+            : r.status === "superseded"
+              ? "superseded"
+              : "done",
       entries: r.entries,
       steps: r.steps,
       ...(r.timing ? { timing: r.timing } : {}),

@@ -356,15 +356,29 @@ const fetchJson = async <T,>(
     return { ok: false, error: "网络错误" };
   }
 };
+const USER_PAUSED_SUFFIX = "\n\n——用户已暂停";
+
 const consumeSse = async (
   stream: ReadableStream<Uint8Array>,
-  handle: (event: string, payload: unknown) => void
+  handle: (event: string, payload: unknown) => void,
+  signal?: AbortSignal
 ): Promise<void> => {
   const reader = stream.getReader();
   const decoder = new TextDecoder();
   let buffer = "";
+  const onAbort = () => {
+    void reader.cancel().catch(() => undefined);
+  };
+  if (signal) {
+    if (signal.aborted) {
+      await reader.cancel().catch(() => undefined);
+      return;
+    }
+    signal.addEventListener("abort", onAbort, { once: true });
+  }
   try {
     while (true) {
+      if (signal?.aborted) break;
       const { done, value } = await reader.read();
       if (done) break;
       buffer += decoder.decode(value, { stream: true });
@@ -394,7 +408,12 @@ const consumeSse = async (
       }
     }
   } finally {
-    reader.releaseLock();
+    if (signal) signal.removeEventListener("abort", onAbort);
+    try {
+      reader.releaseLock();
+    } catch {
+      //
+    }
   }
 };
 const mutateJson = async <B, R>(
@@ -499,6 +518,8 @@ export const ChatShell = ({ initialConversations, viewer }: ChatShellProps) => {
   >(() => new Map());
   const attachInputRef = useRef<HTMLInputElement>(null);
   const activeTurnIdRef = useRef<string | null>(null);
+  const abortControllerRef = useRef<AbortController | null>(null);
+  const streamPreviewRef = useRef("");
   const [streamingTurnId, setStreamingTurnId] = useState<string | null>(null);
   const speechDraftBaseRef = useRef("");
   const appendSpeechToDraft = useCallback(
@@ -841,17 +862,113 @@ export const ChatShell = ({ initialConversations, viewer }: ChatShellProps) => {
     },
     [updateLogsForConversation]
   );
+  /** 停止当前 turn：显式 cancel API + Abort（supersede 时 reason=superseded） */
+  const stopActiveTurn = useCallback(
+    async (reason: "cancelled" | "superseded") => {
+      const turnId = activeTurnIdRef.current;
+      const convId = activeConversationId;
+      const controller = abortControllerRef.current;
+      if (!turnId) return;
+      if (controller && !controller.signal.aborted) {
+        controller.abort();
+      }
+      abortControllerRef.current = null;
+      let assistantFromServer: ChatMessage | null = null;
+      if (convId) {
+        try {
+          const res = await fetch(
+            `/api/conversations/${convId}/turns/${turnId}/cancel`,
+            {
+              method: "POST",
+              headers: { "Content-Type": "application/json" },
+              credentials: "same-origin",
+              body: JSON.stringify({ reason }),
+            }
+          );
+          if (res.ok) {
+            const body = (await res.json()) as {
+              assistantMessage?: ChatMessage | null;
+            };
+            if (
+              body.assistantMessage &&
+              typeof body.assistantMessage.id === "string" &&
+              typeof body.assistantMessage.content === "string"
+            ) {
+              assistantFromServer = {
+                id: body.assistantMessage.id,
+                role: "assistant",
+                content: body.assistantMessage.content,
+              };
+            }
+          }
+        } catch {
+          //
+        }
+        patchActiveTurnLog(convId, turnId, (turn) => ({
+          ...turn,
+          status: reason,
+        }));
+      }
+      if (reason === "cancelled") {
+        const preview = streamPreviewRef.current.trim();
+        const fallback =
+          preview && !preview.endsWith("用户已暂停")
+            ? `${preview}${USER_PAUSED_SUFFIX}`
+            : preview || null;
+        const assistant =
+          assistantFromServer ??
+          (fallback
+            ? {
+                id: `local-cancel:${turnId}`,
+                role: "assistant" as const,
+                content: fallback,
+              }
+            : null);
+        if (assistant) {
+          flushSync(() => {
+            setMessages((prev) => {
+              const rest = prev.filter(
+                (m) =>
+                  m.id !== assistant.id &&
+                  m.id !== `local-cancel:${turnId}`
+              );
+              return [...rest, assistant];
+            });
+          });
+        }
+      }
+      activeTurnIdRef.current = null;
+      setStreamingTurnId(null);
+      streamPreviewRef.current = "";
+      setStreamAnswerPreview("");
+      setStreamBlocks([]);
+      releaseSendLock();
+    },
+    [activeConversationId, patchActiveTurnLog, releaseSendLock]
+  );
+
   const sendMessageWithContent = useCallback(async (content: string) => {
     const trimmed = content.trim();
-    if (!trimmed || sendBusy) return;
+    if (!trimmed) return;
+    // 首 token 前 sendBusy 防连点；流式中允许再发 → supersede
+    if (sendBusy && !streamingTurnId) return;
+    if (streamingTurnId || activeTurnIdRef.current) {
+      await stopActiveTurn("superseded");
+    }
     setSendBusy(true);
     setSendError(null);
     setStreamThinking("");
     setStreamAnswerPreview("");
+    streamPreviewRef.current = "";
     setStreamBlocks([]);
     setThinkingPanelVisible(false);
     const tempUserId = `temp:${crypto.randomUUID()}`;
     pendingUserTempIdRef.current = tempUserId;
+    const turnId = crypto.randomUUID();
+    const controller = new AbortController();
+    abortControllerRef.current = controller;
+    activeTurnIdRef.current = turnId;
+    setStreamingTurnId(turnId);
     try {
       let convId = activeConversationId;
       if (!convId) {
@@ -864,6 +981,9 @@ export const ChatShell = ({ initialConversations, viewer }: ChatShellProps) => {
         if (!created.ok) {
           setSendError(created.error);
           pendingUserTempIdRef.current = null;
+          activeTurnIdRef.current = null;
+          setStreamingTurnId(null);
+          abortControllerRef.current = null;
           return;
         }
         convId = created.data.id;
@@ -875,9 +995,6 @@ export const ChatShell = ({ initialConversations, viewer }: ChatShellProps) => {
         ...prev,
         { id: tempUserId, role: "user", content: trimmed },
       ]);
-      const turnId = crypto.randomUUID();
-      activeTurnIdRef.current = turnId;
-      setStreamingTurnId(turnId);
       updateLogsForConversation(convId, (bundle) =>
         appendTurnToBundle(bundle, createTurnLog(turnId, trimmed))
       );
@@ -888,6 +1005,8 @@ export const ChatShell = ({ initialConversations, viewer }: ChatShellProps) => {
         userMessage?: ChatMessage;
         assistantMessage?: ChatMessage;
         timing?: PipelineTiming;
+        aborted?: boolean;
+        reason?: "cancelled" | "superseded";
       };
       const clientStartedAt = performance.now();
       let latestTiming: PipelineTiming | undefined;
@@ -895,7 +1014,8 @@ export const ChatShell = ({ initialConversations, viewer }: ChatShellProps) => {
         method: "POST",
         headers: { "Content-Type": "application/json" },
         credentials: "same-origin",
-        body: JSON.stringify({ content: trimmed }),
+        body: JSON.stringify({ content: trimmed, turnId }),
+        signal: controller.signal,
       });
       if (!res.ok) {
         let msg = `${res.status}`;
@@ -908,6 +1028,9 @@ export const ChatShell = ({ initialConversations, viewer }: ChatShellProps) => {
         setSendError(msg);
         pendingUserTempIdRef.current = null;
         setMessages((prev) => prev.filter((m) => m.id !== tempUserId));
+        activeTurnIdRef.current = null;
+        setStreamingTurnId(null);
+        abortControllerRef.current = null;
         await loadConversations({ silent: true });
         setMessagesRetryTick((n) => n + 1);
         return;
@@ -916,11 +1039,15 @@ export const ChatShell = ({ initialConversations, viewer }: ChatShellProps) => {
         setSendError("无法读取服务器流");
         pendingUserTempIdRef.current = null;
         setMessages((prev) => prev.filter((m) => m.id !== tempUserId));
+        activeTurnIdRef.current = null;
+        setStreamingTurnId(null);
+        abortControllerRef.current = null;
         await loadConversations({ silent: true });
         setMessagesRetryTick((n) => n + 1);
         return;
       }
       let streamFatal: string | null = null;
+      let streamAborted = false;
       const applyTurnTiming = (timing: PipelineTiming, clientTotalMs?: number) => {
         const tid = activeTurnIdRef.current;
         if (!tid)
@@ -979,6 +1106,7 @@ export const ChatShell = ({ initialConversations, viewer }: ChatShellProps) => {
             applyTurnTiming(p.timing);
           }
           if (typeof p.answer === "string" && p.answer.trim()) {
+            streamPreviewRef.current = p.answer;
             setStreamAnswerPreview(p.answer);
           }
           releaseSendLock();
@@ -1098,11 +1226,72 @@ export const ChatShell = ({ initialConversations, viewer }: ChatShellProps) => {
           if (typeof t === "string") {
             setThinkingPanelVisible(false);
             setStreamThinking("");
+            streamPreviewRef.current = t;
             setStreamAnswerPreview(t);
             if (t.trim()) {
               releaseSendLock();
             }
           }
+        }
+        if (
+          event === "aborted" &&
+          payload &&
+          typeof payload === "object" &&
+          payload !== null
+        ) {
+          streamAborted = true;
+          const p = payload as {
+            turnId?: string;
+            reason?: "cancelled" | "superseded";
+            assistantMessage?: ChatMessage;
+          };
+          const tid = p.turnId ?? activeTurnIdRef.current;
+          const reason = p.reason ?? "cancelled";
+          if (tid) {
+            patchActiveTurnLog(convId, tid, (turn) => ({
+              ...turn,
+              status: reason,
+            }));
+          }
+          // 停止按钮路径已用 cancel 响应更新过 UI，此处仅补齐未展示的截停稿
+          if (
+            reason === "cancelled" &&
+            p.assistantMessage &&
+            typeof p.assistantMessage.content === "string"
+          ) {
+            const assistant: ChatMessage = {
+              id: p.assistantMessage.id,
+              role: "assistant",
+              content: p.assistantMessage.content,
+            };
+            flushSync(() => {
+              setMessages((prev) => {
+                const withoutLocal = prev.filter(
+                  (m) => !(tid && m.id === `local-cancel:${tid}`)
+                );
+                if (withoutLocal.some((m) => m.id === assistant.id)) {
+                  return withoutLocal.map((m) =>
+                    m.id === assistant.id ? assistant : m
+                  );
+                }
+                return [...withoutLocal, assistant];
+              });
+              setStreamAnswerPreview("");
+              setStreamBlocks([]);
+            });
+          } else {
+            setStreamAnswerPreview("");
+            setStreamBlocks([]);
+          }
+          if (activeTurnIdRef.current === tid || activeTurnIdRef.current === turnId) {
+            activeTurnIdRef.current = null;
+            setStreamingTurnId(null);
+          }
+          if (abortControllerRef.current === controller) {
+            abortControllerRef.current = null;
+          }
+          streamPreviewRef.current = "";
+          releaseSendLock();
         }
         if (
           event === "done" &&
@@ -1111,6 +1300,24 @@ export const ChatShell = ({ initialConversations, viewer }: ChatShellProps) => {
           payload !== null
         ) {
           const p = payload as DonePayload;
+          if (p.aborted || streamAborted) {
+            const tid = activeTurnIdRef.current;
+            if (tid) {
+              patchActiveTurnLog(convId, tid, (turn) => ({
+                ...turn,
+                status: p.reason ?? "cancelled",
+              }));
+              activeTurnIdRef.current = null;
+              setStreamingTurnId(null);
+            }
+            abortControllerRef.current = null;
+            streamPreviewRef.current = "";
+            pendingUserTempIdRef.current = null;
+            releaseSendLock();
+            setStreamAnswerPreview("");
+            setStreamBlocks([]);
+            return;
+          }
           const clientTotalMs = Math.round(performance.now() - clientStartedAt);
           const serverTiming = p.timing ?? latestTiming;
           const timing: MessageTiming | undefined = serverTiming
@@ -1134,6 +1341,8 @@ export const ChatShell = ({ initialConversations, viewer }: ChatShellProps) => {
             activeTurnIdRef.current = null;
             setStreamingTurnId(null);
           }
+          abortControllerRef.current = null;
+          streamPreviewRef.current = "";
           pendingUserTempIdRef.current = null;
           releaseSendLock();
           if (
@@ -1196,26 +1405,48 @@ export const ChatShell = ({ initialConversations, viewer }: ChatShellProps) => {
           }
           releaseSendLock();
         }
-      });
+      }, controller.signal);
       if (streamFatal) {
         setSendError(streamFatal);
       }
       void loadConversations({ silent: true });
       setMessagesRetryTick((n) => n + 1);
-    } catch {
-      setSendError("网络错误");
-      pendingUserTempIdRef.current = null;
-      setMessages((prev) => prev.filter((m) => m.id !== tempUserId));
+    } catch (e) {
+      const aborted =
+        (e instanceof DOMException && e.name === "AbortError") ||
+        (e instanceof Error && e.name === "AbortError") ||
+        controller.signal.aborted;
+      if (!aborted) {
+        setSendError("网络错误");
+        pendingUserTempIdRef.current = null;
+        setMessages((prev) => prev.filter((m) => m.id !== tempUserId));
+      }
       await loadConversations({ silent: true });
       setMessagesRetryTick((n) => n + 1);
     } finally {
+      if (abortControllerRef.current === controller) {
+        abortControllerRef.current = null;
+      }
+      if (activeTurnIdRef.current === turnId) {
+        activeTurnIdRef.current = null;
+        setStreamingTurnId(null);
+      }
       if (sendBusyRef.current) {
         releaseSendLock();
       }
       setStreamAnswerPreview("");
       pendingUserTempIdRef.current = null;
     }
-  }, [activeConversationId, loadConversations, patchActiveTurnLog, releaseSendLock, sendBusy, updateLogsForConversation]);
+  }, [
+    activeConversationId,
+    loadConversations,
+    patchActiveTurnLog,
+    releaseSendLock,
+    sendBusy,
+    stopActiveTurn,
+    streamingTurnId,
+    updateLogsForConversation,
+  ]);
   const sendMessage = useCallback(async () => {
     await sendMessageWithContent(draft);
   }, [draft, sendMessageWithContent]);
@@ -1773,13 +2004,24 @@ export const ChatShell = ({ initialConversations, viewer }: ChatShellProps) => {
                   ))}
                   <span className="px-1">…</span>
                 </div>
+                {streamingTurnId ? (
+                  <button
+                    type="button"
+                    onClick={() => void stopActiveTurn("cancelled")}
+                    className="rounded-full bg-[#dc2626] px-4 py-1.5 text-[13px] font-medium text-white"
+                  >
+                    停止
+                  </button>
+                ) : null}
                 <button
                   type="button"
                   onClick={() => void sendMessage()}
-                  disabled={!draft.trim() || sendBusy}
+                  disabled={
+                    !draft.trim() || (sendBusy && !streamingTurnId)
+                  }
                   className="rounded-full bg-[#4f46e5] px-4 py-1.5 text-[13px] font-medium text-white disabled:opacity-40"
                 >
-                  {sendBusy ? "发送中…" : "发送"}
+                  {sendBusy && !streamingTurnId ? "发送中…" : "发送"}
                 </button>
                 <button
                   type="button"

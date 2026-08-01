@@ -28,6 +28,7 @@ import type {
   PipelineLogEntry,
   PipelineStepName,
   PipelineTiming,
+  TurnAbortReason,
   TurnStepEvent,
 } from "@fambrain/brain-types";
 import {
@@ -35,6 +36,11 @@ import {
   pipelineRunStorage,
   setPipelineActiveNode,
 } from "@fambrain/brain-shared/pipeline-run-context";
+import {
+  getTurnAbortReason,
+  registerTurn,
+  unregisterTurn,
+} from "@/agentflow/execution";
 import { getCompiledPipelineGraph } from "../graph/compile";
 import type { PipelineGraphState } from "../graph/state";
 import { buildInitialState, lastUserQuestion } from "./initial-state";
@@ -201,6 +207,13 @@ async function* runPipelineStreamInner(
   const collectedSteps: TurnStepEvent[] = [];
   const graph = getCompiledPipelineGraph();
   const input = buildInitialState(history, context, userQuestion);
+  const turnId = input.turnId;
+  const turnController = registerTurn({
+    turnId,
+    conversationId: context.conversationId,
+    actorUserId: context.actorUserId,
+  });
+  const turnSignal = turnController.signal;
   let finalState: PipelineGraphState = input;
   let activeStep: PipelineStepName | null = "prepare_turn_start";
   /** 并行 fan-out 时可同时 running 多个 step */
@@ -212,10 +225,44 @@ async function* runPipelineStreamInner(
     status: "running",
   });
   yield { type: "step", name: "prepare_turn_start", status: "running" };
+
+  const finishAborted = function* (
+    reason: TurnAbortReason
+  ): Generator<AgentStreamEvent, AgentPipelineResult> {
+    finalState = { ...finalState, turnAborted: true };
+    yield { type: "aborted", turnId, reason };
+    const pipelineTiming = yield* finishPipeline(timing, collectedLogs);
+    logAgentOut(
+      "Pipeline",
+      "出去",
+      summarizePipelineOut(
+        finalState,
+        finalState.answer ?? "",
+        pipelineTiming
+      )
+    );
+    return {
+      answer: finalState.answer ?? "",
+      blocks: finalState.assistantBlocks ?? undefined,
+      repeatQuestionHit: finalState.repeatQuestionHit,
+      retrievalCacheHit: finalState.retrievalCacheHit,
+      compositeFacetCacheHits: finalState.compositeFacetCacheHits,
+      timing: pipelineTiming,
+      retrievalPaths: retrievalPathsFromState(finalState),
+      logs: [...collectedLogs],
+      steps: [...collectedSteps],
+      aborted: true,
+      abortReason: reason,
+      turnId,
+    };
+  };
+
+  try {
   const stream = await graph.stream(
     input as Parameters<typeof graph.stream>[0],
     {
       streamMode: ["updates", "values", "custom"],
+      signal: turnSignal,
       ...buildLangGraphRunConfig({
         conversationId: context.conversationId,
         corpusUserId: context.corpusUserId,
@@ -261,6 +308,10 @@ async function* runPipelineStreamInner(
     yield { type: "step", name, status: "running" } as const;
   };
   for await (const chunk of stream) {
+    if (turnSignal.aborted) {
+      const reason = getTurnAbortReason(turnId) ?? "cancelled";
+      return yield* finishAborted(reason);
+    }
     const [mode, payload] = chunk as ["updates" | "values" | "custom", unknown];
     if (mode === "values") {
       finalState = payload as PipelineGraphState;
@@ -557,6 +608,10 @@ async function* runPipelineStreamInner(
       continue;
     }
   }
+  if (turnSignal.aborted) {
+    const reason = getTurnAbortReason(turnId) ?? "cancelled";
+    return yield* finishAborted(reason);
+  }
   if (activeStep) {
     const durationMs = timing.markNodeEnd(activeStep);
     upsertCollectedStep(collectedSteps, {
@@ -604,5 +659,15 @@ async function* runPipelineStreamInner(
     retrievalPaths: retrievalPathsFromState(finalState),
     logs: [...collectedLogs],
     steps: [...collectedSteps],
+    turnId,
   };
+  } catch (e) {
+    if (turnSignal.aborted) {
+      const reason = getTurnAbortReason(turnId) ?? "cancelled";
+      return yield* finishAborted(reason);
+    }
+    throw e;
+  } finally {
+    unregisterTurn(turnId);
+  }
 }

@@ -16,13 +16,16 @@ export const buildInitialState = (
     context: AgentPipelineContext,
     userQuestion: string
 ): PipelineGraphState => {
+    const fromClient = context.turnId?.trim();
     const turnId =
-        typeof crypto !== "undefined" && "randomUUID" in crypto
-            ? crypto.randomUUID()
-            : `turn-${Date.now()}-${Math.random().toString(36).slice(2, 10)}`;
+        fromClient && fromClient.length > 0
+            ? fromClient
+            : typeof crypto !== "undefined" && "randomUUID" in crypto
+              ? crypto.randomUUID()
+              : `turn-${Date.now()}-${Math.random().toString(36).slice(2, 10)}`;
     return {
         history,
-        context,
+        context: { ...context, turnId },
         userQuestion,
         decision: null,
         hits: [],

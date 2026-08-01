@@ -21,7 +21,15 @@ export type AgentPipelineContext = {
     displayName: string;
     /** 当前会话 id（LangMem 会话摘要按会话存储） */
     conversationId: string;
+    /**
+     * 本轮 turnId（由 Web 生成并贯穿；Brain 缺省时兜底生成）。
+     * cancel / supersede 均按此 id 点名中止。
+     */
+    turnId?: string;
 };
+
+/** Turn 中止原因：显式停止 vs 新消息顶替 */
+export type TurnAbortReason = "cancelled" | "superseded";
 export type PipelineStepName =
     | "prepare_turn_start"
     | "repeat_question_guard"
@@ -85,7 +93,7 @@ export type TurnTraceSnapshot = {
     timing?: PipelineTiming;
     entries: PipelineLogEntry[];
     steps: TurnStepEvent[];
-    status: "done" | "error";
+    status: "done" | "error" | "cancelled" | "superseded";
     userQuestion?: string;
     error?: string;
 };
@@ -129,6 +137,11 @@ export type AgentStreamEvent = {
         plainText: string;
         blocks: AssistantMessageBlock[];
     };
+} | {
+    /** Turn 被 cancel / supersede；BFF 据此决定是否落库 */
+    type: "aborted";
+    turnId: string;
+    reason: TurnAbortReason;
 };
 export type AgentPipelineResult = {
     answer: string;
@@ -146,4 +159,8 @@ export type AgentPipelineResult = {
     logs?: PipelineLogEntry[];
     /** 本轮 step 轨迹（入库 / 历史回放） */
     steps?: TurnStepEvent[];
+    /** Turn 中止时为 true；answer 可能为空或部分缓冲 */
+    aborted?: boolean;
+    abortReason?: TurnAbortReason;
+    turnId?: string;
 };

@@ -160,10 +160,21 @@ export const ConversationLogPanel = ({
                                                 ? "bg-emerald-50 text-emerald-700"
                                                 : turn.status === "error"
                                                   ? "bg-red-50 text-red-700"
-                                                  : "bg-indigo-50 text-indigo-700",
+                                                  : turn.status === "cancelled" ||
+                                                      turn.status === "superseded"
+                                                    ? "bg-zinc-100 text-zinc-600"
+                                                    : "bg-indigo-50 text-indigo-700",
                                         ].join(" ")}
                                     >
-                                        {turn.status === "done" ? "完成" : turn.status === "error" ? "失败" : "运行中"}
+                                        {turn.status === "done"
+                                            ? "完成"
+                                            : turn.status === "error"
+                                              ? "失败"
+                                              : turn.status === "cancelled"
+                                                ? "已停止"
+                                                : turn.status === "superseded"
+                                                  ? "已顶替"
+                                                  : "运行中"}
                                     </span>
                                 </div>
 

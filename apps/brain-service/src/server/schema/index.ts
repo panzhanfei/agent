@@ -55,5 +55,13 @@ export const pipelineStreamBodySchema = z.object({
         corpusUserId: z.string().min(1),
         displayName: z.string().min(1),
         conversationId: z.string().min(1),
+        /** Web 贯穿的 turnId；缺省时 Brain 兜底生成 */
+        turnId: z.string().uuid().optional(),
     }),
+});
+
+export const pipelineCancelBodySchema = z.object({
+    turnId: z.string().uuid(),
+    conversationId: z.string().min(1).optional(),
+    reason: z.enum(["cancelled", "superseded"]).default("cancelled"),
 });

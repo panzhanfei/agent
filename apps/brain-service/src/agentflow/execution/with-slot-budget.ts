@@ -11,11 +11,13 @@ import type { StepResult } from "@/agentflow/agents/online/intake-coordinator/pa
 import type { RetryPolicy, SlotRuntimeState } from "./interface";
 import {
   createPendingSlot,
+  markSlotAborted,
   markSlotAttempt,
   markSlotDone,
   markSlotRunning,
   markSlotSkipped,
 } from "./slot-status";
+import type { TurnAbortReason } from "@fambrain/brain-types";
 
 const timeoutSub = (
   slotId: string,
@@ -90,6 +92,9 @@ export const runWithSlotBudget = async (input: {
   label: string;
   policy: RetryPolicy;
   priorRuntime?: SlotRuntimeState | null;
+  /** Turn cancel / supersede；与 deadline 一并 race */
+  signal?: AbortSignal | null;
+  abortReason?: TurnAbortReason | null;
   run: () => Promise<PlanSlotWorkerPatch>;
 }): Promise<BudgetedSlotResult> => {
   const now = Date.now();
@@ -97,11 +102,41 @@ export const runWithSlotBudget = async (input: {
   runtime = markSlotRunning(runtime, now);
   runtime = markSlotAttempt(runtime);
 
+  if (input.signal?.aborted) {
+    const reason = input.abortReason ?? "cancelled";
+    runtime = markSlotAborted(runtime, reason);
+    const patch: PlanSlotWorkerPatch = {
+      slotId: input.slotId,
+      executor: input.executor,
+      sub: timeoutSub(input.slotId, input.label, 0),
+      stepResult: timeoutStep(
+        input.slotId,
+        input.label,
+        pathKindForExecutor(input.executor),
+        0
+      ),
+      error: `turn_${reason}`,
+      slotRuntime: runtime,
+    };
+    return { patch, slotRuntime: runtime };
+  }
+
   const timeoutMs = Math.max(1, input.policy.deadlineMs);
   let timer: ReturnType<typeof setTimeout> | undefined;
+  let onAbort: (() => void) | undefined;
 
   const timeoutPromise = new Promise<"timeout">((resolve) => {
     timer = setTimeout(() => resolve("timeout"), timeoutMs);
+  });
+
+  const abortPromise = new Promise<"aborted">((resolve) => {
+    if (!input.signal) return;
+    if (input.signal.aborted) {
+      resolve("aborted");
+      return;
+    }
+    onAbort = () => resolve("aborted");
+    input.signal.addEventListener("abort", onAbort, { once: true });
   });
 
   const workPromise = input.run().then((patch) => ({
@@ -113,10 +148,31 @@ export const runWithSlotBudget = async (input: {
     const raced = await Promise.race([
       workPromise,
       timeoutPromise.then((kind) => ({ kind })),
+      abortPromise.then((kind) => ({ kind })),
     ]);
 
+    if (raced.kind === "aborted") {
+      void workPromise.catch(() => undefined);
+      const reason = input.abortReason ?? "cancelled";
+      runtime = markSlotAborted(runtime, reason);
+      const patch: PlanSlotWorkerPatch = {
+        slotId: input.slotId,
+        executor: input.executor,
+        sub: timeoutSub(input.slotId, input.label, 0),
+        stepResult: timeoutStep(
+          input.slotId,
+          input.label,
+          pathKindForExecutor(input.executor),
+          0
+        ),
+        error: `turn_${reason}`,
+        slotRuntime: runtime,
+      };
+      return { patch, slotRuntime: runtime };
+    }
+
     if (raced.kind === "timeout") {
-      // 阶段 1：不 Abort 底层 IO；吞掉迟到的 reject，避免 unhandledRejection
+      // 超时：语义 skip；底层 IO 可能仍跑，阶段 2 靠 turn Abort 补刀
       void workPromise.catch(() => undefined);
       runtime = markSlotSkipped(runtime, "timeout");
       const patch: PlanSlotWorkerPatch = {
@@ -150,5 +206,8 @@ export const runWithSlotBudget = async (input: {
     };
   } finally {
     if (timer) clearTimeout(timer);
+    if (onAbort && input.signal) {
+      input.signal.removeEventListener("abort", onAbort);
+    }
   }
 };

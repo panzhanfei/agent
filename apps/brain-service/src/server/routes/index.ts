@@ -6,10 +6,13 @@ import {
     pingRedis,
 } from "@fambrain/infra";
 import type { AgentStreamEvent } from "@fambrain/brain-types";
+import { abortTurn } from "@/agentflow/execution";
 import { runAgentStream } from "@/agentflow";
 import { requireAuth } from "@/server/middleware";
 import { pipelineStreamBodySchema } from "@/server/schema";
 import { initSseResponse, readJsonBody, writeSse } from "@/server/http";
+
+export { handlePipelineCancel } from "./pipeline-cancel";
 
 const streamEventName = (ev: AgentStreamEvent): string => {
     return ev.type;
@@ -44,15 +47,34 @@ export const handlePipelineStream = async (req: IncomingMessage, res: ServerResp
         res.end(JSON.stringify({ error: "无权以该用户身份调用 Agent" }));
         return;
     }
+    const turnId =
+        parsed.data.context.turnId?.trim() ||
+        (typeof crypto !== "undefined" && "randomUUID" in crypto
+            ? crypto.randomUUID()
+            : `turn-${Date.now()}`);
+    const context = { ...parsed.data.context, turnId };
     initSseResponse(res);
+    let completed = false;
+    const onClientGone = () => {
+        if (!completed) {
+            abortTurn(turnId, "cancelled");
+        }
+    };
+    req.on("close", onClientGone);
+    res.on("close", onClientGone);
     try {
-        const gen = runAgentStream(parsed.data.history, parsed.data.context);
+        const gen = runAgentStream(parsed.data.history, context);
         let pipelineResult: {
             answer: string;
             blocks?: import("@fambrain/brain-types").AssistantMessageBlock[];
             retrievalCacheHit?: boolean;
             retrievalPaths?: string[];
             timing?: import("@fambrain/brain-types").PipelineTiming;
+            aborted?: boolean;
+            abortReason?: "cancelled" | "superseded";
+            turnId?: string;
+            logs?: import("@fambrain/brain-types").PipelineLogEntry[];
+            steps?: import("@fambrain/brain-types").TurnStepEvent[];
         } | undefined;
         while (true) {
             const next = await gen.next();
@@ -62,6 +84,7 @@ export const handlePipelineStream = async (req: IncomingMessage, res: ServerResp
             }
             writeSse(res, streamEventName(next.value), next.value);
         }
+        completed = true;
         writeSse(res, "pipeline_done", {
             answer: pipelineResult?.answer ?? "",
             blocks: pipelineResult?.blocks,
@@ -70,15 +93,21 @@ export const handlePipelineStream = async (req: IncomingMessage, res: ServerResp
             timing: pipelineResult?.timing,
             logs: pipelineResult?.logs,
             steps: pipelineResult?.steps,
+            aborted: pipelineResult?.aborted,
+            abortReason: pipelineResult?.abortReason,
+            turnId: pipelineResult?.turnId ?? turnId,
         });
     }
     catch (e) {
+        completed = true;
         console.error(e);
         const msg = e instanceof Error ? e.message : "Agent pipeline failed";
         writeSse(res, "error", { message: msg });
-        writeSse(res, "pipeline_done", { answer: "", timing: undefined });
+        writeSse(res, "pipeline_done", { answer: "", timing: undefined, turnId });
     }
     finally {
+        req.off("close", onClientGone);
+        res.off("close", onClientGone);
         res.end();
     }
 };

@@ -1,87 +1,157 @@
-import type { AgentPipelineContext, AgentPipelineResult, AgentStreamEvent, DbChatTurn, } from "@fambrain/brain-types";
+import type {
+  AgentPipelineContext,
+  AgentPipelineResult,
+  AgentStreamEvent,
+  DbChatTurn,
+  TurnAbortReason,
+} from "@fambrain/brain-types";
 import { resolveBrainServiceUrl } from "@fambrain/brain-config/service-url";
+
 type SseMessage = {
-    event: string;
-    data: string;
+  event: string;
+  data: string;
 };
+
 const parseSseBlock = (block: string): SseMessage | null => {
-    let event = "message";
-    let data = "";
-    for (const line of block.split("\n")) {
-        if (line.startsWith("event:"))
-            event = line.slice(6).trim();
-        if (line.startsWith("data:"))
-            data = line.slice(5).trim();
-    }
-    if (!data)
-        return null;
-    return { event, data };
+  let event = "message";
+  let data = "";
+  for (const line of block.split("\n")) {
+    if (line.startsWith("event:")) event = line.slice(6).trim();
+    if (line.startsWith("data:")) data = line.slice(5).trim();
+  }
+  if (!data) return null;
+  return { event, data };
 };
-async function* parseSseStream(body: ReadableStream<Uint8Array>): AsyncGenerator<SseMessage> {
-    const reader = body.getReader();
-    const decoder = new TextDecoder();
-    let buffer = "";
+
+async function* parseSseStream(
+  body: ReadableStream<Uint8Array>,
+  signal?: AbortSignal
+): AsyncGenerator<SseMessage> {
+  const reader = body.getReader();
+  const decoder = new TextDecoder();
+  let buffer = "";
+  const onAbort = () => {
+    void reader.cancel().catch(() => undefined);
+  };
+  if (signal) {
+    if (signal.aborted) {
+      await reader.cancel().catch(() => undefined);
+      return;
+    }
+    signal.addEventListener("abort", onAbort, { once: true });
+  }
+  try {
     while (true) {
-        const { done, value } = await reader.read();
-        if (done)
-            break;
-        buffer += decoder.decode(value, { stream: true });
-        const parts = buffer.split("\n\n");
-        buffer = parts.pop() ?? "";
-        for (const part of parts) {
-            const msg = parseSseBlock(part.trim());
-            if (msg)
-                yield msg;
-        }
+      if (signal?.aborted) break;
+      const { done, value } = await reader.read();
+      if (done) break;
+      buffer += decoder.decode(value, { stream: true });
+      const parts = buffer.split("\n\n");
+      buffer = parts.pop() ?? "";
+      for (const part of parts) {
+        const msg = parseSseBlock(part.trim());
+        if (msg) yield msg;
+      }
     }
     if (buffer.trim()) {
-        const msg = parseSseBlock(buffer.trim());
-        if (msg)
-            yield msg;
+      const msg = parseSseBlock(buffer.trim());
+      if (msg) yield msg;
     }
+  } finally {
+    if (signal) signal.removeEventListener("abort", onAbort);
+    try {
+      reader.releaseLock();
+    } catch {
+      //
+    }
+  }
 }
+
 /**
  * 调用 @fambrain/brain-service HTTP 服务，复用与进程内 runAgentStream 相同的事件流。
  */
-export async function* streamAgentPipeline(history: DbChatTurn[], context: AgentPipelineContext, authToken: string): AsyncGenerator<AgentStreamEvent, AgentPipelineResult> {
-    const baseUrl = resolveBrainServiceUrl();
-    const res = await fetch(`${baseUrl}/pipeline/stream`, {
-        method: "POST",
-        headers: {
-            "Content-Type": "application/json",
-            Authorization: `Bearer ${authToken}`,
-        },
-        body: JSON.stringify({ history, context }),
-    });
-    if (!res.ok) {
-        const text = await res.text().catch(() => "");
-        throw new Error(text || `Brain 服务请求失败（HTTP ${res.status}），请确认 pnpm run dev:brain-service 已启动`);
+export async function* streamAgentPipeline(
+  history: DbChatTurn[],
+  context: AgentPipelineContext,
+  authToken: string,
+  options?: { signal?: AbortSignal }
+): AsyncGenerator<AgentStreamEvent, AgentPipelineResult> {
+  const baseUrl = resolveBrainServiceUrl();
+  const res = await fetch(`${baseUrl}/pipeline/stream`, {
+    method: "POST",
+    headers: {
+      "Content-Type": "application/json",
+      Authorization: `Bearer ${authToken}`,
+    },
+    body: JSON.stringify({ history, context }),
+    signal: options?.signal,
+  });
+  if (!res.ok) {
+    const text = await res.text().catch(() => "");
+    throw new Error(
+      text ||
+        `Brain 服务请求失败（HTTP ${res.status}），请确认 pnpm run dev:brain-service 已启动`
+    );
+  }
+  if (!res.body) {
+    throw new Error("Brain 服务未返回 SSE 流");
+  }
+  for await (const msg of parseSseStream(res.body, options?.signal)) {
+    if (msg.event === "pipeline_done") {
+      const payload = JSON.parse(msg.data) as {
+        answer?: string;
+        blocks?: AgentPipelineResult["blocks"];
+        retrievalCacheHit?: boolean;
+        retrievalPaths?: AgentPipelineResult["retrievalPaths"];
+        timing?: AgentPipelineResult["timing"];
+        logs?: AgentPipelineResult["logs"];
+        steps?: AgentPipelineResult["steps"];
+        aborted?: boolean;
+        abortReason?: TurnAbortReason;
+        turnId?: string;
+      };
+      return {
+        answer: payload.answer ?? "",
+        blocks: payload.blocks,
+        retrievalCacheHit: payload.retrievalCacheHit,
+        retrievalPaths: payload.retrievalPaths,
+        timing: payload.timing,
+        logs: payload.logs,
+        steps: payload.steps,
+        aborted: payload.aborted,
+        abortReason: payload.abortReason,
+        turnId: payload.turnId,
+      };
     }
-    if (!res.body) {
-        throw new Error("Brain 服务未返回 SSE 流");
-    }
-    for await (const msg of parseSseStream(res.body)) {
-        if (msg.event === "pipeline_done") {
-            const payload = JSON.parse(msg.data) as {
-                answer?: string;
-                blocks?: AgentPipelineResult["blocks"];
-                retrievalCacheHit?: boolean;
-                retrievalPaths?: AgentPipelineResult["retrievalPaths"];
-                timing?: AgentPipelineResult["timing"];
-                logs?: AgentPipelineResult["logs"];
-                steps?: AgentPipelineResult["steps"];
-            };
-            return {
-                answer: payload.answer ?? "",
-                blocks: payload.blocks,
-                retrievalCacheHit: payload.retrievalCacheHit,
-                retrievalPaths: payload.retrievalPaths,
-                timing: payload.timing,
-                logs: payload.logs,
-                steps: payload.steps,
-            };
-        }
-        yield JSON.parse(msg.data) as AgentStreamEvent;
-    }
-    return { answer: "" };
+    yield JSON.parse(msg.data) as AgentStreamEvent;
+  }
+  return { answer: "" };
 }
+
+/** 显式取消 Brain 侧进行中的 turn（与断流双保险） */
+export const cancelAgentPipelineTurn = async (input: {
+  authToken: string;
+  turnId: string;
+  conversationId?: string;
+  reason: TurnAbortReason;
+}): Promise<{ ok: boolean; aborted: boolean }> => {
+  const baseUrl = resolveBrainServiceUrl();
+  const res = await fetch(`${baseUrl}/pipeline/cancel`, {
+    method: "POST",
+    headers: {
+      "Content-Type": "application/json",
+      Authorization: `Bearer ${input.authToken}`,
+    },
+    body: JSON.stringify({
+      turnId: input.turnId,
+      conversationId: input.conversationId,
+      reason: input.reason,
+    }),
+  });
+  if (!res.ok) {
+    const text = await res.text().catch(() => "");
+    throw new Error(text || `Brain cancel 失败（HTTP ${res.status}）`);
+  }
+  const data = (await res.json()) as { ok?: boolean; aborted?: boolean };
+  return { ok: Boolean(data.ok), aborted: Boolean(data.aborted) };
+};

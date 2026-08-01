@@ -28,7 +28,16 @@ export const createMessageSchema = z.object({
 /** POST /api/conversations/:id/messages — 追加用户提问并以 SSE 流式返回助手回复 */
 export const postConversationMessageBodySchema = z.object({
     content: messageContentSchema,
+    /** Web 生成的 turnId，贯穿 BFF → Brain；缺省时服务端兜底 */
+    turnId: z.string().uuid().optional(),
 });
+
+/** POST /api/conversations/:id/turns/:turnId/cancel */
+export const cancelTurnBodySchema = z.object({
+    reason: z.enum(["cancelled", "superseded"]).default("cancelled"),
+});
+
+export const turnIdParamSchema = z.string().uuid();
 export const listMessagesQuerySchema = z.object({
     conversationId: conversationIdSchema,
     cursor: z.cuid().optional(),

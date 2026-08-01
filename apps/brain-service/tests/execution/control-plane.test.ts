@@ -1,5 +1,6 @@
 import { describe, expect, it } from "vitest";
 import {
+  abortTurn,
   canAttemptAgain,
   createPendingSlot,
   isDeadlineExceeded,
@@ -9,10 +10,12 @@ import {
   markSlotDone,
   markSlotRunning,
   markSlotSkipped,
+  registerTurn,
   runWithSlotBudget,
   shouldSkipForDeps,
   shouldTriggerGlobalRebatch,
   skippedDepsResult,
+  unregisterTurn,
   DEFAULT_RETRY_POLICY,
 } from "@/agentflow/execution";
 import type { ToolRunResult } from "@/agentflow/agents/online/tool-orchestrator/interface";
@@ -167,6 +170,27 @@ describe("runWithSlotBudget", () => {
     expect(patch.error).toBe("slot_deadline_exceeded");
   });
 
+  it("marks aborted when turn signal fires", async () => {
+    const ac = new AbortController();
+    const work = runWithSlotBudget({
+      slotId: "km-abort",
+      executor: "km",
+      label: "取消槽",
+      policy: { maxAttempts: 2, deadlineMs: 5_000 },
+      signal: ac.signal,
+      abortReason: "cancelled",
+      run: async () => {
+        await new Promise((r) => setTimeout(r, 200));
+        return okPatch();
+      },
+    });
+    ac.abort();
+    const { slotRuntime, patch } = await work;
+    expect(slotRuntime.status).toBe("aborted");
+    expect(slotRuntime.reason).toBe("cancelled");
+    expect(patch.error).toBe("turn_cancelled");
+  });
+
   it("loadRetryPolicyFromEnv falls back to defaults", () => {
     const prevA = process.env.SLOT_MAX_ATTEMPTS;
     const prevD = process.env.SLOT_DEADLINE_MS;
@@ -175,5 +199,21 @@ describe("runWithSlotBudget", () => {
     expect(loadRetryPolicyFromEnv()).toEqual(DEFAULT_RETRY_POLICY);
     if (prevA !== undefined) process.env.SLOT_MAX_ATTEMPTS = prevA;
     if (prevD !== undefined) process.env.SLOT_DEADLINE_MS = prevD;
+  });
+});
+
+describe("turn registry", () => {
+  it("abortTurn flips AbortSignal", () => {
+    const turnId = crypto.randomUUID();
+    const controller = registerTurn({
+      turnId,
+      conversationId: "c1",
+      actorUserId: "u1",
+    });
+    expect(controller.signal.aborted).toBe(false);
+    expect(abortTurn(turnId, "superseded")).toBe(true);
+    expect(controller.signal.aborted).toBe(true);
+    unregisterTurn(turnId);
+    expect(abortTurn(turnId, "cancelled")).toBe(false);
   });
 });

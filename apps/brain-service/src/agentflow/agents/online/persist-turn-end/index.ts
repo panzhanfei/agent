@@ -24,7 +24,13 @@ export const runPersistTurnEnd = async (
     repeatQuestionHit: state.repeatQuestionHit,
     hasAnswer: Boolean(state.answer?.trim()),
     userFact: Boolean(state.decision?.userFact),
+    turnAborted: state.turnAborted,
   });
+
+  if (state.turnAborted) {
+    logAgentOut("TurnEnd", "出去", { skipped: true, reason: "turn_aborted" });
+    return {};
+  }
 
   if (state.repeatQuestionHit) {
     logAgentOut("TurnEnd", "出去", { skipped: true, reason: "repeat_question_hit" });
