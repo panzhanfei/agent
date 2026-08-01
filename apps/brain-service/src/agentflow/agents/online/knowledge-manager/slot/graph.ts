@@ -1,6 +1,6 @@
 /**
- * KM 单槽子图壳（阶段 3）：单节点 → runKmSlotWorker + 一层预算。
- * 父图 addNode("kmRetrieve", getCompiledKmSlotGraph())；阶段 4 在此扩 L1。
+ * KM 单槽子图壳：单节点 → runKmSlotWorker + 一层预算。
+ * 父图 addNode("kmRetrieve", getCompiledKmSlotGraph())；改 query 在 Join 全局 B。
  */
 import { END, START, StateGraph } from "@langchain/langgraph";
 import { logAgentOut } from "@fambrain/brain-shared/agent-log";

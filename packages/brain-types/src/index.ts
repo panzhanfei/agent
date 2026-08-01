@@ -42,6 +42,7 @@ export type PipelineStepName =
     | "list_retrieve"
     | "plan_slot_join"
     | "plan_slot_post"
+    | "global_rebatch"
     | "plan_dag"
     | "plan_merge"
     /** @deprecated 旧 SSE 聚合名；新图不再 emit */

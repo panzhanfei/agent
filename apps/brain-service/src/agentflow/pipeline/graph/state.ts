@@ -99,5 +99,15 @@ export const PipelineGraphAnnotation = Annotation.Root({
     }),
     /** 全局协调 B 是否已触发过（最多 1 次） */
     globalRebatchUsed: Annotation<boolean>,
+    /** Join 后待再批的槽 id（空 = 不进再批 Send） */
+    pendingGlobalRebatchSlotIds: Annotation<string[]>({
+        reducer: (_prev, next) => next,
+        default: () => [],
+    }),
+    /** Join 后是否再跑 planDag */
+    pendingGlobalRebatchDag: Annotation<boolean>({
+        reducer: (_prev, next) => next,
+        default: () => false,
+    }),
 });
 export type PipelineGraphState = typeof PipelineGraphAnnotation.State;

@@ -1,8 +1,13 @@
 import { Send } from "@langchain/langgraph";
 import { isSummarizeComposeDecision } from "@/agentflow/agents/online/content-summarizer/summarize-route";
 import type { IntakeRouteMode } from "@/agentflow/agents/online/intake-coordinator/guards/interface";
-import { fanOutPlanWorkers } from "@/agentflow/agents/online/plan-fanout";
+import {
+  fanOutPlanWorkers,
+  routeAfterPlanSlotJoin,
+} from "@/agentflow/agents/online/plan-fanout";
 import type { PipelineGraphState } from "./state";
+
+export { routeAfterPlanSlotJoin };
 
 export const routeAfterRepeat = (
   state: PipelineGraphState
@@ -79,7 +84,7 @@ export const routeAfterContentSummarizer = (
 /** @deprecated 保留导出名供旧脚本；图已不再使用 */
 export const routeAfterRetrieval = routeAfterPlanMerge;
 
-/** @deprecated 图已改为 km 槽工人内 per-step FC；list_corpus 不经 FC */
+/** @deprecated 工人内 FC 已废；主路径改 query 仅 Join 全局 B */
 export const routeAfterFactChecker = (
   _state: PipelineGraphState
 ): "contentOrganizer" => "contentOrganizer";

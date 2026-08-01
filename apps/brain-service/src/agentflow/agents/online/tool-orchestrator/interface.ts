@@ -110,6 +110,11 @@ export type ExecutionPlanNode = {
     /** identity 字段 id（来自 field-catalog，非用户口语硬编码） */
     field?: string | null;
     deps: string[];
+    /**
+     * soft 依赖：未满足时不阻断本节点（动态裁剪）；
+     * 仍写入结果 notes / degraded。未列出的 dep 视为 hard。
+     */
+    optionalDeps?: string[];
     /** composite 槽位执行时覆盖 state.hits */
     hitsOverride?: KnowledgeHit[];
     /** composite 列举槽的 KM 元数据 */

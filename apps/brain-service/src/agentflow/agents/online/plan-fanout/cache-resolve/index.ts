@@ -51,6 +51,8 @@ export const runPlanCacheResolveNode = async (
       retryPolicy,
       slotRuntimeById,
       globalRebatchUsed: false,
+      pendingGlobalRebatchSlotIds: [],
+      pendingGlobalRebatchDag: false,
     };
   } catch (e) {
     const msg = e instanceof Error ? e.message : "缓存计划解析失败";

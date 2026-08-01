@@ -35,6 +35,7 @@ export {
   isDepSatisfied,
   shouldSkipForDeps,
   skippedDepsResult,
+  unsatisfiedOptionalDeps,
 } from "./dag";
 
 export type { RegisteredTurn, TurnControl } from "./turn";

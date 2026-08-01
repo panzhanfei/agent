@@ -23,12 +23,13 @@ export const loadRetryPolicyFromEnv = (): RetryPolicy => {
 };
 
 /**
- * SLOT_GLOBAL_REBATCH_ENABLED：阶段 4 才真再批；阶段 1 仅影响是否打「候选」日志。
- * 未设 / 0 / false → 关闭日志候选；1 / true → Join 可打全局 B 候选日志。
+ * SLOT_GLOBAL_REBATCH_ENABLED：Join 后全局 B（结构化补丁再批 ≤1）。
+ * 未设 / 空 / 1 / true / yes → 开；仅显式 0 / false / no → 关。
  */
 export const isGlobalRebatchEnabledFromEnv = (): boolean => {
   const raw = readEnv("SLOT_GLOBAL_REBATCH_ENABLED");
-  if (raw === undefined) return false;
+  if (raw === undefined) return true;
   const s = raw.toLowerCase();
-  return s === "1" || s === "true" || s === "yes";
+  if (s === "0" || s === "false" || s === "no") return false;
+  return true;
 };

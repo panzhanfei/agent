@@ -1,6 +1,6 @@
 /**
- * planSlotPost：槽位线 post-retrieval tools（FC 已在每槽工人内完成）。
- * 在 planFanOut join 之后调用 tool-run，结果写回 fanOutSlotPatch。
+ * planSlotPost：槽位线 post-retrieval tools（工人内 FC 已废；改 query 在 Join 全局 B）。
+ * 在 planFanOut join（及可选再批）之后调用 tool-run，结果写回 fanOutSlotPatch。
  */
 import { logAgentOut } from "@fambrain/brain-shared/agent-log";
 import type { PlanSlotsPatch } from "@/agentflow/agents/online/plan-fanout/interface";

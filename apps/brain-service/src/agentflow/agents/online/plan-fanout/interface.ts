@@ -1,6 +1,6 @@
 /**
  * Plan fan-out：LangGraph Send 并行工人补丁通道。
- * 每槽 worker → fanOutSlotPatches（append）→ planSlotJoin → fanOutSlotPatch → planSlotPost(post-tools) → planMerge。
+ * 每槽 worker → fanOutSlotPatches（append）→ planSlotJoin →（可选全局 B 再批）→ fanOutSlotPatch → planSlotPost → planMerge。
  * 注意：本文件不得 import pipeline/graph/state（避免与 Annotation 循环依赖）。
  */
 import type {
@@ -28,7 +28,7 @@ export type PlanSlotWorkerPatch = {
   sub: CompositeSubRetrieval;
   stepResult: StepResult;
   error?: string | null;
-  /** 本槽 FC 后是否曾局部重检 */
+  /** 遗留字段：工人内 FC 已废，恒为 false */
   retried?: boolean;
   /** tool / summarize 工人直接产出的工具结果（join 并入 toolResults） */
   toolResult?: ToolRunResult | null;

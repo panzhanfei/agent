@@ -109,6 +109,8 @@ const baseState = (
     retryPolicy: { maxAttempts: 2, deadlineMs: 60_000 },
     slotRuntimeById: {},
     globalRebatchUsed: false,
+    pendingGlobalRebatchSlotIds: [],
+    pendingGlobalRebatchDag: false,
     ...overrides,
 });
 

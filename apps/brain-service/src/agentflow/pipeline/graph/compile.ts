@@ -40,6 +40,7 @@ import { PipelineGraphAnnotation } from "./state";
 import {
   routeAfterIntake,
   routeAfterPlanCacheResolve,
+  routeAfterPlanSlotJoin,
   routeAfterPlanMerge,
   routeAfterContentOrganizer,
   routeAfterContentSummarizer,
@@ -49,9 +50,8 @@ import {
 
 /**
  * intake → planCacheResolve → Send(每槽 km|list|mem|tool|summarize ∥ dag ∥ userFactSide)
- *   kmRetrieve / toolRetrieve = 单槽子图壳（阶段 3）；list/mem/summarize 仍扁平
- *     → planSlotJoin → planSlotPost → planMerge
- *   planDag → planMerge
+ *   kmRetrieve / toolRetrieve = 单槽子图壳；list/mem/summarize 扁平
+ *     → planSlotJoin →（可选全局 B 再批 Send ≤1）→ planSlotPost → planMerge
  * → contentOrganizer → contentSummarizer? → analyst
  */
 const buildPipelineGraph = () => {
@@ -94,9 +94,9 @@ const buildPipelineGraph = () => {
     .addEdge("toolRetrieve", "planSlotJoin")
     .addEdge("summarizeSlot", "planSlotJoin")
     .addEdge("userFactSide", "planSlotJoin")
-    .addEdge("planSlotJoin", "planSlotPost")
+    .addEdge("planDag", "planSlotJoin")
+    .addConditionalEdges("planSlotJoin", routeAfterPlanSlotJoin)
     .addEdge("planSlotPost", "planMerge")
-    .addEdge("planDag", "planMerge")
     .addConditionalEdges("planMerge", routeAfterPlanMerge)
     .addConditionalEdges("contentOrganizer", routeAfterContentOrganizer)
     .addConditionalEdges("contentSummarizer", routeAfterContentSummarizer)

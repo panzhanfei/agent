@@ -18,6 +18,7 @@ export type AgentLogName =
   | "Learning"
   | "PlanSlotPost"
   | "PlanSlotJoin"
+  | "GlobalRebatch"
   | "PlanDag"
   | "PlanMerge"
   | "UserFactSide"
@@ -46,6 +47,7 @@ const AGENT_EMOJI: Record<AgentLogName, string> = {
   Learning: "📖",
   PlanSlotPost: "⚙️",
   PlanSlotJoin: "🔗",
+  GlobalRebatch: "♻️",
   PlanDag: "🕸️",
   PlanMerge: "🧩",
   UserFactSide: "🪪",

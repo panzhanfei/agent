@@ -14,3 +14,11 @@ export type {
 } from "./interface";
 export { runPlanSlotJoinNode } from "./plan-slot-join";
 export { runPlanMergeNode } from "./plan-merge";
+export {
+  routeAfterPlanSlotJoin,
+  fanOutRebatchWorkers,
+  runGlobalRebatchPlanning,
+  selectSalvageableSlotIds,
+  applyGlobalRebatchRepairs,
+  parseGlobalRebatchPlan,
+} from "./global-rebatch";

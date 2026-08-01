@@ -1,5 +1,6 @@
 /**
- * Per-step FactChecker：km 槽工人内核查（list_corpus 在 corpus-lister/slot 跳过 FC）。
+ * Per-step FactChecker（遗留）：主路径工人内 FC 已废（阶段 4）。
+ * 仅 scripts/verify-fact-checker 与离线调用；改 query 走 Join 全局 B。
  */
 import type { CompositeSubRetrieval } from "@/agentflow/agents/online/knowledge-manager";
 import type { RoutedIntakeDecision } from "@/agentflow/agents/online/intake-coordinator";

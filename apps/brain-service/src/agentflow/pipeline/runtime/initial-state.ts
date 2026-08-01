@@ -61,5 +61,7 @@ export const buildInitialState = (
         retryPolicy: { ...DEFAULT_RETRY_POLICY },
         slotRuntimeById: {},
         globalRebatchUsed: false,
+        pendingGlobalRebatchSlotIds: [],
+        pendingGlobalRebatchDag: false,
     };
 };

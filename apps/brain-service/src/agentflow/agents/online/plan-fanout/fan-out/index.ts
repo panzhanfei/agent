@@ -1,7 +1,7 @@
 /**
  * Intake 之后：每槽 Send（km/list/mem/tool/summarize）∥ planDag ∥ userFactSide。
- * km 工人内 FC；list/mem/tool/summarize 无 FC。
- * 全部槽 → planSlotJoin → planSlotPost(post-retrieval tools) → planMerge（与 dag 汇合）。
+ * 全部 → planSlotJoin →（可选全局 B 再批）→ planSlotPost → planMerge。
+ * 工人内无 FC；改 query / 外搜再试只在 Join 全局 B。
  */
 import { Send } from "@langchain/langgraph";
 import { emptyPathPlan } from "@/agentflow/agents/online/intake-coordinator/path-plan";

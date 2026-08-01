@@ -67,7 +67,10 @@ export const markSlotAborted = (
   finishedAtMs: nowMs,
 });
 
-/** 失败槽占比是否达到全局协调 B 阈值（结构计数，非语义） */
+/**
+ * @deprecated 阶段 4：全局 B 不再用「过半失败」门槛；
+ * 改为「存在结构可救槽 → B ≤1」。保留供观测/旧测。
+ */
 export const shouldTriggerGlobalRebatch = (
   slots: readonly SlotRuntimeState[]
 ): boolean => {

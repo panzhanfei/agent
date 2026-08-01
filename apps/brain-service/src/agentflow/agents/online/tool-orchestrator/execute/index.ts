@@ -14,6 +14,7 @@ import type { RoutedIntakeDecision } from "@/agentflow/agents/online/intake-coor
 import {
     shouldSkipForDeps,
     skippedDepsResult,
+    unsatisfiedOptionalDeps,
 } from "@/agentflow/execution";
 import { resolveIdentityField, resolveIdentityFieldFromPlan } from "../catalog";
 import type { IntakeIdentityField } from "@/agentflow/agents/online/intake-coordinator/contract";
@@ -488,10 +489,13 @@ export const executeDagPlan = async (
     for (const wave of topoWaves(plan)) {
         const settled = await Promise.all(
             wave.map(async (node) => {
-                if (shouldSkipForDeps(node.deps, results)) {
+                const optionalDeps = node.optionalDeps ?? [];
+                if (shouldSkipForDeps(node.deps, results, optionalDeps)) {
                     skippedForDeps += 1;
                     const missing = node.deps.filter(
-                        (d) => !results[d] || !results[d]?.ok
+                        (d) =>
+                            !(optionalDeps.includes(d)) &&
+                            (!results[d] || !results[d]?.ok)
                     );
                     return [
                         node.id,
@@ -502,11 +506,31 @@ export const executeDagPlan = async (
                         }),
                     ] as const;
                 }
+                const softMissing = unsatisfiedOptionalDeps(
+                    node.deps,
+                    results,
+                    optionalDeps
+                );
                 const result = await runExecutionPlanNode(node, {
                     state,
                     prior: results,
                 });
-                return [node.id, result] as const;
+                if (softMissing.length === 0) {
+                    return [node.id, result] as const;
+                }
+                const note = `可选依赖未就绪（${softMissing.join(", ")}），已降级继续。`;
+                return [
+                    node.id,
+                    {
+                        ...result,
+                        answer: result.answer
+                            ? `${result.answer}\n\n（${note}）`
+                            : note,
+                        confidence: Math.min(result.confidence, 0.75),
+                        insufficientEvidence:
+                            result.insufficientEvidence || !result.ok,
+                    },
+                ] as const;
             })
         );
         for (const [id, result] of settled) results[id] = result;

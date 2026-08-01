@@ -46,6 +46,8 @@ export const expandHybridMultiSourceTemplate = (
             dataSource: "synthesize",
             toolId: "synthesize_merge",
             deps: ["resume", "company", "market"],
+            /** company/market soft：外搜失败仍可基于简历综合 */
+            optionalDeps: ["company", "market"],
         },
     ];
 };

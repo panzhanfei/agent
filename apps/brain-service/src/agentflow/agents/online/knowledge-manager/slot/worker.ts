@@ -1,18 +1,22 @@
 /**
- * km 单槽工人：executeKmSlotSub → FC →（可）局部重检。
- * 查缓存仅在 planCacheResolve；本模块为 km 主逻辑入口。
+ * km 单槽工人：executeKmSlotSub → 出 hits（无工人内 FC / 无 refinedSearchQuery 重试）。
+ * 改 query / 再检只走 Join 后全局 B（阶段 4）。
  */
-import {
-  checkStepFacts,
-  subToStepResult,
-} from "@/agentflow/agents/online/fact-checker";
-import type { CompositeRetrievalSlot } from "@/agentflow/agents/online/intake-coordinator/composite/interface";
-import type { StepResult } from "@/agentflow/agents/online/intake-coordinator/path-plan/interface";
+import { subToStepResult } from "@/agentflow/agents/online/fact-checker";
+import type { StepFactCheck, StepResult } from "@/agentflow/agents/online/intake-coordinator/path-plan/interface";
 import { resolveActiveSlot } from "@/agentflow/agents/online/plan-fanout/active-slot";
 import type { PlanSlotWorkerPatch } from "@/agentflow/agents/online/plan-fanout/interface";
 import type { PipelineGraphState } from "@/agentflow/pipeline/graph/state";
 import type { CompositeSubRetrieval } from "../composite/interface";
 import { executeKmSlotSub } from "./execute-sub";
+
+/** 主路径跳过 FC；保留 StepResult.fc 形状供下游兼容 */
+const KM_FC_SKIPPED: StepFactCheck = {
+  passed: true,
+  refinedSearchQuery: null,
+  issues: [],
+  checkerNotes: "km_skip_worker_fc_phase4",
+};
 
 const emptySub = (
   slotId: string,
@@ -50,7 +54,7 @@ const failedStep = (
   },
 });
 
-/** km 单槽工人：retrieve → FC →（可）局部重检（阶段 3 由子图壳调用） */
+/** km 单槽工人：仅 retrieve（阶段 4：无 FC 环） */
 export const runKmSlotWorker = async (
   state: PipelineGraphState
 ): Promise<PlanSlotWorkerPatch> => {
@@ -67,53 +71,19 @@ export const runKmSlotWorker = async (
   }
 
   try {
-    const corpusUserId = state.context.corpusUserId;
-    const plan = state.compositeIncrementalPlan;
-
-    let sub = await executeKmSlotSub({
-      corpusUserId,
-      plan,
+    const sub = await executeKmSlotSub({
+      corpusUserId: state.context.corpusUserId,
+      plan: state.compositeIncrementalPlan,
       slot,
     });
-    let retried = false;
-
-    let fc = await checkStepFacts({
-      userQuestion: state.userQuestion,
-      decision: state.decision!,
-      sub,
-      retryCount: state.retryCount,
-      retrievalCacheHit: Boolean(sub.cacheHit),
-    });
-
-    if (!fc.passed && fc.refinedSearchQuery && state.retryCount < 1) {
-      const refinedSlot: CompositeRetrievalSlot = {
-        ...slot,
-        searchQuery: fc.refinedSearchQuery,
-      };
-      sub = await executeKmSlotSub({
-        corpusUserId,
-        plan,
-        slot: refinedSlot,
-        liveRetrieve: true,
-      });
-      retried = true;
-      fc = await checkStepFacts({
-        userQuestion: state.userQuestion,
-        decision: state.decision!,
-        sub,
-        retryCount: state.retryCount + 1,
-        retrievalCacheHit: Boolean(sub.cacheHit),
-      });
-    }
-
-    const step = subToStepResult(sub, fc, "km");
+    const step = subToStepResult(sub, KM_FC_SKIPPED, "km");
     return {
       slotId: String(slot.id),
       executor: "km",
       sub,
       stepResult: step,
       error: null,
-      retried,
+      retried: false,
     };
   } catch (e) {
     const msg = e instanceof Error ? e.message : "km 单槽检索失败";

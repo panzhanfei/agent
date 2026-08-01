@@ -7,20 +7,19 @@ Intake 之后的并行工人汇合：`Send` 每槽检索/工具/记忆/总结 �
 ```text
 intake → planCacheResolve（agentflow/cache）
      → planFanOut Send
-├── kmRetrieve      读预置 facet+hits cache + FC
-├── listRetrieve    PathKind=list     dataSource=corpus          → list，无 FC
-├── memRetrieve     PathKind=mem      dataSource=mem0            → Mem0 结构化召回
-├── toolRetrieve    PathKind=tool     dataSource=web|…           → 独立工具（search_web 等）
-├── summarizeSlot   PathKind=summarize dataSource=user_text      → 子步总结
+├── kmRetrieve      读预置 facet+hits cache（无工人内 FC）
+├── listRetrieve    PathKind=list     dataSource=corpus
+├── memRetrieve     PathKind=mem      dataSource=mem0
+├── toolRetrieve    PathKind=tool     dataSource=web|…
+├── summarizeSlot   PathKind=summarize dataSource=user_text
 ├── userFactSide    remember side-effect
-└── planDag         PathKind=dag
+└── planDag         PathKind=dag（与槽同一 Join）
 
         ↓ planSlotJoin
-        ↓ planSlotPost     ← 仅 post-retrieval toolId（age/identity/links/compose_enumeration）
+        ↓ 全局 B?（结构可救槽/节点 → 一次 LLM 补丁 → 再批 Send ≤1）
+        ↓ planSlotPost     ← 仅 post-retrieval toolId
         ↓ planMerge
-        ↓ contentOrganizer
-        ↓ contentSummarizer?  ← 仅整轮 composeMode=summarize
-        ↓ analyst
+        ↓ contentOrganizer → contentSummarizer? → analyst
 ```
 
 ## 扩展独立工具

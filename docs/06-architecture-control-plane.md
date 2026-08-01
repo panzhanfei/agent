@@ -1,4 +1,4 @@
-# 架构约定：控制面 / 单槽动态规划（阶段 0 定稿）
+# 架构约定：控制面 / 动态规划（阶段 0～4 定稿）
 
 > 目标：业界可讲述的 Agent 编排完整性。  
 > **铁律：不许硬编码。** 代码只做 schema 合法化与结构兜底；语义（意图、指代、补检策略）归 LLM / 结构化字段。
@@ -7,16 +7,19 @@
 
 ```text
 Understand + Plan（可融合为一次 LLM）
-    → Execute（多槽并行；单槽子图内 L1 动态规划）
-    → 全局协调 B（失败过半时再批一轮 L1，不重跑 Intake）
+    → Execute（多槽 / DAG 并行首遍）
+    → Join 汇合
+    → 全局协调 B（对失败/不可用槽统一动态规划，最多 1 次，再批执行）
 ```
 
 | 层 | 职责 | 禁止 |
 |----|------|------|
 | **Understand+Plan** | 续问指代、pathPlan 终稿；`unresolved` → clarify | Plan 级指代拼接重试；口语二次拆槽 |
-| **L1 单槽** | 证据不足时槽内补步（收编原 FC）；改本槽 query/再执行 | 增删其它槽、改 answerOrder、改 pathPlan 结构 |
-| **全局 B** | 失败槽数 ≥ ceil(n/2) 时，对未满预算的失败槽再批 L1，**最多 1 次** | 重跑 Intake；改槽列表 |
+| **首遍 Execute** | 槽/子图执行；DAG hard/soft 结构裁剪 | 工人内 FC 改 query 再检；每槽规划 LLM |
+| **全局 B** | 汇合后对**有问题的槽**（及可救的 DAG 节点信号）**统一一次**规划 LLM → 结构化补丁 → 再批 | 每槽单独规划；过半整句重 Intake；改槽列表/answerOrder |
 | **代码** | 状态机、预算、Abort、deps 裁剪、非法字段降级 | 问句词表、场景名、Mem0 字段名表猜意图 |
+
+**单槽作用域：** B 产出的补丁只改对应槽的结构化字段（`searchQuery` / `toolId` / `webQuery` / `executor`…），不是「每槽各开一轮规划」。
 
 ## 2. 槽状态机
 
@@ -40,61 +43,53 @@ Understand + Plan（可融合为一次 LLM）
 { maxAttempts: 2, deadlineMs: 60_000 }
 ```
 
-环境变量（根目录 `.env` / `.env.example`）：
-
 | 变量 | 含义 |
 |------|------|
 | `SLOT_MAX_ATTEMPTS` | 单槽最多 attempt（含首次） |
-| `SLOT_DEADLINE_MS` | 单槽墙钟；工人内 `Promise.race` |
-| `SLOT_GLOBAL_REBATCH_ENABLED` | `1` 时 Join 打全局 B 候选日志（阶段 4 再真批） |
+| `SLOT_DEADLINE_MS` | 单槽墙钟 |
+| `SLOT_GLOBAL_REBATCH_ENABLED` | 未设/`1` → 允许全局 B；`0`/`false` → 关闭 |
 
-- 单槽生涯 **严格 ≤ maxAttempts**；全局 B 不得加成超出  
+- 单槽生涯 **严格 ≤ maxAttempts**；全局 B 再批不得加成超出  
 - 超时主路径：工人内 race；Join 兜底补标  
-- tool 等以后再按 executor **分档**，初值不分档  
 
 ## 4. Turn / 取消
 
-- 每次用户提交 = 新 `turnId`（**Web 生成并贯穿** BFF → Brain；Brain 缺省时兜底）  
-- 编辑重发 / 再发下一句 = 新 `turnId`，旧 turn → **supersede**（默认，不必先点停止）  
-- 阶段实现：**cancel + supersede**；**任意点 resume 不做**  
-- **resume 仅 HITL**（`awaiting_human` → 批准后继续）  
-- **双保险**：客户端 `AbortController` 断流 + `POST …/turns/:turnId/cancel` → Brain `POST /pipeline/cancel`  
-- **落库**：
-  - `cancelled` 且已有正文 → 落库截停内容 + 尾注「——用户已暂停」；几乎无正文 → 不写 assistant  
-  - `superseded` → 不写旧 turn 的 assistant；trace 记 `superseded`  
-  - trace `status`: `done` | `error` | `cancelled` | `superseded`  
+- 每次用户提交 = 新 `turnId`（**Web 生成并贯穿**；Brain 缺省时兜底）  
+- 再发下一句 = **supersede**（默认）  
+- **cancel + supersede**；任意点 resume 不做（resume 仅 HITL）  
+- 双保险：Abort 断流 + cancel API  
+- 落库：cancelled 有正文 → 截停 +「——用户已暂停」；superseded 不写旧 assistant  
 
+## 5. 指代续问
 
-## 5. 指代续问（与动态规划边界）
+- 废除 Plan 级指代拼接重试；单次 Understand+Plan；消不了 → clarify  
 
-- **废除** `coreference=unresolved` 后拼接再调 Intake 的旁路  
-- 单次融合 Understand+Plan；消不了 → **clarify**  
-- 代码可把上轮实质问作为**结构化上下文字段**喂入（输入增强，不是第二次规划）  
-- 若仍失败 → **模型/提示问题**，不在 Execute 用规则补丁兜；换模型或加强上下文再优化  
+## 6. FactChecker / 动态规划
 
-## 6. FC
+- **废除**工人内 FC「评估 + `refinedSearchQuery` 再检索」；主路径不再调用该环  
+- 改 query / 外搜再试 **只**发生在 Join 后全局 B（≤1），结构化补丁  
+- Tool：结构失败可 `toolId=search_web` + query；成功不准 → 不验真，回答层标注/降级  
+- **不做**过半失败整句重规划  
 
-- 现有 FactChecker 重检环 **并入 L1 单槽动态规划**，不再并行一套 FC 产品语义  
-- 判据仍可以是 LLM，归属「槽内规划」  
+## 7. 子图与 DAG
 
-## 7. 子图
+- km + tool = 单槽子图壳（阶段 3）；首遍执行入口；再批仍进同一壳  
+- list/mem/summarize：扁平  
+- DAG：**不**另起规划器；失败信号并进同一 B  
+- DAG **动态裁剪**：`deps` + `optionalDeps`（soft）；仅 hard 未满足才 skip；soft 失败 → 下游可继续并 `degraded`/备注  
 
-- km + tool = **单槽子图壳**（阶段 3 已落地）：`km-slot` / `tool-slot` 编译子图，父图 `addNode("kmRetrieve"|"toolRetrieve", compiled)`  
-- 壳内当前为**单执行节点**（工人 + 一层预算）；阶段 4 在壳内挂 L1 / 收编 FC  
-- 父图：cache resolve → Send → Join → Merge（节点名与 patch 合约不变）  
-- list/mem/summarize：仍扁平；仅超时/取消，不强行上 L1  
+## 8. 实现阶段
 
-## 8. 实现阶段顺序（提醒）
-
-0 本约定 → 1 状态机+预算+DAG 裁剪 → 2 Turn 取消 → **3 子图壳（KM+tool，已落地）** → 4 L1 环 → 5 写时去重+翻译 → 6 HITL → 7 Eval → 8 Dify/复盘  
+0 约定 → 1 状态机+预算+DAG 裁剪 → 2 Turn 取消 → 3 子图壳 → **4 全局 B（本阶段）** → 5 写时去重+翻译 → 6 HITL → 7 Eval → 8 Dify/复盘  
 
 ## 9. 代码兜底白名单（仅此）
 
 1. Zod/schema 合法化  
 2. 按结构化 key 去重/合并  
 3. 空 plan / 解析失败 → clarify  
-4. JSON 格式修复 **1** 次（输出纪律，非指代触发器）  
-5. deps 未满足 / 上游 `ok=false` → 下游 skip（结构裁剪）  
+4. JSON 格式修复 **1** 次  
+5. deps 未满足（hard）→ 下游 skip；soft 不阻断  
 6. 预算/Abort 到点强制终态  
+7. 进 B 的候选：结构信号（error / coverage none / tool `ok:false` / skipped…），非口语  
 
 详见 `.cursor/rules/no-scene-hardcoding.mdc`。
