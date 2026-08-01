@@ -33,3 +33,11 @@ export {
   shouldSkipForDeps,
   skippedDepsResult,
 } from "./dag-prune";
+export {
+  loadRetryPolicyFromEnv,
+  isGlobalRebatchEnabledFromEnv,
+} from "./load-policy-from-env";
+export {
+  runWithSlotBudget,
+  type BudgetedSlotResult,
+} from "./with-slot-budget";

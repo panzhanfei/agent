@@ -4,16 +4,19 @@ import {
   createPendingSlot,
   isDeadlineExceeded,
   legalizeRetryPolicy,
+  loadRetryPolicyFromEnv,
   markSlotAttempt,
   markSlotDone,
   markSlotRunning,
   markSlotSkipped,
+  runWithSlotBudget,
   shouldSkipForDeps,
   shouldTriggerGlobalRebatch,
   skippedDepsResult,
   DEFAULT_RETRY_POLICY,
 } from "@/agentflow/execution";
 import type { ToolRunResult } from "@/agentflow/agents/online/tool-orchestrator/interface";
+import type { PlanSlotWorkerPatch } from "@/agentflow/agents/online/plan-fanout/interface";
 
 const okResult = (id = "a"): ToolRunResult => ({
   toolId: "search_web",
@@ -97,5 +100,80 @@ describe("global rebatch threshold", () => {
     expect(shouldTriggerGlobalRebatch([b, markSlotDone(createPendingSlot("c"))])).toBe(
       false
     );
+  });
+});
+
+describe("runWithSlotBudget", () => {
+  const okPatch = (): PlanSlotWorkerPatch => ({
+    slotId: "km-1",
+    executor: "km",
+    sub: {
+      slot: "km-1",
+      label: "姓名",
+      hits: [
+        {
+          path: "personal/resume.md",
+          title: "简历",
+          excerpt: "潘展飞",
+          relevance: 0.9,
+        },
+      ],
+      coverage: "sufficient",
+      notes: null,
+      cacheHit: false,
+      facetAnswerCacheHit: false,
+    },
+    stepResult: {
+      stepId: "km-1",
+      pathKind: "km",
+      label: "姓名",
+      hits: [],
+      coverage: "sufficient",
+      notes: null,
+      fc: {
+        passed: true,
+        refinedSearchQuery: null,
+        issues: [],
+        checkerNotes: null,
+      },
+    },
+  });
+
+  it("marks done on success", async () => {
+    const { slotRuntime, patch } = await runWithSlotBudget({
+      slotId: "km-1",
+      executor: "km",
+      label: "姓名",
+      policy: { maxAttempts: 2, deadlineMs: 5_000 },
+      run: async () => okPatch(),
+    });
+    expect(slotRuntime.status).toBe("done");
+    expect(patch.slotRuntime?.status).toBe("done");
+  });
+
+  it("marks skipped timeout when work exceeds deadline", async () => {
+    const { slotRuntime, patch } = await runWithSlotBudget({
+      slotId: "km-slow",
+      executor: "km",
+      label: "慢槽",
+      policy: { maxAttempts: 2, deadlineMs: 30 },
+      run: async () => {
+        await new Promise((r) => setTimeout(r, 200));
+        return okPatch();
+      },
+    });
+    expect(slotRuntime.status).toBe("skipped");
+    expect(slotRuntime.reason).toBe("timeout");
+    expect(patch.error).toBe("slot_deadline_exceeded");
+  });
+
+  it("loadRetryPolicyFromEnv falls back to defaults", () => {
+    const prevA = process.env.SLOT_MAX_ATTEMPTS;
+    const prevD = process.env.SLOT_DEADLINE_MS;
+    delete process.env.SLOT_MAX_ATTEMPTS;
+    delete process.env.SLOT_DEADLINE_MS;
+    expect(loadRetryPolicyFromEnv()).toEqual(DEFAULT_RETRY_POLICY);
+    if (prevA !== undefined) process.env.SLOT_MAX_ATTEMPTS = prevA;
+    if (prevD !== undefined) process.env.SLOT_DEADLINE_MS = prevD;
   });
 });

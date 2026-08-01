@@ -8,6 +8,7 @@ import type { CompositeSubRetrieval } from "@/agentflow/agents/online/knowledge-
 import type { StepResult } from "@/agentflow/agents/online/intake-coordinator/path-plan/interface";
 import { resolveActiveSlot } from "@/agentflow/agents/online/plan-fanout/active-slot";
 import type { PlanSlotWorkerPatch } from "@/agentflow/agents/online/plan-fanout/interface";
+import { emitBudgetedSlotPatch } from "@/agentflow/agents/online/plan-fanout/slot-budget";
 import type { PipelineGraphState } from "@/agentflow/pipeline/graph/state";
 import type {
   DataSource,
@@ -152,14 +153,18 @@ export const runToolRetrieveNode = async (
     slotId: state.activeSlotId,
   });
 
-  const patch = await runToolSlotWorker(state);
+  const out = await emitBudgetedSlotPatch(state, "tool", () =>
+    runToolSlotWorker(state)
+  );
+  const patch = out.fanOutSlotPatches?.[0];
 
   logAgentOut("ToolOrchestrator", "出去", {
     via: "toolRetrieve",
-    slotId: patch.slotId,
-    toolId: patch.toolResult?.toolId ?? null,
-    ok: patch.toolResult?.ok ?? false,
+    slotId: patch?.slotId ?? state.activeSlotId,
+    toolId: patch?.toolResult?.toolId ?? null,
+    ok: patch?.toolResult?.ok ?? false,
+    slotStatus: patch?.slotRuntime?.status ?? null,
   });
 
-  return { fanOutSlotPatches: [patch] };
+  return out;
 };

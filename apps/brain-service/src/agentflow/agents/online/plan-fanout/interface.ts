@@ -16,6 +16,7 @@ import type {
   PipelineToolResults,
   ToolRunResult,
 } from "@/agentflow/agents/online/tool-orchestrator/interface";
+import type { SlotRuntimeState } from "@/agentflow/execution";
 
 /** 单槽工人族（与 PathKind 对齐，供 join 统计） */
 export type PlanSlotWorkerKind = "km" | "list" | "mem" | "tool" | "summarize";
@@ -31,6 +32,8 @@ export type PlanSlotWorkerPatch = {
   retried?: boolean;
   /** tool / summarize 工人直接产出的工具结果（join 并入 toolResults） */
   toolResult?: ToolRunResult | null;
+  /** 工人内预算结束后的槽运行时状态 */
+  slotRuntime?: SlotRuntimeState | null;
 };
 
 /** join / post 汇合后的槽位线补丁 */

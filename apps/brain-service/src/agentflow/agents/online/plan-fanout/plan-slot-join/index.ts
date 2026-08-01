@@ -1,7 +1,7 @@
 /**
- * planSlotJoin：等全部槽工人（km/list/mem/tool/summarize + userFactSide）汇合；
+ * planSlotJoin：等全部槽工人汇合；
  * 按 compositeSlots 顺序混排 subResults → fanOutSlotPatch；
- * tool/summarize 的 toolResult 并入 toolResults（post 再跑 hits 后加工）。
+ * 汇合 slotRuntimeById；超时/缺失兜底 skipped；全局 B 仅打日志（阶段 4 再批）。
  */
 import { logAgentOut } from "@fambrain/brain-shared/agent-log";
 import {
@@ -9,6 +9,15 @@ import {
   orderSubResultsBySlots,
 } from "@/agentflow/agents/online/knowledge-manager";
 import type { PipelineToolResults } from "@/agentflow/agents/online/tool-orchestrator/interface";
+import {
+  createPendingSlot,
+  isDeadlineExceeded,
+  isGlobalRebatchEnabledFromEnv,
+  isTerminalSlotStatus,
+  markSlotSkipped,
+  shouldTriggerGlobalRebatch,
+  type SlotRuntimeState,
+} from "@/agentflow/execution";
 import type { PipelineGraphState } from "@/agentflow/pipeline/graph/state";
 import type { PlanSlotsPatch } from "../interface";
 
@@ -65,6 +74,37 @@ export const runPlanSlotJoinNode = async (
 
   const incremental = state.compositeIncrementalPlan ?? null;
 
+  const now = Date.now();
+  const slotRuntimeById: Record<string, SlotRuntimeState> = {
+    ...(state.slotRuntimeById ?? {}),
+  };
+  for (const p of patches) {
+    if (p.slotRuntime) {
+      slotRuntimeById[String(p.slotId)] = p.slotRuntime;
+    }
+  }
+
+  for (const slot of slots) {
+    const id = String(slot.id);
+    let runtime = slotRuntimeById[id] ?? createPendingSlot(id);
+    if (!isTerminalSlotStatus(runtime.status)) {
+      const hasPatch = patches.some((p) => String(p.slotId) === id);
+      if (isDeadlineExceeded(runtime, state.retryPolicy, now)) {
+        runtime = markSlotSkipped(runtime, "timeout", now);
+      } else if (!hasPatch) {
+        runtime = markSlotSkipped(runtime, "error", now);
+      }
+    }
+    slotRuntimeById[id] = runtime;
+  }
+
+  const runtimeList = slots.map(
+    (s) => slotRuntimeById[String(s.id)] ?? createPendingSlot(String(s.id))
+  );
+  const globalRebatchEnabled = isGlobalRebatchEnabledFromEnv();
+  const globalRebatchCandidate =
+    globalRebatchEnabled && shouldTriggerGlobalRebatch(runtimeList);
+
   const patch: PlanSlotsPatch = {
     hits: merged.hits,
     coverage: merged.coverage,
@@ -94,10 +134,30 @@ export const runPlanSlotJoinNode = async (
     hitCount: patch.hits?.length ?? 0,
     stepCount: stepResults.length,
     toolKeys: Object.keys(toolResults),
+    slotStatuses: runtimeList.map((r) => ({
+      slotId: r.slotId,
+      status: r.status,
+      reason: r.reason ?? null,
+      attempts: r.attempts,
+      degraded: Boolean(r.degraded),
+    })),
+    globalRebatchCandidate,
+    globalRebatchEnabled,
   });
+
+  if (globalRebatchCandidate) {
+    logAgentOut("PlanSlotJoin", "全局B候选", {
+      note: "阶段1仅观测；阶段4再批 L1",
+      slotCount: runtimeList.length,
+      skippedOrDegraded: runtimeList.filter(
+        (r) => r.status === "skipped" || r.degraded
+      ).length,
+    });
+  }
 
   return {
     fanOutSlotPatch: patch,
     fanOutSlotPatches: [],
+    slotRuntimeById,
   };
 };

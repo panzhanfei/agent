@@ -2,6 +2,7 @@
 
 import { logAgentOut } from "@fambrain/brain-shared/agent-log";
 import { resolveCompositeCachePlan } from "@/agentflow/cache";
+import { emitBudgetedSlotPatch } from "@/agentflow/agents/online/plan-fanout/slot-budget";
 import type { PipelineGraphState } from "@/agentflow/pipeline/graph/state";
 import { fetchListSlot } from "./fetch-list-slot";
 import { flattenListRetrieval } from "./flatten";
@@ -129,15 +130,19 @@ export const runListRetrieveNode = async (
     slotId: state.activeSlotId,
   });
 
-  const patch = await runListSlotWorker(state);
+  const out = await emitBudgetedSlotPatch(state, "list", () =>
+    runListSlotWorker(state)
+  );
+  const patch = out.fanOutSlotPatches?.[0];
 
   logAgentOut("ListRetriever", "出去", {
     via: "listRetrieve",
-    slotId: patch.slotId,
-    hitCount: patch.sub.hits.length,
-    coverage: patch.sub.coverage,
+    slotId: patch?.slotId ?? state.activeSlotId,
+    hitCount: patch?.sub.hits.length ?? 0,
+    coverage: patch?.sub.coverage ?? null,
     fcSkipped: true,
+    slotStatus: patch?.slotRuntime?.status ?? null,
   });
 
-  return { fanOutSlotPatches: [patch] };
+  return out;
 };

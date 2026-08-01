@@ -1,4 +1,5 @@
 import { logAgentOut } from "@fambrain/brain-shared/agent-log";
+import { emitBudgetedSlotPatch } from "@/agentflow/agents/online/plan-fanout/slot-budget";
 import type { PipelineGraphState } from "@/agentflow/pipeline/graph/state";
 import { runKmSlotWorker } from "./slot";
 
@@ -81,16 +82,21 @@ export const runKmRetrieveNode = async (
     slotId: state.activeSlotId,
   });
 
-  const patch = await runKmSlotWorker(state);
+  const out = await emitBudgetedSlotPatch(state, "km", () =>
+    runKmSlotWorker(state)
+  );
+  const patch = out.fanOutSlotPatches?.[0];
 
   logAgentOut("KnowledgeManager", "出去", {
     via: "kmRetrieve",
-    slotId: patch.slotId,
-    hitCount: patch.sub.hits.length,
-    coverage: patch.sub.coverage,
-    fcPassed: patch.stepResult.fc?.passed ?? null,
-    retried: Boolean(patch.retried),
+    slotId: patch?.slotId ?? state.activeSlotId,
+    hitCount: patch?.sub.hits.length ?? 0,
+    coverage: patch?.sub.coverage ?? null,
+    fcPassed: patch?.stepResult.fc?.passed ?? null,
+    retried: Boolean(patch?.retried),
+    slotStatus: patch?.slotRuntime?.status ?? null,
+    slotReason: patch?.slotRuntime?.reason ?? null,
   });
 
-  return { fanOutSlotPatches: [patch] };
+  return out;
 };

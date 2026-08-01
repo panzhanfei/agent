@@ -40,8 +40,16 @@ Understand + Plan（可融合为一次 LLM）
 { maxAttempts: 2, deadlineMs: 60_000 }
 ```
 
-- 单槽生涯 **严格 ≤ 2** attempt（含首次）；全局 B 不得加成第 3 次  
-- 可选父图 `totalDeadlineMs`（后续）；到点未终态 → `skipped` + `reason: timeout`，文案「该项暂未查到」  
+环境变量（根目录 `.env` / `.env.example`）：
+
+| 变量 | 含义 |
+|------|------|
+| `SLOT_MAX_ATTEMPTS` | 单槽最多 attempt（含首次） |
+| `SLOT_DEADLINE_MS` | 单槽墙钟；工人内 `Promise.race` |
+| `SLOT_GLOBAL_REBATCH_ENABLED` | `1` 时 Join 打全局 B 候选日志（阶段 4 再真批） |
+
+- 单槽生涯 **严格 ≤ maxAttempts**；全局 B 不得加成超出  
+- 超时主路径：工人内 race；Join 兜底补标  
 - tool 等以后再按 executor **分档**，初值不分档  
 
 ## 4. Turn / 取消

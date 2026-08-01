@@ -7,6 +7,7 @@ import type { CompositeSubRetrieval } from "@/agentflow/agents/online/knowledge-
 import type { StepResult } from "@/agentflow/agents/online/intake-coordinator/path-plan/interface";
 import { resolveActiveSlot } from "@/agentflow/agents/online/plan-fanout/active-slot";
 import type { PlanSlotWorkerPatch } from "@/agentflow/agents/online/plan-fanout/interface";
+import { emitBudgetedSlotPatch } from "@/agentflow/agents/online/plan-fanout/slot-budget";
 import type { PipelineGraphState } from "@/agentflow/pipeline/graph/state";
 import type { ToolRunResult } from "@/agentflow/agents/online/tool-orchestrator/interface";
 import { formatSummaryAsAnswer } from "../format-answer";
@@ -146,13 +147,17 @@ export const runSummarizeSlotNode = async (
     slotId: state.activeSlotId,
   });
 
-  const patch = await runSummarizeSlotWorker(state);
+  const out = await emitBudgetedSlotPatch(state, "summarize", () =>
+    runSummarizeSlotWorker(state)
+  );
+  const patch = out.fanOutSlotPatches?.[0];
 
   logAgentOut("ContentSummarizer", "出去", {
     via: "summarizeSlot",
-    slotId: patch.slotId,
-    ok: Boolean(patch.toolResult?.ok),
+    slotId: patch?.slotId ?? state.activeSlotId,
+    ok: Boolean(patch?.toolResult?.ok),
+    slotStatus: patch?.slotRuntime?.status ?? null,
   });
 
-  return { fanOutSlotPatches: [patch] };
+  return out;
 };
