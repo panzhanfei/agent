@@ -55,6 +55,7 @@ const PATH_KINDS = new Set([
   "tool",
   "summarize",
   "dag",
+  "corpus_edit",
 ]);
 
 const asQueryType = (v: unknown): ExecutionStep["queryType"] => {
@@ -163,7 +164,13 @@ const defaultToolIdForStep = (
   toolId: ToolRunId | null
 ): ToolRunId | null => {
   if (toolId) return toolId;
-  if (kind === "tool" || kind === "mem" || kind === "summarize" || kind === "dag") {
+  if (
+    kind === "tool" ||
+    kind === "mem" ||
+    kind === "summarize" ||
+    kind === "dag" ||
+    kind === "corpus_edit"
+  ) {
     return null;
   }
   if (queryType === "external_link") return "extract_external_links_from_hits";
@@ -300,8 +307,8 @@ export const normalizePathPlanSteps = (plan: PathPlan): PathPlan => {
       }
     }
 
-    // dag / list / km 保持
-    if (s.kind === "dag" || s.kind === "list") {
+    // dag / list / corpus_edit / km 保持
+    if (s.kind === "dag" || s.kind === "list" || s.kind === "corpus_edit") {
       steps.push(s);
       continue;
     }
@@ -459,6 +466,36 @@ const legalizeStep = (raw: unknown, index: number): ExecutionStep | null => {
         typeof o.enumerationPageSize === "number"
           ? o.enumerationPageSize
           : undefined,
+    };
+  }
+
+  if (kind === "corpus_edit") {
+    const params =
+      o.params && typeof o.params === "object" && !Array.isArray(o.params)
+        ? (o.params as Record<string, unknown>)
+        : {};
+    const targetPath = String(
+      params.targetPath ?? params.target_path ?? searchQuery ?? ""
+    ).trim();
+    if (!targetPath) return null;
+    return {
+      id: trimId(o.id, `corpus-edit-${index}`),
+      kind: "corpus_edit",
+      label: label || "语料修订",
+      searchQuery: targetPath,
+      queryType: "default",
+      topics: topics.length > 0 ? topics : ["personal"],
+      identityField: null,
+      toolId: null,
+      dataSource: "corpus",
+      userFactKey: null,
+      userFactLabel: null,
+      params: {
+        ...params,
+        targetPath,
+        operation: params.operation ?? "update",
+        afterContent: params.afterContent ?? params.after_content ?? "",
+      },
     };
   }
 
@@ -642,6 +679,8 @@ const executorForStep = (step: ExecutionStep): SlotExecutor => {
       return "tool_run";
     case "summarize":
       return "summarize_slot";
+    case "corpus_edit":
+      return "corpus_edit";
     default:
       return "km_retrieve";
   }
@@ -679,6 +718,7 @@ export const deriveCompositeSlotsFromPathPlan = (
       sourceLang: step.sourceLang ?? null,
       userFactKey: step.userFactKey ?? null,
       userFactLabel: step.userFactLabel ?? null,
+      params: step.params ?? null,
     });
   }
   return slots;

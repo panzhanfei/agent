@@ -80,13 +80,27 @@ Understand + Plan（可融合为一次 LLM）
 
 ## 8. 实现阶段
 
-0 约定 → 1 状态机+预算+DAG 裁剪 → 2 Turn 取消 → 3 子图壳 → 4 全局 B → **5 写时去重+翻译（本阶段）** → 6 HITL → 7 Eval → 8 Dify/复盘  
+0 约定 → 1 状态机+预算+DAG 裁剪 → 2 Turn 取消 → 3 子图壳 → 4 全局 B → 5 写时去重+翻译 → **6 HITL（本阶段）** → 7 Eval → 8 Dify/复盘  
 
 ### 阶段 5 定稿（补充）
 
 - **写时去重**：仅结构化 `factKey`；同 key 同值 skip，异值删旧再写；挂在 `addStructuredUserFact`
 - **翻译**：`toolId=translate_text`；结构化 `text`（searchQuery）+ `targetLang`；供应商有道（`YOUDAO_APP_KEY`/`SECRET`）；无凭证 → disabled；无 Ollama fallback
 - **不做**：口语词表触发；本阶段不大改 golden 全表  
+
+### 阶段 6 定稿（HITL 语料写盘）
+
+| 项 | 定稿 |
+|----|------|
+| **PathKind** | `corpus_edit` → `SlotExecutor=corpus_edit` → Send `corpusEdit` |
+| **结构化入参** | `params.targetPath` / `operation`（update\|clear\|create）/ `afterContent`；path 白名单 `corpus/{personal,experience,projects}/**/*.md` |
+| **子图** | `hitl-write`：propose → `interrupt` →（approve）快照+写盘+**按 path 向量 upsert**；MemorySaver checkpointer |
+| **槽状态** | 提案就绪 → `awaiting_human`（Join 终态，本波可合成）；resume **不**走主图任意点恢复 |
+| **Resume** | `POST /pipeline/corpus-edit/resume`（approve\|reject\|detail）；优先 Command 续跑，失败则 DB 直写兜底 |
+| **UI** | `actions` 块 + exact-match prompt（`__FAMBRAIN_CORPUS_EDIT_*__:`）；Intake 旁路同列举按钮 |
+| **禁止** | 口语猜 path/文件；物理删文件；确认前写盘；独立「只重建索引」PathKind |
+
+Eval：`golden.json` → `corpusEditProbe`；`eval:run -- --corpus-edit-only`。
 
 ### 记忆分层（自学重设计）
 
@@ -95,7 +109,7 @@ Understand + Plan（可融合为一次 LLM）
 | Working | 图 state | 运行时 |
 | LangMem | 会话摘要 | `persistPipelineMemory` |
 | Mem0 | 跨会话结构化用户事实 | 显式 remember / 静默 `user-memory-extract` |
-| Corpus/Chroma | 知识库 | HITL / 入库脚本（**禁止**静默自学写） |
+| Corpus/Chroma | 知识库 | **HITL `corpus_edit`** / 入库脚本（**禁止**静默自学写） |
 
 - **废除**：整轮 `addTurnToMem0`；旧 Learning pending / auto corpus / `/learning` HITL  
 - **静默自学**：`USER_MEMORY_AUTO_LEARN_ENABLED` 默认 **false**；独立 LLM（非 Intake）；只信抽取 JSON + Zod；不写 corpus  

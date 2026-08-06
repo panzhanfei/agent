@@ -24,7 +24,8 @@ const sendTargetForExecutor = (
   | "listRetrieve"
   | "memRetrieve"
   | "toolRetrieve"
-  | "summarizeSlot" => {
+  | "summarizeSlot"
+  | "corpusEdit" => {
   switch (executor) {
     case "list_corpus":
       return "listRetrieve";
@@ -34,6 +35,8 @@ const sendTargetForExecutor = (
       return "toolRetrieve";
     case "summarize_slot":
       return "summarizeSlot";
+    case "corpus_edit":
+      return "corpusEdit";
     default:
       return "kmRetrieve";
   }
@@ -75,6 +78,7 @@ export const describeFanOutPlan = (
   hasMem: boolean;
   hasTool: boolean;
   hasSummarize: boolean;
+  hasCorpusEdit: boolean;
   hasDag: boolean;
   hasSideRemember: boolean;
   kmCount: number;
@@ -82,6 +86,7 @@ export const describeFanOutPlan = (
   memCount: number;
   toolCount: number;
   summarizeCount: number;
+  corpusEditCount: number;
 } => {
   const decision = state.decision;
   if (!decision) {
@@ -91,6 +96,7 @@ export const describeFanOutPlan = (
       hasMem: false,
       hasTool: false,
       hasSummarize: false,
+      hasCorpusEdit: false,
       hasDag: false,
       hasSideRemember: false,
       kmCount: 0,
@@ -98,6 +104,7 @@ export const describeFanOutPlan = (
       memCount: 0,
       toolCount: 0,
       summarizeCount: 0,
+      corpusEditCount: 0,
     };
   }
   const slots = decision.compositeSlots ?? [];
@@ -110,12 +117,16 @@ export const describeFanOutPlan = (
   const summarizeCount = slots.filter(
     (s) => s.executor === "summarize_slot"
   ).length;
+  const corpusEditCount = slots.filter(
+    (s) => s.executor === "corpus_edit"
+  ).length;
   return {
     hasKm: kmCount > 0,
     hasList: listCount > 0,
     hasMem: memCount > 0,
     hasTool: toolCount > 0,
     hasSummarize: summarizeCount > 0,
+    hasCorpusEdit: corpusEditCount > 0,
     hasDag: pathHasHybridDag(state),
     hasSideRemember: Boolean(routeUserFactSideEffect(decision)),
     kmCount,
@@ -123,5 +134,6 @@ export const describeFanOutPlan = (
     memCount,
     toolCount,
     summarizeCount,
+    corpusEditCount,
   };
 };

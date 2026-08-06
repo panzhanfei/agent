@@ -51,6 +51,55 @@ model User {
   conversations Conversation[]
   retrievalFeedbacks RetrievalFeedback[]
   turnTraces TurnTrace[]
+  corpusEditProposals CorpusEditProposal[]
+}
+
+enum CorpusEditProposalStatus {
+  PENDING_REVIEW
+  APPLIED
+  REJECTED
+  EXPIRED
+}
+
+enum CorpusEditOperation {
+  UPDATE
+  CLEAR
+  CREATE
+}
+
+/// HITL 语料修订提案（确认前未写真源）
+model CorpusEditProposal {
+  id               String                   @id @default(cuid())
+  userId           String
+  user             User                     @relation(fields: [userId], references: [id], onDelete: Cascade)
+  corpusUserId     String
+  conversationId   String?
+  turnId           String?
+  threadId         String
+  repoPath         String
+  operation        CorpusEditOperation      @default(UPDATE)
+  beforeContent    String                   @default("")
+  afterContent     String                   @default("")
+  status           CorpusEditProposalStatus @default(PENDING_REVIEW)
+  reviewedAt       DateTime?
+  createdAt        DateTime                 @default(now())
+  updatedAt        DateTime                 @updatedAt
+
+  @@index([userId, status])
+  @@index([corpusUserId, status])
+  @@index([threadId])
+}
+
+/// 语料文件写前快照（按 path 可恢复）
+model CorpusFileVersion {
+  id               String   @id @default(cuid())
+  corpusUserId     String
+  repoPath         String
+  content          String
+  sourceProposalId String?
+  createdAt        DateTime @default(now())
+
+  @@index([corpusUserId, repoPath, createdAt])
 }
 
 /// 检索路径反馈信号（👍👎）

@@ -73,6 +73,7 @@ const buildSubInput = (
         dataSource: plan.dataSource ?? sub.dataSource ?? null,
         recalledFact: sub.recalledFact ?? null,
         memoryBlock: input.memoryBlock,
+        assistantBlocks: sub.assistantBlocks,
     };
 };
 

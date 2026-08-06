@@ -13,6 +13,7 @@ import { pipelineStreamBodySchema } from "@/server/schema";
 import { initSseResponse, readJsonBody, writeSse } from "@/server/http";
 
 export { handlePipelineCancel } from "./pipeline-cancel";
+export { handlePipelineCorpusEditResume } from "./pipeline-corpus-edit-resume";
 
 const streamEventName = (ev: AgentStreamEvent): string => {
     return ev.type;

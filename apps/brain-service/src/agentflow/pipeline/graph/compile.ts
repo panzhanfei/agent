@@ -27,6 +27,7 @@ import {
   runPlanDagNode,
   getCompiledToolSlotGraph,
 } from "@/agentflow/agents/online/tool-orchestrator";
+import { runCorpusEditNode } from "@/agentflow/agents/online/hitl-write";
 import {
   runPreparePipelineMemory,
   runPrepareTurnStart,
@@ -49,8 +50,8 @@ import {
 } from "./routes";
 
 /**
- * intake → planCacheResolve → Send(每槽 km|list|mem|tool|summarize ∥ dag ∥ userFactSide)
- *   kmRetrieve / toolRetrieve = 单槽子图壳；list/mem/summarize 扁平
+ * intake → planCacheResolve → Send(每槽 km|list|mem|tool|summarize|corpus_edit ∥ dag ∥ userFactSide)
+ *   kmRetrieve / toolRetrieve = 单槽子图壳；list/mem/summarize/corpusEdit 扁平
  *     → planSlotJoin →（可选全局 B 再批 Send ≤1）→ planSlotPost → planMerge
  * → contentOrganizer → contentSummarizer? → analyst
  */
@@ -68,6 +69,7 @@ const buildPipelineGraph = () => {
     .addNode("memRetrieve", runMemRetrieveNode)
     .addNode("toolRetrieve", getCompiledToolSlotGraph())
     .addNode("summarizeSlot", runSummarizeSlotNode)
+    .addNode("corpusEdit", runCorpusEditNode)
     .addNode("planSlotJoin", runPlanSlotJoinNode)
     .addNode("planSlotPost", runPlanSlotPostNode)
     .addNode("planDag", runPlanDagNode)
@@ -93,6 +95,7 @@ const buildPipelineGraph = () => {
     .addEdge("memRetrieve", "planSlotJoin")
     .addEdge("toolRetrieve", "planSlotJoin")
     .addEdge("summarizeSlot", "planSlotJoin")
+    .addEdge("corpusEdit", "planSlotJoin")
     .addEdge("userFactSide", "planSlotJoin")
     .addEdge("planDag", "planSlotJoin")
     .addConditionalEdges("planSlotJoin", routeAfterPlanSlotJoin)

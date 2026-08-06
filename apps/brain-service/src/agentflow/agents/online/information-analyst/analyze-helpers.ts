@@ -69,12 +69,15 @@ export type SubQuestionAnalyzeInput = {
   } | null;
   /** 父轮 memoryBlock（复合子问也可据 Mem0 答自述字段） */
   memoryBlock?: string | null;
+  /** HITL 等工人挂载的 UI 块 */
+  assistantBlocks?: import("@fambrain/brain-types").AssistantMessageBlock[];
 };
 
 export const shouldSkipSubQuestionLlm = (
   input: SubQuestionAnalyzeInput
 ): boolean =>
   Boolean(input.recalledFact) ||
+  Boolean(input.assistantBlocks?.length) ||
   input.dataSource === "mem0" ||
   input.dataSource === "user_text" ||
   input.hits.length === 0 ||
@@ -84,6 +87,11 @@ export const shouldSkipSubQuestionLlm = (
 
 /** P0-12：FC 二次放行后 hits 仍空时跳过 Analyst LLM；Mem0 有结构化 user_fact 时不 skip */
 export const shouldSkipAnalystLlm = (input: InformationAnalystInput): boolean => {
+    if (
+      input.compositeSubResults?.some((s) => (s.assistantBlocks?.length ?? 0) > 0)
+    ) {
+      return true;
+    }
     if (input.hits.length > 0 && input.coverage !== "none") return false;
     if (memoryBlockHasStructuredUserFacts(input.memoryBlock)) return false;
     return input.hits.length === 0 || input.coverage === "none";
@@ -251,6 +259,16 @@ export const buildSubQuestionFallbackAnswer = (
     };
   }
 
+  if (input.assistantBlocks?.length) {
+    return {
+      answer: input.notes?.trim() || userQuestion,
+      citations: [],
+      confidence: 0.95,
+      insufficientEvidence: false,
+      blocks: input.assistantBlocks,
+    };
+  }
+
   const fromTools = pickToolResultForSubQuestion(input, input.toolResults);
   if (fromTools) return toolRunToAnalystResult(fromTools);
 
@@ -310,6 +328,23 @@ export const buildFallbackAnswer = (
 ): InformationAnalystResult => {
   const { userQuestion, hits, coverage, notes, language, queryType, subTasks } =
     input;
+
+  const hitlSubs = (input.compositeSubResults ?? []).filter(
+    (s) => (s.assistantBlocks?.length ?? 0) > 0
+  );
+  if (hitlSubs.length > 0) {
+    const answer = hitlSubs
+      .map((s) => s.notes?.trim())
+      .filter(Boolean)
+      .join("\n\n") || notes?.trim() || userQuestion;
+    return {
+      answer,
+      citations: [],
+      confidence: 0.95,
+      insufficientEvidence: false,
+      blocks: hitlSubs.flatMap((s) => s.assistantBlocks ?? []),
+    };
+  }
 
   const fromTools = pickToolResultForSubQuestion(
     {

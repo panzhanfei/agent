@@ -145,12 +145,16 @@ async function* streamSingleAnalyze(
             insufficientEvidence: fallback.insufficientEvidence,
             confidence: fallback.confidence,
             citationCount: 0,
+            blockCount: fallback.blocks?.length ?? 0,
             answerPreview:
                 fallback.answer.length > 400
                     ? `${fallback.answer.slice(0, 400)}…`
                     : fallback.answer,
         });
         yield { type: "assistant", text: fallback.answer };
+        for (const block of fallback.blocks ?? []) {
+            yield { type: "ui_block", block };
+        }
         return fallback;
     }
 

@@ -19,8 +19,15 @@ import type {
   ToolRunResult,
 } from "@/agentflow/agents/online/tool-orchestrator";
 
-/** Send 工人族：km | list | mem | tool | summarize | dag */
-export type PathKind = "km" | "list" | "mem" | "tool" | "summarize" | "dag";
+/** Send 工人族：km | list | mem | tool | summarize | dag | corpus_edit */
+export type PathKind =
+  | "km"
+  | "list"
+  | "mem"
+  | "tool"
+  | "summarize"
+  | "dag"
+  | "corpus_edit";
 
 export type ComposeMode = "qa" | "summarize" | "composite";
 
@@ -35,13 +42,17 @@ export type DagTemplateId = "hybrid_multi_source";
  * - tool：独立工具步（search_web 等；扩展天气/搜索同族）
  * - summarize：子步总结用户原文（dataSource=user_text）
  * - dag：仅 hybrid_multi_source（语料+外网汇合）
+ * - corpus_edit：HITL 语料 md 修订（params.targetPath / operation / afterContent）
  */
 export type ExecutionStep = {
   id: string;
   kind: PathKind;
   /** 面向用户的子问题标题 */
   label: string;
-  /** LLM 改写后的检索/工具查询词；summarize 可为待总结正文 */
+  /**
+   * km/list/tool：检索/工具查询词；summarize：待总结正文；
+   * corpus_edit：可作 targetPath 回退（优先 params.targetPath）
+   */
   searchQuery: string;
   queryType: "identity" | "enumeration" | "tech" | "external_link" | "default";
   topics: string[];
@@ -79,6 +90,7 @@ export type PathPlanCounts = {
   tool: number;
   summarize: number;
   dag: number;
+  corpus_edit: number;
   total: number;
 };
 

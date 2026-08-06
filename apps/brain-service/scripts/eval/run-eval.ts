@@ -33,6 +33,10 @@ import {
     type PipelineEvalSnapshot,
 } from "./assert-golden";
 import { enableRepeatGuardForVerify } from "../verify-test-env";
+import {
+    runCorpusEditProbe,
+    type CorpusEditProbeSpec,
+} from "./corpus-edit-probe";
 
 const __dirname = path.dirname(fileURLToPath(import.meta.url));
 const GOLDEN_PATH = path.join(__dirname, "golden.json");
@@ -132,6 +136,7 @@ type GoldenFile = {
         qq?: string;
         turns: ListPaginationTurn[];
     };
+    corpusEditProbe?: CorpusEditProbeSpec;
 };
 
 type CaseResult = {
@@ -180,6 +185,7 @@ type EvalReport = {
     dualListPaginationProbe?: CaseResult[];
     fiveCompositeProbe?: CaseResult[];
     identityCompositeProbe?: CaseResult[];
+    corpusEditProbe?: CaseResult[];
 };
 
 const chromaUrl = (): string => {
@@ -719,6 +725,14 @@ const formatMarkdown = (report: EvalReport): string => {
             );
         }
     }
+    if (report.corpusEditProbe?.length) {
+        lines.push(``, `## HITL corpus_edit 探测`, ``);
+        for (const r of report.corpusEditProbe) {
+            lines.push(
+                `- ${r.id}: ${r.pass ? "✅" : "❌"} ${r.reason} (${r.latencyMs}ms)`
+            );
+        }
+    }
     return lines.join("\n");
 };
 
@@ -727,6 +741,7 @@ const profileOnly = process.argv.includes("--profile-only");
 const listPaginationOnly = process.argv.includes("--list-pagination-only");
 const identityCompositeOnly = process.argv.includes("--identity-composite-only");
 const memOnly = process.argv.includes("--mem-only");
+const corpusEditOnly = process.argv.includes("--corpus-edit-only");
 const caseFilter = (() => {
     const idx = process.argv.indexOf("--case");
     if (idx === -1) return null;
@@ -753,6 +768,29 @@ const main = async (): Promise<void> => {
         const failed = memProbe.filter((r) => !r.pass);
         if (failed.length > 0) process.exit(1);
         console.log("\nMem probe 通过。");
+        return;
+    }
+
+    if (corpusEditOnly) {
+        if (!golden.corpusEditProbe) {
+            throw new Error("golden.json 缺少 corpusEditProbe");
+        }
+        console.log(
+            `eval:run — corpus-edit probe only (${golden.corpusEditProbe.id})`
+        );
+        console.log(`corpusUserId=${corpusUserId} chroma=${chromaUp ? "up" : "down"}\n`);
+        const corpusEditProbe = await runCorpusEditProbe(
+            golden.corpusEditProbe,
+            corpusUserId
+        );
+        for (const r of corpusEditProbe) {
+            console.log(
+                `  ${r.id}: ${r.pass ? "PASS" : "FAIL"} — ${r.reason} (${r.latencyMs}ms)`
+            );
+        }
+        const failed = corpusEditProbe.filter((r) => !r.pass);
+        if (failed.length > 0) process.exit(1);
+        console.log("\nCorpus-edit probe 通过。");
         return;
     }
 
@@ -895,6 +933,11 @@ const main = async (): Promise<void> => {
                   corpusUserId
               );
 
+    const corpusEditProbe =
+        caseFilter || !golden.corpusEditProbe
+            ? []
+            : await runCorpusEditProbe(golden.corpusEditProbe, corpusUserId);
+
     const report: EvalReport = {
         generatedAt: new Date().toISOString(),
         corpusUserId,
@@ -916,6 +959,7 @@ const main = async (): Promise<void> => {
         identityCompositeProbe: identityCompositeProbe.length
             ? identityCompositeProbe
             : undefined,
+        corpusEditProbe: corpusEditProbe.length ? corpusEditProbe : undefined,
     };
 
     if (process.env.EVAL_WRITE_REPORT === "1") {
@@ -951,6 +995,7 @@ const main = async (): Promise<void> => {
     const identityCompositeFailed = (report.identityCompositeProbe ?? []).filter(
         (r) => !r.pass
     );
+    const corpusEditFailed = (report.corpusEditProbe ?? []).filter((r) => !r.pass);
     const coalesceBad = report.metrics.coalesceFailures > 0;
     if (
         failed.length > 0 ||
@@ -960,6 +1005,7 @@ const main = async (): Promise<void> => {
         dualListPaginationFailed.length > 0 ||
         fiveCompositeFailed.length > 0 ||
         identityCompositeFailed.length > 0 ||
+        corpusEditFailed.length > 0 ||
         coalesceBad
     ) {
         process.exit(1);

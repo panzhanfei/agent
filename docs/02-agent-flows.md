@@ -172,7 +172,7 @@ flowchart TD
 
 **触发：** 手动 `pnpm run index:corpus`（语料 md 变更、换 embed 模型、改分块规则后重跑）。**不参与**用户聊天实时链路。
 
-**技术：** LlamaIndex、ChromaDB、Ollama Embed、Zod（metadata）、Pino。
+**技术：** LangChain Chroma + Ollama Embed（`@fambrain/corpus`）、Zod（metadata）、Pino；单文件更新另见 HITL `upsertCorpusDocumentsByPath`。
 
 ```mermaid
 flowchart TD
@@ -231,7 +231,7 @@ flowchart TD
 
 **Guard 链：** `intake-node` 短路 → Intake LLM（retrieve 须 **`pathPlan.steps`≥1**；`answerOrder` 可选）→ `runIntakePipeline`：continuation noop → early-exit → link harmonize → **legalize PathPlan** → fill list 页码 → **派生 compositeSlots**（空 pathPlan→clarify）。
 
-**端到端 PathPlan：** Intake **主路径** = LLM 执行终稿（有序 `steps[]`，`kind` = km|list|mem|tool|summarize|dag）；**旁路** = normalize / JSON 修复 / **coreference=unresolved** 指代拼接≤1 / 结构归一与派生。勿把散文兜底当成二次 Intake。旧 `retrievalPlan` 编译链与 `composite-route-guard` 已删除。
+**端到端 PathPlan：** Intake **主路径** = LLM 执行终稿（有序 `steps[]`，`kind` = km|list|mem|tool|summarize|dag|**corpus_edit**）；**旁路** = normalize / JSON 修复 / 结构归一与派生。勿把散文兜底当成二次 Intake。旧 `retrievalPlan` 编译链与 `composite-route-guard` 已删除。
 
 **TurnTrace（运行轨迹入库）：** 每轮对答结束时 BFF 将 `timing` + `steps` + `pipeline_log` 写入 `TurnTrace`（键=助手 `messageId`）；进行中仍走 SSE；历史由 `GET /api/conversations/[id]/traces` 回放至运行日志面板。
 
@@ -239,9 +239,23 @@ flowchart TD
 
 **queryType 扩展：** 除 identity / enumeration / tech / default 外，Intake 产出 **`external_link`**（GitHub、仓库、对外 URL）；与 KM `queryProfile` 同名，**不走** enumeration projects fill。外链抽取工具 `extract_external_links_from_hits` 在 **tools 层**（`tools/lib/extract-external-links.ts`）；Intake 只声明 `queryType=external_link` + `toolId`。见 [km-retrieval-design §六](./km-retrieval-design.md#六queryprofile-参数表)。
 
-**单问 / 多问统一路由：** Intake 出口 `resolveIntakeGraphRouteMode` 写入 **`routeMode`（与图节点 1:1）**；`routes.ts` 只读分发。优先级：**userFact → respondEarly → …**（remember/recall 进 **userFact**；**仅一步 mem** 结构折叠为 recall 早退）。km/list/mem/tool/summarize/dag 并存 → `planFanOut`。空 pathPlan → `respondEarly`（clarify）。dag **仅** `hybrid_multi_source`。独立工具（如 `search_web`）→ `toolRetrieve`；扩展天气等同族只需加 `TOOL_RUN_IDS` + execute，无需新 PathKind。
+**单问 / 多问统一路由：** Intake 出口 `resolveIntakeGraphRouteMode` 写入 **`routeMode`（与图节点 1:1）**；`routes.ts` 只读分发。优先级：**userFact → respondEarly → …**（remember/recall 进 **userFact**；**仅一步 mem** 结构折叠为 recall 早退）。km/list/mem/tool/summarize/**corpus_edit**/dag 并存 → `planFanOut`。空 pathPlan → `respondEarly`（clarify）。dag **仅** `hybrid_multi_source`。独立工具（如 `search_web`）→ `toolRetrieve`；扩展天气等同族只需加 `TOOL_RUN_IDS` + execute，无需新 PathKind。`corpus_edit` → Send `corpusEdit`（HITL 子图 interrupt；确认走 `/pipeline/corpus-edit/resume` 或 UI exact-match 旁路）。
 
 **外链 / 混合：** `applyIntakeLinkLookupGuard` 仅做 **harmonize**。编号拆槽、混合步序由 **LLM 写齐 `pathPlan.steps[]`**（数组顺序即答序），代码不发明、不重排。列举分页 / UI exact-match 实现在 **`corpus-lister/enumeration`**（Intake `enumeration/` 仅 re-export）。详见 [坑点 §2.8](./04-pitfalls.md#28-pathplan-统一编排-p0-28--2026-07)、[§2.10](./04-pitfalls.md#210-intake-档-b主路径规划--旁路纠偏-p0-31--2026-07)。
+
+### 2.4b HITL 语料修订 corpus_edit — 阶段 6 ✅
+
+**职责：** 单文件 markdown 修订（update / clear / create）；**确认前不写盘**；确认后快照 + 写盘 + **按 path 增量向量**（非整库重建）。
+
+| 层 | 行为 |
+|----|------|
+| Intake | `kind=corpus_edit` + `params.targetPath/operation/afterContent`（few-shot 示例 20）；禁止口语猜 path |
+| Fan-out | `executor=corpus_edit` → Send `corpusEdit` → `awaiting_human` + `actions` UI |
+| 子图 | `hitl-write`：propose → `interrupt`（MemorySaver）→ approve 后 apply |
+| Resume | `POST /pipeline/corpus-edit/resume`；聊天 exact-match prompt 走 Intake 旁路 |
+| 向量 | `upsertCorpusDocumentsByPath` / `deleteCorpusVectorsByPath`（`@fambrain/corpus`） |
+
+详见 [控制面 §阶段 6](./06-architecture-control-plane.md)。
 
 ### 2.5 跨会话用户事实 userFact — P0-16 ✅
 

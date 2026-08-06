@@ -399,6 +399,12 @@
       }
     ]
   },
+  "corpusEditProbe": {
+    "id": "G-HITL-corpus-edit",
+    "label": "HITL corpus_edit：pathPlan + UI exact-match + interrupt/approve 写盘",
+    "relativePath": "personal/_eval_hitl_tmp.md",
+    "afterContent": "# eval hitl\ncorpus_edit ok\n"
+  },
   "profileProbe": {
     "id": "G-履历综合",
     "label": "R6-3 综合履历四轮（fail-first）",

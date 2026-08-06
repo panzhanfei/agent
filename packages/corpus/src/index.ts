@@ -11,6 +11,10 @@ export {
   type CorpusVectorIndexResult,
 } from "./corpus-vector";
 export {
+  deleteCorpusVectorsByPath,
+  upsertCorpusDocumentsByPath,
+} from "./corpus-vector-path";
+export {
   addDocumentsWithEmbedLimit,
   getEmbedIndexOptions,
   type EmbedIndexOptions,

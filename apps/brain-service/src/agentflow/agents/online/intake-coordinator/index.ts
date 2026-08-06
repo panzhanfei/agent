@@ -8,6 +8,7 @@ import {
   matchUiEnumerationPrompt,
   resolveEnumerationPagination,
 } from "@/agentflow/agents/online/corpus-lister/enumeration";
+import { resolveCorpusEditUiBypass } from "@/agentflow/agents/online/hitl-write";
 import {
   buildEnumerationListDecision,
   buildIncompleteUtteranceDecision,
@@ -210,6 +211,21 @@ export const runIntakeNode = async (
           page,
           pageSize,
         }),
+      };
+    }
+
+    const corpusEditUi = await resolveCorpusEditUiBypass({
+      userQuestion: rawQuestion,
+      userId: state.context.actorUserId,
+    });
+    if (corpusEditUi) {
+      logAgentOut("IntakeCoordinator", "短路_corpus_edit_ui", {
+        userQuestion: rawQuestion,
+      });
+      return {
+        decision: buildEarlyExitRoutedDecision(corpusEditUi.decision),
+        answer: corpusEditUi.answer,
+        assistantBlocks: corpusEditUi.assistantBlocks,
       };
     }
 

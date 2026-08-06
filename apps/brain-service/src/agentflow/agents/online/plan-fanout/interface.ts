@@ -19,7 +19,13 @@ import type {
 import type { SlotRuntimeState } from "@/agentflow/execution";
 
 /** 单槽工人族（与 PathKind 对齐，供 join 统计） */
-export type PlanSlotWorkerKind = "km" | "list" | "mem" | "tool" | "summarize";
+export type PlanSlotWorkerKind =
+  | "km"
+  | "list"
+  | "mem"
+  | "tool"
+  | "summarize"
+  | "corpus_edit";
 
 /** 单槽工人产出（append 进 fanOutSlotPatches） */
 export type PlanSlotWorkerPatch = {

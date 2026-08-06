@@ -25,10 +25,9 @@
 | 技术 | 当前用途 |
 |------|----------|
 | Ollama | 本地 chat + embed（`ChatOllama`、流式 thinking） |
-| LangChain | Intake / FactChecker / Analyst / Organizer 模型调用（`SystemMessage` / `HumanMessage`）；**StructuredTool** 封装检索/Mem0/vault/摘要（`agentflow/tools/`）；**KM 在线检索不调 LLM** |
+| LangChain | Intake / Analyst / Organizer 等模型调用；**StructuredTool**（`agentflow/tools/`）；离线入库 + 在线检索经 `@langchain/community` Chroma + `@langchain/ollama` Embeddings（`@fambrain/corpus`） |
 | LangSmith | LangGraph run trace + 节点 metadata | 配 `LANGSMITH_API_KEY` 后自动上报 [smith.langchain.com](https://smith.langchain.com)；`/health` 可见状态 |
-| LlamaIndex | 离线 `VectorStoreIndex` 入库；在线检索走 `@fambrain/corpus` `searchCorpusVectors` |
-| ChromaDB | 按 `corpusUserId` 分 collection；离线入库 + **在线检索** |
+| ChromaDB | 按 `corpusUserId` 分 collection；离线入库 + **在线检索**；单文件 HITL 按 path 增量 upsert |
 | Zod | 注册/会话 + 入库 metadata；**在线 Agent JSON schema**（Intake / KM / FactChecker / Analyst / Organizer） |
 | Pino | 知识入库师结构化日志 |
 | p-limit | 入库 embed 并发控制；**DocParser** 批量解析并发（`DOC_PARSE_CONCURRENCY`） |

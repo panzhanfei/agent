@@ -69,6 +69,8 @@ const pathKindForExecutor = (
       return "tool";
     case "summarize":
       return "summarize";
+    case "corpus_edit":
+      return "corpus_edit";
     default:
       return "km";
   }
@@ -76,6 +78,8 @@ const pathKindForExecutor = (
 
 const isWeakResult = (patch: PlanSlotWorkerPatch): boolean => {
   if (patch.error) return false;
+  if (patch.slotRuntime?.status === "awaiting_human") return false;
+  if (patch.sub.assistantBlocks?.length) return false;
   if (patch.sub.hits.length > 0) return false;
   if (patch.sub.recalledFact?.value) return false;
   if (patch.toolResult?.ok) return false;
@@ -193,7 +197,14 @@ export const runWithSlotBudget = async (input: {
     }
 
     const patch = raced.patch;
-    if (patch.error) {
+    if (patch.slotRuntime?.status === "awaiting_human") {
+      runtime = {
+        ...runtime,
+        status: "awaiting_human",
+        reason: null,
+        finishedAtMs: Date.now(),
+      };
+    } else if (patch.error) {
       runtime = markSlotSkipped(runtime, "error");
     } else if (isWeakResult(patch)) {
       runtime = markSlotDone(runtime, { degraded: true });

@@ -40,6 +40,7 @@ export type PipelineStepName =
     | "retrieval"
     | "km_retrieve"
     | "list_retrieve"
+    | "corpus_edit"
     | "plan_slot_join"
     | "plan_slot_post"
     | "global_rebatch"

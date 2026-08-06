@@ -27,7 +27,7 @@ export type CompositeRetrievalSlot = {
   topics: string[];
   subTasks: string[];
   /**
-   * Send 工人：km_retrieve | list_corpus | mem_recall | tool_run | summarize_slot
+   * Send 工人：km_retrieve | list_corpus | mem_recall | tool_run | summarize_slot | corpus_edit
    */
   executor?: SlotExecutor;
   enumerationControl?: EnumerationControl | null;
@@ -44,6 +44,8 @@ export type CompositeRetrievalSlot = {
   /** mem 步：用户自述字段 slug */
   userFactKey?: string | null;
   userFactLabel?: string | null;
+  /** corpus_edit 等：透传 pathPlan.steps[].params */
+  params?: Record<string, unknown> | null;
 };
 
 /** 槽从何而来（端到端：LLM pathPlan） */

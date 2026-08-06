@@ -36,6 +36,8 @@ export type CompositeSubRetrieval = {
     recalledFact?: RecalledUserFact | null;
     /** 槽 dataSource（mem0 / user_text / corpus…） */
     dataSource?: string | null;
+    /** HITL 等工人直接挂载的 UI 块（Analyst 透传，不经口语推断） */
+    assistantBlocks?: import("@fambrain/brain-types").AssistantMessageBlock[];
 };
 
 export type CompositeRetrievePlan = {

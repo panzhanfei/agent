@@ -12,6 +12,7 @@ intake → planCacheResolve（agentflow/cache）
 ├── memRetrieve     PathKind=mem      dataSource=mem0
 ├── toolRetrieve    PathKind=tool     dataSource=web|…
 ├── summarizeSlot   PathKind=summarize dataSource=user_text
+├── corpusEdit      PathKind=corpus_edit（HITL interrupt）
 ├── userFactSide    remember side-effect
 └── planDag         PathKind=dag（与槽同一 Join）
 
@@ -28,7 +29,7 @@ intake → planCacheResolve（agentflow/cache）
 2. `runExecutionPlanNode` switch 增加 case  
 3. **不要**加入 `POST_RETRIEVAL_TOOL_IDS` → 自动走 `toolRetrieve`  
 
-无需新 PathKind / 新 Send 工人。
+独立工具一般无需新 PathKind。HITL 写盘例外：`corpus_edit` → Send `corpusEdit`；确认走 `/pipeline/corpus-edit/resume`。
 
 ## 结构归一（无字段名表）
 

@@ -34,8 +34,10 @@ export type SlotRuntimeState = {
   finishedAtMs?: number | null;
 };
 
+/** Join 可汇合终态；awaiting_human 结束本波（resume 走独立 API） */
 export const SLOT_TERMINAL: ReadonlySet<SlotStatus> = new Set([
   "done",
   "skipped",
   "aborted",
+  "awaiting_human",
 ]);

@@ -155,3 +155,28 @@ export const cancelAgentPipelineTurn = async (input: {
   const data = (await res.json()) as { ok?: boolean; aborted?: boolean };
   return { ok: Boolean(data.ok), aborted: Boolean(data.aborted) };
 };
+
+/** HITL 语料修订：详情 / 确认 / 放弃（也可走聊天 exact-match prompt） */
+export const resumeCorpusEditProposal = async (input: {
+  authToken: string;
+  proposalId: string;
+  action: "approve" | "reject" | "detail";
+}): Promise<Record<string, unknown>> => {
+  const baseUrl = resolveBrainServiceUrl();
+  const res = await fetch(`${baseUrl}/pipeline/corpus-edit/resume`, {
+    method: "POST",
+    headers: {
+      "Content-Type": "application/json",
+      Authorization: `Bearer ${input.authToken}`,
+    },
+    body: JSON.stringify({
+      proposalId: input.proposalId,
+      action: input.action,
+    }),
+  });
+  if (!res.ok) {
+    const text = await res.text().catch(() => "");
+    throw new Error(text || `Brain corpus-edit resume 失败（HTTP ${res.status}）`);
+  }
+  return (await res.json()) as Record<string, unknown>;
+};

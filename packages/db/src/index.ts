@@ -16,10 +16,24 @@ export {
     aggregateFeedbackByPath,
 } from "./repos/retrieval-feedback";
 export {
+    createCorpusEditProposal,
+    findCorpusEditProposalForUser,
+    updateCorpusEditProposalStatus,
+    createCorpusFileVersion,
+    latestCorpusFileVersion,
+    type CreateCorpusEditProposalInput,
+} from "./repos/corpus-edit-proposals";
+export {
     upsertTurnTrace,
     listTurnTracesForConversation,
     getTurnTraceByMessage,
     type UpsertTurnTraceInput,
     type TurnTraceRow,
 } from "./repos/turn-traces";
-export { ChatRole, UserRole, UserStatus } from "./generated/prisma/client";
+export {
+    ChatRole,
+    UserRole,
+    UserStatus,
+    CorpusEditProposalStatus,
+    CorpusEditOperation,
+} from "./generated/prisma/client";

@@ -423,9 +423,15 @@ async function* runPipelineStreamInner(
         const fan = describeFanOutPlan(finalState);
         if (fan.hasKm) yield* startStep("km_retrieve");
         if (fan.hasList) yield* startStep("list_retrieve");
+        if (fan.hasCorpusEdit) yield* startStep("corpus_edit");
         if (fan.hasDag) yield* startStep("plan_dag");
         if (fan.hasSideRemember) yield* startStep("user_fact");
-        if (fan.hasKm || fan.hasList || fan.hasSideRemember) {
+        if (
+          fan.hasKm ||
+          fan.hasList ||
+          fan.hasCorpusEdit ||
+          fan.hasSideRemember
+        ) {
           yield* startStep("plan_slot_join");
         }
       }
@@ -436,9 +442,15 @@ async function* runPipelineStreamInner(
       const fan = describeFanOutPlan(finalState);
       if (fan.hasKm) yield* startStep("km_retrieve");
       if (fan.hasList) yield* startStep("list_retrieve");
+      if (fan.hasCorpusEdit) yield* startStep("corpus_edit");
       if (fan.hasDag) yield* startStep("plan_dag");
       if (fan.hasSideRemember) yield* startStep("user_fact");
-      if (fan.hasKm || fan.hasList || fan.hasSideRemember) {
+      if (
+        fan.hasKm ||
+        fan.hasList ||
+        fan.hasCorpusEdit ||
+        fan.hasSideRemember
+      ) {
         yield* startStep("plan_slot_join");
       }
       continue;
@@ -479,12 +491,18 @@ async function* runPipelineStreamInner(
     if (nodeName === "listRetrieve") {
       continue;
     }
+    if (nodeName === "corpusEdit") {
+      continue;
+    }
     if (nodeName === "planSlotJoin") {
       if (runningSteps.has("km_retrieve")) {
         yield* finishStep("km_retrieve");
       }
       if (runningSteps.has("list_retrieve")) {
         yield* finishStep("list_retrieve");
+      }
+      if (runningSteps.has("corpus_edit")) {
+        yield* finishStep("corpus_edit");
       }
       yield* finishStep("plan_slot_join");
       yield* startStep("plan_slot_post");
