@@ -1,6 +1,11 @@
 "use client";
 import type { ConversationListItem } from "@fambrain/db";
-import type { PipelineLogEntry, PipelineStepName, PipelineTiming, AssistantMessageBlock, } from "@fambrain/brain-types";
+import type {
+  PipelineLogEntry,
+  PipelineStepName,
+  PipelineTiming,
+  AssistantMessageBlock,
+} from "@fambrain/brain-types";
 import { AssistantMessageContent } from "@/components/chat/assistant-message-content";
 import { CorpusEditModal } from "@/components/chat/corpus-edit-modal";
 import { LinkifiedText } from "@/components/chat/linkified-text";
@@ -27,7 +32,10 @@ import {
 import { flushSync } from "react-dom";
 import { useSpeechInput } from "@/components/chat/use-speech-input";
 import { MessageRetrievalFeedback } from "@/components/chat/message-retrieval-feedback";
-import { filesFromInput, uploadDocuments } from "@/lib/documents/upload-documents";
+import {
+  extractDocuments,
+  filesFromInput,
+} from "@/lib/documents/extract-documents";
 
 type MessageTiming = PipelineTiming & {
   clientTotalMs?: number;
@@ -100,16 +108,14 @@ const formatDuration = (ms: number): string => {
 const shortConversationTitle = (title: string, maxLen = 18): string => {
   const trimmed = title.trim() || "新对话";
   if (trimmed === "新对话") return trimmed;
-  const first =
-    trimmed.split(/[？?\n;；，,、]/)[0]?.trim() || trimmed;
+  const first = trimmed.split(/[？?\n;；，,、]/)[0]?.trim() || trimmed;
   if (first.length <= maxLen) return first;
   return `${first.slice(0, maxLen)}…`;
 };
 
 const formatTokenLine = (timing: MessageTiming): string | null => {
   const tokens = timing.tokens;
-  if (!tokens || tokens.totalTokens <= 0)
-    return null;
+  if (!tokens || tokens.totalTokens <= 0) return null;
   const est = tokens.estimated ? "（估算）" : "";
   return `Token ${tokens.totalTokens.toLocaleString()}${est}`;
 };
@@ -157,7 +163,9 @@ const patchTurnLog = (
   patch: (turn: ConversationTurnLog) => ConversationTurnLog
 ): ConversationLogBundle => ({
   ...bundle,
-  turns: bundle.turns.map((turn) => (turn.turnId === turnId ? patch(turn) : turn)),
+  turns: bundle.turns.map((turn) =>
+    turn.turnId === turnId ? patch(turn) : turn
+  ),
 });
 
 const appendTurnToBundle = (
@@ -553,6 +561,16 @@ export const ChatShell = ({ initialConversations, viewer }: ChatShellProps) => {
   const [editSidebarTitleDraft, setEditSidebarTitleDraft] = useState("");
   const [uploadNotice, setUploadNotice] = useState<string | null>(null);
   const [uploadBusy, setUploadBusy] = useState(false);
+  type PendingAttachment = {
+    id: string;
+    file: File;
+    name: string;
+    size: number;
+  };
+  const [pendingAttachments, setPendingAttachments] = useState<
+    PendingAttachment[]
+  >([]);
+  const pendingAttachmentsRef = useRef<PendingAttachment[]>([]);
   const [logPanelOpen, setLogPanelOpen] = useState(false);
   const [conversationLogsById, setConversationLogsById] = useState<
     Map<string, ConversationLogBundle>
@@ -587,6 +605,9 @@ export const ChatShell = ({ initialConversations, viewer }: ChatShellProps) => {
   useEffect(() => {
     sendBusyRef.current = sendBusy;
   }, [sendBusy]);
+  useEffect(() => {
+    pendingAttachmentsRef.current = pendingAttachments;
+  }, [pendingAttachments]);
   /**
    * 模型已出稿即可解锁输入；落库 done 可能更晚。
    * 只改 sendBusy——不碰思考面板/turnId（旧 SSE finally 可能晚于 supersede/编辑重问）。
@@ -819,10 +840,7 @@ export const ChatShell = ({ initialConversations, viewer }: ChatShellProps) => {
         setMessagesLoading(false);
       }
       if (msgResult.ok) {
-        const timingByMessageId = new Map<
-          string,
-          MessageTiming | undefined
-        >();
+        const timingByMessageId = new Map<string, MessageTiming | undefined>();
         if (traceResult.ok) {
           for (const turn of traceResult.data.turns) {
             if (turn.timing) {
@@ -844,8 +862,7 @@ export const ChatShell = ({ initialConversations, viewer }: ChatShellProps) => {
           );
           return msgResult.data.map((m) => ({
             ...m,
-            timing:
-              liveTimingById.get(m.id) ?? timingByMessageId.get(m.id),
+            timing: liveTimingById.get(m.id) ?? timingByMessageId.get(m.id),
           }));
         });
         // 刷新后末条是用户消息：后台可能仍在生成，短轮询补齐助手（每条 user 最多 2 次）
@@ -909,6 +926,8 @@ export const ChatShell = ({ initialConversations, viewer }: ChatShellProps) => {
     setEditingSidebarId(null);
     setEditSidebarTitleDraft("");
     setDraft("");
+    setPendingAttachments([]);
+    setUploadNotice(null);
     setStaleActionKeys(new Set());
     setCorpusEditPath(null);
     setEditingMessageId(null);
@@ -1010,8 +1029,7 @@ export const ChatShell = ({ initialConversations, viewer }: ChatShellProps) => {
             setMessages((prev) => {
               const rest = prev.filter(
                 (m) =>
-                  m.id !== assistant.id &&
-                  m.id !== `local-cancel:${turnId}`
+                  m.id !== assistant.id && m.id !== `local-cancel:${turnId}`
               );
               return [...rest, assistant];
             });
@@ -1040,495 +1058,559 @@ export const ChatShell = ({ initialConversations, viewer }: ChatShellProps) => {
     });
   }, []);
 
-  const sendMessageWithContent = useCallback(async (
-    content: string,
-    options?: { displayContent?: string; staleGroupKey?: string | null }
-  ) => {
-    const trimmed = content.trim();
-    if (!trimmed) return;
-    const displayContent = (options?.displayContent ?? trimmed).trim() || trimmed;
-    // 首 token 前 sendBusy 防连点；流式中允许再发 → supersede
-    if (sendBusy && !streamingTurnId) return;
-    if (streamingTurnId || activeTurnIdRef.current) {
-      await stopActiveTurn("superseded");
-    }
-    setSendBusy(true);
-    setSendError(null);
-    setStreamThinking("");
-    setStreamAnswerPreview("");
-    streamPreviewRef.current = "";
-    setStreamBlocks([]);
-    setThinkingPanelVisible(false);
-    markStaleActionKey(options?.staleGroupKey ?? corpusEditStaleGroupKey(trimmed));
-    const tempUserId = `temp:${crypto.randomUUID()}`;
-    pendingUserTempIdRef.current = tempUserId;
-    const turnId = crypto.randomUUID();
-    const controller = new AbortController();
-    abortControllerRef.current = controller;
-    activeTurnIdRef.current = turnId;
-    setStreamingTurnId(turnId);
-    try {
-      let convId = activeConversationId;
-      if (!convId) {
-        const created = await mutateJson<
-          Record<string, unknown>,
-          {
-            id: string;
+  const sendMessageWithContent = useCallback(
+    async (
+      content: string,
+      options?: { displayContent?: string; staleGroupKey?: string | null }
+    ) => {
+      const trimmed = content.trim();
+      if (!trimmed) return;
+      const displayContent =
+        (options?.displayContent ?? trimmed).trim() || trimmed;
+      // 首 token 前 sendBusy 防连点；流式中允许再发 → supersede
+      if (sendBusy && !streamingTurnId) return;
+      if (streamingTurnId || activeTurnIdRef.current) {
+        await stopActiveTurn("superseded");
+      }
+      setSendBusy(true);
+      setSendError(null);
+      setUploadNotice(null);
+      setStreamThinking("");
+      setStreamAnswerPreview("");
+      streamPreviewRef.current = "";
+      setStreamBlocks([]);
+      setThinkingPanelVisible(false);
+      markStaleActionKey(
+        options?.staleGroupKey ?? corpusEditStaleGroupKey(trimmed)
+      );
+
+      // 发送即带走附件：先挂到用户气泡并清空输入区芯片（抽取失败也不再留在下方）
+      const pendingFiles = [...pendingAttachmentsRef.current];
+      const attachNote =
+        pendingFiles.length > 0
+          ? `\n\n[附件 ${pendingFiles.map((a) => a.name).join("、")}]`
+          : "";
+      const userBubbleContent = `${displayContent}${attachNote}`;
+      setPendingAttachments([]);
+      pendingAttachmentsRef.current = [];
+      setDraft("");
+
+      const tempUserId = `temp:${crypto.randomUUID()}`;
+      pendingUserTempIdRef.current = tempUserId;
+      const turnId = crypto.randomUUID();
+      const controller = new AbortController();
+      abortControllerRef.current = controller;
+      activeTurnIdRef.current = turnId;
+      setStreamingTurnId(turnId);
+
+      let attachmentBatchId: string | undefined;
+      try {
+        let convId = activeConversationId;
+        if (!convId) {
+          const created = await mutateJson<
+            Record<string, unknown>,
+            {
+              id: string;
+            }
+          >("/api/conversations", "POST", {});
+          if (!created.ok) {
+            setSendError(created.error);
+            pendingUserTempIdRef.current = null;
+            activeTurnIdRef.current = null;
+            setStreamingTurnId(null);
+            abortControllerRef.current = null;
+            releaseSendLock();
+            return;
           }
-        >("/api/conversations", "POST", {});
-        if (!created.ok) {
-          setSendError(created.error);
+          convId = created.data.id;
+        }
+        setPreferEmptySession(false);
+        setActiveConversationId(convId);
+        setMessages((prev) => [
+          ...prev,
+          { id: tempUserId, role: "user", content: userBubbleContent },
+        ]);
+        updateLogsForConversation(convId, (bundle) =>
+          appendTurnToBundle(bundle, createTurnLog(turnId, userBubbleContent))
+        );
+
+        if (pendingFiles.length > 0) {
+          setUploadBusy(true);
+          setThinkingPanelVisible(true);
+          setStreamThinking("正在抽取附件文字…");
+          const outcome = await extractDocuments({
+            files: pendingFiles.map((a) => ({
+              file: a.file,
+              relativePath: a.name,
+            })),
+            signal: controller.signal,
+          });
+          setUploadBusy(false);
+          if (!outcome.ok) {
+            setSendError(outcome.error);
+            setThinkingPanelVisible(false);
+            setStreamThinking("");
+            activeTurnIdRef.current = null;
+            setStreamingTurnId(null);
+            abortControllerRef.current = null;
+            releaseSendLock();
+            return;
+          }
+          attachmentBatchId = outcome.result.batchId;
+          // 抽取成功后不常驻提示；失败才用 sendError
+          setUploadNotice(null);
+        }
+        type MetaPayload = {
+          userMessage: ChatMessage;
+        };
+        type DonePayload = {
+          userMessage?: ChatMessage;
+          assistantMessage?: ChatMessage;
+          timing?: PipelineTiming;
+          aborted?: boolean;
+          reason?: "cancelled" | "superseded";
+        };
+        const clientStartedAt = performance.now();
+        let latestTiming: PipelineTiming | undefined;
+        const res = await fetch(`/api/conversations/${convId}/messages`, {
+          method: "POST",
+          headers: { "Content-Type": "application/json" },
+          credentials: "same-origin",
+          body: JSON.stringify({
+            content: userBubbleContent,
+            ...(displayContent !== trimmed || attachNote
+              ? { routingContent: trimmed }
+              : {}),
+            turnId,
+            ...(attachmentBatchId ? { attachmentBatchId } : {}),
+          }),
+          signal: controller.signal,
+        });
+        if (!res.ok) {
+          let msg = `${res.status}`;
+          try {
+            const raw = await res.json();
+            if (raw?.error && typeof raw.error === "string") msg = raw.error;
+          } catch {
+            //
+          }
+          setSendError(msg);
           pendingUserTempIdRef.current = null;
+          setMessages((prev) => prev.filter((m) => m.id !== tempUserId));
           activeTurnIdRef.current = null;
           setStreamingTurnId(null);
           abortControllerRef.current = null;
+          await loadConversations({ silent: true });
+          setMessagesRetryTick((n) => n + 1);
           return;
         }
-        convId = created.data.id;
-      }
-      setDraft("");
-      setPreferEmptySession(false);
-      setActiveConversationId(convId);
-      setMessages((prev) => [
-        ...prev,
-        { id: tempUserId, role: "user", content: displayContent },
-      ]);
-      updateLogsForConversation(convId, (bundle) =>
-        appendTurnToBundle(bundle, createTurnLog(turnId, displayContent))
-      );
-      type MetaPayload = {
-        userMessage: ChatMessage;
-      };
-      type DonePayload = {
-        userMessage?: ChatMessage;
-        assistantMessage?: ChatMessage;
-        timing?: PipelineTiming;
-        aborted?: boolean;
-        reason?: "cancelled" | "superseded";
-      };
-      const clientStartedAt = performance.now();
-      let latestTiming: PipelineTiming | undefined;
-      const res = await fetch(`/api/conversations/${convId}/messages`, {
-        method: "POST",
-        headers: { "Content-Type": "application/json" },
-        credentials: "same-origin",
-        body: JSON.stringify({
-          content: displayContent,
-          ...(displayContent !== trimmed
-            ? { routingContent: trimmed }
-            : {}),
-          turnId,
-        }),
-        signal: controller.signal,
-      });
-      if (!res.ok) {
-        let msg = `${res.status}`;
-        try {
-          const raw = await res.json();
-          if (raw?.error && typeof raw.error === "string") msg = raw.error;
-        } catch {
-          //
-        }
-        setSendError(msg);
-        pendingUserTempIdRef.current = null;
-        setMessages((prev) => prev.filter((m) => m.id !== tempUserId));
-        activeTurnIdRef.current = null;
-        setStreamingTurnId(null);
-        abortControllerRef.current = null;
-        await loadConversations({ silent: true });
-        setMessagesRetryTick((n) => n + 1);
-        return;
-      }
-      if (!res.body) {
-        setSendError("无法读取服务器流");
-        pendingUserTempIdRef.current = null;
-        setMessages((prev) => prev.filter((m) => m.id !== tempUserId));
-        activeTurnIdRef.current = null;
-        setStreamingTurnId(null);
-        abortControllerRef.current = null;
-        await loadConversations({ silent: true });
-        setMessagesRetryTick((n) => n + 1);
-        return;
-      }
-      let streamFatal: string | null = null;
-      let streamAborted = false;
-      const applyTurnTiming = (timing: PipelineTiming, clientTotalMs?: number) => {
-        const tid = activeTurnIdRef.current;
-        if (!tid)
+        if (!res.body) {
+          setSendError("无法读取服务器流");
+          pendingUserTempIdRef.current = null;
+          setMessages((prev) => prev.filter((m) => m.id !== tempUserId));
+          activeTurnIdRef.current = null;
+          setStreamingTurnId(null);
+          abortControllerRef.current = null;
+          await loadConversations({ silent: true });
+          setMessagesRetryTick((n) => n + 1);
           return;
-        patchActiveTurnLog(convId, tid, (turn) => ({
-          ...turn,
-          timing: {
-            ...timing,
-            ...(clientTotalMs != null ? { clientTotalMs } : {}),
-          },
-        }));
-      };
-      await consumeSse(res.body, (event, payload) => {
-        if (
-          event === "pipeline_log" &&
-          payload &&
-          typeof payload === "object" &&
-          payload !== null
-        ) {
-          const entry = (payload as { entry?: PipelineLogEntry }).entry;
-          if (entry && activeTurnIdRef.current === turnId) {
-            patchActiveTurnLog(convId, turnId, (turn) => ({
-              ...turn,
-              entries: [...turn.entries, entry],
-            }));
-          }
         }
-        if (
-          event === "meta" &&
-          payload &&
-          typeof payload === "object" &&
-          payload !== null
-        ) {
-          const p = payload as MetaPayload;
-          if (typeof p.userMessage?.id === "string") {
-            pendingUserTempIdRef.current = null;
-            const real = p.userMessage;
-            setMessages((prev) =>
-              prev.map((m) => (m.id === tempUserId ? real : m))
-            );
-          }
-        }
-        if (
-          event === "ready" &&
-          payload &&
-          typeof payload === "object" &&
-          payload !== null &&
-          activeTurnIdRef.current === turnId
-        ) {
-          const p = payload as {
-            answer?: string;
-            timing?: PipelineTiming;
-          };
-          if (p.timing && typeof p.timing.totalMs === "number") {
-            latestTiming = p.timing;
-            applyTurnTiming(p.timing);
-          }
-          if (typeof p.answer === "string" && p.answer.trim()) {
-            streamPreviewRef.current = p.answer;
-            setStreamAnswerPreview(p.answer);
-          }
-          releaseSendLock();
-        }
-        if (
-          event === "pipeline_timing" &&
-          payload &&
-          typeof payload === "object" &&
-          payload !== null &&
-          activeTurnIdRef.current === turnId
-        ) {
-          const t = (payload as { timing?: PipelineTiming }).timing;
-          if (t && typeof t.totalMs === "number") {
-            latestTiming = t;
-            applyTurnTiming(t);
-          }
-          releaseSendLock();
-        }
-        if (
-          event === "step" &&
-          payload &&
-          typeof payload === "object" &&
-          payload !== null
-        ) {
-          const p = payload as {
-            name?: string;
-            status?: string;
-            durationMs?: number;
-          };
-          if (
-            activeTurnIdRef.current === turnId &&
-            typeof p.name === "string" &&
-            (p.status === "running" || p.status === "done")
-          ) {
-            patchActiveTurnLog(convId, turnId, (turn) => ({
-              ...turn,
-              steps: upsertStep(turn.steps, {
-                name: p.name as PipelineStepName,
-                status: p.status as "running" | "done",
-                durationMs: p.durationMs,
-              }),
-            }));
-          }
-          if (
-            p.status === "running" &&
-            typeof p.name === "string" &&
-            activeTurnIdRef.current === turnId
-          ) {
-            setThinkingPanelVisible(true);
-            setStreamThinking(STEP_RUNNING_LABELS[p.name] ?? "处理中…");
-          }
-          if (
-            p.status === "done" &&
-            p.name === "analyst" &&
-            activeTurnIdRef.current === turnId
-          ) {
-            releaseSendLock();
-          }
-        }
-        if (
-          event === "thinking" &&
-          payload &&
-          typeof payload === "object" &&
-          payload !== null
-        ) {
-          const t = (
-            payload as {
-              text?: string;
+        let streamFatal: string | null = null;
+        let streamAborted = false;
+        const applyTurnTiming = (
+          timing: PipelineTiming,
+          clientTotalMs?: number
+        ) => {
+          const tid = activeTurnIdRef.current;
+          if (!tid) return;
+          patchActiveTurnLog(convId, tid, (turn) => ({
+            ...turn,
+            timing: {
+              ...timing,
+              ...(clientTotalMs != null ? { clientTotalMs } : {}),
+            },
+          }));
+        };
+        await consumeSse(
+          res.body,
+          (event, payload) => {
+            if (
+              event === "pipeline_log" &&
+              payload &&
+              typeof payload === "object" &&
+              payload !== null
+            ) {
+              const entry = (payload as { entry?: PipelineLogEntry }).entry;
+              if (entry && activeTurnIdRef.current === turnId) {
+                patchActiveTurnLog(convId, turnId, (turn) => ({
+                  ...turn,
+                  entries: [...turn.entries, entry],
+                }));
+              }
             }
-          ).text;
-          if (
-            typeof t === "string" &&
-            t.trim() &&
-            activeTurnIdRef.current === turnId
-          ) {
-            setThinkingPanelVisible(true);
-            setStreamThinking(t);
-          }
-        }
-        if (
-          event === "ui_block" &&
-          payload &&
-          typeof payload === "object" &&
-          payload !== null
-        ) {
-          const block = (payload as { block?: AssistantMessageBlock }).block;
-          if (
-            block &&
-            typeof block === "object" &&
-            activeTurnIdRef.current === turnId
-          ) {
-            setStreamBlocks((prev) => [...prev, block]);
-          }
-        }
-        if (
-          event === "assistant_message" &&
-          payload &&
-          typeof payload === "object" &&
-          payload !== null
-        ) {
-          const message = (payload as {
-            message?: { blocks?: AssistantMessageBlock[] };
-          }).message;
-          if (
-            message?.blocks?.length &&
-            activeTurnIdRef.current === turnId
-          ) {
-            setStreamBlocks(message.blocks);
-          }
-        }
-        if (
-          event === "assistant" &&
-          payload &&
-          typeof payload === "object" &&
-          payload !== null
-        ) {
-          const t = (
-            payload as {
-              text?: string;
+            if (
+              event === "meta" &&
+              payload &&
+              typeof payload === "object" &&
+              payload !== null
+            ) {
+              const p = payload as MetaPayload;
+              if (typeof p.userMessage?.id === "string") {
+                pendingUserTempIdRef.current = null;
+                const real = p.userMessage;
+                setMessages((prev) =>
+                  prev.map((m) => (m.id === tempUserId ? real : m))
+                );
+              }
             }
-          ).text;
-          if (typeof t === "string" && activeTurnIdRef.current === turnId) {
-            setThinkingPanelVisible(false);
-            setStreamThinking("");
-            streamPreviewRef.current = t;
-            setStreamAnswerPreview(t);
-            if (t.trim()) {
+            if (
+              event === "ready" &&
+              payload &&
+              typeof payload === "object" &&
+              payload !== null &&
+              activeTurnIdRef.current === turnId
+            ) {
+              const p = payload as {
+                answer?: string;
+                timing?: PipelineTiming;
+              };
+              if (p.timing && typeof p.timing.totalMs === "number") {
+                latestTiming = p.timing;
+                applyTurnTiming(p.timing);
+              }
+              if (typeof p.answer === "string" && p.answer.trim()) {
+                streamPreviewRef.current = p.answer;
+                setStreamAnswerPreview(p.answer);
+              }
               releaseSendLock();
             }
-          }
-        }
-        if (
-          event === "aborted" &&
-          payload &&
-          typeof payload === "object" &&
-          payload !== null
-        ) {
-          streamAborted = true;
-          const p = payload as {
-            turnId?: string;
-            reason?: "cancelled" | "superseded";
-            assistantMessage?: ChatMessage;
-          };
-          const tid = typeof p.turnId === "string" ? p.turnId : turnId;
-          const reason = p.reason ?? "cancelled";
-          patchActiveTurnLog(convId, tid, (t) => ({
-            ...t,
-            status: reason,
-          }));
-          // 已被 supersede/编辑重问接棒：只记账，不碰新 turn 的思考/预览
-          if (activeTurnIdRef.current !== turnId) {
-            return;
-          }
-          // 停止按钮路径已用 cancel 响应更新过 UI，此处仅补齐未展示的截停稿
-          if (
-            reason === "cancelled" &&
-            p.assistantMessage &&
-            typeof p.assistantMessage.content === "string"
-          ) {
-            const assistant: ChatMessage = {
-              id: p.assistantMessage.id,
-              role: "assistant",
-              content: p.assistantMessage.content,
-            };
-            flushSync(() => {
-              setMessages((prev) => {
-                const withoutLocal = prev.filter(
-                  (m) => m.id !== `local-cancel:${tid}`
-                );
-                if (withoutLocal.some((m) => m.id === assistant.id)) {
-                  return withoutLocal.map((m) =>
-                    m.id === assistant.id ? assistant : m
-                  );
+            if (
+              event === "pipeline_timing" &&
+              payload &&
+              typeof payload === "object" &&
+              payload !== null &&
+              activeTurnIdRef.current === turnId
+            ) {
+              const t = (payload as { timing?: PipelineTiming }).timing;
+              if (t && typeof t.totalMs === "number") {
+                latestTiming = t;
+                applyTurnTiming(t);
+              }
+              releaseSendLock();
+            }
+            if (
+              event === "step" &&
+              payload &&
+              typeof payload === "object" &&
+              payload !== null
+            ) {
+              const p = payload as {
+                name?: string;
+                status?: string;
+                durationMs?: number;
+              };
+              if (
+                activeTurnIdRef.current === turnId &&
+                typeof p.name === "string" &&
+                (p.status === "running" || p.status === "done")
+              ) {
+                patchActiveTurnLog(convId, turnId, (turn) => ({
+                  ...turn,
+                  steps: upsertStep(turn.steps, {
+                    name: p.name as PipelineStepName,
+                    status: p.status as "running" | "done",
+                    durationMs: p.durationMs,
+                  }),
+                }));
+              }
+              if (
+                p.status === "running" &&
+                typeof p.name === "string" &&
+                activeTurnIdRef.current === turnId
+              ) {
+                setThinkingPanelVisible(true);
+                setStreamThinking(STEP_RUNNING_LABELS[p.name] ?? "处理中…");
+              }
+              if (
+                p.status === "done" &&
+                p.name === "analyst" &&
+                activeTurnIdRef.current === turnId
+              ) {
+                releaseSendLock();
+              }
+            }
+            if (
+              event === "thinking" &&
+              payload &&
+              typeof payload === "object" &&
+              payload !== null
+            ) {
+              const t = (
+                payload as {
+                  text?: string;
                 }
-                return [...withoutLocal, assistant];
-              });
-            });
-          }
-          clearStreamingUiIfOwned(turnId, controller);
-          pendingUserTempIdRef.current = null;
-        }
-        if (
-          event === "done" &&
-          payload &&
-          typeof payload === "object" &&
-          payload !== null
-        ) {
-          const p = payload as DonePayload;
-          if (p.aborted || streamAborted) {
-            patchActiveTurnLog(convId, turnId, (t) => ({
-              ...t,
-              status: p.reason ?? "cancelled",
-            }));
-            if (activeTurnIdRef.current === turnId) {
+              ).text;
+              if (
+                typeof t === "string" &&
+                t.trim() &&
+                activeTurnIdRef.current === turnId
+              ) {
+                setThinkingPanelVisible(true);
+                setStreamThinking(t);
+              }
+            }
+            if (
+              event === "ui_block" &&
+              payload &&
+              typeof payload === "object" &&
+              payload !== null
+            ) {
+              const block = (payload as { block?: AssistantMessageBlock })
+                .block;
+              if (
+                block &&
+                typeof block === "object" &&
+                activeTurnIdRef.current === turnId
+              ) {
+                setStreamBlocks((prev) => [...prev, block]);
+              }
+            }
+            if (
+              event === "assistant_message" &&
+              payload &&
+              typeof payload === "object" &&
+              payload !== null
+            ) {
+              const message = (
+                payload as {
+                  message?: { blocks?: AssistantMessageBlock[] };
+                }
+              ).message;
+              if (
+                message?.blocks?.length &&
+                activeTurnIdRef.current === turnId
+              ) {
+                setStreamBlocks(message.blocks);
+              }
+            }
+            if (
+              event === "assistant" &&
+              payload &&
+              typeof payload === "object" &&
+              payload !== null
+            ) {
+              const t = (
+                payload as {
+                  text?: string;
+                }
+              ).text;
+              if (typeof t === "string" && activeTurnIdRef.current === turnId) {
+                setThinkingPanelVisible(false);
+                setStreamThinking("");
+                streamPreviewRef.current = t;
+                setStreamAnswerPreview(t);
+                if (t.trim()) {
+                  releaseSendLock();
+                }
+              }
+            }
+            if (
+              event === "aborted" &&
+              payload &&
+              typeof payload === "object" &&
+              payload !== null
+            ) {
+              streamAborted = true;
+              const p = payload as {
+                turnId?: string;
+                reason?: "cancelled" | "superseded";
+                assistantMessage?: ChatMessage;
+              };
+              const tid = typeof p.turnId === "string" ? p.turnId : turnId;
+              const reason = p.reason ?? "cancelled";
+              patchActiveTurnLog(convId, tid, (t) => ({
+                ...t,
+                status: reason,
+              }));
+              // 已被 supersede/编辑重问接棒：只记账，不碰新 turn 的思考/预览
+              if (activeTurnIdRef.current !== turnId) {
+                return;
+              }
+              // 停止按钮路径已用 cancel 响应更新过 UI，此处仅补齐未展示的截停稿
+              if (
+                reason === "cancelled" &&
+                p.assistantMessage &&
+                typeof p.assistantMessage.content === "string"
+              ) {
+                const assistant: ChatMessage = {
+                  id: p.assistantMessage.id,
+                  role: "assistant",
+                  content: p.assistantMessage.content,
+                };
+                flushSync(() => {
+                  setMessages((prev) => {
+                    const withoutLocal = prev.filter(
+                      (m) => m.id !== `local-cancel:${tid}`
+                    );
+                    if (withoutLocal.some((m) => m.id === assistant.id)) {
+                      return withoutLocal.map((m) =>
+                        m.id === assistant.id ? assistant : m
+                      );
+                    }
+                    return [...withoutLocal, assistant];
+                  });
+                });
+              }
               clearStreamingUiIfOwned(turnId, controller);
               pendingUserTempIdRef.current = null;
             }
-            return;
-          }
-          if (activeTurnIdRef.current !== turnId) {
-            return;
-          }
-          const clientTotalMs = Math.round(performance.now() - clientStartedAt);
-          const serverTiming = p.timing ?? latestTiming;
-          const timing: MessageTiming | undefined = serverTiming
-            ? { ...serverTiming, clientTotalMs }
-            : undefined;
-          if (serverTiming)
-            applyTurnTiming(serverTiming, clientTotalMs);
-          const assistantId =
-            p.assistantMessage &&
-            typeof p.assistantMessage.id === "string"
-              ? p.assistantMessage.id
-              : null;
-          patchActiveTurnLog(convId, turnId, (t) => ({
-            ...t,
-            ...(assistantId ? { turnId: assistantId } : {}),
-            status: "done",
-            timing: timing ?? t.timing,
-          }));
-          pendingUserTempIdRef.current = null;
-          if (
-            p.assistantMessage &&
-            typeof p.assistantMessage.id === "string" &&
-            typeof p.assistantMessage.content === "string"
-          ) {
-            const assistant: ChatMessage = {
-              id: p.assistantMessage.id,
-              role: "assistant",
-              content: p.assistantMessage.content,
-              timing,
-              retrievalPaths: Array.isArray(
-                (p.assistantMessage as { retrievalPaths?: unknown }).retrievalPaths
-              )
-                ? ((p.assistantMessage as { retrievalPaths: string[] }).retrievalPaths)
-                : undefined,
-              blocks: Array.isArray(
-                (p.assistantMessage as { blocks?: unknown }).blocks
-              )
-                ? ((p.assistantMessage as { blocks: AssistantMessageBlock[] }).blocks)
-                : undefined,
-            };
-            flushSync(() => {
-              setMessages((prev) => {
-                const rest = prev.filter((m) => m.id !== assistant.id);
-                return [...rest, assistant];
-              });
-            });
-          }
-          clearStreamingUiIfOwned(turnId, controller);
-        }
-        if (
-          event === "error" &&
-          payload &&
-          typeof payload === "object" &&
-          payload !== null
-        ) {
-          const e =
-            (
-              payload as {
-                error?: string;
-                message?: string;
+            if (
+              event === "done" &&
+              payload &&
+              typeof payload === "object" &&
+              payload !== null
+            ) {
+              const p = payload as DonePayload;
+              if (p.aborted || streamAborted) {
+                patchActiveTurnLog(convId, turnId, (t) => ({
+                  ...t,
+                  status: p.reason ?? "cancelled",
+                }));
+                if (activeTurnIdRef.current === turnId) {
+                  clearStreamingUiIfOwned(turnId, controller);
+                  pendingUserTempIdRef.current = null;
+                }
+                return;
               }
-            ).error ?? (payload as { message?: string }).message;
-          streamFatal = typeof e === "string" ? e : "模型出错";
-          patchActiveTurnLog(convId, turnId, (t) => ({
-            ...t,
-            status: "error",
-            error: streamFatal ?? undefined,
-          }));
-          if (activeTurnIdRef.current === turnId) {
-            clearStreamingUiIfOwned(turnId, controller);
-          }
+              if (activeTurnIdRef.current !== turnId) {
+                return;
+              }
+              const clientTotalMs = Math.round(
+                performance.now() - clientStartedAt
+              );
+              const serverTiming = p.timing ?? latestTiming;
+              const timing: MessageTiming | undefined = serverTiming
+                ? { ...serverTiming, clientTotalMs }
+                : undefined;
+              if (serverTiming) applyTurnTiming(serverTiming, clientTotalMs);
+              const assistantId =
+                p.assistantMessage && typeof p.assistantMessage.id === "string"
+                  ? p.assistantMessage.id
+                  : null;
+              patchActiveTurnLog(convId, turnId, (t) => ({
+                ...t,
+                ...(assistantId ? { turnId: assistantId } : {}),
+                status: "done",
+                timing: timing ?? t.timing,
+              }));
+              pendingUserTempIdRef.current = null;
+              if (
+                p.assistantMessage &&
+                typeof p.assistantMessage.id === "string" &&
+                typeof p.assistantMessage.content === "string"
+              ) {
+                const assistant: ChatMessage = {
+                  id: p.assistantMessage.id,
+                  role: "assistant",
+                  content: p.assistantMessage.content,
+                  timing,
+                  retrievalPaths: Array.isArray(
+                    (p.assistantMessage as { retrievalPaths?: unknown })
+                      .retrievalPaths
+                  )
+                    ? (p.assistantMessage as { retrievalPaths: string[] })
+                        .retrievalPaths
+                    : undefined,
+                  blocks: Array.isArray(
+                    (p.assistantMessage as { blocks?: unknown }).blocks
+                  )
+                    ? (
+                        p.assistantMessage as {
+                          blocks: AssistantMessageBlock[];
+                        }
+                      ).blocks
+                    : undefined,
+                };
+                flushSync(() => {
+                  setMessages((prev) => {
+                    const rest = prev.filter((m) => m.id !== assistant.id);
+                    return [...rest, assistant];
+                  });
+                });
+              }
+              clearStreamingUiIfOwned(turnId, controller);
+            }
+            if (
+              event === "error" &&
+              payload &&
+              typeof payload === "object" &&
+              payload !== null
+            ) {
+              const e =
+                (
+                  payload as {
+                    error?: string;
+                    message?: string;
+                  }
+                ).error ?? (payload as { message?: string }).message;
+              streamFatal = typeof e === "string" ? e : "模型出错";
+              patchActiveTurnLog(convId, turnId, (t) => ({
+                ...t,
+                status: "error",
+                error: streamFatal ?? undefined,
+              }));
+              if (activeTurnIdRef.current === turnId) {
+                clearStreamingUiIfOwned(turnId, controller);
+              }
+            }
+          },
+          controller.signal
+        );
+        if (streamFatal) {
+          setSendError(streamFatal);
         }
-      }, controller.signal);
-      if (streamFatal) {
-        setSendError(streamFatal);
+        void loadConversations({ silent: true });
+        setMessagesRetryTick((n) => n + 1);
+      } catch (e) {
+        const aborted =
+          (e instanceof DOMException && e.name === "AbortError") ||
+          (e instanceof Error && e.name === "AbortError") ||
+          controller.signal.aborted;
+        if (!aborted) {
+          setSendError("网络错误");
+          pendingUserTempIdRef.current = null;
+          setMessages((prev) => prev.filter((m) => m.id !== tempUserId));
+          clearStreamingUiIfOwned(turnId, controller);
+        } else if (activeTurnIdRef.current === turnId) {
+          // 本 turn 被 abort 且未接棒：收尾 UI
+          clearStreamingUiIfOwned(turnId, controller);
+          pendingUserTempIdRef.current = null;
+        }
+        await loadConversations({ silent: true });
+        setMessagesRetryTick((n) => n + 1);
+      } finally {
+        // supersede / 编辑重问后旧流不得清新 turn
+        if (activeTurnIdRef.current === turnId) {
+          clearStreamingUiIfOwned(turnId, controller);
+          pendingUserTempIdRef.current = null;
+        } else if (abortControllerRef.current === controller) {
+          abortControllerRef.current = null;
+        }
       }
-      void loadConversations({ silent: true });
-      setMessagesRetryTick((n) => n + 1);
-    } catch (e) {
-      const aborted =
-        (e instanceof DOMException && e.name === "AbortError") ||
-        (e instanceof Error && e.name === "AbortError") ||
-        controller.signal.aborted;
-      if (!aborted) {
-        setSendError("网络错误");
-        pendingUserTempIdRef.current = null;
-        setMessages((prev) => prev.filter((m) => m.id !== tempUserId));
-        clearStreamingUiIfOwned(turnId, controller);
-      } else if (activeTurnIdRef.current === turnId) {
-        // 本 turn 被 abort 且未接棒：收尾 UI
-        clearStreamingUiIfOwned(turnId, controller);
-        pendingUserTempIdRef.current = null;
-      }
-      await loadConversations({ silent: true });
-      setMessagesRetryTick((n) => n + 1);
-    } finally {
-      // supersede / 编辑重问后旧流不得清新 turn
-      if (activeTurnIdRef.current === turnId) {
-        clearStreamingUiIfOwned(turnId, controller);
-        pendingUserTempIdRef.current = null;
-      } else if (abortControllerRef.current === controller) {
-        abortControllerRef.current = null;
-      }
-    }
-  }, [
-    activeConversationId,
-    clearStreamingUiIfOwned,
-    loadConversations,
-    markStaleActionKey,
-    patchActiveTurnLog,
-    releaseSendLock,
-    sendBusy,
-    stopActiveTurn,
-    streamingTurnId,
-    updateLogsForConversation,
-  ]);
+    },
+    [
+      activeConversationId,
+      clearStreamingUiIfOwned,
+      loadConversations,
+      markStaleActionKey,
+      patchActiveTurnLog,
+      releaseSendLock,
+      sendBusy,
+      stopActiveTurn,
+      streamingTurnId,
+      updateLogsForConversation,
+    ]
+  );
 
   const handleChatAction = useCallback(
     (action: ChatActionPayload) => {
@@ -1559,12 +1641,15 @@ export const ChatShell = ({ initialConversations, viewer }: ChatShellProps) => {
     return true;
   }, []);
 
-  const beginEditUserMessage = useCallback((m: ChatMessage) => {
-    if (!canEditUserMessage(m)) return;
-    setEditingMessageId(m.id);
-    setEditDraft(m.content);
-    setSendError(null);
-  }, [canEditUserMessage]);
+  const beginEditUserMessage = useCallback(
+    (m: ChatMessage) => {
+      if (!canEditUserMessage(m)) return;
+      setEditingMessageId(m.id);
+      setEditDraft(m.content);
+      setSendError(null);
+    },
+    [canEditUserMessage]
+  );
 
   const cancelEditUserMessage = useCallback(() => {
     setEditingMessageId(null);
@@ -1658,7 +1743,10 @@ export const ChatShell = ({ initialConversations, viewer }: ChatShellProps) => {
 
       let streamFatal: string | null = null;
       let streamAborted = false;
-      const applyTurnTiming = (timing: PipelineTiming, clientTotalMs?: number) => {
+      const applyTurnTiming = (
+        timing: PipelineTiming,
+        clientTotalMs?: number
+      ) => {
         const tid = activeTurnIdRef.current;
         if (!tid) return;
         patchActiveTurnLog(convId, tid, (turn) => ({
@@ -1670,268 +1758,272 @@ export const ChatShell = ({ initialConversations, viewer }: ChatShellProps) => {
         }));
       };
 
-      await consumeSse(res.body, (event, payload) => {
-        if (
-          event === "pipeline_log" &&
-          payload &&
-          typeof payload === "object" &&
-          payload !== null
-        ) {
-          const entry = (payload as { entry?: PipelineLogEntry }).entry;
-          if (entry && activeTurnIdRef.current === turnId) {
-            patchActiveTurnLog(convId, turnId, (turn) => ({
-              ...turn,
-              entries: [...turn.entries, entry],
-            }));
-          }
-        }
-        if (
-          event === "meta" &&
-          payload &&
-          typeof payload === "object" &&
-          payload !== null
-        ) {
-          const p = payload as { userMessage?: ChatMessage };
-          if (typeof p.userMessage?.id === "string") {
-            setMessages((prev) =>
-              prev.map((m) =>
-                m.id === p.userMessage!.id
-                  ? { ...m, content: p.userMessage!.content }
-                  : m
-              )
-            );
-          }
-        }
-        if (
-          event === "ready" &&
-          payload &&
-          typeof payload === "object" &&
-          payload !== null &&
-          activeTurnIdRef.current === turnId
-        ) {
-          const p = payload as { answer?: string; timing?: PipelineTiming };
-          if (p.timing && typeof p.timing.totalMs === "number") {
-            latestTiming = p.timing;
-            applyTurnTiming(p.timing);
-          }
-          if (typeof p.answer === "string" && p.answer.trim()) {
-            streamPreviewRef.current = p.answer;
-            setStreamAnswerPreview(p.answer);
-          }
-          releaseSendLock();
-        }
-        if (
-          event === "pipeline_timing" &&
-          payload &&
-          typeof payload === "object" &&
-          payload !== null &&
-          activeTurnIdRef.current === turnId
-        ) {
-          const t = (payload as { timing?: PipelineTiming }).timing;
-          if (t && typeof t.totalMs === "number") {
-            latestTiming = t;
-            applyTurnTiming(t);
-          }
-          releaseSendLock();
-        }
-        if (
-          event === "step" &&
-          payload &&
-          typeof payload === "object" &&
-          payload !== null
-        ) {
-          const p = payload as {
-            name?: string;
-            status?: string;
-            durationMs?: number;
-          };
+      await consumeSse(
+        res.body,
+        (event, payload) => {
           if (
-            activeTurnIdRef.current === turnId &&
-            typeof p.name === "string" &&
-            (p.status === "running" || p.status === "done")
+            event === "pipeline_log" &&
+            payload &&
+            typeof payload === "object" &&
+            payload !== null
           ) {
-            patchActiveTurnLog(convId, turnId, (turn) => ({
-              ...turn,
-              steps: upsertStep(turn.steps, {
-                name: p.name as PipelineStepName,
-                status: p.status as "running" | "done",
-                durationMs: p.durationMs,
-              }),
-            }));
+            const entry = (payload as { entry?: PipelineLogEntry }).entry;
+            if (entry && activeTurnIdRef.current === turnId) {
+              patchActiveTurnLog(convId, turnId, (turn) => ({
+                ...turn,
+                entries: [...turn.entries, entry],
+              }));
+            }
           }
           if (
-            p.status === "running" &&
-            typeof p.name === "string" &&
+            event === "meta" &&
+            payload &&
+            typeof payload === "object" &&
+            payload !== null
+          ) {
+            const p = payload as { userMessage?: ChatMessage };
+            if (typeof p.userMessage?.id === "string") {
+              setMessages((prev) =>
+                prev.map((m) =>
+                  m.id === p.userMessage!.id
+                    ? { ...m, content: p.userMessage!.content }
+                    : m
+                )
+              );
+            }
+          }
+          if (
+            event === "ready" &&
+            payload &&
+            typeof payload === "object" &&
+            payload !== null &&
             activeTurnIdRef.current === turnId
           ) {
-            setThinkingPanelVisible(true);
-            setStreamThinking(STEP_RUNNING_LABELS[p.name] ?? "处理中…");
-          }
-          if (
-            p.status === "done" &&
-            p.name === "analyst" &&
-            activeTurnIdRef.current === turnId
-          ) {
+            const p = payload as { answer?: string; timing?: PipelineTiming };
+            if (p.timing && typeof p.timing.totalMs === "number") {
+              latestTiming = p.timing;
+              applyTurnTiming(p.timing);
+            }
+            if (typeof p.answer === "string" && p.answer.trim()) {
+              streamPreviewRef.current = p.answer;
+              setStreamAnswerPreview(p.answer);
+            }
             releaseSendLock();
           }
-        }
-        if (
-          event === "thinking" &&
-          payload &&
-          typeof payload === "object" &&
-          payload !== null
-        ) {
-          const t = (payload as { text?: string }).text;
           if (
-            typeof t === "string" &&
-            t.trim() &&
+            event === "pipeline_timing" &&
+            payload &&
+            typeof payload === "object" &&
+            payload !== null &&
             activeTurnIdRef.current === turnId
           ) {
-            setThinkingPanelVisible(true);
-            setStreamThinking(t);
+            const t = (payload as { timing?: PipelineTiming }).timing;
+            if (t && typeof t.totalMs === "number") {
+              latestTiming = t;
+              applyTurnTiming(t);
+            }
+            releaseSendLock();
           }
-        }
-        if (
-          event === "ui_block" &&
-          payload &&
-          typeof payload === "object" &&
-          payload !== null
-        ) {
-          const block = (payload as { block?: AssistantMessageBlock }).block;
           if (
-            block &&
-            typeof block === "object" &&
-            activeTurnIdRef.current === turnId
+            event === "step" &&
+            payload &&
+            typeof payload === "object" &&
+            payload !== null
           ) {
-            setStreamBlocks((prev) => [...prev, block]);
+            const p = payload as {
+              name?: string;
+              status?: string;
+              durationMs?: number;
+            };
+            if (
+              activeTurnIdRef.current === turnId &&
+              typeof p.name === "string" &&
+              (p.status === "running" || p.status === "done")
+            ) {
+              patchActiveTurnLog(convId, turnId, (turn) => ({
+                ...turn,
+                steps: upsertStep(turn.steps, {
+                  name: p.name as PipelineStepName,
+                  status: p.status as "running" | "done",
+                  durationMs: p.durationMs,
+                }),
+              }));
+            }
+            if (
+              p.status === "running" &&
+              typeof p.name === "string" &&
+              activeTurnIdRef.current === turnId
+            ) {
+              setThinkingPanelVisible(true);
+              setStreamThinking(STEP_RUNNING_LABELS[p.name] ?? "处理中…");
+            }
+            if (
+              p.status === "done" &&
+              p.name === "analyst" &&
+              activeTurnIdRef.current === turnId
+            ) {
+              releaseSendLock();
+            }
           }
-        }
-        if (
-          event === "assistant" &&
-          payload &&
-          typeof payload === "object" &&
-          payload !== null
-        ) {
-          const t = (payload as { text?: string }).text;
-          if (typeof t === "string" && activeTurnIdRef.current === turnId) {
-            setThinkingPanelVisible(false);
-            setStreamThinking("");
-            streamPreviewRef.current = t;
-            setStreamAnswerPreview(t);
-            if (t.trim()) releaseSendLock();
+          if (
+            event === "thinking" &&
+            payload &&
+            typeof payload === "object" &&
+            payload !== null
+          ) {
+            const t = (payload as { text?: string }).text;
+            if (
+              typeof t === "string" &&
+              t.trim() &&
+              activeTurnIdRef.current === turnId
+            ) {
+              setThinkingPanelVisible(true);
+              setStreamThinking(t);
+            }
           }
-        }
-        if (
-          event === "aborted" &&
-          payload &&
-          typeof payload === "object" &&
-          payload !== null
-        ) {
-          streamAborted = true;
-          const p = payload as {
-            turnId?: string;
-            reason?: "cancelled" | "superseded";
-          };
-          const tid = typeof p.turnId === "string" ? p.turnId : turnId;
-          patchActiveTurnLog(convId, tid, (t) => ({
-            ...t,
-            status: p.reason ?? "cancelled",
-          }));
-          if (activeTurnIdRef.current === turnId) {
-            clearStreamingUiIfOwned(turnId, controller);
+          if (
+            event === "ui_block" &&
+            payload &&
+            typeof payload === "object" &&
+            payload !== null
+          ) {
+            const block = (payload as { block?: AssistantMessageBlock }).block;
+            if (
+              block &&
+              typeof block === "object" &&
+              activeTurnIdRef.current === turnId
+            ) {
+              setStreamBlocks((prev) => [...prev, block]);
+            }
           }
-        }
-        if (
-          event === "done" &&
-          payload &&
-          typeof payload === "object" &&
-          payload !== null
-        ) {
-          const p = payload as DonePayload;
-          if (p.aborted || streamAborted) {
-            patchActiveTurnLog(convId, turnId, (t) => ({
+          if (
+            event === "assistant" &&
+            payload &&
+            typeof payload === "object" &&
+            payload !== null
+          ) {
+            const t = (payload as { text?: string }).text;
+            if (typeof t === "string" && activeTurnIdRef.current === turnId) {
+              setThinkingPanelVisible(false);
+              setStreamThinking("");
+              streamPreviewRef.current = t;
+              setStreamAnswerPreview(t);
+              if (t.trim()) releaseSendLock();
+            }
+          }
+          if (
+            event === "aborted" &&
+            payload &&
+            typeof payload === "object" &&
+            payload !== null
+          ) {
+            streamAborted = true;
+            const p = payload as {
+              turnId?: string;
+              reason?: "cancelled" | "superseded";
+            };
+            const tid = typeof p.turnId === "string" ? p.turnId : turnId;
+            patchActiveTurnLog(convId, tid, (t) => ({
               ...t,
               status: p.reason ?? "cancelled",
             }));
             if (activeTurnIdRef.current === turnId) {
               clearStreamingUiIfOwned(turnId, controller);
             }
-            return;
           }
-          if (activeTurnIdRef.current !== turnId) {
-            return;
-          }
-          const clientTotalMs = Math.round(performance.now() - clientStartedAt);
-          const serverTiming = p.timing ?? latestTiming;
-          const timing: MessageTiming | undefined = serverTiming
-            ? { ...serverTiming, clientTotalMs }
-            : undefined;
-          if (serverTiming) applyTurnTiming(serverTiming, clientTotalMs);
-          const assistantId =
-            p.assistantMessage &&
-            typeof p.assistantMessage.id === "string"
-              ? p.assistantMessage.id
-              : null;
-          patchActiveTurnLog(convId, turnId, (turn) => ({
-            ...turn,
-            ...(assistantId ? { turnId: assistantId } : {}),
-            status: "done",
-            timing: timing ?? turn.timing,
-          }));
           if (
-            p.assistantMessage &&
-            typeof p.assistantMessage.id === "string" &&
-            typeof p.assistantMessage.content === "string"
+            event === "done" &&
+            payload &&
+            typeof payload === "object" &&
+            payload !== null
           ) {
-            const assistant: ChatMessage = {
-              id: p.assistantMessage.id,
-              role: "assistant",
-              content: p.assistantMessage.content,
-              timing,
-              retrievalPaths: Array.isArray(
-                (p.assistantMessage as { retrievalPaths?: unknown })
-                  .retrievalPaths
-              )
-                ? (
-                    p.assistantMessage as { retrievalPaths: string[] }
-                  ).retrievalPaths
-                : undefined,
-              blocks: Array.isArray(
-                (p.assistantMessage as { blocks?: unknown }).blocks
-              )
-                ? (p.assistantMessage as { blocks: AssistantMessageBlock[] })
-                    .blocks
-                : undefined,
-            };
-            flushSync(() => {
-              setMessages((prev) => {
-                const rest = prev.filter((m) => m.id !== assistant.id);
-                return [...rest, assistant];
+            const p = payload as DonePayload;
+            if (p.aborted || streamAborted) {
+              patchActiveTurnLog(convId, turnId, (t) => ({
+                ...t,
+                status: p.reason ?? "cancelled",
+              }));
+              if (activeTurnIdRef.current === turnId) {
+                clearStreamingUiIfOwned(turnId, controller);
+              }
+              return;
+            }
+            if (activeTurnIdRef.current !== turnId) {
+              return;
+            }
+            const clientTotalMs = Math.round(
+              performance.now() - clientStartedAt
+            );
+            const serverTiming = p.timing ?? latestTiming;
+            const timing: MessageTiming | undefined = serverTiming
+              ? { ...serverTiming, clientTotalMs }
+              : undefined;
+            if (serverTiming) applyTurnTiming(serverTiming, clientTotalMs);
+            const assistantId =
+              p.assistantMessage && typeof p.assistantMessage.id === "string"
+                ? p.assistantMessage.id
+                : null;
+            patchActiveTurnLog(convId, turnId, (turn) => ({
+              ...turn,
+              ...(assistantId ? { turnId: assistantId } : {}),
+              status: "done",
+              timing: timing ?? turn.timing,
+            }));
+            if (
+              p.assistantMessage &&
+              typeof p.assistantMessage.id === "string" &&
+              typeof p.assistantMessage.content === "string"
+            ) {
+              const assistant: ChatMessage = {
+                id: p.assistantMessage.id,
+                role: "assistant",
+                content: p.assistantMessage.content,
+                timing,
+                retrievalPaths: Array.isArray(
+                  (p.assistantMessage as { retrievalPaths?: unknown })
+                    .retrievalPaths
+                )
+                  ? (p.assistantMessage as { retrievalPaths: string[] })
+                      .retrievalPaths
+                  : undefined,
+                blocks: Array.isArray(
+                  (p.assistantMessage as { blocks?: unknown }).blocks
+                )
+                  ? (p.assistantMessage as { blocks: AssistantMessageBlock[] })
+                      .blocks
+                  : undefined,
+              };
+              flushSync(() => {
+                setMessages((prev) => {
+                  const rest = prev.filter((m) => m.id !== assistant.id);
+                  return [...rest, assistant];
+                });
               });
-            });
-          }
-          clearStreamingUiIfOwned(turnId, controller);
-        }
-        if (
-          event === "error" &&
-          payload &&
-          typeof payload === "object" &&
-          payload !== null
-        ) {
-          const e =
-            (payload as { error?: string; message?: string }).error ??
-            (payload as { message?: string }).message;
-          streamFatal = typeof e === "string" ? e : "模型出错";
-          patchActiveTurnLog(convId, turnId, (t) => ({
-            ...t,
-            status: "error",
-            error: streamFatal ?? undefined,
-          }));
-          if (activeTurnIdRef.current === turnId) {
+            }
             clearStreamingUiIfOwned(turnId, controller);
           }
-        }
-      }, controller.signal);
+          if (
+            event === "error" &&
+            payload &&
+            typeof payload === "object" &&
+            payload !== null
+          ) {
+            const e =
+              (payload as { error?: string; message?: string }).error ??
+              (payload as { message?: string }).message;
+            streamFatal = typeof e === "string" ? e : "模型出错";
+            patchActiveTurnLog(convId, turnId, (t) => ({
+              ...t,
+              status: "error",
+              error: streamFatal ?? undefined,
+            }));
+            if (activeTurnIdRef.current === turnId) {
+              clearStreamingUiIfOwned(turnId, controller);
+            }
+          }
+        },
+        controller.signal
+      );
 
       if (streamFatal) setSendError(streamFatal);
       void loadConversations({ silent: true });
@@ -1974,19 +2066,31 @@ export const ChatShell = ({ initialConversations, viewer }: ChatShellProps) => {
     setDraft(text);
     setSendError(null);
   };
-  const handleAttachUpload = useCallback(async (fileList: FileList | null) => {
-    if (!fileList?.length || uploadBusy || sendBusy)
-      return;
-    setUploadBusy(true);
-    setUploadNotice(null);
-    const outcome = await uploadDocuments({ files: filesFromInput(fileList) });
-    setUploadBusy(false);
-    if (!outcome.ok) {
-      setUploadNotice(outcome.error);
-      return;
-    }
-    setUploadNotice(outcome.summary);
-  }, [sendBusy, uploadBusy]);
+  /** 「+」仅本地挂起；发送时再抽取（取消不耗 OCR） */
+  const handleAttachPick = useCallback(
+    (fileList: FileList | null) => {
+      if (!fileList?.length || uploadBusy || sendBusy) return;
+      setUploadNotice(null);
+      const items = filesFromInput(fileList);
+      setPendingAttachments((prev) => {
+        const next = [...prev];
+        for (const item of items) {
+          if (next.length >= 20) break;
+          next.push({
+            id: crypto.randomUUID(),
+            file: item.file,
+            name: item.file.name,
+            size: item.file.size,
+          });
+        }
+        return next;
+      });
+    },
+    [sendBusy, uploadBusy]
+  );
+  const removePendingAttachment = useCallback((id: string) => {
+    setPendingAttachments((prev) => prev.filter((a) => a.id !== id));
+  }, []);
   const isFreshNewChatUi =
     activeConversationId == null && !messagesLoading && messages.length === 0;
   /** 新开对话且尚未选定会话时的欢迎区 */
@@ -2488,7 +2592,8 @@ export const ChatShell = ({ initialConversations, viewer }: ChatShellProps) => {
                 <div
                   className={[
                     "border-b px-4 py-2 text-[13px]",
-                    uploadNotice.includes("失败") || uploadNotice.startsWith("请")
+                    uploadNotice.includes("失败") ||
+                    uploadNotice.startsWith("请")
                       ? "border-red-100 text-red-600"
                       : "border-emerald-100 text-emerald-800",
                   ].join(" ")}
@@ -2520,7 +2625,9 @@ export const ChatShell = ({ initialConversations, viewer }: ChatShellProps) => {
                     ? "生成回复中…"
                     : speech.listening
                       ? "正在听你说…（说完点红色麦克风停止）"
-                      : "发消息或输入 '/' 选择技能（Enter 发送，Shift+Enter 换行；中文选字时 Enter 不会发送）"
+                      : pendingAttachments.length > 0
+                        ? "写明要对附件做什么：抽取原文 / 总结 / 翻译 / 入库（须有文字才能发送）"
+                        : "发消息或输入 '/' 选择技能（Enter 发送，Shift+Enter 换行；中文选字时 Enter 不会发送）"
                 }
                 rows={3}
                 className="block w-full resize-none bg-transparent px-4 pb-2 pt-3 text-[15px] text-[#111827] outline-none placeholder:text-[#a1a1aa] disabled:opacity-50"
@@ -2532,6 +2639,29 @@ export const ChatShell = ({ initialConversations, viewer }: ChatShellProps) => {
                   void sendMessage();
                 }}
               />
+              {pendingAttachments.length > 0 ? (
+                <ul className="flex flex-wrap gap-1.5 border-t border-black/[0.04] px-3 pt-2">
+                  {pendingAttachments.map((a) => (
+                    <li
+                      key={a.id}
+                      className="flex max-w-full items-center gap-1 rounded-full bg-[#eef2ff] px-2.5 py-1 text-[12px] text-[#3730a3]"
+                    >
+                      <span className="truncate" title={a.name}>
+                        {a.name}
+                      </span>
+                      <button
+                        type="button"
+                        disabled={sendBusy || uploadBusy}
+                        onClick={() => removePendingAttachment(a.id)}
+                        className="shrink-0 rounded-full px-1 text-[#6366f1] hover:bg-white/60 disabled:opacity-40"
+                        aria-label={`移除 ${a.name}`}
+                      >
+                        ×
+                      </button>
+                    </li>
+                  ))}
+                </ul>
+              ) : null}
               <div className="flex items-center gap-2 border-t border-black/[0.04] px-3 py-2">
                 <input
                   ref={attachInputRef}
@@ -2540,7 +2670,7 @@ export const ChatShell = ({ initialConversations, viewer }: ChatShellProps) => {
                   className="hidden"
                   accept=".pdf,.doc,.docx,.ppt,.pptx,.png,.jpg,.jpeg,.webp,.gif,.bmp,.tiff,.tif"
                   onChange={(e) => {
-                    void handleAttachUpload(e.target.files);
+                    handleAttachPick(e.target.files);
                     e.target.value = "";
                   }}
                 />
@@ -2549,23 +2679,12 @@ export const ChatShell = ({ initialConversations, viewer }: ChatShellProps) => {
                   disabled={uploadBusy || sendBusy}
                   onClick={() => attachInputRef.current?.click()}
                   className="rounded-lg p-2 text-[#9ca3af] hover:bg-black/[0.04] hover:text-[#374151] disabled:opacity-40"
-                  aria-label="上传文档到知识库"
-                  title="上传文档到知识库（自动分类）"
+                  aria-label="添加附件"
+                  title="添加附件（发送后按你的说明抽取/总结/翻译/入库；语料页仍可直接入库）"
                 >
                   <IconPlus className="h-5 w-5" />
                 </button>
-                <div className="flex flex-1 flex-wrap items-center gap-1 text-[13px] text-[#9ca3af]">
-                  {["快捷", "编程", "图像", "写作"].map((t) => (
-                    <button
-                      key={t}
-                      type="button"
-                      className="rounded-full px-2.5 py-1 hover:bg-black/[0.04] hover:text-[#4b5563]"
-                    >
-                      {t}
-                    </button>
-                  ))}
-                  <span className="px-1">…</span>
-                </div>
+                <div className="flex-1" />
                 {streamingTurnId ? (
                   <button
                     type="button"
@@ -2579,11 +2698,22 @@ export const ChatShell = ({ initialConversations, viewer }: ChatShellProps) => {
                   type="button"
                   onClick={() => void sendMessage()}
                   disabled={
-                    !draft.trim() || (sendBusy && !streamingTurnId)
+                    !draft.trim() ||
+                    uploadBusy ||
+                    (sendBusy && !streamingTurnId)
                   }
                   className="rounded-full bg-[#4f46e5] px-4 py-1.5 text-[13px] font-medium text-white disabled:opacity-40"
+                  title={
+                    !draft.trim()
+                      ? "请先写明要对附件或问题做什么"
+                      : undefined
+                  }
                 >
-                  {sendBusy && !streamingTurnId ? "发送中…" : "发送"}
+                  {uploadBusy
+                    ? "抽取中…"
+                    : sendBusy && !streamingTurnId
+                      ? "发送中…"
+                      : "发送"}
                 </button>
                 <button
                   type="button"

@@ -132,6 +132,12 @@ export type IntakeRoutingDecision = {
   /** remember_user_fact 时：用户要保存的值；recall 时为 null */
   userFactValue: string | null;
   /**
+   * 本轮有聊天附件（系统提示会声明）时必填：
+   * extract=展示已抽取原文 · summarize=总结 · translate=翻译（须在 pathPlan 步填 targetLang）· ingest=入库。
+   * 无附件时为 null。禁止用口语词表猜；意图不清 → clarify。
+   */
+  attachmentAction?: "extract" | "summarize" | "translate" | "ingest" | null;
+  /**
    * 多轮指代状态：
    * - none：无指代 / 不涉及
    * - resolved：本轮已在 searchQuery/plan 写明实体
@@ -319,8 +325,18 @@ identity | enumeration | external_link | tech | default
   "userFactKey": null,
   "userFactLabel": null,
   "userFactValue": null,
+  "attachmentAction": "extract | summarize | translate | ingest | null",
   "coreference": "none | resolved | unresolved"
 }
+
+## 聊天附件（系统会注入「本轮附件」说明时）
+- 文本**已由上游抽取**；你只定 \`attachmentAction\`：
+  - \`extract\`：展示抽取原文（pathPlan 可空）
+  - \`summarize\`：总结附件
+  - \`translate\`：翻译；须在 pathPlan 任一步填 \`targetLang\`（如 en/zh/ja）
+  - \`ingest\`：写入个人知识库并更新索引
+- 用户未说明要对附件做什么 → \`clarify\` + \`attachmentAction: null\`（**禁止**默认入库）。
+- 无附件系统说明时：\`attachmentAction\` 必须为 null。
 
 ## 示例 1
 用户：我在奥卡云做的城管平台用了什么技术？
@@ -457,4 +473,24 @@ identity | enumeration | external_link | tech | default
 输出：
 {"intent":"retrieve_and_answer","searchQuery":"personal/_tmp.md","subTasks":["清空语料"],"topics":["personal"],"language":"zh","confidence":0.9,"queryType":"default","clarifyingQuestion":null,"briefReply":null,"pathPlan":{"steps":[{"id":"clear-tmp","kind":"corpus_edit","label":"清空 personal/_tmp.md","searchQuery":"personal/_tmp.md","queryType":"default","topics":["personal"],"params":{"targetPath":"personal/_tmp.md","operation":"clear","afterContent":""}}]},"composeMode":"qa","retrievalPlan":[],"coreference":"none"}
 
-**禁止**自造 queryType / kind / toolId / dag template；年限用 tenure；公司/履历列表 listKind 只用 experience；项目列表只用 project；外链只用 km+external_link，禁止场景化 dag；语料写盘/打开/清空只用 corpus_edit + params（有 path 时勿改写成 km），禁止口语猜文件。`;
+## 示例 21a（附件 · 总结）
+系统已声明本轮有附件；用户：请总结一下附件
+输出：
+{"intent":"summarize_content","searchQuery":"附件内容总结","subTasks":["附件总结"],"topics":["attachment"],"language":"zh","confidence":0.9,"queryType":"default","clarifyingQuestion":null,"briefReply":null,"pathPlan":{"steps":[]},"composeMode":"summarize","retrievalPlan":[],"attachmentAction":"summarize","coreference":"none"}
+
+## 示例 21b（附件 · 翻译）
+系统已声明本轮有附件；用户：把附件翻译成英文
+输出：
+{"intent":"retrieve_and_answer","searchQuery":"附件翻译","subTasks":["附件翻译"],"topics":["attachment"],"language":"zh","confidence":0.9,"queryType":"default","clarifyingQuestion":null,"briefReply":null,"pathPlan":{"steps":[{"id":"t-en","kind":"tool","label":"译英","searchQuery":"","queryType":"default","topics":["attachment"],"toolId":"translate_text","dataSource":"web","targetLang":"en","sourceLang":"auto"}]},"composeMode":"qa","retrievalPlan":[],"attachmentAction":"translate","coreference":"none"}
+
+## 示例 21c（附件 · 入库）
+系统已声明本轮有附件；用户：把这些文件入库到知识库
+输出：
+{"intent":"direct_answer","searchQuery":"","subTasks":[],"topics":["attachment"],"language":"zh","confidence":0.9,"queryType":null,"clarifyingQuestion":null,"briefReply":null,"pathPlan":{"steps":[]},"composeMode":"qa","retrievalPlan":[],"attachmentAction":"ingest","coreference":"none"}
+
+## 示例 21d（附件 · 意图不清）
+系统已声明本轮有附件；用户：看看这个
+输出：
+{"intent":"clarify","searchQuery":"","subTasks":[],"topics":["attachment"],"language":"zh","confidence":0.55,"queryType":null,"clarifyingQuestion":"请说明要对附件做什么：展示抽取原文 / 总结 / 翻译（注明目标语言）/ 入库到知识库？","briefReply":null,"pathPlan":{"steps":[]},"composeMode":"qa","retrievalPlan":[],"attachmentAction":null,"coreference":"none"}
+
+**禁止**自造 queryType / kind / toolId / dag template；年限用 tenure；公司/履历列表 listKind 只用 experience；项目列表只用 project；外链只用 km+external_link，禁止场景化 dag；语料写盘/打开/清空只用 corpus_edit + params（有 path 时勿改写成 km），禁止口语猜文件；有附件时禁止默认入库，须 attachmentAction。`;

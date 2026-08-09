@@ -11,6 +11,7 @@ import {
     handlePipelineStream,
 } from "@/server/routes";
 import {
+    handleDocumentsExtract,
     handleDocumentsUpload,
     handleEnumerationList,
 } from "@/server/handlers";
@@ -45,6 +46,10 @@ const server = createServer((req, res) => {
     }
     if (url === "/documents/upload") {
         handleAsync(handleDocumentsUpload)(req, res);
+        return;
+    }
+    if (url === "/documents/extract") {
+        handleAsync(handleDocumentsExtract)(req, res);
         return;
     }
     if (url === "/enumeration/list") {

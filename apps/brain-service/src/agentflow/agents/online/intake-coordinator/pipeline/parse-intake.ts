@@ -38,6 +38,7 @@ export const clarifyFallbackFromProse = (
     userFactKey: null,
     userFactLabel: null,
     userFactValue: null,
+    attachmentAction: null,
     coreference: "none",
   };
 };
@@ -62,5 +63,6 @@ export const defaultIntakeDecision = (
   userFactKey: null,
   userFactLabel: null,
   userFactValue: null,
+  attachmentAction: null,
   coreference: "none",
 });

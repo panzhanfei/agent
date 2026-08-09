@@ -57,6 +57,8 @@ export const pipelineStreamBodySchema = z.object({
         conversationId: z.string().min(1),
         /** Web 贯穿的 turnId；缺省时 Brain 兜底生成 */
         turnId: z.string().uuid().optional(),
+        /** 聊天附件批次（/documents/extract）；服务端展开为 turnAttachments */
+        attachmentBatchId: z.string().uuid().optional(),
     }),
 });
 

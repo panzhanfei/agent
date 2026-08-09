@@ -211,6 +211,22 @@ export const intakeRoutingDecisionSchema = z.object({
     (v) => (v === undefined ? null : v),
     nullableTrimmedString
   ),
+  attachmentAction: z
+    .preprocess((v) => {
+      if (v === null || v === undefined || v === "") return null;
+      if (typeof v !== "string") return null;
+      const s = v.trim().toLowerCase();
+      if (
+        s === "extract" ||
+        s === "summarize" ||
+        s === "translate" ||
+        s === "ingest"
+      ) {
+        return s;
+      }
+      return null;
+    }, z.enum(["extract", "summarize", "translate", "ingest"]).nullable())
+    .catch(null),
   coreference: z
     .enum(["none", "resolved", "unresolved"])
     .catch("none" as const)
@@ -324,6 +340,11 @@ const normalizeIntakeRaw = (
     userFactKey: pickIntakeField(raw, "userFactKey", "user_fact_key"),
     userFactLabel: pickIntakeField(raw, "userFactLabel", "user_fact_label"),
     userFactValue: pickIntakeField(raw, "userFactValue", "user_fact_value"),
+    attachmentAction: pickIntakeField(
+      raw,
+      "attachmentAction",
+      "attachment_action"
+    ),
   };
 };
 

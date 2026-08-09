@@ -36,6 +36,11 @@ export const postConversationMessageBodySchema = z.object({
     routingContent: messageContentSchema.optional(),
     /** Web 生成的 turnId，贯穿 BFF → Brain；缺省时服务端兜底 */
     turnId: z.string().uuid().optional(),
+    /**
+     * 聊天附件批次（先 POST /api/documents/extract）。
+     * Brain 按 id 取已抽取文本；勿在 JSON 里塞全文。
+     */
+    attachmentBatchId: z.string().uuid().optional(),
 });
 
 /** POST …/messages/:messageId/edit-regenerate — 原地改用户问并重跑 */

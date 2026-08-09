@@ -38,6 +38,8 @@ export const completeIntakeCoordinator = async (
      * 非二次规划；消不了指代 → clarify。
      */
     priorSubstantiveQuestion?: string | null;
+    /** 本轮已抽取附件清单（仅元数据+预览；全文不进 Intake） */
+    attachmentBrief?: string | null;
   }
 ): Promise<string> => {
   const recent = options?.intakeHistory ?? history;
@@ -67,6 +69,14 @@ export const completeIntakeCoordinator = async (
     messages.push(
       new SystemMessage(
         `【结构化上下文·上轮实质用户问】\n${prior}\n（供本轮 Understand+Plan 消解指代/实体替换；能消解则 pathPlan 写明实体并 coreference=resolved；不能则 clarify + unresolved。服务端不会再因指代二次调用你。）`
+      )
+    );
+  }
+  const attachBrief = options?.attachmentBrief?.trim();
+  if (attachBrief) {
+    messages.push(
+      new SystemMessage(
+        `【本轮聊天附件·已抽取文本】\n${attachBrief}\n须填 attachmentAction（extract|summarize|translate|ingest）；意图不清则 clarify + attachmentAction=null。禁止默认入库。全文已在服务端，pathPlan.searchQuery 无需粘贴全文。`
       )
     );
   }

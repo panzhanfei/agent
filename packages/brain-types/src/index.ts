@@ -12,6 +12,15 @@ export type {
     EnumerationListItem,
     EnumerationListKind,
 } from "./message-blocks";
+/** 本轮聊天附件（已抽取文本；原件由 Brain attachmentBatch 暂存） */
+export type TurnAttachment = {
+    fileName: string;
+    title: string;
+    text: string;
+    format?: string;
+    textLength?: number;
+};
+
 /** 编排上下文：由 HTTP 层注入，Agent 不直接读 session */
 export type AgentPipelineContext = {
     /** 当前登录用户 */
@@ -26,6 +35,10 @@ export type AgentPipelineContext = {
      * cancel / supersede 均按此 id 点名中止。
      */
     turnId?: string;
+    /** /documents/extract 返回的批次 id（入库时取原件） */
+    attachmentBatchId?: string;
+    /** 已抽取的附件文本（发送后注入；供 Intake / summarize / translate） */
+    turnAttachments?: TurnAttachment[];
 };
 
 /** Turn 中止原因：显式停止 vs 新消息顶替 */

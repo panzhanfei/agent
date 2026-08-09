@@ -10,6 +10,7 @@ import {
 } from "@/agentflow/agents/online/corpus-lister/enumeration";
 import { resolveCorpusEditUiBypass } from "@/agentflow/agents/online/hitl-write";
 import {
+  applyAttachmentAction,
   buildEnumerationListDecision,
   buildIncompleteUtteranceDecision,
   applyIntakeChitchatGuard,
@@ -242,10 +243,22 @@ export const runIntakeNode = async (
         ? lastSubstantiveUserQuestion(state.intakeHistory, effectiveQuestion)
         : null;
 
+    const turnAttachments = state.context.turnAttachments ?? [];
+    const attachmentBrief =
+      turnAttachments.length > 0
+        ? turnAttachments
+            .map((a, i) => {
+              const preview = a.text.trim().slice(0, 240);
+              return `${i + 1}. ${a.fileName}（${a.textLength ?? a.text.length} 字）预览：${preview}${a.text.length > 240 ? "…" : ""}`;
+            })
+            .join("\n")
+        : null;
+
     let intakeRaw = await completeIntakeCoordinator(intakeHistoryForLlm, {
       memoryBlock: state.memoryBlock,
       intakeHistory: intakeHistoryForLlm,
       priorSubstantiveQuestion: priorSubstantive,
+      attachmentBrief,
     });
 
     if (!parseIntakeDecision(intakeRaw)) {
@@ -258,12 +271,59 @@ export const runIntakeNode = async (
         memoryBlock: state.memoryBlock,
         intakeHistory: intakeHistoryForLlm,
         priorSubstantiveQuestion: priorSubstantive,
+        attachmentBrief,
         jsonFormatRepair: true,
       });
     }
 
+    /** 有附件时先按 attachmentAction 改写，再 legalize（避免空 plan 被误 clarify） */
+    let pipelineRaw = intakeRaw;
+    if (turnAttachments.length > 0) {
+      const parsed =
+        parseIntakeDecision(intakeRaw) ??
+        ({
+          intent: "clarify",
+          searchQuery: "",
+          subTasks: [],
+          topics: ["attachment"],
+          language: "zh" as const,
+          confidence: 0.5,
+          queryType: null,
+          clarifyingQuestion: null,
+          briefReply: null,
+          retrievalPlan: [],
+          pathPlan: { steps: [] },
+          answerOrder: [],
+          composeMode: "qa" as const,
+          userFactKey: null,
+          userFactLabel: null,
+          userFactValue: null,
+          attachmentAction: null,
+          coreference: "none" as const,
+        });
+      const applied = await applyAttachmentAction({
+        decision: parsed,
+        attachments: turnAttachments,
+        attachmentBatchId: state.context.attachmentBatchId,
+        actorUserId: state.context.actorUserId,
+        corpusUserId: state.context.corpusUserId,
+      });
+      logAgentOut("IntakeCoordinator", "附件动作归一", {
+        attachmentAction: applied.decision.attachmentAction ?? null,
+        earlyExit: applied.earlyExit,
+        fileCount: turnAttachments.length,
+      });
+      if (applied.earlyExit) {
+        return {
+          decision: buildEarlyExitRoutedDecision(applied.decision),
+          ...(applied.answer ? { answer: applied.answer } : {}),
+        };
+      }
+      pipelineRaw = JSON.stringify(applied.decision);
+    }
+
     const { decision } = await runIntakePipeline({
-      intakeRaw,
+      intakeRaw: pipelineRaw,
       userQuestion: effectiveQuestion,
       intakeHistory: intakeHistoryForLlm,
       history: state.history,

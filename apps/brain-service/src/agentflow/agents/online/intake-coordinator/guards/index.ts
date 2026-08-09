@@ -26,3 +26,10 @@ export {
     applyEnumerationSlotGuard,
     buildEnumerationListDecision,
 } from "./enumeration-list-intent";
+export {
+    applyAttachmentAction,
+    parseAttachmentAction,
+    ATTACHMENT_ACTIONS,
+    type AttachmentAction,
+    type ApplyAttachmentActionResult,
+} from "./apply-attachment-action";

@@ -56,10 +56,23 @@ export const runContentSummarizerNode = async (
       userQuestion: state.userQuestion,
       decision,
       hits: state.hits,
+      turnAttachments: state.context.turnAttachments,
     });
     if (!text.trim()) {
       return {
         answer: "（没有可摘要的正文，请先说明要总结的项目或粘贴内容）",
+        exitEarly: true,
+      };
+    }
+    // 仅用户短问句、无附件/无 hits：禁止瞎编摘要
+    const fromAttach = (state.context.turnAttachments?.length ?? 0) > 0;
+    const fromHits = state.hits.length > 0;
+    if (!fromAttach && !fromHits && text.trim().length < 80) {
+      return {
+        answer:
+          decision.language === "en"
+            ? "No document or attachment text to summarize. Attach a file or paste the content."
+            : "没有可总结的正文。请上传附件，或粘贴要总结的内容（勿只写「帮我总结」）。",
         exitEarly: true,
       };
     }
@@ -72,6 +85,8 @@ export const runContentSummarizerNode = async (
     logAgentOut("ContentSummarizer", "完成", {
       sourceLabel,
       textChars: text.length,
+      fromAttach,
+      fromHits,
       exitEarly: true,
     });
     return { answer, exitEarly: true };

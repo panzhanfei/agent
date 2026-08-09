@@ -8,6 +8,10 @@ import {
 import type { AgentStreamEvent } from "@fambrain/brain-types";
 import { abortTurn } from "@/agentflow/execution";
 import { runAgentStream } from "@/agentflow";
+import {
+    getAttachmentBatch,
+    turnAttachmentsFromBatch,
+} from "@/agentflow/agents/offline/doc-parser";
 import { requireAuth } from "@/server/middleware";
 import { pipelineStreamBodySchema } from "@/server/schema";
 import { initSseResponse, readJsonBody, writeSse } from "@/server/http";
@@ -57,7 +61,40 @@ export const handlePipelineStream = async (req: IncomingMessage, res: ServerResp
         (typeof crypto !== "undefined" && "randomUUID" in crypto
             ? crypto.randomUUID()
             : `turn-${Date.now()}`);
-    const context = { ...parsed.data.context, turnId };
+    const batchId = parsed.data.context.attachmentBatchId?.trim();
+    let turnAttachments = undefined as
+        | ReturnType<typeof turnAttachmentsFromBatch>
+        | undefined;
+    if (batchId) {
+        const batch = getAttachmentBatch(batchId, parsed.data.context.actorUserId);
+        if (!batch) {
+            res.writeHead(400, { "Content-Type": "application/json" });
+            res.end(
+                JSON.stringify({
+                    error: "附件批次已过期或不存在，请重新选择文件后再发送",
+                })
+            );
+            return;
+        }
+        turnAttachments = turnAttachmentsFromBatch(batch);
+        if (turnAttachments.length === 0) {
+            res.writeHead(422, { "Content-Type": "application/json" });
+            res.end(
+                JSON.stringify({
+                    error:
+                        batch.files.find((f) => f.error)?.error ??
+                        "附件未能抽取有效文本",
+                })
+            );
+            return;
+        }
+    }
+    const context = {
+        ...parsed.data.context,
+        turnId,
+        ...(batchId ? { attachmentBatchId: batchId } : {}),
+        ...(turnAttachments ? { turnAttachments } : {}),
+    };
     initSseResponse(res);
     let completed = false;
     const onClientGone = () => {
