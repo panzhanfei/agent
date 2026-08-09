@@ -217,6 +217,7 @@ export const runIntakeNode = async (
     const corpusEditUi = await resolveCorpusEditUiBypass({
       userQuestion: rawQuestion,
       userId: state.context.actorUserId,
+      corpusUserId: state.context.corpusUserId,
     });
     if (corpusEditUi) {
       logAgentOut("IntakeCoordinator", "短路_corpus_edit_ui", {

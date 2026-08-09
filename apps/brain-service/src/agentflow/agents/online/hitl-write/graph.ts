@@ -122,7 +122,7 @@ export const startCorpusEditGraph = async (input: {
   turnId?: string | null;
   threadId: string;
   targetPath: string;
-  operation: CorpusEditOperation;
+  operation: Exclude<CorpusEditOperation, "open">;
   afterContent: string;
 }) => {
   const graph = getCompiledCorpusEditGraph();

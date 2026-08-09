@@ -1,5 +1,7 @@
 /**
- * corpus_edit 单槽工人：启动 HITL 子图 → interrupt → awaiting_human + actions。
+ * corpus_edit 单槽工人：
+ * - open / update 无正文 → 只读预览（B）
+ * - create（可空）/ update 有正文 / clear → HITL 子图 interrupt（A/C）
  */
 import type { AssistantMessageBlock } from "@fambrain/brain-types";
 import type { CompositeSubRetrieval } from "@/agentflow/agents/online/knowledge-manager";
@@ -8,11 +10,17 @@ import { resolveActiveSlot } from "@/agentflow/agents/online/plan-fanout/active-
 import type { PlanSlotWorkerPatch } from "@/agentflow/agents/online/plan-fanout/interface";
 import type { PipelineGraphState } from "@/agentflow/pipeline/graph/state";
 import {
+  buildCorpusEditAppliedActions,
+  buildCorpusEditAppliedAnswer,
+  buildCorpusEditOpenAnswer,
   buildCorpusEditPendingActions,
   buildCorpusEditPendingAnswer,
 } from "./compose-actions";
+import type { CorpusEditOperation } from "./interface";
+import { corpusEditErrorMessage } from "./errors";
 import { startCorpusEditGraph } from "./graph";
 import { parseEditOperation, targetPathFromStep } from "./propose";
+import { previewCorpusMarkdown } from "./preview";
 import type { CorpusEditProposalView } from "./interface";
 
 const emptySub = (
@@ -24,7 +32,7 @@ const emptySub = (
   slot: slotId,
   label,
   hits: [],
-  coverage: blocks?.length ? "sufficient" : "none",
+  coverage: notes ? "sufficient" : "none",
   notes,
   cacheHit: false,
   facetAnswerCacheHit: false,
@@ -41,7 +49,7 @@ const failedStep = (
   pathKind: "corpus_edit",
   label,
   hits: [],
-  coverage: "none",
+  coverage: "sufficient",
   notes,
   confidenceTier: null,
   enumerationMeta: null,
@@ -76,6 +84,28 @@ const pendingStep = (
   },
 });
 
+const okStep = (
+  slotId: string,
+  label: string,
+  notes: string
+): StepResult => ({
+  stepId: slotId,
+  pathKind: "corpus_edit",
+  label,
+  hits: [],
+  coverage: "sufficient",
+  notes,
+  confidenceTier: "high",
+  enumerationMeta: null,
+  cacheHit: false,
+  fc: {
+    passed: true,
+    refinedSearchQuery: null,
+    issues: [],
+    checkerNotes: "ok",
+  },
+});
+
 type InterruptPayload = {
   proposalId?: string;
   repoPath?: string;
@@ -98,13 +128,16 @@ export const runCorpusEditSlotWorker = async (
 ): Promise<PlanSlotWorkerPatch> => {
   const slot = resolveActiveSlot(state);
   const slotId = state.activeSlotId ?? "unknown";
+  const language = state.decision?.language === "en" ? "en" : "zh";
+
   if (!slot) {
+    const notes = corpusEditErrorMessage("missing_active_slot", language);
     return {
       slotId,
       executor: "corpus_edit",
-      sub: emptySub(slotId, "unknown", "缺少 activeSlotId"),
-      stepResult: failedStep(slotId, "unknown", "缺少 activeSlotId"),
-      error: "缺少 activeSlotId",
+      sub: emptySub(slotId, "unknown", notes),
+      stepResult: failedStep(slotId, "unknown", notes),
+      error: null,
     };
   }
 
@@ -115,7 +148,7 @@ export const runCorpusEditSlotWorker = async (
     searchQuery: slot.searchQuery,
     params: step?.params ?? slot.params ?? null,
   });
-  const operation = parseEditOperation(
+  let operation = parseEditOperation(
     step?.params?.operation ?? slot.params?.operation
   );
   const afterContent = String(
@@ -130,13 +163,56 @@ export const runCorpusEditSlotWorker = async (
       : `corpus-edit:${state.context.corpusUserId}:${slot.id}:${Date.now()}`;
 
   if (!targetPath) {
-    const notes = "corpus_edit 步缺少结构化 targetPath / searchQuery。";
+    const notes = corpusEditErrorMessage("missing_target_path", language);
     return {
       slotId: String(slot.id),
       executor: "corpus_edit",
       sub: emptySub(String(slot.id), slot.label, notes),
       stepResult: failedStep(String(slot.id), slot.label, notes),
-      error: notes,
+      error: null,
+    };
+  }
+
+  // B：显式 open，或 update 无正文 → 只读预览（禁止空覆盖）
+  if (operation === "update" && !afterContent.trim()) {
+    operation = "open";
+  }
+
+  if (operation === "open") {
+    const preview = await previewCorpusMarkdown({
+      corpusUserId: state.context.corpusUserId,
+      targetPath,
+    });
+    if (!preview.ok) {
+      const notes = corpusEditErrorMessage(preview.error, language);
+      return {
+        slotId: String(slot.id),
+        executor: "corpus_edit",
+        sub: emptySub(String(slot.id), slot.label, notes),
+        stepResult: failedStep(String(slot.id), slot.label, notes),
+        error: null,
+      };
+    }
+    const notes = buildCorpusEditOpenAnswer(
+      preview.repoPath,
+      preview.content,
+      language
+    );
+    return {
+      slotId: String(slot.id),
+      executor: "corpus_edit",
+      sub: emptySub(String(slot.id), slot.label, notes),
+      stepResult: okStep(String(slot.id), slot.label, notes),
+      error: null,
+      slotRuntime: {
+        slotId: String(slot.id),
+        status: "done",
+        reason: null,
+        attempts: 1,
+        degraded: false,
+        startedAtMs: Date.now(),
+        finishedAtMs: Date.now(),
+      },
     };
   }
 
@@ -154,18 +230,23 @@ export const runCorpusEditSlotWorker = async (
 
     const interrupted = extractInterrupt(result);
     if (interrupted?.proposalId) {
+      const parsedOp = parseEditOperation(interrupted.operation ?? operation);
+      const writeOp = (
+        parsedOp === "open" ? "update" : parsedOp
+      ) as Exclude<CorpusEditOperation, "open">;
       const proposal: CorpusEditProposalView = {
         proposalId: interrupted.proposalId,
         threadId,
         repoPath: interrupted.repoPath ?? targetPath,
-        operation: parseEditOperation(interrupted.operation ?? operation),
+        operation: writeOp,
         beforeContent: String(interrupted.beforeContent ?? ""),
         afterContent: String(interrupted.afterContent ?? ""),
         status: "pending_review",
       };
-      const language = state.decision?.language === "en" ? "en" : "zh";
       const notes = buildCorpusEditPendingAnswer(proposal, language);
-      const blocks = [buildCorpusEditPendingActions(proposal.proposalId)];
+      const blocks = [
+        buildCorpusEditPendingActions(proposal.proposalId, writeOp, language),
+      ];
       return {
         slotId: String(slot.id),
         executor: "corpus_edit",
@@ -185,23 +266,38 @@ export const runCorpusEditSlotWorker = async (
     }
 
     if (result?.applied) {
-      const notes = `已写入 ${result.proposalId ?? targetPath}（chunks=${result.indexedChunks ?? 0}）`;
+      const repoPath = String(
+        (result as { targetPath?: string }).targetPath ?? targetPath
+      );
+      const writeOp = (
+        operation === "open" ? "update" : operation
+      ) as Exclude<CorpusEditOperation, "open">;
+      const notes = buildCorpusEditAppliedAnswer(
+        repoPath,
+        result.indexedChunks ?? 0,
+        writeOp,
+        language
+      );
+      const blocks = [
+        buildCorpusEditAppliedActions(repoPath, writeOp, language),
+      ];
       return {
         slotId: String(slot.id),
         executor: "corpus_edit",
-        sub: emptySub(String(slot.id), slot.label, notes),
-        stepResult: pendingStep(String(slot.id), slot.label, notes),
+        sub: emptySub(String(slot.id), slot.label, notes, blocks),
+        stepResult: okStep(String(slot.id), slot.label, notes),
         error: null,
       };
     }
 
-    const err = result?.error ?? "corpus_edit_failed";
+    const errCode = result?.error ?? "corpus_edit_failed";
+    const notes = corpusEditErrorMessage(String(errCode), language);
     return {
       slotId: String(slot.id),
       executor: "corpus_edit",
-      sub: emptySub(String(slot.id), slot.label, err),
-      stepResult: failedStep(String(slot.id), slot.label, err),
-      error: err,
+      sub: emptySub(String(slot.id), slot.label, notes),
+      stepResult: failedStep(String(slot.id), slot.label, notes),
+      error: null,
     };
   } catch (e) {
     const msg = e instanceof Error ? e.message : "corpus_edit 失败";
@@ -210,7 +306,7 @@ export const runCorpusEditSlotWorker = async (
       executor: "corpus_edit",
       sub: emptySub(String(slot.id), slot.label, msg),
       stepResult: failedStep(String(slot.id), slot.label, msg),
-      error: msg,
+      error: null,
     };
   }
 };

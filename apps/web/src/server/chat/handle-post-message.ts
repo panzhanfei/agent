@@ -5,6 +5,7 @@ import type {
   AssistantMessageBlock,
   TurnAbortReason,
 } from "@fambrain/brain-types";
+import { after } from "next/server";
 import { encodeSseEvent, sseResponse } from "@/lib/chat/sse";
 import {
   appendAssistantMessage,
@@ -87,257 +88,297 @@ const persistCancelledTurn = async (
   };
 };
 
+type SseSend = (event: string, payload: unknown) => void;
+
+/**
+ * 跑完一轮并落库。SSE 断开（刷新/关页）不中止 Brain；
+ * 仅显式 cancel API 会 abort。
+ */
+const runTurnPipeline = async (input: {
+  options: {
+    conversationId: string;
+    userContent: string;
+    pipelineContent: string;
+    conversationTitle: string;
+    history: DbChatTurn[];
+    pipelineContext: AgentPipelineContext;
+    authToken: string;
+    turnId: string;
+  };
+  inflight: InflightTurn;
+  send: SseSend;
+}): Promise<void> => {
+  const { options, inflight, send } = input;
+  const turnId = options.turnId;
+  const pipelineContent = options.pipelineContent;
+
+  const userRow = await appendUserMessage(
+    options.conversationId,
+    options.userContent
+  );
+  inflight.userMessageId = userRow.id;
+  await maybeUpdateConversationTitle(
+    options.conversationId,
+    options.conversationTitle,
+    options.userContent
+  );
+  send("meta", {
+    turnId,
+    userMessage: {
+      id: userRow.id,
+      role: mapRole(userRow.role),
+      content: userRow.content,
+    },
+  });
+
+  const historyWithUser: DbChatTurn[] = [
+    ...options.history,
+    { role: "user", content: pipelineContent },
+  ];
+  const gen = streamAgentPipeline(
+    historyWithUser,
+    { ...options.pipelineContext, turnId },
+    options.authToken,
+    { signal: inflight.brainAbort.signal }
+  );
+
+  let pipelineResult: AgentPipelineResult | undefined;
+  let sawAborted = false;
+  while (true) {
+    if (inflight.finalized) break;
+    const next = await gen.next();
+    if (next.done) {
+      pipelineResult = next.value;
+      break;
+    }
+    const ev = next.value;
+    if (ev.type === "assistant" && typeof ev.text === "string") {
+      appendInflightPreview(turnId, ev.text);
+    }
+    if (ev.type === "pipeline_log" && ev.entry) {
+      inflight.logs.push(ev.entry);
+    }
+    if (ev.type === "step") {
+      const idx = inflight.steps.findIndex((s) => s.name === ev.name);
+      const step = {
+        name: ev.name,
+        status: ev.status,
+        ...(ev.durationMs !== undefined ? { durationMs: ev.durationMs } : {}),
+      };
+      if (idx >= 0) inflight.steps[idx] = step;
+      else inflight.steps.push(step);
+    }
+    if (ev.type === "pipeline_timing" && ev.timing) {
+      inflight.timing = ev.timing;
+    }
+    if (ev.type === "aborted") {
+      sawAborted = true;
+      const reason = ev.reason;
+      const persisted = await persistCancelledTurn(inflight, reason);
+      send("aborted", {
+        turnId,
+        reason,
+        assistantMessage: persisted.assistantMessage,
+      });
+      continue;
+    }
+    send(streamEventName(ev), ev);
+  }
+
+  if (inflight.finalized || sawAborted || pipelineResult?.aborted) {
+    if (!inflight.finalized && pipelineResult?.aborted) {
+      const reason = pipelineResult.abortReason ?? "cancelled";
+      const persisted = await persistCancelledTurn(inflight, reason);
+      send("aborted", {
+        turnId,
+        reason,
+        assistantMessage: persisted.assistantMessage,
+      });
+    } else if (!inflight.finalized && inflight.brainAbort.signal.aborted) {
+      const reason: TurnAbortReason = inflight.reason ?? "cancelled";
+      const persisted = await persistCancelledTurn(inflight, reason);
+      send("aborted", {
+        turnId,
+        reason,
+        assistantMessage: persisted.assistantMessage,
+      });
+    }
+    send("done", {
+      turnId,
+      aborted: true,
+      reason: inflight.reason ?? pipelineResult?.abortReason ?? "cancelled",
+      userMessage: {
+        id: userRow.id,
+        role: mapRole(userRow.role),
+        content: userRow.content,
+      },
+    });
+    return;
+  }
+
+  if (inflight.brainAbort.signal.aborted && !inflight.finalized) {
+    const reason: TurnAbortReason = inflight.reason ?? "cancelled";
+    const persisted = await persistCancelledTurn(inflight, reason);
+    send("aborted", {
+      turnId,
+      reason,
+      assistantMessage: persisted.assistantMessage,
+    });
+    send("done", {
+      turnId,
+      aborted: true,
+      reason,
+      userMessage: {
+        id: userRow.id,
+        role: mapRole(userRow.role),
+        content: userRow.content,
+      },
+    });
+    return;
+  }
+
+  const finalContent =
+    pipelineResult?.answer?.trim() ||
+    "（模型未返回助手文本：请确认 Ollama 已启动且模型已拉取）";
+  appendInflightPreview(turnId, finalContent);
+  send("ready", {
+    answer: finalContent,
+    timing: pipelineResult?.timing,
+  });
+  const assistantRow = await appendAssistantMessage(
+    options.conversationId,
+    finalContent,
+    pipelineResult?.retrievalPaths?.length || pipelineResult?.blocks?.length
+      ? {
+          ...(pipelineResult?.retrievalPaths?.length
+            ? { retrievalPaths: pipelineResult.retrievalPaths }
+            : {}),
+          ...(pipelineResult?.blocks?.length
+            ? { blocks: pipelineResult.blocks as AssistantMessageBlock[] }
+            : {}),
+        }
+      : undefined
+  );
+  inflight.finalized = true;
+  try {
+    await upsertTurnTrace({
+      userId: options.pipelineContext.actorUserId,
+      conversationId: options.conversationId,
+      messageId: assistantRow.id,
+      userMessageId: userRow.id,
+      userQuestion: pipelineContent,
+      status: "done",
+      timing: pipelineResult?.timing ?? null,
+      entries: pipelineResult?.logs ?? inflight.logs,
+      steps: pipelineResult?.steps ?? inflight.steps,
+    });
+  } catch (traceErr) {
+    console.error("upsertTurnTrace failed", traceErr);
+  }
+  send("done", {
+    turnId,
+    userMessage: {
+      id: userRow.id,
+      role: mapRole(userRow.role),
+      content: userRow.content,
+    },
+    assistantMessage: {
+      id: assistantRow.id,
+      role: mapRole(assistantRow.role),
+      content: assistantRow.content,
+      retrievalPaths: pipelineResult?.retrievalPaths,
+      blocks: pipelineResult?.blocks,
+    },
+    timing: pipelineResult?.timing,
+  });
+};
+
 export const createPostMessageStreamResponse = (options: {
   conversationId: string;
+  /** 入库与 UI 展示 */
   userContent: string;
+  /**
+   * 发给 Brain 的当前轮用户正文（可与 userContent 不同，如 HITL exact-match）。
+   * 缺省 = userContent。
+   */
+  pipelineContent?: string;
   conversationTitle: string;
   history: DbChatTurn[];
   pipelineContext: AgentPipelineContext;
   authToken: string;
   turnId: string;
+  /**
+   * @deprecated 刷新/断线不应取消生成。已忽略。
+   * 显式停止请走 cancel API。
+   */
   clientSignal?: AbortSignal;
 }): Response => {
   const turnId = options.turnId;
+  const pipelineContent = options.pipelineContent ?? options.userContent;
   const inflight = registerInflightTurn({
     turnId,
     conversationId: options.conversationId,
     userId: options.pipelineContext.actorUserId,
-    userQuestion: options.userContent,
+    userQuestion: pipelineContent,
   });
 
-  if (options.clientSignal) {
-    const onClientAbort = () => {
-      if (!inflight.brainAbort.signal.aborted) {
-        inflight.brainAbort.abort();
-      }
-    };
-    if (options.clientSignal.aborted) onClientAbort();
-    else {
-      options.clientSignal.addEventListener("abort", onClientAbort, {
-        once: true,
-      });
+  let sseOpen = true;
+  let enqueue: ((event: string, payload: unknown) => void) | null = null;
+  const emit: SseSend = (event, payload) => {
+    if (!sseOpen || !enqueue) return;
+    try {
+      enqueue(event, payload);
+    } catch {
+      sseOpen = false;
     }
-  }
+  };
+
+  let turnPromise: Promise<void> | null = null;
+  const beginTurn = (): Promise<void> => {
+    if (turnPromise) return turnPromise;
+    turnPromise = runTurnPipeline({
+      options: {
+        conversationId: options.conversationId,
+        userContent: options.userContent,
+        pipelineContent,
+        conversationTitle: options.conversationTitle,
+        history: options.history,
+        pipelineContext: options.pipelineContext,
+        authToken: options.authToken,
+        turnId,
+      },
+      inflight,
+      send: emit,
+    })
+      .catch((e) => {
+        if (inflight.brainAbort.signal.aborted || inflight.finalized) return;
+        console.error(e);
+        emit("error", {
+          error:
+            e instanceof Error
+              ? e.message
+              : "模型流式调用失败，请确认本地 Ollama 可用",
+        });
+      })
+      .finally(() => {
+        unregisterInflightTurn(turnId);
+      });
+    return turnPromise;
+  };
+
+  // 请求/SSE 结束后仍等待 turn 完成并落库（刷新不丢答案）
+  after(() => {
+    void beginTurn();
+  });
 
   const readable = new ReadableStream<Uint8Array>({
     async start(controller) {
-      const send = (event: string, payload: unknown) => {
+      enqueue = (event, payload) => {
         controller.enqueue(encodeSseEvent(event, payload));
       };
-      let userRow: Awaited<ReturnType<typeof appendUserMessage>>;
       try {
-        userRow = await appendUserMessage(
-          options.conversationId,
-          options.userContent
-        );
-        inflight.userMessageId = userRow.id;
-        await maybeUpdateConversationTitle(
-          options.conversationId,
-          options.conversationTitle,
-          options.userContent
-        );
-        send("meta", {
-          turnId,
-          userMessage: {
-            id: userRow.id,
-            role: mapRole(userRow.role),
-            content: userRow.content,
-          },
-        });
-        const historyWithUser: DbChatTurn[] = [
-          ...options.history,
-          { role: "user", content: options.userContent },
-        ];
-        const gen = streamAgentPipeline(
-          historyWithUser,
-          { ...options.pipelineContext, turnId },
-          options.authToken,
-          { signal: inflight.brainAbort.signal }
-        );
-        let pipelineResult: AgentPipelineResult | undefined;
-        let sawAborted = false;
-        while (true) {
-          if (inflight.finalized || inflight.brainAbort.signal.aborted) {
-            break;
-          }
-          const next = await gen.next();
-          if (next.done) {
-            pipelineResult = next.value;
-            break;
-          }
-          const ev = next.value;
-          if (ev.type === "assistant" && typeof ev.text === "string") {
-            appendInflightPreview(turnId, ev.text);
-          }
-          if (ev.type === "pipeline_log" && ev.entry) {
-            inflight.logs.push(ev.entry);
-          }
-          if (ev.type === "step") {
-            const idx = inflight.steps.findIndex((s) => s.name === ev.name);
-            const step = {
-              name: ev.name,
-              status: ev.status,
-              ...(ev.durationMs !== undefined
-                ? { durationMs: ev.durationMs }
-                : {}),
-            };
-            if (idx >= 0) inflight.steps[idx] = step;
-            else inflight.steps.push(step);
-          }
-          if (ev.type === "pipeline_timing" && ev.timing) {
-            inflight.timing = ev.timing;
-          }
-          if (ev.type === "aborted") {
-            sawAborted = true;
-            const reason = ev.reason;
-            const persisted = await persistCancelledTurn(inflight, reason);
-            send("aborted", {
-              turnId,
-              reason,
-              assistantMessage: persisted.assistantMessage,
-            });
-            continue;
-          }
-          send(streamEventName(ev), ev);
-        }
-
-        if (inflight.finalized || sawAborted || pipelineResult?.aborted) {
-          if (!inflight.finalized && pipelineResult?.aborted) {
-            const reason = pipelineResult.abortReason ?? "cancelled";
-            const persisted = await persistCancelledTurn(inflight, reason);
-            send("aborted", {
-              turnId,
-              reason,
-              assistantMessage: persisted.assistantMessage,
-            });
-          }
-          send("done", {
-            turnId,
-            aborted: true,
-            reason: inflight.reason ?? pipelineResult?.abortReason ?? "cancelled",
-            userMessage: {
-              id: userRow.id,
-              role: mapRole(userRow.role),
-              content: userRow.content,
-            },
-          });
-          return;
-        }
-
-        if (inflight.brainAbort.signal.aborted && !inflight.finalized) {
-          const reason: TurnAbortReason = inflight.reason ?? "cancelled";
-          const persisted = await persistCancelledTurn(inflight, reason);
-          send("aborted", {
-            turnId,
-            reason,
-            assistantMessage: persisted.assistantMessage,
-          });
-          send("done", {
-            turnId,
-            aborted: true,
-            reason,
-            userMessage: {
-              id: userRow.id,
-              role: mapRole(userRow.role),
-              content: userRow.content,
-            },
-          });
-          return;
-        }
-
-        const finalContent =
-          pipelineResult?.answer?.trim() ||
-          "（模型未返回助手文本：请确认 Ollama 已启动且模型已拉取）";
-        appendInflightPreview(turnId, finalContent);
-        send("ready", {
-          answer: finalContent,
-          timing: pipelineResult?.timing,
-        });
-        const assistantRow = await appendAssistantMessage(
-          options.conversationId,
-          finalContent,
-          pipelineResult?.retrievalPaths?.length ||
-            pipelineResult?.blocks?.length
-            ? {
-                ...(pipelineResult?.retrievalPaths?.length
-                  ? { retrievalPaths: pipelineResult.retrievalPaths }
-                  : {}),
-                ...(pipelineResult?.blocks?.length
-                  ? { blocks: pipelineResult.blocks as AssistantMessageBlock[] }
-                  : {}),
-              }
-            : undefined
-        );
-        inflight.finalized = true;
-        try {
-          await upsertTurnTrace({
-            userId: options.pipelineContext.actorUserId,
-            conversationId: options.conversationId,
-            messageId: assistantRow.id,
-            userMessageId: userRow.id,
-            userQuestion: options.userContent,
-            status: "done",
-            timing: pipelineResult?.timing ?? null,
-            entries: pipelineResult?.logs ?? inflight.logs,
-            steps: pipelineResult?.steps ?? inflight.steps,
-          });
-        } catch (traceErr) {
-          console.error("upsertTurnTrace failed", traceErr);
-        }
-        send("done", {
-          turnId,
-          userMessage: {
-            id: userRow.id,
-            role: mapRole(userRow.role),
-            content: userRow.content,
-          },
-          assistantMessage: {
-            id: assistantRow.id,
-            role: mapRole(assistantRow.role),
-            content: assistantRow.content,
-            retrievalPaths: pipelineResult?.retrievalPaths,
-            blocks: pipelineResult?.blocks,
-          },
-          timing: pipelineResult?.timing,
-        });
-      } catch (e) {
-        if (inflight.brainAbort.signal.aborted || inflight.finalized) {
-          if (!inflight.finalized) {
-            const reason: TurnAbortReason = inflight.reason ?? "cancelled";
-            try {
-              const persisted = await persistCancelledTurn(inflight, reason);
-              send("aborted", {
-                turnId,
-                reason,
-                assistantMessage: persisted.assistantMessage,
-              });
-            } catch {
-              //
-            }
-          }
-          try {
-            send("done", {
-              turnId,
-              aborted: true,
-              reason: inflight.reason ?? "cancelled",
-            });
-          } catch {
-            //
-          }
-          return;
-        }
-        console.error(e);
-        const msg =
-          e instanceof Error
-            ? e.message
-            : "模型流式调用失败，请确认本地 Ollama 可用";
-        try {
-          send("error", { error: msg });
-        } catch {
-          //
-        }
+        await beginTurn();
       } finally {
-        unregisterInflightTurn(turnId);
         try {
           controller.close();
         } catch {
@@ -346,15 +387,15 @@ export const createPostMessageStreamResponse = (options: {
       }
     },
     cancel() {
-      if (!inflight.brainAbort.signal.aborted) {
-        inflight.brainAbort.abort();
-      }
+      // 断线 / 刷新：只停推 SSE，不 abort Brain（停止按钮走 cancel API）
+      sseOpen = false;
+      enqueue = null;
     },
   });
   return sseResponse(readable);
 };
 
-/** 供 cancel 路由：中止 Brain fetch + 按 reason 落库（与 SSE 断流双保险） */
+/** 供 cancel 路由：中止 Brain fetch + 按 reason 落库 */
 export const finalizeInflightTurnCancel = async (input: {
   turnId: string;
   userId: string;

@@ -27,7 +27,13 @@ export const createMessageSchema = z.object({
 });
 /** POST /api/conversations/:id/messages — 追加用户提问并以 SSE 流式返回助手回复 */
 export const postConversationMessageBodySchema = z.object({
+    /** 入库 / UI 展示文案（HITL 按钮应为「确定新建」等，非内部 prompt） */
     content: messageContentSchema,
+    /**
+     * 可选：发给 Brain / Intake 的路由正文（如 exact-match prompt）。
+     * 有则管道用本字段，库内仍存 content。
+     */
+    routingContent: messageContentSchema.optional(),
     /** Web 生成的 turnId，贯穿 BFF → Brain；缺省时服务端兜底 */
     turnId: z.string().uuid().optional(),
 });

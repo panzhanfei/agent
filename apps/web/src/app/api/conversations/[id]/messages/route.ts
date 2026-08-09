@@ -92,7 +92,7 @@ export const POST = async (req: Request, context: {
         return NextResponse.json({ error: "参数无效", details: parsedBody.error.flatten() }, { status: 400 });
     }
     const conversationId = parsedId.data;
-    const { content, turnId: clientTurnId } = parsedBody.data;
+    const { content, routingContent, turnId: clientTurnId } = parsedBody.data;
     const turnId = clientTurnId ?? crypto.randomUUID();
     try {
         const conversation = await findOwnedConversation(conversationId, session.userId);
@@ -109,6 +109,7 @@ export const POST = async (req: Request, context: {
         return createPostMessageStreamResponse({
             conversationId,
             userContent: content,
+            pipelineContent: routingContent ?? content,
             conversationTitle: conversation.title,
             history,
             authToken,

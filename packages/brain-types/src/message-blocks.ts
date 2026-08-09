@@ -32,7 +32,16 @@ export type AssistantMessageBlock =
           actions: Array<{
               id: string;
               label: string;
+              /** 发给后端的 exact-match / 工具 prompt（可含内部前缀） */
               prompt: string;
+              /** 用户气泡展示文案；缺省用 label，不展示 prompt */
+              displayText?: string;
+              /** 历史卡片作废时由客户端置位 */
+              disabled?: boolean;
+              /**
+               * chat：走消息发送；open_editor：客户端打开双模式编辑器（不发聊天）
+               */
+              clientHandler?: "chat" | "open_editor";
           }>;
       };
 

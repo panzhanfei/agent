@@ -19,6 +19,8 @@ export {
     createCorpusEditProposal,
     findCorpusEditProposalForUser,
     updateCorpusEditProposalStatus,
+    expirePendingCorpusEditProposalsForUser,
+    expireStalePendingCorpusEditProposals,
     createCorpusFileVersion,
     latestCorpusFileVersion,
     type CreateCorpusEditProposalInput,

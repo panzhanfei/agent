@@ -42,7 +42,7 @@ export type DagTemplateId = "hybrid_multi_source";
  * - tool：独立工具步（search_web 等；扩展天气/搜索同族）
  * - summarize：子步总结用户原文（dataSource=user_text）
  * - dag：仅 hybrid_multi_source（语料+外网汇合）
- * - corpus_edit：HITL 语料 md 修订（params.targetPath / operation / afterContent）
+ * - corpus_edit：HITL 语料 md（params.targetPath / operation=update|clear|create|open / afterContent）
  */
 export type ExecutionStep = {
   id: string;

@@ -16,7 +16,7 @@ export type ProposeCorpusEditInput = {
   /** Intake 结构化 path（repo 相对或 corpus 下相对） */
   targetPath: string;
   operation: CorpusEditOperation;
-  /** update/create 的正文；clear 可空 */
+  /** update/create 的正文；clear / create 可空；open 不走 propose */
   afterContent?: string | null;
 };
 
@@ -26,6 +26,10 @@ export const proposeCorpusEdit = async (
   | { ok: true; proposal: CorpusEditProposalView }
   | { ok: false; error: string }
 > => {
+  if (input.operation === "open") {
+    return { ok: false, error: "open_not_writable" };
+  }
+
   const resolved = resolveCorpusMarkdownAbsPath(
     input.corpusUserId,
     input.targetPath
@@ -51,13 +55,12 @@ export const proposeCorpusEdit = async (
   if (input.operation === "clear") {
     afterContent = "";
   }
-  if (
-    (input.operation === "update" || input.operation === "create") &&
-    !afterContent.trim()
-  ) {
+  // A：create 允许空文件；C：update 必须有正文（无正文走 slot 预览，不进 propose）
+  if (input.operation === "update" && !afterContent.trim()) {
     return { ok: false, error: "empty_after_content" };
   }
 
+  const writeOp = input.operation;
   const row = await createCorpusEditProposal({
     userId: input.userId,
     corpusUserId: input.corpusUserId,
@@ -66,9 +69,9 @@ export const proposeCorpusEdit = async (
     threadId: input.threadId,
     repoPath: resolved.repoPath,
     operation:
-      input.operation === "clear"
+      writeOp === "clear"
         ? "CLEAR"
-        : input.operation === "create"
+        : writeOp === "create"
           ? "CREATE"
           : "UPDATE",
     beforeContent,
@@ -81,7 +84,7 @@ export const proposeCorpusEdit = async (
       proposalId: row.id,
       threadId: row.threadId,
       repoPath: row.repoPath,
-      operation: input.operation,
+      operation: writeOp,
       beforeContent: row.beforeContent,
       afterContent: row.afterContent,
       status: "pending_review",
@@ -92,6 +95,7 @@ export const proposeCorpusEdit = async (
 export const parseEditOperation = (raw: unknown): CorpusEditOperation => {
   if (raw === "clear" || raw === "CLEAR") return "clear";
   if (raw === "create" || raw === "CREATE") return "create";
+  if (raw === "open" || raw === "OPEN") return "open";
   return "update";
 };
 

@@ -2,8 +2,14 @@
 import type { ConversationListItem } from "@fambrain/db";
 import type { PipelineLogEntry, PipelineStepName, PipelineTiming, AssistantMessageBlock, } from "@fambrain/brain-types";
 import { AssistantMessageContent } from "@/components/chat/assistant-message-content";
+import { CorpusEditModal } from "@/components/chat/corpus-edit-modal";
 import { LinkifiedText } from "@/components/chat/linkified-text";
 import { ConversationLogPanel } from "@/components/chat/conversation-log-panel";
+import {
+  corpusEditStaleGroupKey,
+  corpusEditTargetPathFromOpenPrompt,
+  type ChatActionPayload,
+} from "@/lib/hitl/corpus-edit-ui";
 import {
   createTurnLog,
   upsertStep,
@@ -46,10 +52,12 @@ const STEP_TIMING_LABELS: Record<PipelineStepName, string> = {
   retrieval: "检索知识库",
   km_retrieve: "知识检索",
   list_retrieve: "列举检索",
+  corpus_edit: "语料修订",
   plan_slot_join: "槽位汇合",
   plan_slot_post: "检索后工具",
   plan_dag: "多源汇合",
   plan_merge: "合并结果",
+  global_rebatch: "全局重批",
   plan_executor: "执行计划",
   fact_checker: "核查证据",
   content_summarizer: "生成摘要",
@@ -500,6 +508,11 @@ export const ChatShell = ({ initialConversations, viewer }: ChatShellProps) => {
   /** 最近一次发送出错（文案已入库但助手失败时为模型错误提示） */
   const [sendError, setSendError] = useState<string | null>(null);
   const [sendBusy, setSendBusy] = useState(false);
+  /** HITL 按钮终态 / 会话作废：同组 prompt 置灰 */
+  const [staleActionKeys, setStaleActionKeys] = useState<Set<string>>(
+    () => new Set()
+  );
+  const [corpusEditPath, setCorpusEditPath] = useState<string | null>(null);
   const sendBusyRef = useRef(false);
   const pendingUserTempIdRef = useRef<string | null>(null);
   const isComposingRef = useRef(false);
@@ -520,6 +533,8 @@ export const ChatShell = ({ initialConversations, viewer }: ChatShellProps) => {
   const activeTurnIdRef = useRef<string | null>(null);
   const abortControllerRef = useRef<AbortController | null>(null);
   const streamPreviewRef = useRef("");
+  /** 刷新后等待后台落库的助手回复：按「会话:末条 userId」限次轮询 */
+  const assistPollCountRef = useRef<Map<string, number>>(new Map());
   const [streamingTurnId, setStreamingTurnId] = useState<string | null>(null);
   const speechDraftBaseRef = useRef("");
   const appendSpeechToDraft = useCallback(
@@ -784,6 +799,19 @@ export const ChatShell = ({ initialConversations, viewer }: ChatShellProps) => {
               liveTimingById.get(m.id) ?? timingByMessageId.get(m.id),
           }));
         });
+        // 刷新后末条是用户消息：后台可能仍在生成，短轮询补齐助手（每条 user 最多 2 次）
+        const last = msgResult.data[msgResult.data.length - 1];
+        if (last?.role === "user") {
+          const pollKey = `${activeConversationId}:${last.id}`;
+          const n = assistPollCountRef.current.get(pollKey) ?? 0;
+          if (n < 2) {
+            assistPollCountRef.current.set(pollKey, n + 1);
+            const delay = n === 0 ? 2500 : 7000;
+            window.setTimeout(() => {
+              if (!cancelled) setMessagesRetryTick((x) => x + 1);
+            }, delay);
+          }
+        }
       } else {
         setMessages([]);
         setMessagesError(msgResult.error);
@@ -832,6 +860,8 @@ export const ChatShell = ({ initialConversations, viewer }: ChatShellProps) => {
     setEditingSidebarId(null);
     setEditSidebarTitleDraft("");
     setDraft("");
+    setStaleActionKeys(new Set());
+    setCorpusEditPath(null);
   }, []);
   const updateLogsForConversation = useCallback(
     (
@@ -947,9 +977,23 @@ export const ChatShell = ({ initialConversations, viewer }: ChatShellProps) => {
     [activeConversationId, patchActiveTurnLog, releaseSendLock]
   );
 
-  const sendMessageWithContent = useCallback(async (content: string) => {
+  const markStaleActionKey = useCallback((key: string | null | undefined) => {
+    if (!key) return;
+    setStaleActionKeys((prev) => {
+      if (prev.has(key)) return prev;
+      const next = new Set(prev);
+      next.add(key);
+      return next;
+    });
+  }, []);
+
+  const sendMessageWithContent = useCallback(async (
+    content: string,
+    options?: { displayContent?: string; staleGroupKey?: string | null }
+  ) => {
     const trimmed = content.trim();
     if (!trimmed) return;
+    const displayContent = (options?.displayContent ?? trimmed).trim() || trimmed;
     // 首 token 前 sendBusy 防连点；流式中允许再发 → supersede
     if (sendBusy && !streamingTurnId) return;
     if (streamingTurnId || activeTurnIdRef.current) {
@@ -962,6 +1006,7 @@ export const ChatShell = ({ initialConversations, viewer }: ChatShellProps) => {
     streamPreviewRef.current = "";
     setStreamBlocks([]);
     setThinkingPanelVisible(false);
+    markStaleActionKey(options?.staleGroupKey ?? corpusEditStaleGroupKey(trimmed));
     const tempUserId = `temp:${crypto.randomUUID()}`;
     pendingUserTempIdRef.current = tempUserId;
     const turnId = crypto.randomUUID();
@@ -993,10 +1038,10 @@ export const ChatShell = ({ initialConversations, viewer }: ChatShellProps) => {
       setActiveConversationId(convId);
       setMessages((prev) => [
         ...prev,
-        { id: tempUserId, role: "user", content: trimmed },
+        { id: tempUserId, role: "user", content: displayContent },
       ]);
       updateLogsForConversation(convId, (bundle) =>
-        appendTurnToBundle(bundle, createTurnLog(turnId, trimmed))
+        appendTurnToBundle(bundle, createTurnLog(turnId, displayContent))
       );
       type MetaPayload = {
         userMessage: ChatMessage;
@@ -1014,7 +1059,13 @@ export const ChatShell = ({ initialConversations, viewer }: ChatShellProps) => {
         method: "POST",
         headers: { "Content-Type": "application/json" },
         credentials: "same-origin",
-        body: JSON.stringify({ content: trimmed, turnId }),
+        body: JSON.stringify({
+          content: displayContent,
+          ...(displayContent !== trimmed
+            ? { routingContent: trimmed }
+            : {}),
+          turnId,
+        }),
         signal: controller.signal,
       });
       if (!res.ok) {
@@ -1440,6 +1491,7 @@ export const ChatShell = ({ initialConversations, viewer }: ChatShellProps) => {
   }, [
     activeConversationId,
     loadConversations,
+    markStaleActionKey,
     patchActiveTurnLog,
     releaseSendLock,
     sendBusy,
@@ -1447,6 +1499,24 @@ export const ChatShell = ({ initialConversations, viewer }: ChatShellProps) => {
     streamingTurnId,
     updateLogsForConversation,
   ]);
+
+  const handleChatAction = useCallback(
+    (action: ChatActionPayload) => {
+      if (action.clientHandler === "open_editor") {
+        const path = corpusEditTargetPathFromOpenPrompt(action.prompt);
+        if (!path) return;
+        // 打开编辑器不立即作废「暂不编辑」；提交提案或点暂不编辑后再作废
+        setCorpusEditPath(path);
+        return;
+      }
+      void sendMessageWithContent(action.prompt, {
+        displayContent: action.displayText ?? action.label,
+        staleGroupKey: corpusEditStaleGroupKey(action.prompt),
+      });
+    },
+    [markStaleActionKey, sendMessageWithContent]
+  );
+
   const sendMessage = useCallback(async () => {
     await sendMessageWithContent(draft);
   }, [draft, sendMessageWithContent]);
@@ -1863,7 +1933,8 @@ export const ChatShell = ({ initialConversations, viewer }: ChatShellProps) => {
                         <AssistantMessageContent
                           content={m.content}
                           blocks={m.blocks}
-                          onAction={(prompt) => void sendMessageWithContent(prompt)}
+                          onAction={handleChatAction}
+                          staleActionKeys={staleActionKeys}
                         />
                       ) : (
                         <LinkifiedText text={m.content} />
@@ -1900,7 +1971,8 @@ export const ChatShell = ({ initialConversations, viewer }: ChatShellProps) => {
                       <AssistantMessageContent
                         content={streamAnswerPreview}
                         blocks={streamBlocks}
-                        onAction={(prompt) => void sendMessageWithContent(prompt)}
+                        onAction={handleChatAction}
+                        staleActionKeys={staleActionKeys}
                       />
                     </div>
                   </li>
@@ -2047,6 +2119,25 @@ export const ChatShell = ({ initialConversations, viewer }: ChatShellProps) => {
           </div>
         </div>
       </main>
+      {corpusEditPath ? (
+        <CorpusEditModal
+          targetPath={corpusEditPath}
+          conversationId={activeConversationId}
+          onClose={() => setCorpusEditPath(null)}
+          onProposed={({ answer, blocks, staleGroupKey }) => {
+            markStaleActionKey(staleGroupKey);
+            setMessages((prev) => [
+              ...prev,
+              {
+                id: `temp-assistant:${crypto.randomUUID()}`,
+                role: "assistant",
+                content: answer,
+                blocks,
+              },
+            ]);
+          }}
+        />
+      ) : null}
     </div>
   );
 };

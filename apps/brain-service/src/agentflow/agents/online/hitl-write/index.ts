@@ -11,7 +11,10 @@ export {
   CORPUS_EDIT_ACTION,
   corpusEditApprovePrompt,
   corpusEditDetailPrompt,
+  corpusEditDismissEditPrompt,
+  corpusEditOpenFilePrompt,
   corpusEditRejectPrompt,
+  corpusEditStaleGroupKey,
   matchCorpusEditUiPrompt,
   type CorpusEditUiAction,
 } from "./actions";
@@ -28,6 +31,10 @@ export {
   targetPathFromStep,
 } from "./propose";
 
+export { proposeCorpusEditFromApi } from "./propose-from-api";
+
+export { previewCorpusMarkdown } from "./preview";
+
 export {
   applyCorpusEditProposal,
   rejectCorpusEditProposal,
@@ -42,11 +49,24 @@ export {
 export { resumeCorpusEdit } from "./resume";
 
 export {
+  CORPUS_EDIT_PENDING_TTL_MS,
+  ensureProposalNotStale,
+  expirePendingOnNewConversation,
+  loadActionableProposal,
+} from "./lifecycle";
+
+export {
+  buildCorpusEditAppliedActions,
+  buildCorpusEditAppliedAnswer,
   buildCorpusEditDetailAnswer,
+  buildCorpusEditDismissEditAnswer,
+  buildCorpusEditOpenAnswer,
   buildCorpusEditPendingActions,
   buildCorpusEditPendingAnswer,
   buildCorpusEditReviewActions,
 } from "./compose-actions";
+
+export { corpusEditErrorMessage } from "./errors";
 
 export { runCorpusEditSlotWorker } from "./slot";
 export { resolveCorpusEditUiBypass } from "./intake-bypass";

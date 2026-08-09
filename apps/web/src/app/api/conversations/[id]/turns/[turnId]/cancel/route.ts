@@ -17,7 +17,8 @@ const MAX_JSON_BODY = 4096;
 
 /**
  * POST /api/conversations/:id/turns/:turnId/cancel
- * 显式取消：Brain 任务级 abort + BFF 落库策略（与 fetch Abort 双保险）。
+ * 显式取消（停止按钮）：Brain 任务级 abort + BFF 落库。
+ * 页面刷新 / SSE 断线不会走此接口，后台仍会跑完并落库。
  */
 export const POST = async (
   req: Request,

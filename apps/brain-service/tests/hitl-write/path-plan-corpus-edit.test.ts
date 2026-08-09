@@ -48,4 +48,49 @@ describe("pathPlan corpus_edit", () => {
     });
     expect(stepsOfKind(plan, "corpus_edit")).toHaveLength(0);
   });
+
+  it("legalizes create empty and open preview", () => {
+    const createPlan = legalizePathPlan({
+      steps: [
+        {
+          id: "create-1",
+          kind: "corpus_edit",
+          label: "新建",
+          searchQuery: "personal/_x.md",
+          queryType: "default",
+          topics: ["personal"],
+          params: {
+            targetPath: "personal/_x.md",
+            operation: "create",
+            afterContent: "",
+          },
+        },
+      ],
+    });
+    expect(stepsOfKind(createPlan, "corpus_edit")).toHaveLength(1);
+    expect(createPlan.steps[0]?.params?.operation).toBe("create");
+
+    const openPlan = legalizePathPlan({
+      steps: [
+        {
+          id: "open-1",
+          kind: "corpus_edit",
+          label: "打开",
+          searchQuery: "personal/_x.md",
+          queryType: "default",
+          topics: ["personal"],
+          params: {
+            targetPath: "personal/_x.md",
+            operation: "open",
+            afterContent: "",
+          },
+        },
+      ],
+    });
+    expect(stepsOfKind(openPlan, "corpus_edit")).toHaveLength(1);
+    expect(openPlan.steps[0]?.params?.operation).toBe("open");
+    expect(deriveCompositeSlotsFromPathPlan(openPlan)[0]?.executor).toBe(
+      "corpus_edit"
+    );
+  });
 });

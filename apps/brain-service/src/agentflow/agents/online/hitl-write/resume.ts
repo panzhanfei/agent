@@ -1,9 +1,10 @@
 /**
  * HITL resume：优先 Command 续跑 checkpointer 子图；失败则 DB 直写兜底。
+ * 终态 / TTL 过期不可再批。
  */
-import { findCorpusEditProposalForUser } from "@fambrain/db";
 import { applyCorpusEditProposal, rejectCorpusEditProposal } from "./apply";
 import { resumeCorpusEditGraph } from "./graph";
+import { loadActionableProposal } from "./lifecycle";
 import type { CorpusEditApplyResult, CorpusEditResumeAction } from "./interface";
 
 export const resumeCorpusEdit = async (input: {
@@ -14,14 +15,9 @@ export const resumeCorpusEdit = async (input: {
   | { ok: true; applied: boolean; result?: CorpusEditApplyResult; via: "graph" | "db" }
   | { ok: false; error: string }
 > => {
-  const proposal = await findCorpusEditProposalForUser(
-    input.proposalId,
-    input.userId
-  );
-  if (!proposal) return { ok: false, error: "proposal_not_found" };
-  if (proposal.status !== "PENDING_REVIEW") {
-    return { ok: false, error: `proposal_status_${proposal.status.toLowerCase()}` };
-  }
+  const loaded = await loadActionableProposal(input.proposalId, input.userId);
+  if (!loaded.ok) return { ok: false, error: loaded.error };
+  const proposal = loaded.proposal;
 
   try {
     const graphResult = await resumeCorpusEditGraph({

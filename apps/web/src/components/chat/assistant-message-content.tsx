@@ -2,15 +2,16 @@
 
 import type { AssistantMessageBlock } from "@fambrain/brain-types";
 import { LinkifiedText } from "@/components/chat/linkified-text";
+import {
+  actionIsStale,
+  type ChatActionPayload,
+} from "@/lib/hitl/corpus-edit-ui";
 
 type EnumerationBlockProps = {
   block: Extract<AssistantMessageBlock, { type: "enumeration" }>;
-  onAction?: (prompt: string) => void;
 };
 
-export const EnumerationBlockView = ({
-  block,
-}: EnumerationBlockProps) => {
+export const EnumerationBlockView = ({ block }: EnumerationBlockProps) => {
   const startIndex =
     block.startIndex ?? (block.page - 1) * block.pageSize + 1;
   return (
@@ -62,13 +63,15 @@ export const EnumerationBlockView = ({
 type AssistantMessageContentProps = {
   content: string;
   blocks?: AssistantMessageBlock[];
-  onAction?: (prompt: string) => void;
+  onAction?: (action: ChatActionPayload) => void;
+  staleActionKeys?: ReadonlySet<string>;
 };
 
 export const AssistantMessageContent = ({
   content,
   blocks,
   onAction,
+  staleActionKeys,
 }: AssistantMessageContentProps) => {
   if (!blocks?.length) {
     return (
@@ -99,27 +102,41 @@ export const AssistantMessageContent = ({
           );
         }
         if (block.type === "enumeration") {
-          return (
-            <EnumerationBlockView
-              key={`e-${i}`}
-              block={block}
-              onAction={onAction}
-            />
-          );
+          return <EnumerationBlockView key={`e-${i}`} block={block} />;
         }
         if (block.type === "actions") {
           return (
             <div key={`a-${i}`} className="flex flex-wrap gap-2">
-              {block.actions.map((action) => (
-                <button
-                  key={action.id}
-                  type="button"
-                  onClick={() => onAction?.(action.prompt)}
-                  className="rounded-full border border-[#c7d2fe] bg-[#eef2ff] px-3 py-1 text-[12px] font-medium text-[#4338ca] hover:bg-[#e0e7ff]"
-                >
-                  {action.label}
-                </button>
-              ))}
+              {block.actions.map((action) => {
+                const stale =
+                  action.disabled ||
+                  (staleActionKeys != null &&
+                    actionIsStale(action.prompt, staleActionKeys));
+                return (
+                  <button
+                    key={action.id}
+                    type="button"
+                    disabled={stale}
+                    onClick={() =>
+                      onAction?.({
+                        id: action.id,
+                        label: action.label,
+                        prompt: action.prompt,
+                        displayText: action.displayText,
+                        disabled: action.disabled,
+                        clientHandler: action.clientHandler,
+                      })
+                    }
+                    className={`rounded-full border px-3 py-1 text-[12px] font-medium ${
+                      stale
+                        ? "cursor-not-allowed border-[#e5e7eb] bg-[#f3f4f6] text-[#9ca3af]"
+                        : "border-[#c7d2fe] bg-[#eef2ff] text-[#4338ca] hover:bg-[#e0e7ff]"
+                    }`}
+                  >
+                    {action.label}
+                  </button>
+                );
+              })}
             </div>
           );
         }

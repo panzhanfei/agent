@@ -57,6 +57,40 @@ export const updateCorpusEditProposalStatus = async (
   });
 };
 
+/** 新开会话 / 会话结束：将该用户全部 PENDING_REVIEW 标为 EXPIRED */
+export const expirePendingCorpusEditProposalsForUser = async (
+  userId: string
+): Promise<number> => {
+  const result = await prisma.corpusEditProposal.updateMany({
+    where: {
+      userId,
+      status: CorpusEditProposalStatus.PENDING_REVIEW,
+    },
+    data: {
+      status: CorpusEditProposalStatus.EXPIRED,
+      reviewedAt: new Date(),
+    },
+  });
+  return result.count;
+};
+
+/** 按 createdAt 将超时 pending 标 EXPIRED（TTL 扫） */
+export const expireStalePendingCorpusEditProposals = async (
+  olderThan: Date
+): Promise<number> => {
+  const result = await prisma.corpusEditProposal.updateMany({
+    where: {
+      status: CorpusEditProposalStatus.PENDING_REVIEW,
+      createdAt: { lt: olderThan },
+    },
+    data: {
+      status: CorpusEditProposalStatus.EXPIRED,
+      reviewedAt: new Date(),
+    },
+  });
+  return result.count;
+};
+
 export const createCorpusFileVersion = async (input: {
   corpusUserId: string;
   repoPath: string;

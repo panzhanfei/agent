@@ -22,7 +22,7 @@ describe("hitl-write paths", () => {
 });
 
 describe("hitl-write UI exact-match prompts", () => {
-  it("matches detail / approve / reject prefixes only", () => {
+  it("matches detail / approve / reject / open / dismiss prefixes only", () => {
     const id = "prop_1";
     expect(
       matchCorpusEditUiPrompt(`${CORPUS_EDIT_ACTION.openDetailPrefix}${id}`)
@@ -33,6 +33,16 @@ describe("hitl-write UI exact-match prompts", () => {
     expect(
       matchCorpusEditUiPrompt(`${CORPUS_EDIT_ACTION.rejectPrefix}${id}`)
     ).toEqual({ type: "reject", proposalId: id });
+    expect(
+      matchCorpusEditUiPrompt(
+        `${CORPUS_EDIT_ACTION.openFilePrefix}personal/a.md`
+      )
+    ).toEqual({ type: "open", targetPath: "personal/a.md" });
+    expect(
+      matchCorpusEditUiPrompt(
+        `${CORPUS_EDIT_ACTION.dismissEditPrefix}personal/a.md`
+      )
+    ).toEqual({ type: "dismiss_edit", targetPath: "personal/a.md" });
     expect(matchCorpusEditUiPrompt("请更新我的简历")).toBeNull();
     expect(matchCorpusEditUiPrompt("确认写入")).toBeNull();
   });

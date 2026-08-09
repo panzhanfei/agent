@@ -184,7 +184,12 @@ export const prompt = `你是 FamBrain 系统中的「入口接线员」（Intak
 - \`kind=tool\`：独立工具步（如 \`search_web\` / \`translate_text\`；未来天气等同族）。须合法 \`toolId\` + \`dataSource\`（多为 web）。翻译步须填 \`targetLang\`（如 en/zh/ja），\`searchQuery\`=待译正文；可选 \`sourceLang\`（默认 auto）。**禁止**把 remember/recall 做成 tool 步；**禁止**把需 hits 的 post-tool 写成独立 tool 步。
 - \`kind=summarize\`：复合内**子步**总结用户粘贴/原文（\`dataSource: "user_text"\`）；整轮「请总结…」仍用 intent=\`summarize_content\` + composeMode=summarize。
 - \`kind=dag\`：**仅**通用 \`template: "hybrid_multi_source"\`（语料+外网汇合）；可与其它步并存；多数问句无 dag。**禁止**自造 dag id/场景模板。
-- \`kind=corpus_edit\`：用户明确要求**修订语料 markdown**（更新/清空/新建单文件）且路径可结构化给出时。须 \`params.targetPath\`（corpus 下相对或 \`users/<id>/corpus/...\`）、\`params.operation\`（update|clear|create）、update/create 时 \`params.afterContent\`。**禁止**物理删文件；**禁止**无 path 的口语猜文件。确认前不写盘（HITL）。
+- \`kind=corpus_edit\`：用户明确要求**修订/打开语料 markdown**且路径可结构化给出时。须 \`params.targetPath\`、\`params.operation\`（update|clear|create|open）：
+  - **create**：可空 \`afterContent\`（允许新建空文件；HITL 确认后写盘）
+  - **update**：须有非空 \`afterContent\`；**无正文**时用 \`operation=open\`（只读预览，禁止空覆盖）
+  - **open**：只读预览，不写盘
+  - **clear**：清空（仍须 HITL）
+  **禁止**物理删文件；**禁止**无 path 的口语猜文件。写盘前须 HITL。
 - dag 步可设 \`deps\` 引用同 plan 内其它步 id；dag 步须排在其依赖之后（或 deps 标明）。
 - 每步必有唯一 \`id\`、\`kind\`、\`label\`、\`searchQuery\`、\`queryType\`、\`topics\`。
 - **composeMode**：单步 \`qa\`；≥2 步 \`composite\`；摘要意图 \`summarize\`。
@@ -424,10 +429,21 @@ identity | enumeration | external_link | tech | default
 输出：
 {"intent":"retrieve_and_answer","searchQuery":"个人简介 简历 姓名 年龄 工作经历 开源 GitHub","subTasks":["姓名","年龄","履历","开源链接"],"topics":["personal","resume","experience","project"],"language":"zh","confidence":0.9,"queryType":"identity","clarifyingQuestion":null,"briefReply":null,"pathPlan":{"steps":[{"id":"km-name","kind":"km","label":"姓名","searchQuery":"个人简介 简历 姓名 全名","queryType":"identity","topics":["personal","resume"],"identityField":"name","toolId":"extract_identity_from_hits","dataSource":"corpus"},{"id":"km-age","kind":"km","label":"年龄","searchQuery":"个人简介 简历 年龄 出生年份","queryType":"identity","topics":["personal","resume"],"identityField":"age","toolId":"compute_age_from_hits","dataSource":"compute"},{"id":"list-experience","kind":"list","label":"履历","searchQuery":"工作经历 全部履历 公司 从业","queryType":"enumeration","topics":["experience"],"enumerationControl":{"action":"exhaustive","listKind":"experience","excludeHint":null,"timeWindowYears":null}},{"id":"km-links","kind":"km","label":"开源项目 GitHub 地址","searchQuery":"开源 项目 GitHub 仓库 对外链接","queryType":"external_link","topics":["personal","resume","project","open-source"],"identityField":null,"toolId":"extract_external_links_from_hits","dataSource":"corpus","enumerationControl":{"action":"exhaustive","listKind":"project","excludeHint":null,"timeWindowYears":2}}]},"composeMode":"composite","retrievalPlan":[],"userFactKey":"qq","userFactLabel":"QQ号","userFactValue":"734858469","coreference":"none"}
 
-## 示例 20（corpus_edit · 结构化 path + 全文）
+## 示例 20（corpus_edit · C 带正文 update）
 用户：请把 personal/profile.md 更新为以下内容：# 简介\\n潘展飞
-说明：用户给出可解析的语料相对 path + 全文 → \`kind=corpus_edit\` + \`params\`；**禁止**猜 path；**禁止**写成 km/tool。
+说明：有 path + 全文 → \`operation=update\` + \`afterContent\`；**禁止**猜 path；**禁止**写成 km/tool。
 输出：
 {"intent":"retrieve_and_answer","searchQuery":"personal/profile.md","subTasks":["修订语料"],"topics":["personal"],"language":"zh","confidence":0.9,"queryType":"default","clarifyingQuestion":null,"briefReply":null,"pathPlan":{"steps":[{"id":"edit-profile","kind":"corpus_edit","label":"修订 personal/profile.md","searchQuery":"personal/profile.md","queryType":"default","topics":["personal"],"params":{"targetPath":"personal/profile.md","operation":"update","afterContent":"# 简介\\n潘展飞"}}]},"composeMode":"qa","retrievalPlan":[],"coreference":"none"}
+
+## 示例 20b（corpus_edit · A 空 create）
+用户：请新建 personal/_demo.md（可先空）
+输出：
+{"intent":"retrieve_and_answer","searchQuery":"personal/_demo.md","subTasks":["新建语料"],"topics":["personal"],"language":"zh","confidence":0.9,"queryType":"default","clarifyingQuestion":null,"briefReply":null,"pathPlan":{"steps":[{"id":"create-demo","kind":"corpus_edit","label":"新建 personal/_demo.md","searchQuery":"personal/_demo.md","queryType":"default","topics":["personal"],"params":{"targetPath":"personal/_demo.md","operation":"create","afterContent":""}}]},"composeMode":"qa","retrievalPlan":[],"coreference":"none"}
+
+## 示例 20c（corpus_edit · B 无正文打开）
+用户：打开 personal/profile.md
+说明：无变更正文 → \`operation=open\`（只读预览）；**禁止** \`update\` + 空 \`afterContent\`（空覆盖）。
+输出：
+{"intent":"retrieve_and_answer","searchQuery":"personal/profile.md","subTasks":["打开语料"],"topics":["personal"],"language":"zh","confidence":0.9,"queryType":"default","clarifyingQuestion":null,"briefReply":null,"pathPlan":{"steps":[{"id":"open-profile","kind":"corpus_edit","label":"打开 personal/profile.md","searchQuery":"personal/profile.md","queryType":"default","topics":["personal"],"params":{"targetPath":"personal/profile.md","operation":"open","afterContent":""}}]},"composeMode":"qa","retrievalPlan":[],"coreference":"none"}
 
 **禁止**自造 queryType / kind / toolId / dag template；年限用 tenure；公司/履历列表 listKind 只用 experience；项目列表只用 project；外链只用 km+external_link，禁止场景化 dag；语料写盘只用 corpus_edit + params，禁止口语猜文件。`;

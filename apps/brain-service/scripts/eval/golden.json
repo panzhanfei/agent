@@ -401,9 +401,30 @@
   },
   "corpusEditProbe": {
     "id": "G-HITL-corpus-edit",
-    "label": "HITL corpus_edit：pathPlan + UI exact-match + interrupt/approve 写盘",
-    "relativePath": "personal/_eval_hitl_tmp.md",
-    "afterContent": "# eval hitl\ncorpus_edit ok\n"
+    "label": "HITL corpus_edit A/B/C + 分阶段按钮/TTL 契约",
+    "cases": [
+      {
+        "id": "A-create-empty",
+        "label": "A 空 create + HITL 写盘",
+        "mode": "create_empty",
+        "relativePath": "personal/_eval_hitl_create.md"
+      },
+      {
+        "id": "B-open-preview",
+        "label": "B 无正文预览（禁止空覆盖）",
+        "mode": "open_preview",
+        "relativePath": "personal/_eval_hitl_open.md",
+        "seedContent": "# seed open\npreview keep\n"
+      },
+      {
+        "id": "C-update-body",
+        "label": "C 带正文 update + HITL 写盘",
+        "mode": "update_body",
+        "relativePath": "personal/_eval_hitl_update.md",
+        "seedContent": "# seed\nbefore\n",
+        "afterContent": "# eval hitl\ncorpus_edit ok\n"
+      }
+    ]
   },
   "profileProbe": {
     "id": "G-履历综合",

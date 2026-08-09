@@ -1,5 +1,6 @@
 /**
  * BFF 进行中 turn：cancel API 与 SSE 流共享 preview / AbortController。
+ * 注意：浏览器刷新 / SSE 断线 ≠ cancel；仅显式停止会 abort Brain。
  */
 import type {
   PipelineLogEntry,
