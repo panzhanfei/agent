@@ -13,6 +13,7 @@ import {
 import {
   CORPUS_EDIT_ACTION,
   buildCorpusEditAppliedActions,
+  buildCorpusEditOpenActions,
   buildCorpusEditPendingActions,
   matchCorpusEditUiPrompt,
   parseEditOperation,
@@ -128,11 +129,15 @@ const uiPromptCheck = (
   ).actions
     .map((a) => a.label)
     .join("|");
+  const openLabels = buildCorpusEditOpenActions("personal/_x.md", "zh")
+    .actions.map((a) => a.label)
+    .join("|");
   const stageOk =
     createLabels.includes("确定新建") &&
     createLabels.includes("放弃新建") &&
     appliedLabels.includes("编辑新建文件") &&
-    appliedLabels.includes("暂不编辑");
+    appliedLabels.includes("暂不编辑") &&
+    openLabels.includes("编辑此文件");
   return [
     {
       id: `${caseId}-ui-detail`,
@@ -166,10 +171,46 @@ const uiPromptCheck = (
       pass: stageOk,
       reason: stageOk
         ? "ok"
-        : `labels create=${createLabels} applied=${appliedLabels}`,
+        : `labels create=${createLabels} applied=${appliedLabels} open=${openLabels}`,
       latencyMs: Date.now() - started,
     },
   ];
+};
+
+/** 结构归一：update + 空 afterContent → open（禁止空覆盖） */
+const updateEmptyCoercesToOpenCheck = (
+  caseId: string,
+  label: string,
+  relativePath: string,
+  started: number
+): CorpusEditProbeResult => {
+  const plan = legalizePathPlan({
+    steps: [
+      {
+        id: "edit-coerce",
+        kind: "corpus_edit",
+        label: "评测空 update→open",
+        searchQuery: relativePath,
+        queryType: "default",
+        topics: ["personal"],
+        params: {
+          targetPath: relativePath,
+          operation: "update",
+          afterContent: "",
+        },
+      },
+    ],
+  });
+  const op = String(plan.steps[0]?.params?.operation ?? "");
+  const ok = op === "open";
+  return {
+    id: `${caseId}-coerce-open`,
+    tier: "pipeline",
+    label: `${label} · update空→open`,
+    pass: ok,
+    reason: ok ? "ok" : `expected open, got ${op || "(missing)"}`,
+    latencyMs: Date.now() - started,
+  };
 };
 
 const requireActiveUser = async () =>
@@ -293,6 +334,7 @@ const runOpenPreview = async (
 ): Promise<CorpusEditProbeResult[]> => {
   const results: CorpusEditProbeResult[] = [
     pathPlanCheck(c.id, c.label, c.relativePath, "open", "", started),
+    updateEmptyCoercesToOpenCheck(c.id, c.label, c.relativePath, started),
     ...uiPromptCheck(c.id, c.label, started),
   ];
 

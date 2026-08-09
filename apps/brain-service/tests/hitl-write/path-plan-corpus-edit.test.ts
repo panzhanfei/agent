@@ -49,6 +49,28 @@ describe("pathPlan corpus_edit", () => {
     expect(stepsOfKind(plan, "corpus_edit")).toHaveLength(0);
   });
 
+  it("coerces update with empty afterContent to open", () => {
+    const plan = legalizePathPlan({
+      steps: [
+        {
+          id: "edit-empty",
+          kind: "corpus_edit",
+          label: "修改亲友关系",
+          searchQuery: "personal/亲友关系.md",
+          queryType: "default",
+          topics: ["personal"],
+          params: {
+            targetPath: "personal/亲友关系.md",
+            operation: "update",
+            afterContent: "",
+          },
+        },
+      ],
+    });
+    expect(stepsOfKind(plan, "corpus_edit")).toHaveLength(1);
+    expect(plan.steps[0]?.params?.operation).toBe("open");
+  });
+
   it("legalizes create empty and open preview", () => {
     const createPlan = legalizePathPlan({
       steps: [

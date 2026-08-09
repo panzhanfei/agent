@@ -1,11 +1,23 @@
 export { prisma } from "./client";
-export { findOwnedConversation, listConversationMessages, toModelHistory, appendUserMessage, appendAssistantMessage, maybeUpdateConversationTitle, deleteOwnedConversation, type MessageRow, } from "./repos/conversations";
+export {
+    findOwnedConversation,
+    listConversationMessages,
+    toModelHistory,
+    appendUserMessage,
+    appendAssistantMessage,
+    maybeUpdateConversationTitle,
+    deleteOwnedConversation,
+    editUserMessageAndTruncateAfter,
+    type MessageRow,
+    type EditUserMessageTruncateResult,
+} from "./repos/conversations";
 export { getSidebarConversations, type ConversationListItem, } from "./repos/sidebar";
 export {
     conversationIdSchema,
     createConversationSchema,
     patchConversationSchema,
     postConversationMessageBodySchema,
+    editRegenerateMessageBodySchema,
     cancelTurnBodySchema,
     turnIdParamSchema,
 } from "./schemas/chat";

@@ -12,6 +12,7 @@ import type { PipelineGraphState } from "@/agentflow/pipeline/graph/state";
 import {
   buildCorpusEditAppliedActions,
   buildCorpusEditAppliedAnswer,
+  buildCorpusEditOpenActions,
   buildCorpusEditOpenAnswer,
   buildCorpusEditPendingActions,
   buildCorpusEditPendingAnswer,
@@ -198,10 +199,13 @@ export const runCorpusEditSlotWorker = async (
       preview.content,
       language
     );
+    const blocks = [
+      buildCorpusEditOpenActions(preview.repoPath, language),
+    ];
     return {
       slotId: String(slot.id),
       executor: "corpus_edit",
-      sub: emptySub(String(slot.id), slot.label, notes),
+      sub: emptySub(String(slot.id), slot.label, notes, blocks),
       stepResult: okStep(String(slot.id), slot.label, notes),
       error: null,
       slotRuntime: {

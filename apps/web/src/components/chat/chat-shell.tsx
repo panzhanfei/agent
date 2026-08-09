@@ -66,6 +66,31 @@ const STEP_TIMING_LABELS: Record<PipelineStepName, string> = {
   persist_turn_end: "写入记忆",
 };
 
+/** 流式 step=running 时展示在「思考过程」里的短文案 */
+const STEP_RUNNING_LABELS: Partial<Record<string, string>> = {
+  prepare_turn_start: "准备上下文…",
+  repeat_question_guard: "同问短路…",
+  prepare_pipeline_memory: "加载记忆…",
+  repeat_respond_early: "复用历史答…",
+  intake: "理解问题…",
+  user_fact: "读取记忆…",
+  retrieval: "检索知识库…",
+  km_retrieve: "知识检索…",
+  list_retrieve: "列举检索…",
+  corpus_edit: "语料修订…",
+  plan_slot_join: "槽位汇合…",
+  plan_slot_post: "检索后工具…",
+  plan_dag: "多源汇合…",
+  plan_merge: "合并结果…",
+  global_rebatch: "全局重批…",
+  plan_executor: "执行计划…",
+  fact_checker: "核查证据…",
+  content_summarizer: "生成摘要…",
+  content_organizer: "整理证据…",
+  analyst: "生成回答…",
+  persist_turn_end: "写入记忆…",
+};
+
 const formatDuration = (ms: number): string => {
   if (ms >= 1000) return `${(ms / 1000).toFixed(1)}s`;
   return `${ms}ms`;
@@ -513,6 +538,9 @@ export const ChatShell = ({ initialConversations, viewer }: ChatShellProps) => {
     () => new Set()
   );
   const [corpusEditPath, setCorpusEditPath] = useState<string | null>(null);
+  /** 用户气泡原地编辑 */
+  const [editingMessageId, setEditingMessageId] = useState<string | null>(null);
+  const [editDraft, setEditDraft] = useState("");
   const sendBusyRef = useRef(false);
   const pendingUserTempIdRef = useRef<string | null>(null);
   const isComposingRef = useRef(false);
@@ -559,14 +587,35 @@ export const ChatShell = ({ initialConversations, viewer }: ChatShellProps) => {
   useEffect(() => {
     sendBusyRef.current = sendBusy;
   }, [sendBusy]);
-  /** 模型已出稿即可解锁输入；落库 done 可能更晚 */
+  /**
+   * 模型已出稿即可解锁输入；落库 done 可能更晚。
+   * 只改 sendBusy——不碰思考面板/turnId（旧 SSE finally 可能晚于 supersede/编辑重问）。
+   */
   const releaseSendLock = useCallback(() => {
     flushSync(() => {
       setSendBusy(false);
-      setThinkingPanelVisible(false);
-      setStreamThinking("");
     });
   }, []);
+
+  /** 仅当本流仍拥有当前 turn 时清理流式 UI（避免编辑重问后旧流冲掉新思考过程） */
+  const clearStreamingUiIfOwned = useCallback(
+    (ownedTurnId: string, ownedController: AbortController) => {
+      if (abortControllerRef.current === ownedController) {
+        abortControllerRef.current = null;
+      }
+      if (activeTurnIdRef.current !== ownedTurnId) return false;
+      activeTurnIdRef.current = null;
+      setStreamingTurnId(null);
+      setThinkingPanelVisible(false);
+      setStreamThinking("");
+      setStreamAnswerPreview("");
+      setStreamBlocks([]);
+      streamPreviewRef.current = "";
+      releaseSendLock();
+      return true;
+    },
+    [releaseSendLock]
+  );
   const loadConversations = useCallback(async (opts?: { silent?: boolean }) => {
     await Promise.resolve();
     const silent = Boolean(opts?.silent);
@@ -862,6 +911,8 @@ export const ChatShell = ({ initialConversations, viewer }: ChatShellProps) => {
     setDraft("");
     setStaleActionKeys(new Set());
     setCorpusEditPath(null);
+    setEditingMessageId(null);
+    setEditDraft("");
   }, []);
   const updateLogsForConversation = useCallback(
     (
@@ -972,6 +1023,8 @@ export const ChatShell = ({ initialConversations, viewer }: ChatShellProps) => {
       streamPreviewRef.current = "";
       setStreamAnswerPreview("");
       setStreamBlocks([]);
+      setThinkingPanelVisible(false);
+      setStreamThinking("");
       releaseSendLock();
     },
     [activeConversationId, patchActiveTurnLog, releaseSendLock]
@@ -1119,9 +1172,8 @@ export const ChatShell = ({ initialConversations, viewer }: ChatShellProps) => {
           payload !== null
         ) {
           const entry = (payload as { entry?: PipelineLogEntry }).entry;
-          const tid = activeTurnIdRef.current;
-          if (entry && tid) {
-            patchActiveTurnLog(convId, tid, (turn) => ({
+          if (entry && activeTurnIdRef.current === turnId) {
+            patchActiveTurnLog(convId, turnId, (turn) => ({
               ...turn,
               entries: [...turn.entries, entry],
             }));
@@ -1146,7 +1198,8 @@ export const ChatShell = ({ initialConversations, viewer }: ChatShellProps) => {
           event === "ready" &&
           payload &&
           typeof payload === "object" &&
-          payload !== null
+          payload !== null &&
+          activeTurnIdRef.current === turnId
         ) {
           const p = payload as {
             answer?: string;
@@ -1166,7 +1219,8 @@ export const ChatShell = ({ initialConversations, viewer }: ChatShellProps) => {
           event === "pipeline_timing" &&
           payload &&
           typeof payload === "object" &&
-          payload !== null
+          payload !== null &&
+          activeTurnIdRef.current === turnId
         ) {
           const t = (payload as { timing?: PipelineTiming }).timing;
           if (t && typeof t.totalMs === "number") {
@@ -1186,13 +1240,12 @@ export const ChatShell = ({ initialConversations, viewer }: ChatShellProps) => {
             status?: string;
             durationMs?: number;
           };
-          const tid = activeTurnIdRef.current;
           if (
-            tid &&
+            activeTurnIdRef.current === turnId &&
             typeof p.name === "string" &&
             (p.status === "running" || p.status === "done")
           ) {
-            patchActiveTurnLog(convId, tid, (turn) => ({
+            patchActiveTurnLog(convId, turnId, (turn) => ({
               ...turn,
               steps: upsertStep(turn.steps, {
                 name: p.name as PipelineStepName,
@@ -1201,25 +1254,19 @@ export const ChatShell = ({ initialConversations, viewer }: ChatShellProps) => {
               }),
             }));
           }
-          if (p.status === "running" && typeof p.name === "string") {
-            const labels: Record<string, string> = {
-              prepare_turn_start: "准备上下文…",
-              repeat_question_guard: "同问短路…",
-              prepare_pipeline_memory: "加载记忆…",
-              repeat_respond_early: "复用历史答…",
-              intake: "理解问题…",
-              user_fact: "读取记忆…",
-              retrieval: "检索知识库…",
-              fact_checker: "核查证据…",
-              content_summarizer: "生成摘要…",
-              content_organizer: "整理证据…",
-              analyst: "生成回答…",
-              persist_turn_end: "写入记忆…",
-            };
+          if (
+            p.status === "running" &&
+            typeof p.name === "string" &&
+            activeTurnIdRef.current === turnId
+          ) {
             setThinkingPanelVisible(true);
-            setStreamThinking(labels[p.name] ?? "处理中…");
+            setStreamThinking(STEP_RUNNING_LABELS[p.name] ?? "处理中…");
           }
-          if (p.status === "done" && p.name === "analyst") {
+          if (
+            p.status === "done" &&
+            p.name === "analyst" &&
+            activeTurnIdRef.current === turnId
+          ) {
             releaseSendLock();
           }
         }
@@ -1234,7 +1281,11 @@ export const ChatShell = ({ initialConversations, viewer }: ChatShellProps) => {
               text?: string;
             }
           ).text;
-          if (typeof t === "string" && t.trim()) {
+          if (
+            typeof t === "string" &&
+            t.trim() &&
+            activeTurnIdRef.current === turnId
+          ) {
             setThinkingPanelVisible(true);
             setStreamThinking(t);
           }
@@ -1246,7 +1297,11 @@ export const ChatShell = ({ initialConversations, viewer }: ChatShellProps) => {
           payload !== null
         ) {
           const block = (payload as { block?: AssistantMessageBlock }).block;
-          if (block && typeof block === "object") {
+          if (
+            block &&
+            typeof block === "object" &&
+            activeTurnIdRef.current === turnId
+          ) {
             setStreamBlocks((prev) => [...prev, block]);
           }
         }
@@ -1259,7 +1314,10 @@ export const ChatShell = ({ initialConversations, viewer }: ChatShellProps) => {
           const message = (payload as {
             message?: { blocks?: AssistantMessageBlock[] };
           }).message;
-          if (message?.blocks?.length) {
+          if (
+            message?.blocks?.length &&
+            activeTurnIdRef.current === turnId
+          ) {
             setStreamBlocks(message.blocks);
           }
         }
@@ -1274,7 +1332,7 @@ export const ChatShell = ({ initialConversations, viewer }: ChatShellProps) => {
               text?: string;
             }
           ).text;
-          if (typeof t === "string") {
+          if (typeof t === "string" && activeTurnIdRef.current === turnId) {
             setThinkingPanelVisible(false);
             setStreamThinking("");
             streamPreviewRef.current = t;
@@ -1296,13 +1354,15 @@ export const ChatShell = ({ initialConversations, viewer }: ChatShellProps) => {
             reason?: "cancelled" | "superseded";
             assistantMessage?: ChatMessage;
           };
-          const tid = p.turnId ?? activeTurnIdRef.current;
+          const tid = typeof p.turnId === "string" ? p.turnId : turnId;
           const reason = p.reason ?? "cancelled";
-          if (tid) {
-            patchActiveTurnLog(convId, tid, (turn) => ({
-              ...turn,
-              status: reason,
-            }));
+          patchActiveTurnLog(convId, tid, (t) => ({
+            ...t,
+            status: reason,
+          }));
+          // 已被 supersede/编辑重问接棒：只记账，不碰新 turn 的思考/预览
+          if (activeTurnIdRef.current !== turnId) {
+            return;
           }
           // 停止按钮路径已用 cancel 响应更新过 UI，此处仅补齐未展示的截停稿
           if (
@@ -1318,7 +1378,7 @@ export const ChatShell = ({ initialConversations, viewer }: ChatShellProps) => {
             flushSync(() => {
               setMessages((prev) => {
                 const withoutLocal = prev.filter(
-                  (m) => !(tid && m.id === `local-cancel:${tid}`)
+                  (m) => m.id !== `local-cancel:${tid}`
                 );
                 if (withoutLocal.some((m) => m.id === assistant.id)) {
                   return withoutLocal.map((m) =>
@@ -1327,22 +1387,10 @@ export const ChatShell = ({ initialConversations, viewer }: ChatShellProps) => {
                 }
                 return [...withoutLocal, assistant];
               });
-              setStreamAnswerPreview("");
-              setStreamBlocks([]);
             });
-          } else {
-            setStreamAnswerPreview("");
-            setStreamBlocks([]);
           }
-          if (activeTurnIdRef.current === tid || activeTurnIdRef.current === turnId) {
-            activeTurnIdRef.current = null;
-            setStreamingTurnId(null);
-          }
-          if (abortControllerRef.current === controller) {
-            abortControllerRef.current = null;
-          }
-          streamPreviewRef.current = "";
-          releaseSendLock();
+          clearStreamingUiIfOwned(turnId, controller);
+          pendingUserTempIdRef.current = null;
         }
         if (
           event === "done" &&
@@ -1352,21 +1400,17 @@ export const ChatShell = ({ initialConversations, viewer }: ChatShellProps) => {
         ) {
           const p = payload as DonePayload;
           if (p.aborted || streamAborted) {
-            const tid = activeTurnIdRef.current;
-            if (tid) {
-              patchActiveTurnLog(convId, tid, (turn) => ({
-                ...turn,
-                status: p.reason ?? "cancelled",
-              }));
-              activeTurnIdRef.current = null;
-              setStreamingTurnId(null);
+            patchActiveTurnLog(convId, turnId, (t) => ({
+              ...t,
+              status: p.reason ?? "cancelled",
+            }));
+            if (activeTurnIdRef.current === turnId) {
+              clearStreamingUiIfOwned(turnId, controller);
+              pendingUserTempIdRef.current = null;
             }
-            abortControllerRef.current = null;
-            streamPreviewRef.current = "";
-            pendingUserTempIdRef.current = null;
-            releaseSendLock();
-            setStreamAnswerPreview("");
-            setStreamBlocks([]);
+            return;
+          }
+          if (activeTurnIdRef.current !== turnId) {
             return;
           }
           const clientTotalMs = Math.round(performance.now() - clientStartedAt);
@@ -1376,26 +1420,18 @@ export const ChatShell = ({ initialConversations, viewer }: ChatShellProps) => {
             : undefined;
           if (serverTiming)
             applyTurnTiming(serverTiming, clientTotalMs);
-          const tid = activeTurnIdRef.current;
-          if (tid) {
-            const assistantId =
-              p.assistantMessage &&
-              typeof p.assistantMessage.id === "string"
-                ? p.assistantMessage.id
-                : null;
-            patchActiveTurnLog(convId, tid, (turn) => ({
-              ...turn,
-              ...(assistantId ? { turnId: assistantId } : {}),
-              status: "done",
-              timing: timing ?? turn.timing,
-            }));
-            activeTurnIdRef.current = null;
-            setStreamingTurnId(null);
-          }
-          abortControllerRef.current = null;
-          streamPreviewRef.current = "";
+          const assistantId =
+            p.assistantMessage &&
+            typeof p.assistantMessage.id === "string"
+              ? p.assistantMessage.id
+              : null;
+          patchActiveTurnLog(convId, turnId, (t) => ({
+            ...t,
+            ...(assistantId ? { turnId: assistantId } : {}),
+            status: "done",
+            timing: timing ?? t.timing,
+          }));
           pendingUserTempIdRef.current = null;
-          releaseSendLock();
           if (
             p.assistantMessage &&
             typeof p.assistantMessage.id === "string" &&
@@ -1422,13 +1458,9 @@ export const ChatShell = ({ initialConversations, viewer }: ChatShellProps) => {
                 const rest = prev.filter((m) => m.id !== assistant.id);
                 return [...rest, assistant];
               });
-              setStreamAnswerPreview("");
-              setStreamBlocks([]);
             });
-          } else {
-            setStreamAnswerPreview("");
-            setStreamBlocks([]);
           }
+          clearStreamingUiIfOwned(turnId, controller);
         }
         if (
           event === "error" &&
@@ -1444,17 +1476,14 @@ export const ChatShell = ({ initialConversations, viewer }: ChatShellProps) => {
               }
             ).error ?? (payload as { message?: string }).message;
           streamFatal = typeof e === "string" ? e : "模型出错";
-          const tid = activeTurnIdRef.current;
-          if (tid) {
-            patchActiveTurnLog(convId, tid, (turn) => ({
-              ...turn,
-              status: "error",
-              error: streamFatal ?? undefined,
-            }));
-            activeTurnIdRef.current = null;
-            setStreamingTurnId(null);
+          patchActiveTurnLog(convId, turnId, (t) => ({
+            ...t,
+            status: "error",
+            error: streamFatal ?? undefined,
+          }));
+          if (activeTurnIdRef.current === turnId) {
+            clearStreamingUiIfOwned(turnId, controller);
           }
-          releaseSendLock();
         }
       }, controller.signal);
       if (streamFatal) {
@@ -1471,25 +1500,26 @@ export const ChatShell = ({ initialConversations, viewer }: ChatShellProps) => {
         setSendError("网络错误");
         pendingUserTempIdRef.current = null;
         setMessages((prev) => prev.filter((m) => m.id !== tempUserId));
+        clearStreamingUiIfOwned(turnId, controller);
+      } else if (activeTurnIdRef.current === turnId) {
+        // 本 turn 被 abort 且未接棒：收尾 UI
+        clearStreamingUiIfOwned(turnId, controller);
+        pendingUserTempIdRef.current = null;
       }
       await loadConversations({ silent: true });
       setMessagesRetryTick((n) => n + 1);
     } finally {
-      if (abortControllerRef.current === controller) {
+      // supersede / 编辑重问后旧流不得清新 turn
+      if (activeTurnIdRef.current === turnId) {
+        clearStreamingUiIfOwned(turnId, controller);
+        pendingUserTempIdRef.current = null;
+      } else if (abortControllerRef.current === controller) {
         abortControllerRef.current = null;
       }
-      if (activeTurnIdRef.current === turnId) {
-        activeTurnIdRef.current = null;
-        setStreamingTurnId(null);
-      }
-      if (sendBusyRef.current) {
-        releaseSendLock();
-      }
-      setStreamAnswerPreview("");
-      pendingUserTempIdRef.current = null;
     }
   }, [
     activeConversationId,
+    clearStreamingUiIfOwned,
     loadConversations,
     markStaleActionKey,
     patchActiveTurnLog,
@@ -1520,6 +1550,426 @@ export const ChatShell = ({ initialConversations, viewer }: ChatShellProps) => {
   const sendMessage = useCallback(async () => {
     await sendMessageWithContent(draft);
   }, [draft, sendMessageWithContent]);
+
+  const canEditUserMessage = useCallback((m: ChatMessage): boolean => {
+    if (m.role !== "user") return false;
+    if (m.id.startsWith("temp:")) return false;
+    // HITL 内部 prompt 不提供编辑（展示文案按钮另当别论）
+    if (m.content.trim().startsWith("__FAMBRAIN_")) return false;
+    return true;
+  }, []);
+
+  const beginEditUserMessage = useCallback((m: ChatMessage) => {
+    if (!canEditUserMessage(m)) return;
+    setEditingMessageId(m.id);
+    setEditDraft(m.content);
+    setSendError(null);
+  }, [canEditUserMessage]);
+
+  const cancelEditUserMessage = useCallback(() => {
+    setEditingMessageId(null);
+    setEditDraft("");
+  }, []);
+
+  /** 原地改用户气泡 → 截断后续 → edit-regenerate SSE */
+  const commitEditUserMessage = useCallback(async () => {
+    const messageId = editingMessageId;
+    const content = editDraft.trim();
+    if (!messageId || !content) return;
+    const convId = activeConversationId;
+    if (!convId) return;
+    if (sendBusy && !streamingTurnId) return;
+
+    if (streamingTurnId || activeTurnIdRef.current) {
+      await stopActiveTurn("superseded");
+    }
+
+    setEditingMessageId(null);
+    setEditDraft("");
+    setSendBusy(true);
+    setSendError(null);
+    setStreamThinking("");
+    setStreamAnswerPreview("");
+    streamPreviewRef.current = "";
+    setStreamBlocks([]);
+    setThinkingPanelVisible(false);
+
+    // 本地先截断并替换文案
+    setMessages((prev) => {
+      const idx = prev.findIndex((m) => m.id === messageId);
+      if (idx < 0) return prev;
+      const head = prev.slice(0, idx);
+      return [...head, { ...prev[idx]!, content }];
+    });
+
+    const turnId = crypto.randomUUID();
+    const controller = new AbortController();
+    abortControllerRef.current = controller;
+    activeTurnIdRef.current = turnId;
+    setStreamingTurnId(turnId);
+    updateLogsForConversation(convId, (bundle) =>
+      appendTurnToBundle(bundle, createTurnLog(turnId, content))
+    );
+
+    type DonePayload = {
+      userMessage?: ChatMessage;
+      assistantMessage?: ChatMessage;
+      timing?: PipelineTiming;
+      aborted?: boolean;
+      reason?: "cancelled" | "superseded";
+    };
+
+    try {
+      const clientStartedAt = performance.now();
+      let latestTiming: PipelineTiming | undefined;
+      const res = await fetch(
+        `/api/conversations/${convId}/messages/${messageId}/edit-regenerate`,
+        {
+          method: "POST",
+          headers: { "Content-Type": "application/json" },
+          credentials: "same-origin",
+          body: JSON.stringify({ content, turnId }),
+          signal: controller.signal,
+        }
+      );
+      if (!res.ok) {
+        let msg = `${res.status}`;
+        try {
+          const raw = await res.json();
+          if (raw?.error && typeof raw.error === "string") msg = raw.error;
+        } catch {
+          //
+        }
+        setSendError(msg);
+        activeTurnIdRef.current = null;
+        setStreamingTurnId(null);
+        abortControllerRef.current = null;
+        await loadConversations({ silent: true });
+        setMessagesRetryTick((n) => n + 1);
+        return;
+      }
+      if (!res.body) {
+        setSendError("无法读取服务器流");
+        activeTurnIdRef.current = null;
+        setStreamingTurnId(null);
+        abortControllerRef.current = null;
+        return;
+      }
+
+      let streamFatal: string | null = null;
+      let streamAborted = false;
+      const applyTurnTiming = (timing: PipelineTiming, clientTotalMs?: number) => {
+        const tid = activeTurnIdRef.current;
+        if (!tid) return;
+        patchActiveTurnLog(convId, tid, (turn) => ({
+          ...turn,
+          timing: {
+            ...timing,
+            ...(clientTotalMs != null ? { clientTotalMs } : {}),
+          },
+        }));
+      };
+
+      await consumeSse(res.body, (event, payload) => {
+        if (
+          event === "pipeline_log" &&
+          payload &&
+          typeof payload === "object" &&
+          payload !== null
+        ) {
+          const entry = (payload as { entry?: PipelineLogEntry }).entry;
+          if (entry && activeTurnIdRef.current === turnId) {
+            patchActiveTurnLog(convId, turnId, (turn) => ({
+              ...turn,
+              entries: [...turn.entries, entry],
+            }));
+          }
+        }
+        if (
+          event === "meta" &&
+          payload &&
+          typeof payload === "object" &&
+          payload !== null
+        ) {
+          const p = payload as { userMessage?: ChatMessage };
+          if (typeof p.userMessage?.id === "string") {
+            setMessages((prev) =>
+              prev.map((m) =>
+                m.id === p.userMessage!.id
+                  ? { ...m, content: p.userMessage!.content }
+                  : m
+              )
+            );
+          }
+        }
+        if (
+          event === "ready" &&
+          payload &&
+          typeof payload === "object" &&
+          payload !== null &&
+          activeTurnIdRef.current === turnId
+        ) {
+          const p = payload as { answer?: string; timing?: PipelineTiming };
+          if (p.timing && typeof p.timing.totalMs === "number") {
+            latestTiming = p.timing;
+            applyTurnTiming(p.timing);
+          }
+          if (typeof p.answer === "string" && p.answer.trim()) {
+            streamPreviewRef.current = p.answer;
+            setStreamAnswerPreview(p.answer);
+          }
+          releaseSendLock();
+        }
+        if (
+          event === "pipeline_timing" &&
+          payload &&
+          typeof payload === "object" &&
+          payload !== null &&
+          activeTurnIdRef.current === turnId
+        ) {
+          const t = (payload as { timing?: PipelineTiming }).timing;
+          if (t && typeof t.totalMs === "number") {
+            latestTiming = t;
+            applyTurnTiming(t);
+          }
+          releaseSendLock();
+        }
+        if (
+          event === "step" &&
+          payload &&
+          typeof payload === "object" &&
+          payload !== null
+        ) {
+          const p = payload as {
+            name?: string;
+            status?: string;
+            durationMs?: number;
+          };
+          if (
+            activeTurnIdRef.current === turnId &&
+            typeof p.name === "string" &&
+            (p.status === "running" || p.status === "done")
+          ) {
+            patchActiveTurnLog(convId, turnId, (turn) => ({
+              ...turn,
+              steps: upsertStep(turn.steps, {
+                name: p.name as PipelineStepName,
+                status: p.status as "running" | "done",
+                durationMs: p.durationMs,
+              }),
+            }));
+          }
+          if (
+            p.status === "running" &&
+            typeof p.name === "string" &&
+            activeTurnIdRef.current === turnId
+          ) {
+            setThinkingPanelVisible(true);
+            setStreamThinking(STEP_RUNNING_LABELS[p.name] ?? "处理中…");
+          }
+          if (
+            p.status === "done" &&
+            p.name === "analyst" &&
+            activeTurnIdRef.current === turnId
+          ) {
+            releaseSendLock();
+          }
+        }
+        if (
+          event === "thinking" &&
+          payload &&
+          typeof payload === "object" &&
+          payload !== null
+        ) {
+          const t = (payload as { text?: string }).text;
+          if (
+            typeof t === "string" &&
+            t.trim() &&
+            activeTurnIdRef.current === turnId
+          ) {
+            setThinkingPanelVisible(true);
+            setStreamThinking(t);
+          }
+        }
+        if (
+          event === "ui_block" &&
+          payload &&
+          typeof payload === "object" &&
+          payload !== null
+        ) {
+          const block = (payload as { block?: AssistantMessageBlock }).block;
+          if (
+            block &&
+            typeof block === "object" &&
+            activeTurnIdRef.current === turnId
+          ) {
+            setStreamBlocks((prev) => [...prev, block]);
+          }
+        }
+        if (
+          event === "assistant" &&
+          payload &&
+          typeof payload === "object" &&
+          payload !== null
+        ) {
+          const t = (payload as { text?: string }).text;
+          if (typeof t === "string" && activeTurnIdRef.current === turnId) {
+            setThinkingPanelVisible(false);
+            setStreamThinking("");
+            streamPreviewRef.current = t;
+            setStreamAnswerPreview(t);
+            if (t.trim()) releaseSendLock();
+          }
+        }
+        if (
+          event === "aborted" &&
+          payload &&
+          typeof payload === "object" &&
+          payload !== null
+        ) {
+          streamAborted = true;
+          const p = payload as {
+            turnId?: string;
+            reason?: "cancelled" | "superseded";
+          };
+          const tid = typeof p.turnId === "string" ? p.turnId : turnId;
+          patchActiveTurnLog(convId, tid, (t) => ({
+            ...t,
+            status: p.reason ?? "cancelled",
+          }));
+          if (activeTurnIdRef.current === turnId) {
+            clearStreamingUiIfOwned(turnId, controller);
+          }
+        }
+        if (
+          event === "done" &&
+          payload &&
+          typeof payload === "object" &&
+          payload !== null
+        ) {
+          const p = payload as DonePayload;
+          if (p.aborted || streamAborted) {
+            patchActiveTurnLog(convId, turnId, (t) => ({
+              ...t,
+              status: p.reason ?? "cancelled",
+            }));
+            if (activeTurnIdRef.current === turnId) {
+              clearStreamingUiIfOwned(turnId, controller);
+            }
+            return;
+          }
+          if (activeTurnIdRef.current !== turnId) {
+            return;
+          }
+          const clientTotalMs = Math.round(performance.now() - clientStartedAt);
+          const serverTiming = p.timing ?? latestTiming;
+          const timing: MessageTiming | undefined = serverTiming
+            ? { ...serverTiming, clientTotalMs }
+            : undefined;
+          if (serverTiming) applyTurnTiming(serverTiming, clientTotalMs);
+          const assistantId =
+            p.assistantMessage &&
+            typeof p.assistantMessage.id === "string"
+              ? p.assistantMessage.id
+              : null;
+          patchActiveTurnLog(convId, turnId, (turn) => ({
+            ...turn,
+            ...(assistantId ? { turnId: assistantId } : {}),
+            status: "done",
+            timing: timing ?? turn.timing,
+          }));
+          if (
+            p.assistantMessage &&
+            typeof p.assistantMessage.id === "string" &&
+            typeof p.assistantMessage.content === "string"
+          ) {
+            const assistant: ChatMessage = {
+              id: p.assistantMessage.id,
+              role: "assistant",
+              content: p.assistantMessage.content,
+              timing,
+              retrievalPaths: Array.isArray(
+                (p.assistantMessage as { retrievalPaths?: unknown })
+                  .retrievalPaths
+              )
+                ? (
+                    p.assistantMessage as { retrievalPaths: string[] }
+                  ).retrievalPaths
+                : undefined,
+              blocks: Array.isArray(
+                (p.assistantMessage as { blocks?: unknown }).blocks
+              )
+                ? (p.assistantMessage as { blocks: AssistantMessageBlock[] })
+                    .blocks
+                : undefined,
+            };
+            flushSync(() => {
+              setMessages((prev) => {
+                const rest = prev.filter((m) => m.id !== assistant.id);
+                return [...rest, assistant];
+              });
+            });
+          }
+          clearStreamingUiIfOwned(turnId, controller);
+        }
+        if (
+          event === "error" &&
+          payload &&
+          typeof payload === "object" &&
+          payload !== null
+        ) {
+          const e =
+            (payload as { error?: string; message?: string }).error ??
+            (payload as { message?: string }).message;
+          streamFatal = typeof e === "string" ? e : "模型出错";
+          patchActiveTurnLog(convId, turnId, (t) => ({
+            ...t,
+            status: "error",
+            error: streamFatal ?? undefined,
+          }));
+          if (activeTurnIdRef.current === turnId) {
+            clearStreamingUiIfOwned(turnId, controller);
+          }
+        }
+      }, controller.signal);
+
+      if (streamFatal) setSendError(streamFatal);
+      void loadConversations({ silent: true });
+      setMessagesRetryTick((n) => n + 1);
+    } catch (e) {
+      const aborted =
+        (e instanceof DOMException && e.name === "AbortError") ||
+        (e instanceof Error && e.name === "AbortError") ||
+        controller.signal.aborted;
+      if (!aborted) {
+        setSendError("网络错误");
+        clearStreamingUiIfOwned(turnId, controller);
+      } else if (activeTurnIdRef.current === turnId) {
+        clearStreamingUiIfOwned(turnId, controller);
+      }
+      await loadConversations({ silent: true });
+      setMessagesRetryTick((n) => n + 1);
+    } finally {
+      if (activeTurnIdRef.current === turnId) {
+        clearStreamingUiIfOwned(turnId, controller);
+      } else if (abortControllerRef.current === controller) {
+        abortControllerRef.current = null;
+      }
+    }
+  }, [
+    activeConversationId,
+    clearStreamingUiIfOwned,
+    editDraft,
+    editingMessageId,
+    loadConversations,
+    patchActiveTurnLog,
+    releaseSendLock,
+    sendBusy,
+    stopActiveTurn,
+    streamingTurnId,
+    updateLogsForConversation,
+  ]);
+
   const applySuggestion = (text: string) => {
     setDraft(text);
     setSendError(null);
@@ -1923,7 +2373,7 @@ export const ChatShell = ({ initialConversations, viewer }: ChatShellProps) => {
                   >
                     <div
                       className={[
-                        "max-w-[85%] rounded-2xl px-4 py-2.5 text-[15px] leading-relaxed whitespace-pre-wrap",
+                        "group relative max-w-[85%] rounded-2xl px-4 py-2.5 text-[15px] leading-relaxed whitespace-pre-wrap",
                         m.role === "user"
                           ? "bg-[#4f46e5] text-white"
                           : "bg-[#f3f4f6] text-[#111827]",
@@ -1936,8 +2386,52 @@ export const ChatShell = ({ initialConversations, viewer }: ChatShellProps) => {
                           onAction={handleChatAction}
                           staleActionKeys={staleActionKeys}
                         />
+                      ) : editingMessageId === m.id ? (
+                        <div className="space-y-2">
+                          <textarea
+                            value={editDraft}
+                            onChange={(e) => setEditDraft(e.target.value)}
+                            rows={3}
+                            className="w-full min-w-[240px] resize-y rounded-lg border border-white/30 bg-white/10 px-3 py-2 text-[14px] text-white outline-none placeholder:text-white/50"
+                            autoFocus
+                          />
+                          <div className="flex justify-end gap-2">
+                            <button
+                              type="button"
+                              onClick={cancelEditUserMessage}
+                              disabled={sendBusy}
+                              className="rounded-full px-3 py-1 text-[12px] text-white/80 hover:bg-white/10"
+                            >
+                              取消
+                            </button>
+                            <button
+                              type="button"
+                              onClick={() => void commitEditUserMessage()}
+                              disabled={
+                                !editDraft.trim() ||
+                                editDraft.trim() === m.content.trim() ||
+                                (sendBusy && !streamingTurnId)
+                              }
+                              className="rounded-full bg-white px-3 py-1 text-[12px] font-medium text-[#4f46e5] disabled:opacity-40"
+                            >
+                              保存并重问
+                            </button>
+                          </div>
+                        </div>
                       ) : (
-                        <LinkifiedText text={m.content} />
+                        <>
+                          <LinkifiedText text={m.content} />
+                          {canEditUserMessage(m) ? (
+                            <button
+                              type="button"
+                              onClick={() => beginEditUserMessage(m)}
+                              disabled={sendBusy && !streamingTurnId}
+                              className="mt-2 block text-[11px] text-white/70 underline-offset-2 hover:text-white hover:underline disabled:opacity-40"
+                            >
+                              编辑
+                            </button>
+                          ) : null}
+                        </>
                       )}
                       {m.role === "assistant" && m.timing ? (
                         <MessageTimingLine timing={m.timing} />
@@ -1953,7 +2447,9 @@ export const ChatShell = ({ initialConversations, viewer }: ChatShellProps) => {
                   </li>
                 ))}
                 {showAssistantPending ? <AssistantPendingRow /> : null}
-                {sendBusy && thinkingPanelVisible && streamThinking.trim() ? (
+                {(sendBusy || streamingTurnId != null) &&
+                thinkingPanelVisible &&
+                streamThinking.trim() ? (
                   <li className="flex justify-start">
                     <div className="max-w-[90%] rounded-2xl border border-amber-200/90 bg-amber-50 px-4 py-3 text-[15px] leading-relaxed shadow-sm">
                       <div className="text-[11px] font-semibold uppercase tracking-wide text-amber-800">

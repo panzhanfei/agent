@@ -104,6 +104,11 @@ const runTurnPipeline = async (input: {
     pipelineContext: AgentPipelineContext;
     authToken: string;
     turnId: string;
+    /**
+     * 已有用户消息（编辑重跑）：跳过 append；
+     * history 须已含该条为末条 user。
+     */
+    existingUserMessageId?: string;
   };
   inflight: InflightTurn;
   send: SseSend;
@@ -112,16 +117,26 @@ const runTurnPipeline = async (input: {
   const turnId = options.turnId;
   const pipelineContent = options.pipelineContent;
 
-  const userRow = await appendUserMessage(
-    options.conversationId,
-    options.userContent
-  );
-  inflight.userMessageId = userRow.id;
-  await maybeUpdateConversationTitle(
-    options.conversationId,
-    options.conversationTitle,
-    options.userContent
-  );
+  let userRow: { id: string; role: string; content: string };
+  if (options.existingUserMessageId) {
+    userRow = {
+      id: options.existingUserMessageId,
+      role: "user",
+      content: options.userContent,
+    };
+    inflight.userMessageId = userRow.id;
+  } else {
+    userRow = await appendUserMessage(
+      options.conversationId,
+      options.userContent
+    );
+    inflight.userMessageId = userRow.id;
+    await maybeUpdateConversationTitle(
+      options.conversationId,
+      options.conversationTitle,
+      options.userContent
+    );
+  }
   send("meta", {
     turnId,
     userMessage: {
@@ -131,10 +146,10 @@ const runTurnPipeline = async (input: {
     },
   });
 
-  const historyWithUser: DbChatTurn[] = [
-    ...options.history,
-    { role: "user", content: pipelineContent },
-  ];
+  // 编辑重跑：history 已含末条 user；普通发送：再拼当前问
+  const historyWithUser: DbChatTurn[] = options.existingUserMessageId
+    ? options.history
+    : [...options.history, { role: "user", content: pipelineContent }];
   const gen = streamAgentPipeline(
     historyWithUser,
     { ...options.pipelineContext, turnId },
@@ -307,6 +322,8 @@ export const createPostMessageStreamResponse = (options: {
   pipelineContext: AgentPipelineContext;
   authToken: string;
   turnId: string;
+  /** 编辑重跑：已存在的用户消息 id，跳过 append */
+  existingUserMessageId?: string;
   /**
    * @deprecated 刷新/断线不应取消生成。已忽略。
    * 显式停止请走 cancel API。
@@ -346,6 +363,7 @@ export const createPostMessageStreamResponse = (options: {
         pipelineContext: options.pipelineContext,
         authToken: options.authToken,
         turnId,
+        existingUserMessageId: options.existingUserMessageId,
       },
       inflight,
       send: emit,

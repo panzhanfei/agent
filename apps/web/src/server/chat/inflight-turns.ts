@@ -58,6 +58,23 @@ export const registerInflightTurn = (input: {
 export const getInflightTurn = (turnId: string): InflightTurn | undefined =>
   inflight.get(turnId);
 
+/** 按会话找进行中 turn（编辑重跑时 supersede） */
+export const findInflightTurnByConversation = (
+  conversationId: string,
+  userId: string
+): InflightTurn | undefined => {
+  for (const entry of inflight.values()) {
+    if (
+      entry.conversationId === conversationId &&
+      entry.userId === userId &&
+      !entry.finalized
+    ) {
+      return entry;
+    }
+  }
+  return undefined;
+};
+
 export const unregisterInflightTurn = (turnId: string): void => {
   inflight.delete(turnId);
 };

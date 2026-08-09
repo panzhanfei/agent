@@ -251,8 +251,9 @@ export const buildCorpusEditOpenAnswer = (
       : "（空文件）";
   if (language === "en") {
     return [
-      `Opened ${repoPath} (preview only).`,
-      "Use the editor (plain text / Markdown) to change content, then confirm update.",
+      `Opened ${repoPath} (preview only; not written).`,
+      "Click Edit to change in the dual-mode editor, then confirm update.",
+      "To clear: ask to clear this path (HITL confirm). Physical delete is not supported.",
       "",
       "--- current ---",
       body,
@@ -260,12 +261,30 @@ export const buildCorpusEditOpenAnswer = (
   }
   return [
     `已打开 ${repoPath}（仅预览，未写入）。`,
-    "请使用编辑器（正文 / Markdown 双模式）修改后提交，再确认更新。",
+    "点「编辑此文件」可在双模式编辑器中修改，提交后需再确认更新。",
+    "若要清空：请明确要求清空该路径（仍须确认）。不支持物理删除。",
     "",
     "--- 当前内容 ---",
     body,
   ].join("\n");
 };
+
+/** 查/打开后：进入编辑（方案 C） */
+export const buildCorpusEditOpenActions = (
+  targetPath: string,
+  language: "zh" | "en" = "zh"
+): AssistantMessageBlock => ({
+  type: "actions",
+  actions: [
+    {
+      id: "corpus_edit_open",
+      label: language === "en" ? "Edit file" : "编辑此文件",
+      prompt: corpusEditOpenFilePrompt(targetPath),
+      displayText: language === "en" ? "Edit file" : "编辑此文件",
+      clientHandler: "open_editor",
+    },
+  ],
+});
 
 export const buildCorpusEditDismissEditAnswer = (
   targetPath: string,

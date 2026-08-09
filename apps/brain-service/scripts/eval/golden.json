@@ -401,7 +401,7 @@
   },
   "corpusEditProbe": {
     "id": "G-HITL-corpus-edit",
-    "label": "HITL corpus_edit A/B/C + 分阶段按钮/TTL 契约",
+    "label": "HITL corpus_edit CRUD：空 create · 预览/打开 · 带正文 update · 分阶段按钮",
     "cases": [
       {
         "id": "A-create-empty",

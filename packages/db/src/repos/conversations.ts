@@ -114,3 +114,75 @@ export const deleteOwnedConversation = async (
   await prisma.conversation.delete({ where: { id: conversationId } });
   return true;
 };
+
+export type EditUserMessageTruncateResult =
+  | {
+      ok: true;
+      message: { id: string; role: string; content: string };
+      deletedCount: number;
+    }
+  | { ok: false; error: "not_found" | "not_user_message" | "forbidden" };
+
+/**
+ * 原地改用户消息 + 删除该条之后的所有消息（ChatGPT 线性截断）。
+ * conversation 须属于 userId。
+ */
+export const editUserMessageAndTruncateAfter = async (input: {
+  conversationId: string;
+  userId: string;
+  messageId: string;
+  content: string;
+}): Promise<EditUserMessageTruncateResult> => {
+  const content = input.content.trim();
+  if (!content) {
+    return { ok: false, error: "not_found" };
+  }
+
+  const owned = await findOwnedConversation(input.conversationId, input.userId);
+  if (!owned) return { ok: false, error: "forbidden" };
+
+  return prisma.$transaction(async (tx) => {
+    const target = await tx.message.findFirst({
+      where: {
+        id: input.messageId,
+        conversationId: input.conversationId,
+      },
+      select: {
+        id: true,
+        role: true,
+        content: true,
+        createdAt: true,
+      },
+    });
+    if (!target) return { ok: false, error: "not_found" as const };
+    if (target.role !== ChatRole.user) {
+      return { ok: false, error: "not_user_message" as const };
+    }
+
+    const updated = await tx.message.update({
+      where: { id: target.id },
+      data: { content },
+      select: { id: true, role: true, content: true },
+    });
+
+    // 删除 createdAt 更晚的；同刻用 id 字典序更大的（cuid 近似按时间）
+    const deleted = await tx.message.deleteMany({
+      where: {
+        conversationId: input.conversationId,
+        OR: [
+          { createdAt: { gt: target.createdAt } },
+          {
+            createdAt: target.createdAt,
+            id: { gt: target.id },
+          },
+        ],
+      },
+    });
+
+    return {
+      ok: true as const,
+      message: updated,
+      deletedCount: deleted.count,
+    };
+  });
+};

@@ -3,6 +3,7 @@ import {
   CORPUS_EDIT_ACTION,
   CORPUS_EDIT_PENDING_TTL_MS,
   buildCorpusEditAppliedActions,
+  buildCorpusEditOpenActions,
   buildCorpusEditPendingActions,
   buildCorpusEditReviewActions,
   corpusEditStaleGroupKey,
@@ -36,6 +37,13 @@ describe("hitl-write stage labels", () => {
       "编辑新建文件",
       "暂不编辑",
     ]);
+    expect(block.actions[0]?.clientHandler).toBe("open_editor");
+  });
+
+  it("open preview offers 编辑此文件 with open_editor", () => {
+    const block = buildCorpusEditOpenActions("personal/亲友关系.md", "zh");
+    expect(block.actions).toHaveLength(1);
+    expect(block.actions[0]?.label).toBe("编辑此文件");
     expect(block.actions[0]?.clientHandler).toBe("open_editor");
   });
 });

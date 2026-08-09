@@ -38,6 +38,12 @@ export const postConversationMessageBodySchema = z.object({
     turnId: z.string().uuid().optional(),
 });
 
+/** POST …/messages/:messageId/edit-regenerate — 原地改用户问并重跑 */
+export const editRegenerateMessageBodySchema = z.object({
+    content: messageContentSchema,
+    turnId: z.string().uuid().optional(),
+});
+
 /** POST /api/conversations/:id/turns/:turnId/cancel */
 export const cancelTurnBodySchema = z.object({
     reason: z.enum(["cancelled", "superseded"]).default("cancelled"),

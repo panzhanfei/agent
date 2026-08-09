@@ -478,6 +478,14 @@ const legalizeStep = (raw: unknown, index: number): ExecutionStep | null => {
       params.targetPath ?? params.target_path ?? searchQuery ?? ""
     ).trim();
     if (!targetPath) return null;
+    const afterContent = String(
+      params.afterContent ?? params.after_content ?? ""
+    );
+    let operation = String(params.operation ?? "update").toLowerCase();
+    // 结构归一：无正文的 update → open（禁止空覆盖；与 slot 一致）
+    if (operation === "update" && !afterContent.trim()) {
+      operation = "open";
+    }
     return {
       id: trimId(o.id, `corpus-edit-${index}`),
       kind: "corpus_edit",
@@ -493,8 +501,8 @@ const legalizeStep = (raw: unknown, index: number): ExecutionStep | null => {
       params: {
         ...params,
         targetPath,
-        operation: params.operation ?? "update",
-        afterContent: params.afterContent ?? params.after_content ?? "",
+        operation,
+        afterContent,
       },
     };
   }
