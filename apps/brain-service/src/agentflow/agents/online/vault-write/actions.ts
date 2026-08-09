@@ -1,0 +1,78 @@
+/**
+ * vault workspace UI exact-match prompts（非口语词表）。
+ */
+export const VAULT_WORKSPACE_ACTION = {
+  listPrefix: "__FAMBRAIN_VAULT_WS_LIST__:",
+  openPrefix: "__FAMBRAIN_VAULT_WS_OPEN__:",
+  createFilePrefix: "__FAMBRAIN_VAULT_WS_CREATE_FILE__:",
+  createFolderPrefix: "__FAMBRAIN_VAULT_WS_CREATE_FOLDER__:",
+  deleteFilePrefix: "__FAMBRAIN_VAULT_WS_DELETE_FILE__:",
+  deleteFolderPrefix: "__FAMBRAIN_VAULT_WS_DELETE_FOLDER__:",
+  /** 入口：打开原文库根 list */
+  rootListPrompt: "__FAMBRAIN_VAULT_WS_LIST__:",
+} as const;
+
+/** UI 按钮 exact-match（与 ENUMERATION_ACTION_PROMPTS 同类，允许） */
+export const VAULT_WORKSPACE_UI_ENTRY = "我的原文库";
+
+export const vaultWsListPrompt = (folderRel = ""): string =>
+  `${VAULT_WORKSPACE_ACTION.listPrefix}${folderRel}`;
+
+export const vaultWsOpenPrompt = (fileRel: string): string =>
+  `${VAULT_WORKSPACE_ACTION.openPrefix}${fileRel}`;
+
+export const vaultWsCreateFilePrompt = (folderRel: string): string =>
+  `${VAULT_WORKSPACE_ACTION.createFilePrefix}${folderRel}`;
+
+export const vaultWsCreateFolderPrompt = (folderRel: string): string =>
+  `${VAULT_WORKSPACE_ACTION.createFolderPrefix}${folderRel}`;
+
+export const vaultWsDeleteFilePrompt = (fileRel: string): string =>
+  `${VAULT_WORKSPACE_ACTION.deleteFilePrefix}${fileRel}`;
+
+export const vaultWsDeleteFolderPrompt = (folderRel: string): string =>
+  `${VAULT_WORKSPACE_ACTION.deleteFolderPrefix}${folderRel}`;
+
+export type VaultWsUiAction =
+  | { type: "list"; folderRel: string }
+  | { type: "open"; fileRel: string }
+  | { type: "create_file"; folderRel: string }
+  | { type: "create_folder"; folderRel: string }
+  | { type: "delete_file"; fileRel: string }
+  | { type: "delete_folder"; folderRel: string };
+
+export const matchVaultWorkspaceUiPrompt = (
+  userQuestion: string
+): VaultWsUiAction | null => {
+  const t = userQuestion.trim();
+  if (!t) return null;
+  const take = (prefix: string) => t.slice(prefix.length);
+  if (t.startsWith(VAULT_WORKSPACE_ACTION.listPrefix)) {
+    return { type: "list", folderRel: take(VAULT_WORKSPACE_ACTION.listPrefix) };
+  }
+  if (t.startsWith(VAULT_WORKSPACE_ACTION.openPrefix)) {
+    const fileRel = take(VAULT_WORKSPACE_ACTION.openPrefix);
+    return fileRel ? { type: "open", fileRel } : null;
+  }
+  if (t.startsWith(VAULT_WORKSPACE_ACTION.createFilePrefix)) {
+    return {
+      type: "create_file",
+      folderRel: take(VAULT_WORKSPACE_ACTION.createFilePrefix),
+    };
+  }
+  if (t.startsWith(VAULT_WORKSPACE_ACTION.createFolderPrefix)) {
+    return {
+      type: "create_folder",
+      folderRel: take(VAULT_WORKSPACE_ACTION.createFolderPrefix),
+    };
+  }
+  if (t.startsWith(VAULT_WORKSPACE_ACTION.deleteFilePrefix)) {
+    const fileRel = take(VAULT_WORKSPACE_ACTION.deleteFilePrefix);
+    return fileRel ? { type: "delete_file", fileRel } : null;
+  }
+  if (t.startsWith(VAULT_WORKSPACE_ACTION.deleteFolderPrefix)) {
+    const folderRel = take(VAULT_WORKSPACE_ACTION.deleteFolderPrefix);
+    return folderRel ? { type: "delete_folder", folderRel } : null;
+  }
+  return null;
+};

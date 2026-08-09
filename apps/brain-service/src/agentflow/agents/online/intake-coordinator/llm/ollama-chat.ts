@@ -11,6 +11,7 @@ import { recordLangChainOllamaUsage } from "@fambrain/brain-shared/pipeline-run-
 import type { DbChatTurn } from "@fambrain/brain-types";
 import { textFromResponse } from "@/agentflow/utils";
 import {
+  ATTACHMENT_INTAKE_NOTE,
   JSON_FORMAT_REPAIR_NOTE,
   prompt,
 } from "@/agentflow/agents/online/intake-coordinator/contract";
@@ -76,7 +77,7 @@ export const completeIntakeCoordinator = async (
   if (attachBrief) {
     messages.push(
       new SystemMessage(
-        `【本轮聊天附件·已抽取文本】\n${attachBrief}\n须填 attachmentAction（extract|summarize|translate|ingest）；意图不清则 clarify + attachmentAction=null。禁止默认入库。全文已在服务端，pathPlan.searchQuery 无需粘贴全文。`
+        `${ATTACHMENT_INTAKE_NOTE}\n\n【本轮附件清单】\n${attachBrief}`
       )
     );
   }

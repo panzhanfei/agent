@@ -47,6 +47,7 @@ export const GET = async (_request: Request, context: {
                 id: m.id,
                 role: mapRole(m.role),
                 content: m.content,
+                createdAt: m.createdAt.toISOString(),
                 retrievalPaths: meta?.retrievalPaths,
                 blocks: meta?.blocks,
             };

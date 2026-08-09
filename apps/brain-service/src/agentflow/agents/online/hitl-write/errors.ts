@@ -13,6 +13,8 @@ const ZH: Record<string, string> = {
   proposal_not_found: "未找到该语料修订提案，可能已过期。",
   proposal_not_pending: "该提案已处理，无法再次确认或放弃。",
   proposal_expired: "该提案已过期或会话已结束，请重新发起修订。",
+  corpus_md_hitl_retired:
+    "已不再支持直接修订语料 Markdown。请打开「我的原文库」编辑 .txt（会自动语料化）。",
 };
 
 const EN: Record<string, string> = {
@@ -29,6 +31,8 @@ const EN: Record<string, string> = {
   proposal_not_pending: "Proposal is no longer pending.",
   proposal_expired:
     "This proposal expired or the conversation ended. Start a new edit.",
+  corpus_md_hitl_retired:
+    "Direct corpus Markdown edits are retired. Use My Originals (.txt); they materialize to corpus.",
 };
 
 export const corpusEditErrorMessage = (

@@ -60,6 +60,9 @@ const summarizeDecision = (
           tool: steps.filter((s) => s.kind === "tool").length,
           summarize: steps.filter((s) => s.kind === "summarize").length,
           dag: steps.filter((s) => s.kind === "dag").length,
+          vault_workspace: steps.filter((s) => s.kind === "vault_workspace")
+            .length,
+          corpus_edit: steps.filter((s) => s.kind === "corpus_edit").length,
         };
       })()
     : null,
@@ -511,6 +514,11 @@ export const runIntakePipeline = async (
       summarize: routed.pathPlan.steps.filter((s) => s.kind === "summarize")
         .length,
       dag: routed.pathPlan.steps.filter((s) => s.kind === "dag").length,
+      vault_workspace: routed.pathPlan.steps.filter(
+        (s) => s.kind === "vault_workspace"
+      ).length,
+      corpus_edit: routed.pathPlan.steps.filter((s) => s.kind === "corpus_edit")
+        .length,
     },
   });
   return { decision: routed, parseUsedFallback, earlyExit: false };

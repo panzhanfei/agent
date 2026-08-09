@@ -205,6 +205,70 @@ describe("legalizePathPlan + deriveCompositeSlots", () => {
         ]);
     });
 
+    it("strips extract_identity toolId when identityField illegal/missing", () => {
+        const pathPlan = legalizePathPlan({
+            steps: [
+                {
+                    id: "km-sil",
+                    kind: "km",
+                    label: "嫂子姓名",
+                    searchQuery: "亲友关系 嫂子 姓名",
+                    queryType: "identity",
+                    topics: ["personal"],
+                    identityField: "sisterInLawName",
+                    toolId: "extract_identity_from_hits",
+                    dataSource: "corpus",
+                },
+            ],
+        });
+        expect(pathPlan.steps).toHaveLength(1);
+        expect(pathPlan.steps[0]?.identityField).toBeNull();
+        expect(pathPlan.steps[0]?.toolId).toBeNull();
+        expect(pathPlan.steps[0]?.queryType).toBe("default");
+    });
+
+    it("demotes identityField when topics include family", () => {
+        const pathPlan = legalizePathPlan({
+            steps: [
+                {
+                    id: "km-brother",
+                    kind: "km",
+                    label: "哥哥姓名",
+                    searchQuery: "个人简介 简历 妻子的姐妹 名字",
+                    queryType: "identity",
+                    topics: ["personal", "family"],
+                    identityField: "name",
+                    toolId: "extract_identity_from_hits",
+                    dataSource: "corpus",
+                },
+            ],
+        });
+        expect(pathPlan.steps[0]?.identityField).toBeNull();
+        expect(pathPlan.steps[0]?.toolId).toBeNull();
+        expect(pathPlan.steps[0]?.queryType).toBe("default");
+        expect(pathPlan.steps[0]?.searchQuery).toBe("亲友关系 哥哥姓名");
+    });
+
+    it("does not convert km+mem0 without userFactKey into mem", () => {
+        const pathPlan = legalizePathPlan({
+            steps: [
+                {
+                    id: "km-brother",
+                    kind: "km",
+                    label: "哥哥姓名",
+                    searchQuery: "亲友关系 哥哥 姓名",
+                    queryType: "default",
+                    topics: ["personal", "family"],
+                    identityField: null,
+                    toolId: null,
+                    dataSource: "mem0",
+                },
+            ],
+        });
+        expect(pathPlan.steps[0]?.kind).toBe("km");
+        expect(pathPlan.steps[0]?.dataSource).toBe("corpus");
+    });
+
     it("routes preview enumeration to list_corpus", () => {
         const pathPlan = legalizePathPlan({
             steps: [

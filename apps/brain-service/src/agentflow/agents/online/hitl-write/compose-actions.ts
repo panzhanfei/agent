@@ -251,18 +251,16 @@ export const buildCorpusEditOpenAnswer = (
       : "（空文件）";
   if (language === "en") {
     return [
-      `Opened ${repoPath} (preview only; not written).`,
-      "Click Edit to change in the dual-mode editor, then confirm update.",
-      "To clear: ask to clear this path (HITL confirm). Physical delete is not supported.",
+      `Opened ${repoPath} (legacy preview).`,
+      "Direct corpus Markdown edits are retired. Use My Originals (.txt) instead.",
       "",
       "--- current ---",
       body,
     ].join("\n");
   }
   return [
-    `已打开 ${repoPath}（仅预览，未写入）。`,
-    "点「编辑此文件」可在双模式编辑器中修改，提交后需再确认更新。",
-    "若要清空：请明确要求清空该路径（仍须确认）。不支持物理删除。",
+    `已打开 ${repoPath}（遗留预览）。`,
+    "已不再支持直接修订语料 Markdown。请打开「我的原文库」编辑 .txt。",
     "",
     "--- 当前内容 ---",
     body,

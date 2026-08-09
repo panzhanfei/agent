@@ -25,6 +25,7 @@ const sendTargetForExecutor = (
   | "memRetrieve"
   | "toolRetrieve"
   | "summarizeSlot"
+  | "vaultWorkspace"
   | "corpusEdit" => {
   switch (executor) {
     case "list_corpus":
@@ -35,6 +36,8 @@ const sendTargetForExecutor = (
       return "toolRetrieve";
     case "summarize_slot":
       return "summarizeSlot";
+    case "vault_workspace":
+      return "vaultWorkspace";
     case "corpus_edit":
       return "corpusEdit";
     default:
@@ -78,6 +81,7 @@ export const describeFanOutPlan = (
   hasMem: boolean;
   hasTool: boolean;
   hasSummarize: boolean;
+  hasVaultWorkspace: boolean;
   hasCorpusEdit: boolean;
   hasDag: boolean;
   hasSideRemember: boolean;
@@ -86,6 +90,7 @@ export const describeFanOutPlan = (
   memCount: number;
   toolCount: number;
   summarizeCount: number;
+  vaultWorkspaceCount: number;
   corpusEditCount: number;
 } => {
   const decision = state.decision;
@@ -96,6 +101,7 @@ export const describeFanOutPlan = (
       hasMem: false,
       hasTool: false,
       hasSummarize: false,
+      hasVaultWorkspace: false,
       hasCorpusEdit: false,
       hasDag: false,
       hasSideRemember: false,
@@ -104,6 +110,7 @@ export const describeFanOutPlan = (
       memCount: 0,
       toolCount: 0,
       summarizeCount: 0,
+      vaultWorkspaceCount: 0,
       corpusEditCount: 0,
     };
   }
@@ -117,6 +124,9 @@ export const describeFanOutPlan = (
   const summarizeCount = slots.filter(
     (s) => s.executor === "summarize_slot"
   ).length;
+  const vaultWorkspaceCount = slots.filter(
+    (s) => s.executor === "vault_workspace"
+  ).length;
   const corpusEditCount = slots.filter(
     (s) => s.executor === "corpus_edit"
   ).length;
@@ -126,6 +136,7 @@ export const describeFanOutPlan = (
     hasMem: memCount > 0,
     hasTool: toolCount > 0,
     hasSummarize: summarizeCount > 0,
+    hasVaultWorkspace: vaultWorkspaceCount > 0,
     hasCorpusEdit: corpusEditCount > 0,
     hasDag: pathHasHybridDag(state),
     hasSideRemember: Boolean(routeUserFactSideEffect(decision)),
@@ -134,6 +145,7 @@ export const describeFanOutPlan = (
     memCount,
     toolCount,
     summarizeCount,
+    vaultWorkspaceCount,
     corpusEditCount,
   };
 };

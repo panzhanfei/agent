@@ -11,10 +11,11 @@ import { CorpusEditModal } from "@/components/chat/corpus-edit-modal";
 import { LinkifiedText } from "@/components/chat/linkified-text";
 import { ConversationLogPanel } from "@/components/chat/conversation-log-panel";
 import {
-  corpusEditStaleGroupKey,
+  chatActionStaleGroupKey,
   corpusEditTargetPathFromOpenPrompt,
+  messageActionStaleKey,
   type ChatActionPayload,
-} from "@/lib/hitl/corpus-edit-ui";
+} from "@/lib/chat/action-lifecycle";
 import {
   createTurnLog,
   upsertStep,
@@ -26,6 +27,7 @@ import {
   useCallback,
   useEffect,
   useLayoutEffect,
+  useMemo,
   useRef,
   useState,
 } from "react";
@@ -45,6 +47,8 @@ type ChatMessage = {
   id: string;
   role: "user" | "assistant";
   content: string;
+  /** ISO；用于 actions 30min TTL（与 HITL pending 对齐） */
+  createdAt?: string;
   timing?: MessageTiming;
   retrievalPaths?: string[];
   blocks?: AssistantMessageBlock[];
@@ -61,6 +65,7 @@ const STEP_TIMING_LABELS: Record<PipelineStepName, string> = {
   km_retrieve: "知识检索",
   list_retrieve: "列举检索",
   corpus_edit: "语料修订",
+  vault_workspace: "原文库",
   plan_slot_join: "槽位汇合",
   plan_slot_post: "检索后工具",
   plan_dag: "多源汇合",
@@ -86,6 +91,7 @@ const STEP_RUNNING_LABELS: Partial<Record<string, string>> = {
   km_retrieve: "知识检索…",
   list_retrieve: "列举检索…",
   corpus_edit: "语料修订…",
+  vault_workspace: "原文库…",
   plan_slot_join: "槽位汇合…",
   plan_slot_post: "检索后工具…",
   plan_dag: "多源汇合…",
@@ -807,6 +813,11 @@ export const ChatShell = ({ initialConversations, viewer }: ChatShellProps) => {
     };
   }, [conversations, preferEmptySession, activeConversationId]);
   useEffect(() => {
+    setStaleActionKeys(new Set());
+    setCorpusEditPath(null);
+  }, [activeConversationId]);
+
+  useEffect(() => {
     let cancelled = false;
     void (async () => {
       await Promise.resolve();
@@ -921,6 +932,7 @@ export const ChatShell = ({ initialConversations, viewer }: ChatShellProps) => {
     setSendError(null);
     setStreamThinking("");
     setStreamAnswerPreview("");
+    setStreamBlocks([]);
     setThinkingPanelVisible(false);
     pendingUserTempIdRef.current = null;
     setEditingSidebarId(null);
@@ -933,6 +945,17 @@ export const ChatShell = ({ initialConversations, viewer }: ChatShellProps) => {
     setEditingMessageId(null);
     setEditDraft("");
   }, []);
+
+  /** 仅最新一条助手消息的 action 可点；历史气泡一律置灰 */
+  const latestAssistantMessageId = useMemo(() => {
+    for (let i = messages.length - 1; i >= 0; i -= 1) {
+      if (messages[i]?.role === "assistant") return messages[i]!.id;
+    }
+    return null;
+  }, [messages]);
+  const turnInFlight = sendBusy || streamingTurnId != null;
+  const hasLiveStreamUi =
+    Boolean(streamAnswerPreview.trim()) || streamBlocks.length > 0;
   const updateLogsForConversation = useCallback(
     (
       conversationId: string,
@@ -1061,7 +1084,12 @@ export const ChatShell = ({ initialConversations, viewer }: ChatShellProps) => {
   const sendMessageWithContent = useCallback(
     async (
       content: string,
-      options?: { displayContent?: string; staleGroupKey?: string | null }
+      options?: {
+        displayContent?: string;
+        staleGroupKey?: string | null;
+        /** 点击的助手消息：整条 actions 作废（对齐 HITL 提案消费） */
+        staleMessageId?: string | null;
+      }
     ) => {
       const trimmed = content.trim();
       if (!trimmed) return;
@@ -1080,9 +1108,21 @@ export const ChatShell = ({ initialConversations, viewer }: ChatShellProps) => {
       streamPreviewRef.current = "";
       setStreamBlocks([]);
       setThinkingPanelVisible(false);
+      // 与 HITL 同套：group key + 源消息 / 当前最新助手消息一并作废
       markStaleActionKey(
-        options?.staleGroupKey ?? corpusEditStaleGroupKey(trimmed)
+        options?.staleGroupKey ?? chatActionStaleGroupKey(trimmed)
       );
+      const msgToStale =
+        options?.staleMessageId ??
+        (() => {
+          for (let i = messagesRef.current.length - 1; i >= 0; i -= 1) {
+            if (messagesRef.current[i]?.role === "assistant") {
+              return messagesRef.current[i]!.id;
+            }
+          }
+          return null;
+        })();
+      if (msgToStale) markStaleActionKey(messageActionStaleKey(msgToStale));
 
       // 发送即带走附件：先挂到用户气泡并清空输入区芯片（抽取失败也不再留在下方）
       const pendingFiles = [...pendingAttachmentsRef.current];
@@ -1446,6 +1486,11 @@ export const ChatShell = ({ initialConversations, viewer }: ChatShellProps) => {
                   id: p.assistantMessage.id,
                   role: "assistant",
                   content: p.assistantMessage.content,
+                  createdAt:
+                    typeof (p.assistantMessage as { createdAt?: unknown })
+                      .createdAt === "string"
+                      ? (p.assistantMessage as { createdAt: string }).createdAt
+                      : new Date().toISOString(),
                 };
                 flushSync(() => {
                   setMessages((prev) => {
@@ -1513,6 +1558,11 @@ export const ChatShell = ({ initialConversations, viewer }: ChatShellProps) => {
                   id: p.assistantMessage.id,
                   role: "assistant",
                   content: p.assistantMessage.content,
+                  createdAt:
+                    typeof (p.assistantMessage as { createdAt?: unknown })
+                      .createdAt === "string"
+                      ? (p.assistantMessage as { createdAt: string }).createdAt
+                      : new Date().toISOString(),
                   timing,
                   retrievalPaths: Array.isArray(
                     (p.assistantMessage as { retrievalPaths?: unknown })
@@ -1623,10 +1673,11 @@ export const ChatShell = ({ initialConversations, viewer }: ChatShellProps) => {
       }
       void sendMessageWithContent(action.prompt, {
         displayContent: action.displayText ?? action.label,
-        staleGroupKey: corpusEditStaleGroupKey(action.prompt),
+        staleGroupKey: chatActionStaleGroupKey(action.prompt),
+        staleMessageId: action.sourceMessageId ?? null,
       });
     },
-    [markStaleActionKey, sendMessageWithContent]
+    [sendMessageWithContent]
   );
 
   const sendMessage = useCallback(async () => {
@@ -2213,6 +2264,11 @@ export const ChatShell = ({ initialConversations, viewer }: ChatShellProps) => {
                         onClick={() => {
                           setEditingSidebarId(null);
                           setPreferEmptySession(false);
+                          setStaleActionKeys(new Set());
+                          setCorpusEditPath(null);
+                          setStreamThinking("");
+                          setStreamAnswerPreview("");
+                          setStreamBlocks([]);
                           setActiveConversationId(c.id);
                         }}
                         className="flex min-w-0 flex-1 items-center gap-2.5 px-2.5 py-2 text-left"
@@ -2489,6 +2545,13 @@ export const ChatShell = ({ initialConversations, viewer }: ChatShellProps) => {
                           blocks={m.blocks}
                           onAction={handleChatAction}
                           staleActionKeys={staleActionKeys}
+                          messageId={m.id}
+                          messageCreatedAt={m.createdAt ?? null}
+                          actionsLocked={
+                            turnInFlight ||
+                            hasLiveStreamUi ||
+                            m.id !== latestAssistantMessageId
+                          }
                         />
                       ) : editingMessageId === m.id ? (
                         <div className="space-y-2">
@@ -2573,6 +2636,7 @@ export const ChatShell = ({ initialConversations, viewer }: ChatShellProps) => {
                         blocks={streamBlocks}
                         onAction={handleChatAction}
                         staleActionKeys={staleActionKeys}
+                        actionsLocked={turnInFlight}
                       />
                     </div>
                   </li>
@@ -2758,6 +2822,7 @@ export const ChatShell = ({ initialConversations, viewer }: ChatShellProps) => {
                 id: `temp-assistant:${crypto.randomUUID()}`,
                 role: "assistant",
                 content: answer,
+                createdAt: new Date().toISOString(),
                 blocks,
               },
             ]);

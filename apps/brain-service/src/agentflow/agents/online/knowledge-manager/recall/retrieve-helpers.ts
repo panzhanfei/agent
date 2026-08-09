@@ -348,7 +348,12 @@ export const pickExcerpt = (
         if (link) return link;
     }
     const preferFields =
-        queryProfile === "identity" ? IDENTITY_TABLE_LABELS : [];
+        queryProfile === "identity"
+            ? IDENTITY_TABLE_LABELS
+            : // 亲友/姓名类 default 检索：表行常只有「姓名」列，token 可能是「名字」
+              tokens.some((t) => /名/.test(t))
+              ? ["姓名", "名字"]
+              : [];
     const tableBudget =
         queryProfile === "identity" ? EXCERPT_MAX * 3 : EXCERPT_MAX;
     if (queryProfile === "identity" && tokensWantTimeline(tokens)) {
@@ -364,11 +369,16 @@ export const pickExcerpt = (
     return pickLinearExcerpt(body, tokens, EXCERPT_MAX);
 };
 
+/**
+ * identity 主简历 path：personal/ 下且文件名含简历/resume。
+ * 其它 personal 文档（如亲友关系）不参与 identity Top1 强制，避免抢占本人姓名。
+ */
 export const isPersonalResumePath = (repoPath: string): boolean => {
     const p = repoPath.replace(/\\/g, "/").toLowerCase();
     if (!p.includes("/personal/")) return false;
     if (p.includes("readme")) return false;
-    return /\.md$/i.test(p);
+    if (!/\.md$/i.test(p)) return false;
+    return p.includes("简历") || p.includes("resume");
 };
 
 const personalResumeRank = (repoPath: string): number => {

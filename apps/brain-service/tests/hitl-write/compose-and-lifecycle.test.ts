@@ -1,6 +1,7 @@
 import { describe, expect, it } from "vitest";
 import {
   CORPUS_EDIT_ACTION,
+  CHAT_ACTION_PENDING_TTL_MS,
   CORPUS_EDIT_PENDING_TTL_MS,
   buildCorpusEditAppliedActions,
   buildCorpusEditOpenActions,
@@ -68,7 +69,8 @@ describe("hitl-write dismiss + stale key", () => {
     ).toBe(`proposal:${id}`);
   });
 
-  it("TTL constant is 30 minutes", () => {
-    expect(CORPUS_EDIT_PENDING_TTL_MS).toBe(30 * 60 * 1000);
+  it("TTL constant is 30 minutes (shared chat-action lifecycle)", () => {
+    expect(CHAT_ACTION_PENDING_TTL_MS).toBe(30 * 60 * 1000);
+    expect(CORPUS_EDIT_PENDING_TTL_MS).toBe(CHAT_ACTION_PENDING_TTL_MS);
   });
 });

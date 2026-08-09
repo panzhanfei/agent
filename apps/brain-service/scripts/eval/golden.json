@@ -21,7 +21,31 @@
         "mustIncludeAnySteps": [["km_retrieve", "list_retrieve", "plan_slot_join", "plan_merge", "retrieval", "plan_executor", "user_fact"]],
         "minAnswerLength": 1,
         "answerRe": "潘展飞",
-        "answerMustNotRe": "哪|哪个|请说明|指的是|哪一段"
+        "answerMustNotRe": "再说清楚|哪一方面|请明确|哪|哪个|请说明|指的是|哪一段|模型未返回|未能生成回复"
+      }
+    },
+    {
+      "id": "G2b",
+      "tier": "pipeline",
+      "label": "姓名口语变体：我的名字叫什么",
+      "question": "我的名字叫什么",
+      "assert": {
+        "mustIncludeAnySteps": [["km_retrieve", "list_retrieve", "plan_slot_join", "plan_merge", "retrieval", "plan_executor", "user_fact"]],
+        "minAnswerLength": 1,
+        "answerRe": "潘展飞",
+        "answerMustNotRe": "再说清楚|哪一方面|请明确|哪|哪个|请说明|指的是|哪一段|模型未返回|未能生成回复"
+      }
+    },
+    {
+      "id": "G2c",
+      "tier": "pipeline",
+      "label": "姓名口语变体：我叫什么",
+      "question": "我叫什么",
+      "assert": {
+        "mustIncludeAnySteps": [["km_retrieve", "list_retrieve", "plan_slot_join", "plan_merge", "retrieval", "plan_executor", "user_fact"]],
+        "minAnswerLength": 1,
+        "answerRe": "潘展飞",
+        "answerMustNotRe": "再说清楚|哪一方面|请明确|哪|哪个|请说明|指的是|哪一段|模型未返回|未能生成回复"
       }
     },
     {
@@ -139,6 +163,59 @@
       }
     },
     {
+      "id": "K2b",
+      "tier": "km",
+      "label": "姓名口语：我的名字叫什么",
+      "km": {
+        "searchQuery": "我的名字叫什么",
+        "queryType": "identity",
+        "topics": [],
+        "subTasks": []
+      },
+      "assert": {
+        "expectProfile": "identity",
+        "expectConfidenceTier": "high",
+        "minHits": 1,
+        "topPathRe": "personal",
+        "notTopPathRe": "projects/resume|_TEMPLATE",
+        "excerptAnyRe": "潘展飞"
+      }
+    },
+    {
+      "id": "K-family-brother",
+      "tier": "km",
+      "label": "亲友哥哥（default 检索）",
+      "km": {
+        "searchQuery": "亲友关系 哥哥 姓名",
+        "queryType": "default",
+        "topics": ["personal"],
+        "subTasks": []
+      },
+      "assert": {
+        "expectProfile": "default",
+        "minHits": 1,
+        "topPathRe": "personal|亲友",
+        "excerptRe": "潘小强|哥哥"
+      }
+    },
+    {
+      "id": "K-family-sil",
+      "tier": "km",
+      "label": "亲友嫂子（default 检索）",
+      "km": {
+        "searchQuery": "亲友关系 嫂子 姓名",
+        "queryType": "default",
+        "topics": ["personal"],
+        "subTasks": []
+      },
+      "assert": {
+        "expectProfile": "default",
+        "minHits": 1,
+        "topPathRe": "personal|亲友",
+        "excerptRe": "乔乔|嫂子"
+      }
+    },
+    {
       "id": "L3",
       "tier": "list",
       "label": "列举经历（corpus-lister 目录扫盘）",
@@ -195,7 +272,69 @@
       "question": "我的名字是什么？",
       "assert": {
         "mustIncludeAnySteps": [["km_retrieve", "list_retrieve", "plan_slot_join", "plan_merge", "retrieval", "plan_executor", "user_fact"]],
-        "answerRe": "潘展飞"
+        "answerRe": "潘展飞",
+        "answerMustNotRe": "再说清楚|哪一方面|请明确|模型未返回|未能生成回复"
+      }
+    },
+    {
+      "id": "E2E-age",
+      "tier": "pipeline",
+      "label": "全链路年龄",
+      "question": "我今年多大？",
+      "assert": {
+        "mustIncludeAnySteps": [["km_retrieve", "list_retrieve", "plan_slot_join", "plan_merge", "retrieval", "plan_executor"]],
+        "mustIncludeSteps": ["analyst"],
+        "answerRe": "\\d{2}|岁|1993",
+        "answerMustNotRe": "再说清楚|哪一方面|未标注年龄|模型未返回|未能生成回复"
+      }
+    },
+    {
+      "id": "E2E-phone",
+      "tier": "pipeline",
+      "label": "全链路手机（语料 identity）",
+      "question": "我的手机号多少？",
+      "assert": {
+        "mustIncludeAnySteps": [["km_retrieve", "list_retrieve", "plan_slot_join", "plan_merge", "retrieval", "plan_executor"]],
+        "answerRe": "13679383435",
+        "answerMustNotRe": "再说清楚|哪一方面|模型未返回|未能生成回复"
+      }
+    },
+    {
+      "id": "E2E-brother",
+      "tier": "pipeline",
+      "label": "亲友：哥哥姓名",
+      "question": "我哥叫什么",
+      "assert": {
+        "mustIncludeAnySteps": [["km_retrieve", "list_retrieve", "plan_slot_join", "plan_merge", "retrieval", "plan_executor"]],
+        "mustIncludeSteps": ["analyst"],
+        "answerRe": "潘小强",
+        "answerMustNotRe": "再说清楚|哪一方面|请明确|没有提供|记忆上下文|模型未返回|未能生成回复"
+      }
+    },
+    {
+      "id": "E2E-sister-in-law",
+      "tier": "pipeline",
+      "label": "亲友：嫂子姓名",
+      "question": "我嫂子叫什么",
+      "assert": {
+        "mustIncludeAnySteps": [["km_retrieve", "list_retrieve", "plan_slot_join", "plan_merge", "retrieval", "plan_executor"]],
+        "mustIncludeSteps": ["analyst"],
+        "answerRe": "乔乔|乔",
+        "answerMustNotRe": "再说清楚|哪一方面|请明确|您是想询问|模型未返回|未能生成回复"
+      }
+    },
+    {
+      "id": "E2E-family-tri",
+      "tier": "pipeline",
+      "label": "三连问：本人+哥哥+嫂子姓名",
+      "question": "我叫什么 我哥叫什么 我嫂子叫什么",
+      "assert": {
+        "mustIncludeAnySteps": [["km_retrieve", "list_retrieve", "plan_slot_join", "plan_merge", "retrieval", "plan_executor"]],
+        "mustIncludeSteps": ["analyst"],
+        "minAnswerLength": 8,
+        "answerMustIncludeAll": ["潘展飞", "潘小强"],
+        "answerRe": "乔乔|乔",
+        "answerMustNotRe": "再说清楚|哪一方面|模型未返回|未能生成回复|请确认 Ollama|家族亲戚称呼大全"
       }
     },
     {
@@ -399,30 +538,45 @@
       }
     ]
   },
-  "corpusEditProbe": {
-    "id": "G-HITL-corpus-edit",
-    "label": "HITL corpus_edit CRUD：空 create · 预览/打开 · 带正文 update · 分阶段按钮",
+  "vaultWorkspaceProbe": {
+    "id": "G-vault-workspace",
+    "label": "vault_workspace：list pathPlan · UI prompts · CRUD+语料化硬删",
     "cases": [
       {
-        "id": "A-create-empty",
-        "label": "A 空 create + HITL 写盘",
-        "mode": "create_empty",
-        "relativePath": "personal/_eval_hitl_create.md"
+        "id": "V-list-pathplan",
+        "label": "未指定路径 → list pathPlan",
+        "mode": "list_root"
       },
       {
-        "id": "B-open-preview",
-        "label": "B 无正文预览（禁止空覆盖）",
-        "mode": "open_preview",
-        "relativePath": "personal/_eval_hitl_open.md",
-        "seedContent": "# seed open\npreview keep\n"
+        "id": "V-ui-prompts",
+        "label": "UI exact-match list/open",
+        "mode": "ui_prompts"
       },
       {
-        "id": "C-update-body",
-        "label": "C 带正文 update + HITL 写盘",
-        "mode": "update_body",
-        "relativePath": "personal/_eval_hitl_update.md",
-        "seedContent": "# seed\nbefore\n",
-        "afterContent": "# eval hitl\ncorpus_edit ok\n"
+        "id": "V-crud-materialize",
+        "label": "create/update/delete + materialize/purge",
+        "mode": "create_update_delete"
+      }
+    ]
+  },
+  "corpusEditProbe": {
+    "id": "G-vault-workspace-legacy-alias",
+    "label": "（兼容旧 --corpus-edit-only）同 vaultWorkspaceProbe",
+    "cases": [
+      {
+        "id": "V-list-pathplan",
+        "label": "未指定路径 → list pathPlan",
+        "mode": "list_root"
+      },
+      {
+        "id": "V-ui-prompts",
+        "label": "UI exact-match list/open",
+        "mode": "ui_prompts"
+      },
+      {
+        "id": "V-crud-materialize",
+        "label": "create/update/delete + materialize/purge",
+        "mode": "create_update_delete"
       }
     ]
   },
@@ -462,6 +616,30 @@
           "mustIncludeAnySteps": [["km_retrieve", "list_retrieve", "plan_slot_join", "plan_merge", "retrieval", "plan_executor"]],
           "mustIncludeSteps": ["analyst"],
           "answerMustIncludeAll": ["云联智慧", "友谊时光", "奖多多", "奥卡云"]
+        }
+      }
+    ]
+  },
+  "familyProbe": {
+    "id": "G-个人档案-亲友",
+    "label": "个人档案：姓名变体后接亲友三连问（同会话；单轮亲友见 E2E-brother / E2E-sister-in-law）",
+    "conversationIdPrefix": "eval-family",
+    "turns": [
+      {
+        "question": "我的名字叫什么",
+        "assert": {
+          "mustIncludeAnySteps": [["km_retrieve", "list_retrieve", "plan_slot_join", "plan_merge", "retrieval", "plan_executor", "user_fact"]],
+          "answerRe": "潘展飞",
+          "answerMustNotRe": "再说清楚|哪一方面|请明确|模型未返回|未能生成回复"
+        }
+      },
+      {
+        "question": "我叫什么 我哥叫什么 我嫂子叫什么",
+        "assert": {
+          "mustIncludeAnySteps": [["km_retrieve", "list_retrieve", "plan_slot_join", "plan_merge", "retrieval", "plan_executor"]],
+          "answerMustIncludeAll": ["潘展飞", "潘小强"],
+          "answerRe": "乔乔|乔",
+          "answerMustNotRe": "模型未返回|未能生成回复|请确认 Ollama|家族亲戚称呼大全|再说清楚"
         }
       }
     ]

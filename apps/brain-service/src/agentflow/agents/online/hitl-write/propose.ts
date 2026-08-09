@@ -26,6 +26,18 @@ export const proposeCorpusEdit = async (
   | { ok: true; proposal: CorpusEditProposalView }
   | { ok: false; error: string }
 > => {
+  // 模型 A：禁止新建直接改 corpus md 的提案；请走 vault_workspace txt
+  void input;
+  return { ok: false, error: "corpus_md_hitl_retired" };
+};
+
+/** @deprecated 仅供遗留单测；生产路径已退役 */
+export const proposeCorpusEditLegacy = async (
+  input: ProposeCorpusEditInput
+): Promise<
+  | { ok: true; proposal: CorpusEditProposalView }
+  | { ok: false; error: string }
+> => {
   if (input.operation === "open") {
     return { ok: false, error: "open_not_writable" };
   }

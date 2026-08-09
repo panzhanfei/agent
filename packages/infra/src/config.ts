@@ -100,6 +100,12 @@ export type InfraConfig = {
         jobTtlMs: number;
         eventChannelPrefix: string;
     };
+    /** vault txt → md / 硬删同步队列（可与 pipeline 共用 Redis） */
+    corpusQueue: {
+        enabled: boolean;
+        name: string;
+        concurrency: number;
+    };
 };
 
 let cached: InfraConfig | null = null;
@@ -148,6 +154,13 @@ export const getInfraConfig = (): InfraConfig => {
             eventChannelPrefix:
                 process.env.PIPELINE_QUEUE_EVENT_PREFIX?.trim() ||
                 `${redisKeyPrefix}:pipeline:events`,
+        },
+        corpusQueue: {
+            enabled: truthy(process.env.CORPUS_QUEUE_ENABLED),
+            name:
+                process.env.CORPUS_QUEUE_NAME?.trim() ||
+                `${redisKeyPrefix}-corpus`,
+            concurrency: parseIntEnv(process.env.CORPUS_QUEUE_CONCURRENCY, 2, 1),
         },
     };
     return cached;

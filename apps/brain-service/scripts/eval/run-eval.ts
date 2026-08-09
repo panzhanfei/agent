@@ -34,9 +34,11 @@ import {
 } from "./assert-golden";
 import { enableRepeatGuardForVerify } from "../verify-test-env";
 import {
+    runVaultWorkspaceProbe,
     runCorpusEditProbe,
     type CorpusEditProbeSpec,
-} from "./corpus-edit-probe";
+    type VaultWorkspaceProbeSpec,
+} from "./vault-workspace-probe";
 
 const __dirname = path.dirname(fileURLToPath(import.meta.url));
 const GOLDEN_PATH = path.join(__dirname, "golden.json");
@@ -136,6 +138,13 @@ type GoldenFile = {
         qq?: string;
         turns: ListPaginationTurn[];
     };
+    familyProbe?: {
+        id: string;
+        label: string;
+        conversationIdPrefix: string;
+        turns: ListPaginationTurn[];
+    };
+    vaultWorkspaceProbe?: VaultWorkspaceProbeSpec;
     corpusEditProbe?: CorpusEditProbeSpec;
 };
 
@@ -185,6 +194,7 @@ type EvalReport = {
     dualListPaginationProbe?: CaseResult[];
     fiveCompositeProbe?: CaseResult[];
     identityCompositeProbe?: CaseResult[];
+    familyProbe?: CaseResult[];
     corpusEditProbe?: CaseResult[];
 };
 
@@ -725,6 +735,14 @@ const formatMarkdown = (report: EvalReport): string => {
             );
         }
     }
+    if (report.familyProbe?.length) {
+        lines.push(``, `## 个人档案 / 亲友探测`, ``);
+        for (const r of report.familyProbe) {
+            lines.push(
+                `- ${r.id}: ${r.pass ? "✅" : "❌"} ${r.reason} (${r.latencyMs}ms)`
+            );
+        }
+    }
     if (report.corpusEditProbe?.length) {
         lines.push(``, `## HITL corpus_edit 探测`, ``);
         for (const r of report.corpusEditProbe) {
@@ -740,6 +758,7 @@ const jsonOnly = process.argv.includes("--json-only");
 const profileOnly = process.argv.includes("--profile-only");
 const listPaginationOnly = process.argv.includes("--list-pagination-only");
 const identityCompositeOnly = process.argv.includes("--identity-composite-only");
+const familyOnly = process.argv.includes("--family-only");
 const memOnly = process.argv.includes("--mem-only");
 const corpusEditOnly = process.argv.includes("--corpus-edit-only");
 const caseFilter = (() => {
@@ -771,26 +790,22 @@ const main = async (): Promise<void> => {
         return;
     }
 
-    if (corpusEditOnly) {
-        if (!golden.corpusEditProbe) {
-            throw new Error("golden.json 缺少 corpusEditProbe");
+    if (corpusEditOnly || process.argv.includes("--vault-only")) {
+        const vaultSpec = golden.vaultWorkspaceProbe ?? golden.corpusEditProbe;
+        if (!vaultSpec) {
+            throw new Error("golden.json 缺少 vaultWorkspaceProbe");
         }
-        console.log(
-            `eval:run — corpus-edit probe only (${golden.corpusEditProbe.id})`
-        );
+        console.log(`eval:run — vault workspace probe only (${vaultSpec.id})`);
         console.log(`corpusUserId=${corpusUserId} chroma=${chromaUp ? "up" : "down"}\n`);
-        const corpusEditProbe = await runCorpusEditProbe(
-            golden.corpusEditProbe,
-            corpusUserId
-        );
-        for (const r of corpusEditProbe) {
+        const vaultProbe = await runVaultWorkspaceProbe(vaultSpec, corpusUserId);
+        for (const r of vaultProbe) {
             console.log(
                 `  ${r.id}: ${r.pass ? "PASS" : "FAIL"} — ${r.reason} (${r.latencyMs}ms)`
             );
         }
-        const failed = corpusEditProbe.filter((r) => !r.pass);
+        const failed = vaultProbe.filter((r) => !r.pass);
         if (failed.length > 0) process.exit(1);
-        console.log("\nCorpus-edit probe 通过。");
+        console.log("\nVault workspace probe 通过。");
         return;
     }
 
@@ -832,6 +847,44 @@ const main = async (): Promise<void> => {
         const failed = results.filter((r) => !r.pass);
         if (failed.length > 0) process.exit(1);
         console.log("\nIdentity composite probe 通过。");
+        return;
+    }
+
+    if (familyOnly) {
+        if (!golden.familyProbe) {
+            throw new Error("golden.json 缺少 familyProbe");
+        }
+        console.log(`eval:run — family probe only (${golden.familyProbe.id})`);
+        console.log(`corpusUserId=${corpusUserId} chroma=${chromaUp ? "up" : "down"}\n`);
+        const familyCases = [
+            "G2b",
+            "G2c",
+            "E2E-brother",
+            "E2E-sister-in-law",
+            "E2E-family-tri",
+            "K-family-brother",
+            "K-family-sil",
+            "K2b",
+        ];
+        const selected = golden.cases.filter((c) => familyCases.includes(c.id));
+        const results: CaseResult[] = [];
+        for (const [i, spec] of selected.entries()) {
+            process.stdout.write(`  [${i + 1}/${selected.length}] ${spec.id} … `);
+            const result = await evaluateCase(spec, corpusUserId, 1);
+            console.log(result.pass ? "PASS" : "FAIL");
+            results.push(result);
+        }
+        const probeResults = await runListPaginationProbe(
+            golden.familyProbe,
+            corpusUserId,
+            { logAnswerOnFail: true }
+        );
+        for (const r of probeResults) {
+            console.log(`  ${r.id}: ${r.pass ? "PASS" : "FAIL"} — ${r.reason} (${r.latencyMs}ms)`);
+        }
+        const failed = [...results, ...probeResults].filter((r) => !r.pass);
+        if (failed.length > 0) process.exit(1);
+        console.log("\nFamily probe 通过。");
         return;
     }
 
@@ -933,10 +986,20 @@ const main = async (): Promise<void> => {
                   corpusUserId
               );
 
-    const corpusEditProbe =
-        caseFilter || !golden.corpusEditProbe
+    const familyProbe =
+        caseFilter || !golden.familyProbe
             ? []
-            : await runCorpusEditProbe(golden.corpusEditProbe, corpusUserId);
+            : await runListPaginationProbe(
+                  golden.familyProbe,
+                  corpusUserId,
+                  { logAnswerOnFail: true }
+              );
+
+    const vaultSpec = golden.vaultWorkspaceProbe ?? golden.corpusEditProbe;
+    const corpusEditProbe =
+        caseFilter || !vaultSpec
+            ? []
+            : await runVaultWorkspaceProbe(vaultSpec, corpusUserId);
 
     const report: EvalReport = {
         generatedAt: new Date().toISOString(),
@@ -959,6 +1022,7 @@ const main = async (): Promise<void> => {
         identityCompositeProbe: identityCompositeProbe.length
             ? identityCompositeProbe
             : undefined,
+        familyProbe: familyProbe.length ? familyProbe : undefined,
         corpusEditProbe: corpusEditProbe.length ? corpusEditProbe : undefined,
     };
 
@@ -995,6 +1059,7 @@ const main = async (): Promise<void> => {
     const identityCompositeFailed = (report.identityCompositeProbe ?? []).filter(
         (r) => !r.pass
     );
+    const familyFailed = (report.familyProbe ?? []).filter((r) => !r.pass);
     const corpusEditFailed = (report.corpusEditProbe ?? []).filter((r) => !r.pass);
     const coalesceBad = report.metrics.coalesceFailures > 0;
     if (
@@ -1005,6 +1070,7 @@ const main = async (): Promise<void> => {
         dualListPaginationFailed.length > 0 ||
         fiveCompositeFailed.length > 0 ||
         identityCompositeFailed.length > 0 ||
+        familyFailed.length > 0 ||
         corpusEditFailed.length > 0 ||
         coalesceBad
     ) {

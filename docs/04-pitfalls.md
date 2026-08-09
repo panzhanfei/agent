@@ -115,6 +115,7 @@
 | **P0-32** | Tool / Analyst | 复合问「奥卡云上班年限」→「5 年 6 个月（最早自 2021）」；单问同槽常只复述 **2021.6–2024.9**；「出生年份」易答成周岁 | `compute_tenure_from_hits` 用 **earliest 总从业→asOf**，非雇主过滤/离职日；与 age 同属 asOf 算术但语义不同；复合挂工具、单问常跳过 | **待做：** 公司年限按雇主区间+结束日；区分出生年 vs 周岁；终稿标注 asOf | ⬜ **待做** ← **§2.5.11** |
 | P0-20 | Analyst / KM / composite | **综合问**公司段只列 2 家；子问「2～8 句」压缩；Organizer 固定 cap **5** | `MAX_SUB_QUESTION_HITS=4`；子问 prompt 句数限制；CO 未跟 profile | **`maxAnalystHitsForProfile`** + CO **`queryProfile` maxHits**；enumeration 子问 prompt「须列全 hits」 | ✅ **已解决**（2026-06）← §2.5.5 |
 | P0-21 | Intake / KM / Analyst | composite 槽 label「**具体项目名称**」→ 答 **云联智慧/友谊时光** 等公司 | 所有 enumeration 共用 **experience fill**；Intake 误标 `topics:experience` → canonical 到 employers | **`resolveEnumerationTarget`**（label 优先）+ KM **projects/** 专扫 + Analyst project prompt | ✅ **已解决**（2026-06）← §2.5.5 |
+| **P0-33** | HITL / 语料写盘 | 直接改 `corpus/**/*.md` + 软清空 `<!-- fambrain:cleared -->`；用户难记 path | 编辑面与检索产物耦合；软删仍占向量 path | **模型 A**：只 CRUD `vault/originals/workspace/*.txt`；`vault_workspace` list/CRUD；语料化 md+向量；**硬删**级联；`corpus_edit` 退役 | ✅ **已解决**（2026-08）← [流程 · 原文库](./02-agent-flows.md) |
 
 ### 2.8 PathPlan 统一编排（✅ P0-28 · 2026-07）
 

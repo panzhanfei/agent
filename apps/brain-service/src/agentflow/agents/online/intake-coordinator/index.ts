@@ -9,6 +9,7 @@ import {
   resolveEnumerationPagination,
 } from "@/agentflow/agents/online/corpus-lister/enumeration";
 import { resolveCorpusEditUiBypass } from "@/agentflow/agents/online/hitl-write";
+import { resolveVaultWorkspaceUiBypass } from "@/agentflow/agents/online/vault-write";
 import {
   applyAttachmentAction,
   buildEnumerationListDecision,
@@ -212,6 +213,21 @@ export const runIntakeNode = async (
           page,
           pageSize,
         }),
+      };
+    }
+
+    const vaultWsUi = await resolveVaultWorkspaceUiBypass({
+      userQuestion: rawQuestion,
+      corpusUserId: state.context.corpusUserId,
+    });
+    if (vaultWsUi) {
+      logAgentOut("IntakeCoordinator", "短路_vault_workspace_ui", {
+        userQuestion: rawQuestion,
+      });
+      return {
+        decision: buildEarlyExitRoutedDecision(vaultWsUi.decision),
+        answer: vaultWsUi.answer,
+        assistantBlocks: vaultWsUi.assistantBlocks,
       };
     }
 

@@ -9,8 +9,13 @@
   "scripts": {
     "dev": "tsx watch --env-file=../../.env src/server/index.ts",
     "dev:worker": "tsx watch --env-file=../../.env src/worker/pipeline-worker.ts",
+    "dev:corpus-worker": "tsx watch --env-file=../../.env src/worker/corpus-worker.ts",
     "start": "tsx --env-file=../../.env src/server/index.ts",
     "worker": "tsx --env-file=../../.env src/worker/pipeline-worker.ts",
+    "corpus-worker": "tsx --env-file=../../.env src/worker/corpus-worker.ts",
+    "load:chat": "tsx --env-file=../../.env scripts/load/chat-baseline.ts",
+    "e2e:api:vault": "tsx --env-file=../../.env scripts/e2e/api-vault-workspace.ts",
+    "e2e:inprocess:vault": "tsx --env-file=../../.env scripts/e2e/inprocess-vault-list.ts",
     "index:corpus": "tsx --env-file=../../.env scripts/index-all-corpus.ts",
     "parse:documents": "tsx --env-file=../../.env scripts/parse-documents.ts",
     "verify:doc-parser": "tsx scripts/verify-doc-parser.ts",

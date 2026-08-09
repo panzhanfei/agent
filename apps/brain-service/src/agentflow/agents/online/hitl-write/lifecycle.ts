@@ -1,6 +1,7 @@
 /**
  * HITL 提案生命周期：终态不可再批 + pending TTL + 会话切换作废。
- * 时长为结构常量，非口语/场景硬编码。
+ * TTL 与 Web 聊天 actions（vault / enumeration / HITL 按钮）共用
+ * `CHAT_ACTION_PENDING_TTL_MS`（30min）；时长为结构常量，非口语硬编码。
  */
 import {
   expirePendingCorpusEditProposalsForUser,
@@ -8,8 +9,14 @@ import {
   updateCorpusEditProposalStatus,
 } from "@fambrain/db";
 
-/** pending 提案超过此时长未处理 → EXPIRED */
-export const CORPUS_EDIT_PENDING_TTL_MS = 30 * 60 * 1000;
+/**
+ * 聊天可操作控件 / HITL pending 统一 TTL（30 分钟）。
+ * Web `CHAT_ACTION_PENDING_TTL_MS` 须保持同值。
+ */
+export const CHAT_ACTION_PENDING_TTL_MS = 30 * 60 * 1000;
+
+/** @deprecated 使用 CHAT_ACTION_PENDING_TTL_MS */
+export const CORPUS_EDIT_PENDING_TTL_MS = CHAT_ACTION_PENDING_TTL_MS;
 
 export type ProposalRow = NonNullable<
   Awaited<ReturnType<typeof findCorpusEditProposalForUser>>
@@ -24,7 +31,7 @@ export const ensureProposalNotStale = async (
 ): Promise<ProposalRow> => {
   if (!isProposalPending(proposal.status)) return proposal;
   const ageMs = Date.now() - proposal.createdAt.getTime();
-  if (ageMs <= CORPUS_EDIT_PENDING_TTL_MS) return proposal;
+  if (ageMs <= CHAT_ACTION_PENDING_TTL_MS) return proposal;
   await updateCorpusEditProposalStatus(proposal.id, "EXPIRED");
   return { ...proposal, status: "EXPIRED" };
 };

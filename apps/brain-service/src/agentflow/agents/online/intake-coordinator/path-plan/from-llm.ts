@@ -55,7 +55,18 @@ const PATH_KINDS = new Set([
   "tool",
   "summarize",
   "dag",
+  "vault_workspace",
   "corpus_edit",
+]);
+
+const VAULT_WORKSPACE_OPS = new Set([
+  "list",
+  "open",
+  "create_file",
+  "create_folder",
+  "update",
+  "delete_file",
+  "delete_folder",
 ]);
 
 const asQueryType = (v: unknown): ExecutionStep["queryType"] => {
@@ -169,7 +180,8 @@ const defaultToolIdForStep = (
     kind === "mem" ||
     kind === "summarize" ||
     kind === "dag" ||
-    kind === "corpus_edit"
+    kind === "corpus_edit" ||
+    kind === "vault_workspace"
   ) {
     return null;
   }
@@ -259,6 +271,19 @@ export const normalizePathPlanSteps = (plan: PathPlan): PathPlan => {
 
     // 显式 mem0 / kind=mem
     if (s.dataSource === "mem0" || s.kind === "mem") {
+      const memKey = legalizeUserFactKey(s.userFactKey);
+      // 误标 dataSource=mem0 但无 userFactKey → 回落语料 km（禁止空 key mem / 误走 Mem0）
+      if (!memKey && s.kind !== "mem") {
+        steps.push({
+          ...s,
+          kind: "km",
+          dataSource: "corpus",
+          userFactKey: null,
+          userFactLabel: null,
+          toolId: isPostRetrievalToolId(s.toolId) ? s.toolId : null,
+        });
+        continue;
+      }
       steps.push(toMemStep(s));
       continue;
     }
@@ -307,8 +332,13 @@ export const normalizePathPlanSteps = (plan: PathPlan): PathPlan => {
       }
     }
 
-    // dag / list / corpus_edit / km 保持
-    if (s.kind === "dag" || s.kind === "list" || s.kind === "corpus_edit") {
+    // dag / list / vault_workspace / corpus_edit / km 保持
+    if (
+      s.kind === "dag" ||
+      s.kind === "list" ||
+      s.kind === "vault_workspace" ||
+      s.kind === "corpus_edit"
+    ) {
       steps.push(s);
       continue;
     }
@@ -362,27 +392,55 @@ const legalizeStep = (raw: unknown, index: number): ExecutionStep | null => {
   }
 
   const label = String(o.label ?? "").trim();
-  const searchQuery = String(o.searchQuery ?? o.search_query ?? "").trim();
+  let searchQuery = String(o.searchQuery ?? o.search_query ?? "").trim();
   if (!label && !searchQuery && kind !== "tool") return null;
 
-  const queryType =
+  let queryType =
     kind === "list" ? "enumeration" : asQueryType(o.queryType ?? o.query_type);
   const topics = Array.isArray(o.topics)
     ? o.topics.map((t) => String(t).trim()).filter(Boolean)
     : kind === "list"
       ? ["project"]
       : [];
-  const identityField = legalizeIdentityField(
-    o.identityField ?? o.identity_field
-  );
+  const rawIdentityField = o.identityField ?? o.identity_field;
+  let identityField = legalizeIdentityField(rawIdentityField);
+  // 发明了不在闭集的 identityField → 非简历闭集槽：default 检索 + 用 label 回落亲友向 query
+  if (
+    typeof rawIdentityField === "string" &&
+    rawIdentityField.trim() &&
+    !identityField
+  ) {
+    if (queryType === "identity") queryType = "default";
+    if (label && !/亲友/.test(searchQuery)) {
+      searchQuery = `亲友关系 ${label}`;
+    }
+  }
   const userFactKey = legalizeUserFactKey(
     o.userFactKey ?? o.user_fact_key
   );
   const userFactLabelRaw = o.userFactLabel ?? o.user_fact_label;
   const userFactLabel =
     typeof userFactLabelRaw === "string" ? userFactLabelRaw.trim() || null : null;
+  // 结构信号：topics 含 family → 非本人 identity；searchQuery 须落亲友语料
+  const topicFamily = topics.some((t) => t.toLowerCase() === "family");
+  if (topicFamily) {
+    if (identityField) identityField = null;
+    if (queryType === "identity") queryType = "default";
+    if (label && !/亲友/.test(searchQuery)) {
+      searchQuery = `亲友关系 ${label}`;
+    }
+  }
   let toolId = asToolId(o.toolId ?? o.tool_id);
   toolId = defaultToolIdForStep(kind, queryType, identityField, toolId);
+  // schema：extract_identity_* 必须挂合法 identityField；非法字段被剥掉后勿残留 toolId
+  if (
+    (toolId === "extract_identity_from_hits" ||
+      toolId === "compute_age_from_hits" ||
+      toolId === "compute_tenure_from_hits") &&
+    !identityField
+  ) {
+    toolId = null;
+  }
   const dataSourceRaw = asDataSource(o.dataSource ?? o.data_source);
 
   if (kind === "mem") {
@@ -469,27 +527,56 @@ const legalizeStep = (raw: unknown, index: number): ExecutionStep | null => {
     };
   }
 
+  // 直接改 corpus md 已退役：丢弃（引导走 vault_workspace）
   if (kind === "corpus_edit") {
+    return null;
+  }
+
+  if (kind === "vault_workspace") {
     const params =
       o.params && typeof o.params === "object" && !Array.isArray(o.params)
         ? (o.params as Record<string, unknown>)
         : {};
+    let operation = String(params.operation ?? params.op ?? "list")
+      .trim()
+      .toLowerCase();
+    if (!VAULT_WORKSPACE_OPS.has(operation)) {
+      operation = "list";
+    }
     const targetPath = String(
       params.targetPath ?? params.target_path ?? searchQuery ?? ""
     ).trim();
-    if (!targetPath) return null;
-    const afterContent = String(
-      params.afterContent ?? params.after_content ?? ""
-    );
-    let operation = String(params.operation ?? "update").toLowerCase();
-    // 结构归一：无正文的 update → open（禁止空覆盖；与 slot 一致）
+    // list 允许空 path（根）；其它 op 除 create_* 外须有 path；create_* 可用 folder path 或根
+    if (
+      operation !== "list" &&
+      operation !== "create_file" &&
+      operation !== "create_folder" &&
+      !targetPath
+    ) {
+      return null;
+    }
+    // create_folder 无 name → 丢弃（create_file 工人可默认 untitled）
+    if (
+      operation === "create_folder" &&
+      !String(params.name ?? "").trim()
+    ) {
+      return null;
+    }
+    const afterContent =
+      typeof params.afterContent === "string"
+        ? params.afterContent
+        : typeof params.after_content === "string"
+          ? params.after_content
+          : "";
     if (operation === "update" && !afterContent.trim()) {
       operation = "open";
     }
+    const name =
+      typeof params.name === "string" ? params.name.trim() : null;
     return {
-      id: trimId(o.id, `corpus-edit-${index}`),
-      kind: "corpus_edit",
-      label: label || "语料修订",
+      id: trimId(o.id, `vault-ws-${index}`),
+      kind: "vault_workspace",
+      label: label || "原文库",
       searchQuery: targetPath,
       queryType: "default",
       topics: topics.length > 0 ? topics : ["personal"],
@@ -503,6 +590,7 @@ const legalizeStep = (raw: unknown, index: number): ExecutionStep | null => {
         targetPath,
         operation,
         afterContent,
+        ...(name ? { name } : {}),
       },
     };
   }
@@ -687,6 +775,8 @@ const executorForStep = (step: ExecutionStep): SlotExecutor => {
       return "tool_run";
     case "summarize":
       return "summarize_slot";
+    case "vault_workspace":
+      return "vault_workspace";
     case "corpus_edit":
       return "corpus_edit";
     default:

@@ -19,7 +19,7 @@ import type {
   ToolRunResult,
 } from "@/agentflow/agents/online/tool-orchestrator";
 
-/** Send 工人族：km | list | mem | tool | summarize | dag | corpus_edit */
+/** Send 工人族：km | list | mem | tool | summarize | dag | vault_workspace | corpus_edit(退役) */
 export type PathKind =
   | "km"
   | "list"
@@ -27,6 +27,8 @@ export type PathKind =
   | "tool"
   | "summarize"
   | "dag"
+  | "vault_workspace"
+  /** @deprecated 直接改 corpus md 已退役；合法化会丢弃 */
   | "corpus_edit";
 
 export type ComposeMode = "qa" | "summarize" | "composite";
@@ -42,7 +44,8 @@ export type DagTemplateId = "hybrid_multi_source";
  * - tool：独立工具步（search_web 等；扩展天气/搜索同族）
  * - summarize：子步总结用户原文（dataSource=user_text）
  * - dag：仅 hybrid_multi_source（语料+外网汇合）
- * - corpus_edit：HITL 语料 md（params.targetPath / operation=update|clear|create|open / afterContent）
+ * - vault_workspace：原文库 txt/文件夹（params.operation=list|open|create_*|update|delete_*；list 可无 path）
+ * - corpus_edit：已退役（勿再产出）
  */
 export type ExecutionStep = {
   id: string;
@@ -51,7 +54,7 @@ export type ExecutionStep = {
   label: string;
   /**
    * km/list/tool：检索/工具查询词；summarize：待总结正文；
-   * corpus_edit：可作 targetPath 回退（优先 params.targetPath）
+   * vault_workspace：可作 targetPath 回退（优先 params.targetPath；list 根用 ""）
    */
   searchQuery: string;
   queryType: "identity" | "enumeration" | "tech" | "external_link" | "default";
@@ -90,6 +93,7 @@ export type PathPlanCounts = {
   tool: number;
   summarize: number;
   dag: number;
+  vault_workspace: number;
   corpus_edit: number;
   total: number;
 };

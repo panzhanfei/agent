@@ -5,6 +5,7 @@ export type MessageRow = {
   id: string;
   role: string;
   content: string;
+  createdAt: Date;
   metadata?: unknown;
 };
 export const findOwnedConversation = async (
@@ -24,7 +25,13 @@ export const listConversationMessages = async (
   return prisma.message.findMany({
     where: { conversationId },
     orderBy: { createdAt: "asc" },
-    select: { id: true, role: true, content: true, metadata: true },
+    select: {
+      id: true,
+      role: true,
+      content: true,
+      createdAt: true,
+      metadata: true,
+    },
   });
 };
 export const toModelHistory = (

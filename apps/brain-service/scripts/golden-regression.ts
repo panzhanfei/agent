@@ -171,7 +171,7 @@ const GOLDEN_CASES: GoldenCase[] = [
   {
     id: "G2",
     label: "姓名检索",
-    question: "我的名字",
+    question: "我的名字叫什么",
     assert: ({ steps, answer }) => {
       if (!hasRetrievalStep(steps) && !hasStep(steps, "user_fact"))
         return "应进入 plan_executor/retrieval 或 user_fact（非 clarify 短路）";
@@ -181,6 +181,9 @@ const GOLDEN_CASES: GoldenCase[] = [
         CLARIFY_ANSWER.test(answer)
       )
         return "不应 clarify，应检索 personal/简历";
+      if (/再说清楚|哪一方面|请明确/.test(answer) && !/潘展飞/.test(answer))
+        return "不应空 plan clarify；应答出姓名";
+      if (!/潘展飞/.test(answer)) return "answer 应含「潘展飞」";
       if (!answer.trim()) return "answer 为空";
       return null;
     },

@@ -5,6 +5,7 @@ import {
   parseEditOperation,
   previewCorpusMarkdown,
   proposeCorpusEdit,
+  proposeCorpusEditLegacy,
   resolveCorpusMarkdownAbsPath,
 } from "@/agentflow/agents/online/hitl-write";
 
@@ -21,7 +22,7 @@ const cleanup = async () => {
   }
 };
 
-describe("hitl-write A/B/C propose contract", () => {
+describe("hitl-write propose (retired + legacy)", () => {
   afterEach(async () => {
     await cleanup();
   });
@@ -31,13 +32,26 @@ describe("hitl-write A/B/C propose contract", () => {
     expect(parseEditOperation("OPEN")).toBe("open");
   });
 
-  it("B: update with empty afterContent is rejected (no empty overwrite)", async () => {
+  it("production proposeCorpusEdit always retires", async () => {
+    const out = await proposeCorpusEdit({
+      userId: "user_unit",
+      corpusUserId: CORPUS_USER,
+      threadId: "t-retired",
+      targetPath: REL,
+      operation: "update",
+      afterContent: "# x\n",
+    });
+    expect(out.ok).toBe(false);
+    if (!out.ok) expect(out.error).toBe("corpus_md_hitl_retired");
+  });
+
+  it("legacy: update with empty afterContent is rejected", async () => {
     const resolved = resolveCorpusMarkdownAbsPath(CORPUS_USER, REL);
     expect(resolved).not.toBeNull();
     await mkdir(path.dirname(resolved!.absPath), { recursive: true });
     await writeFile(resolved!.absPath, "# keep\n", "utf8");
 
-    const out = await proposeCorpusEdit({
+    const out = await proposeCorpusEditLegacy({
       userId: "user_unit",
       corpusUserId: CORPUS_USER,
       threadId: "t-b",
@@ -67,8 +81,8 @@ describe("hitl-write A/B/C propose contract", () => {
     expect(await readFile(resolved!.absPath, "utf8")).toBe("# preview body\n");
   });
 
-  it("rejects open via propose", async () => {
-    const out = await proposeCorpusEdit({
+  it("legacy rejects open via propose", async () => {
+    const out = await proposeCorpusEditLegacy({
       userId: "user_unit",
       corpusUserId: CORPUS_USER,
       threadId: "t-open",

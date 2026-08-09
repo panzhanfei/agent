@@ -28,6 +28,7 @@ import {
   getCompiledToolSlotGraph,
 } from "@/agentflow/agents/online/tool-orchestrator";
 import { runCorpusEditNode } from "@/agentflow/agents/online/hitl-write";
+import { runVaultWorkspaceNode } from "@/agentflow/agents/online/vault-write";
 import {
   runPreparePipelineMemory,
   runPrepareTurnStart,
@@ -37,7 +38,10 @@ import {
   runRepeatRespondEarlyNode,
 } from "@/agentflow/agents/online/repeat-question-guard";
 import { runPersistTurnEnd } from "@/agentflow/agents/online/persist-turn-end";
-import { PipelineGraphAnnotation } from "./state";
+import {
+  PipelineGraphAnnotation,
+  type PipelineGraphState,
+} from "./state";
 import {
   routeAfterIntake,
   routeAfterPlanCacheResolve,
@@ -50,8 +54,30 @@ import {
 } from "./routes";
 
 /**
- * intake → planCacheResolve → Send(每槽 km|list|mem|tool|summarize|corpus_edit ∥ dag ∥ userFactSide)
- *   kmRetrieve / toolRetrieve = 单槽子图壳；list/mem/summarize/corpusEdit 扁平
+ * 单槽子图若直接挂父图，invoke 会把整份 Pipeline 状态（含 history LastValue）写回；
+ * 并行 Send 时触发 INVALID_CONCURRENT_GRAPH_UPDATE。只透传工人补丁通道。
+ */
+const asFanOutSlotNode = (compiled: {
+  invoke: (state: PipelineGraphState) => Promise<PipelineGraphState>;
+}) => {
+  return async (
+    state: PipelineGraphState
+  ): Promise<Partial<PipelineGraphState>> => {
+    const out = await compiled.invoke(state);
+    const patches = out.fanOutSlotPatches ?? [];
+    /** 子图内 reducer 可能叠上父级残留；工人每次只应追加本槽最新一条 */
+    const last = patches.length > 0 ? patches[patches.length - 1]! : null;
+    return {
+      fanOutSlotPatches: last ? [last] : [],
+      slotRuntimeById: out.slotRuntimeById ?? {},
+      ...(out.turnAborted ? { turnAborted: true as const } : {}),
+    };
+  };
+};
+
+/**
+ * intake → planCacheResolve → Send(每槽 km|list|mem|tool|summarize|vault_workspace|corpus_edit ∥ dag ∥ userFactSide)
+ *   kmRetrieve / toolRetrieve = 单槽子图壳；list/mem/summarize/vaultWorkspace/corpusEdit 扁平
  *     → planSlotJoin →（可选全局 B 再批 Send ≤1）→ planSlotPost → planMerge
  * → contentOrganizer → contentSummarizer? → analyst
  */
@@ -64,11 +90,12 @@ const buildPipelineGraph = () => {
     .addNode("intake", runIntakeNode)
     .addNode("planCacheResolve", runPlanCacheResolveNode)
     .addNode("listRetriever", runListRetrieverNode)
-    .addNode("kmRetrieve", getCompiledKmSlotGraph())
+    .addNode("kmRetrieve", asFanOutSlotNode(getCompiledKmSlotGraph()))
     .addNode("listRetrieve", runListRetrieveNode)
     .addNode("memRetrieve", runMemRetrieveNode)
-    .addNode("toolRetrieve", getCompiledToolSlotGraph())
+    .addNode("toolRetrieve", asFanOutSlotNode(getCompiledToolSlotGraph()))
     .addNode("summarizeSlot", runSummarizeSlotNode)
+    .addNode("vaultWorkspace", runVaultWorkspaceNode)
     .addNode("corpusEdit", runCorpusEditNode)
     .addNode("planSlotJoin", runPlanSlotJoinNode)
     .addNode("planSlotPost", runPlanSlotPostNode)
@@ -95,6 +122,7 @@ const buildPipelineGraph = () => {
     .addEdge("memRetrieve", "planSlotJoin")
     .addEdge("toolRetrieve", "planSlotJoin")
     .addEdge("summarizeSlot", "planSlotJoin")
+    .addEdge("vaultWorkspace", "planSlotJoin")
     .addEdge("corpusEdit", "planSlotJoin")
     .addEdge("userFactSide", "planSlotJoin")
     .addEdge("planDag", "planSlotJoin")

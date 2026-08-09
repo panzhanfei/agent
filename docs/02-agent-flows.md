@@ -20,8 +20,21 @@
 | **`DagExecutor`** | **DAG 执行器** | `runDagExecutorNode` + **`runPlanDagNode`**（fan-out hybrid DAG 工人） |
 | **`UserFact`** | **用户记忆** | `userFactNode`（纯 remember/recall）+ **`runUserFactSideNode`**（复合并行 side-effect） |
 | `InformationAnalyst` | 信息分析师 | 消费 `stepResults` + `toolResults` + 整理后的 `hits` 写终稿；可并入同轮 remember side-effect |
+| **`VaultWrite`** | **原文库** | `kind=vault_workspace`：两层 list + `.txt`/文件夹 CRUD；语料化写入 `corpus/personal/imports/workspace/**/*.md` + 向量；**硬删**级联；**禁止**直接 HITL 改 corpus md |
 
-**链路：** 用户提问 → **轮次开始** → 意图识别 → **PathPlan fan-out**（按 `steps[]`：km / list / tool / dag 并行工人；km 槽 per-step FC，list 不经 FC）→ **内容整理** → **Compose**（qa / composite / summarize）→ 回答 → **轮次结束**。跨轮 **两层 cache**（同问短路 + 检索结果 cache）见 [坑点 §2.2](./04-pitfalls.md)。
+**链路：** 用户提问 → **轮次开始** → 意图识别 → **PathPlan fan-out**（按 `steps[]`：km / list / tool / vault_workspace / dag 并行工人；km 槽 per-step FC，list 不经 FC）→ **内容整理** → **Compose**（qa / composite / summarize）→ 回答 → **轮次结束**。跨轮 **两层 cache**（同问短路 + 检索结果 cache）见 [坑点 §2.2](./04-pitfalls.md)。
+
+### 原文库（vault workspace · 模型 A）
+
+| 层 | 路径 | 说明 |
+|----|------|------|
+| 可编辑源 | `data/doc/users/<corpusUserId>/vault/originals/workspace/` | 仅 `.txt` + 用户文件夹 |
+| 语料产物 | `corpus/personal/imports/workspace/**/*.md` | txt→简单 md 包装后写入；HITL **只读** |
+| 向量 | Chroma `metadata.path` = md repo path；`sourcePath` = vault 相对 | create/update → materialize；delete → purge |
+
+- **未指定 path**：`operation=list`（或 UI exact-match「我的原文库」/ `__FAMBRAIN_VAULT_WS_*__`）→ 两层 list + 新建 CTA。
+- **队列（可选）**：`CORPUS_QUEUE_ENABLED=1` 时 `corpus.materialize` / `corpus.purge` 入 BullMQ；worker：`pnpm --filter @fambrain/brain-service run corpus-worker`。未开队列则聊天路径同步语料化。
+- **已退役**：`kind=corpus_edit` 直接改 corpus md、软清空 `<!-- fambrain:cleared -->` 主路径。
 
 **PathPlan 有序 steps（2026-07 · 端到端）：** Intake LLM 直接产出 `pathPlan.steps[]` + `composeMode`（数组顺序 = 回答/执行顺序；`answerOrder` 可选）；pipeline **合法化 + 结构归一**（`dataSource`/`userFactKey`/`identityField`/`toolId` 族修正 kind）并派生 `compositeSlots`。LangGraph：**纯 list** → `listRetriever` → `contentOrganizer` → `analyst`；**纯总结（无查库）** → `contentSummarizer`；**复合** → `planCacheResolve`（`agentflow/cache` 全量 facet+hits）→ `planFanOut`（每槽 `Send`→`kmRetrieve`（FC）/`listRetrieve`/… ∥`planDag`→`planMerge`）→ `contentOrganizer` → `analyst`。SSE 按真实图节点报步骤。
 
@@ -69,7 +82,7 @@ flowchart TB
     P -->|clarify / chitchat| R1[respondEarly]
     P -->|summarize_content| SUM[ContentSummarizer]
     P -->|retrieve_and_answer| PCR[planCacheResolve]
-    PCR --> PE[planFanOut<br/>km/list/mem/tool/summarize/dag]
+    PCR --> PE[planFanOut<br/>km/list/mem/tool/summarize/vault/dag]
     PE --> CO[ContentOrganizer]
     CO --> IA[InformationAnalyst<br/>composeMode]
     IA --> OUT[assistant 入库]

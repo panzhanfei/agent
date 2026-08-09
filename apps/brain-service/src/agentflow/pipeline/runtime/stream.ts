@@ -423,12 +423,14 @@ async function* runPipelineStreamInner(
         const fan = describeFanOutPlan(finalState);
         if (fan.hasKm) yield* startStep("km_retrieve");
         if (fan.hasList) yield* startStep("list_retrieve");
+        if (fan.hasVaultWorkspace) yield* startStep("vault_workspace");
         if (fan.hasCorpusEdit) yield* startStep("corpus_edit");
         if (fan.hasDag) yield* startStep("plan_dag");
         if (fan.hasSideRemember) yield* startStep("user_fact");
         if (
           fan.hasKm ||
           fan.hasList ||
+          fan.hasVaultWorkspace ||
           fan.hasCorpusEdit ||
           fan.hasSideRemember
         ) {
@@ -442,12 +444,14 @@ async function* runPipelineStreamInner(
       const fan = describeFanOutPlan(finalState);
       if (fan.hasKm) yield* startStep("km_retrieve");
       if (fan.hasList) yield* startStep("list_retrieve");
+      if (fan.hasVaultWorkspace) yield* startStep("vault_workspace");
       if (fan.hasCorpusEdit) yield* startStep("corpus_edit");
       if (fan.hasDag) yield* startStep("plan_dag");
       if (fan.hasSideRemember) yield* startStep("user_fact");
       if (
         fan.hasKm ||
         fan.hasList ||
+        fan.hasVaultWorkspace ||
         fan.hasCorpusEdit ||
         fan.hasSideRemember
       ) {
@@ -491,6 +495,9 @@ async function* runPipelineStreamInner(
     if (nodeName === "listRetrieve") {
       continue;
     }
+    if (nodeName === "vaultWorkspace") {
+      continue;
+    }
     if (nodeName === "corpusEdit") {
       continue;
     }
@@ -500,6 +507,9 @@ async function* runPipelineStreamInner(
       }
       if (runningSteps.has("list_retrieve")) {
         yield* finishStep("list_retrieve");
+      }
+      if (runningSteps.has("vault_workspace")) {
+        yield* finishStep("vault_workspace");
       }
       if (runningSteps.has("corpus_edit")) {
         yield* finishStep("corpus_edit");

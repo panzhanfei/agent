@@ -93,6 +93,12 @@ pnpm run dev
 | `pnpm run chroma:server` | 单独启动 Chroma HTTP 服务（需 [uv](https://docs.astral.sh/uv/)，数据目录 `data/chroma/`） |
 | `pnpm run redis:server` | 单独 `docker compose up -d redis` |
 | `pnpm run index:corpus` | **知识入库师**：全量扫描 `corpus/*.md` → embed → 写入 Chroma（语料变更后手动重跑） |
+| `cd apps/brain-service && pnpm run corpus-worker` | 原文库语料队列 worker（需 `CORPUS_QUEUE_ENABLED` + Redis） |
+| `cd apps/brain-service && pnpm run e2e:inprocess:vault` | 进程内「我的原文库」list 旁路 E2E |
+| `cd apps/brain-service && pnpm run e2e:api:vault` | HTTP E2E（`E2E_USER`/`E2E_PASSWORD`/`E2E_BASE_URL`；需 web+brain） |
+| `cd apps/web && pnpm run test:e2e` | Playwright：登录 → 原文库（需先 `test:e2e:install` 与本地服务） |
+| `cd apps/brain-service && pnpm run load:chat` | 本地压测基线（health + 可选队列堆积；禁止默认打生产） |
+| `cd apps/brain-service && pnpm run eval:run -- --vault-only` | vault_workspace golden probe |
 | `pnpm run parse:documents -- <path...>` | **文档解析师**：CLI 批量解析（**自动分类**，无需 userId；语料归属见 `.env` `FAMBRAIN_CORPUS_USER_ID`） |
 | `cd apps/brain-service && pnpm run verify:memory` | Mem0 / LangMem 本地验证（LangMem 可不依赖 Mem0） |
 | `cd apps/brain-service && pnpm run verify:user-memory-extract` | 静默用户记忆 schema 合法化（无 Ollama） |
@@ -188,7 +194,8 @@ pnpm run dev
 | `packages/brain-shared/` | agent-log、ollama-native-stream |
 | `apps/web/src/server/chat/handle-post-message.ts` | 存用户消息 → 调 Orchestrator → SSE → 存 assistant |
 | `apps/web/src/app/api/conversations/[id]/messages/route.ts` | GET 历史；POST 鉴权后委托 BFF |
-| `data/doc/users/<userId>/corpus/` | 可检索履历 Markdown；`vault/` 为私人原件；`corpus/learned/` 为自主学习写入（Phase C） |
+| `data/doc/users/<userId>/corpus/` | 可检索履历 Markdown（过渡期既有 md **只读于 HITL**）；新编辑走 `vault/originals/workspace/*.txt` 语料化到 `personal/imports/workspace/`；`corpus/learned/` 为自主学习写入（Phase C） |
+| `data/doc/users/<userId>/vault/originals/workspace/` | **用户可编辑原文库**（`.txt` + 文件夹）；系统语料化同步 md/向量 |
 
 **约定：** `@fambrain/brain-service` 不直接访问数据库；编排层不把中间 Agent 输出写入 `messages`。
 

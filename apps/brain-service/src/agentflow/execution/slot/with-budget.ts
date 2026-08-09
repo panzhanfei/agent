@@ -69,6 +69,8 @@ const pathKindForExecutor = (
       return "tool";
     case "summarize":
       return "summarize";
+    case "vault_workspace":
+      return "vault_workspace";
     case "corpus_edit":
       return "corpus_edit";
     default:

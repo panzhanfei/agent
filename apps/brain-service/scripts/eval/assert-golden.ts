@@ -7,6 +7,8 @@ export type JsonAssert = {
     topPathRe?: string;
     notTopPathRe?: string;
     excerptRe?: string;
+    /** 任一 hit.excerpt 匹配即可（口语 searchQuery 时 Top1 可能不是目标篇） */
+    excerptAnyRe?: string;
     coverage?: "sufficient" | "partial" | "none";
     notesRe?: string;
     minExperienceHits?: number;
@@ -81,6 +83,12 @@ export const assertKm = (
     }
     if (assert.excerptRe && top && !re(assert.excerptRe).test(top.excerpt)) {
         issues.push(`Top1 excerpt 未匹配 /${assert.excerptRe}/`);
+    }
+    if (assert.excerptAnyRe) {
+        const ok = snap.hits.some((h) => re(assert.excerptAnyRe!).test(h.excerpt));
+        if (!ok) {
+            issues.push(`任一 excerpt 未匹配 /${assert.excerptAnyRe}/`);
+        }
     }
     if (assert.minExperienceHits !== undefined) {
         const n = snap.hits.filter(

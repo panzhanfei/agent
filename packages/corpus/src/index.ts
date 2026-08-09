@@ -42,6 +42,39 @@ export {
   type CorpusCategory,
   type CorpusScanRoot,
 } from "./doc-paths";
+export {
+  VAULT_WORKSPACE_DIR,
+  CORPUS_WORKSPACE_IMPORTS_REL,
+  normalizeWorkspaceRel,
+  getVaultWorkspaceRoot,
+  resolveVaultWorkspaceAbsPath,
+  workspaceTxtToCorpusMdRepoPath,
+  workspaceTxtToCorpusMdAbsPath,
+  isWorkspaceTxtName,
+  isSafeWorkspaceSegment,
+  type VaultWorkspaceEntry,
+  type VaultWorkspaceEntryKind,
+} from "./workspace-paths";
+export {
+  ensureVaultWorkspaceRoot,
+  listVaultWorkspaceDir,
+  readVaultWorkspaceTxt,
+  writeVaultWorkspaceTxt,
+  createVaultWorkspaceFolder,
+  createVaultWorkspaceTxt,
+  deleteVaultWorkspaceTxt,
+  deleteVaultWorkspaceFolder,
+  renameVaultWorkspaceEntry,
+} from "./workspace-fs";
+export {
+  materializeWorkspaceTxtToMarkdown,
+  materializeWorkspaceTxt,
+  purgeWorkspaceMaterialized,
+  purgeWorkspaceTxtCascade,
+  readMaterializedMd,
+  type MaterializeResult,
+  type PurgeResult,
+} from "./workspace-materialize";
 export { findMonorepoRoot } from "./repo-root";
 export { listMarkdownFiles, toRepoPath } from "./list-markdown-files";
 export { listVaultFiles, type VaultFileEntry } from "./list-vault-files";

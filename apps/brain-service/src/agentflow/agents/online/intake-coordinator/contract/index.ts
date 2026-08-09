@@ -3,6 +3,7 @@ export {
     prompt,
     COREFERENCE_MERGE_RETRY_NOTE,
     JSON_FORMAT_REPAIR_NOTE,
+    ATTACHMENT_INTAKE_NOTE,
     type IntakeCoreferenceStatus,
     type IntakeIdentityField,
     type IntakeRetrievalPlanItem,

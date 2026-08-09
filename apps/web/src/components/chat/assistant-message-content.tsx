@@ -5,7 +5,7 @@ import { LinkifiedText } from "@/components/chat/linkified-text";
 import {
   actionIsStale,
   type ChatActionPayload,
-} from "@/lib/hitl/corpus-edit-ui";
+} from "@/lib/chat/action-lifecycle";
 
 type EnumerationBlockProps = {
   block: Extract<AssistantMessageBlock, { type: "enumeration" }>;
@@ -65,6 +65,10 @@ type AssistantMessageContentProps = {
   blocks?: AssistantMessageBlock[];
   onAction?: (action: ChatActionPayload) => void;
   staleActionKeys?: ReadonlySet<string>;
+  /** 非当前轮 / 发送中 → 全部 action 置灰 */
+  actionsLocked?: boolean;
+  messageId?: string;
+  messageCreatedAt?: string | null;
 };
 
 export const AssistantMessageContent = ({
@@ -72,6 +76,9 @@ export const AssistantMessageContent = ({
   blocks,
   onAction,
   staleActionKeys,
+  actionsLocked = false,
+  messageId,
+  messageCreatedAt,
 }: AssistantMessageContentProps) => {
   if (!blocks?.length) {
     return (
@@ -109,14 +116,19 @@ export const AssistantMessageContent = ({
             <div key={`a-${i}`} className="flex flex-wrap gap-2">
               {block.actions.map((action) => {
                 const stale =
+                  actionsLocked ||
                   action.disabled ||
                   (staleActionKeys != null &&
-                    actionIsStale(action.prompt, staleActionKeys));
+                    actionIsStale(action.prompt, staleActionKeys, {
+                      messageId,
+                      messageCreatedAt,
+                    }));
                 return (
                   <button
                     key={action.id}
                     type="button"
                     disabled={stale}
+                    aria-disabled={stale}
                     onClick={() =>
                       onAction?.({
                         id: action.id,
@@ -125,6 +137,7 @@ export const AssistantMessageContent = ({
                         displayText: action.displayText,
                         disabled: action.disabled,
                         clientHandler: action.clientHandler,
+                        sourceMessageId: messageId,
                       })
                     }
                     className={`rounded-full border px-3 py-1 text-[12px] font-medium ${

@@ -28,6 +28,7 @@ export {
 export {
   parseEditOperation,
   proposeCorpusEdit,
+  proposeCorpusEditLegacy,
   targetPathFromStep,
 } from "./propose";
 
@@ -49,6 +50,7 @@ export {
 export { resumeCorpusEdit } from "./resume";
 
 export {
+  CHAT_ACTION_PENDING_TTL_MS,
   CORPUS_EDIT_PENDING_TTL_MS,
   ensureProposalNotStale,
   expirePendingOnNewConversation,
