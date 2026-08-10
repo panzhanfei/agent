@@ -2,7 +2,7 @@
   "kind": "load",
   "title": "压测报表（中档）",
   "pass": true,
-  "generatedAt": "2026-08-10T09:14:38.017Z",
+  "generatedAt": "2026-08-10T10:39:29.900Z",
   "base": "http://127.0.0.1:3001",
   "concurrency": 20,
   "requests": 200,
@@ -10,19 +10,20 @@
   "corpusUserId": "cmp9ihokn00000mbmhwh6gn0b",
   "errorRate": 0,
   "queueFailed": 0,
+  "chatErrorRate": 0,
   "health": {
     "n": 200,
     "errors": 0,
-    "avgMs": 22.16,
-    "p50Ms": 9,
-    "p95Ms": 83,
-    "p99Ms": 135,
-    "maxMs": 142
+    "avgMs": 29.23,
+    "p50Ms": 12,
+    "p95Ms": 143,
+    "p99Ms": 167,
+    "maxMs": 173
   },
   "corpusQueue": {
     "enabled": true,
     "materializeJobs": 80,
-    "digestMs": 5121,
+    "digestMs": 6096,
     "peakBacklog": 80,
     "finalCounts": {
       "waiting": 0,
@@ -36,5 +37,19 @@
       "delayed": 0,
       "failed": 0
     }
+  },
+  "chat": {
+    "skipped": false,
+    "n": 10,
+    "errors": 0,
+    "emptyAnswers": 0,
+    "patternMiss": 0,
+    "avgMs": 8928.6,
+    "p50Ms": 8615,
+    "p95Ms": 11196,
+    "p99Ms": 11196,
+    "maxMs": 11196,
+    "base": "http://127.0.0.1:3000",
+    "question": "我的名字是什么？"
   }
 }

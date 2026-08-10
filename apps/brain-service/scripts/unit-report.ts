@@ -6,7 +6,7 @@ import { spawn } from "node:child_process";
 import { mkdir, readFile } from "node:fs/promises";
 import path from "node:path";
 import { fileURLToPath } from "node:url";
-import { reportsDir, writeGateReport } from "./_gate-report";
+import { relRepoPath, reportsDir, writeGateReport } from "./_gate-report";
 
 const root = path.resolve(path.dirname(fileURLToPath(import.meta.url)), "../../..");
 
@@ -95,7 +95,7 @@ const main = async () => {
     const failed = assertions.filter((a) => a.status === "failed").length;
     const passed = assertions.filter((a) => a.status === "passed").length;
     fileRows.push(
-      `| \`${f.name ?? "?"}\` | ${passed} | ${failed} | ${assertions.length} |`
+      `| \`${relRepoPath(f.name ?? "?")}\` | ${passed} | ${failed} | ${assertions.length} |`
     );
     for (const a of assertions) {
       if (a.status !== "failed") continue;

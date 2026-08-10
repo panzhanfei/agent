@@ -94,16 +94,19 @@ pnpm run dev
 | `pnpm run redis:server` | 单独 `docker compose up -d redis` |
 | `pnpm run index:corpus` | **知识入库师**：全量扫描 `corpus/*.md` → embed → 写入 Chroma（语料变更后手动重跑） |
 | `cd apps/brain-service && pnpm run corpus-worker` | 原文库语料队列 worker（需 `CORPUS_QUEUE_ENABLED` + Redis） |
+| `pnpm gate:engineering` | **分层门禁合一**：unit → eval（全量）→ load → e2e；报表落 `reports/`（分项覆盖，GATE 按段合并） |
 | `cd apps/brain-service && pnpm run e2e:inprocess:vault` | 进程内「我的原文库」list 旁路 E2E |
-| `cd apps/brain-service && pnpm run e2e:api:vault` | HTTP E2E（`E2E_USER`/`E2E_PASSWORD`/`E2E_BASE_URL`；需 web+brain） |
-| `cd apps/web && pnpm run test:e2e` | Playwright：登录 → 原文库（需先 `test:e2e:install` 与本地服务） |
-| `cd apps/brain-service && pnpm run load:chat` | 本地压测基线（health + 可选队列堆积；禁止默认打生产） |
-| `cd apps/brain-service && pnpm run eval:run -- --vault-only` | vault_workspace golden probe |
+| `cd apps/brain-service && pnpm run e2e:api:vault` | HTTP E2E vault CRUD（`E2E_USER`/`E2E_PASSWORD`/`E2E_BASE_URL`；需 web+brain） |
+| `cd apps/brain-service && pnpm run e2e:api:chat` | HTTP E2E **对话主链**（姓名/年龄/手机） |
+| `cd apps/brain-service && pnpm run e2e:gate` | E2E 门禁：vault + 对话主链 + Playwright |
+| `cd apps/web && pnpm run test:e2e` | Playwright：vault UI + 对话主链（需先 `test:e2e:install` 与本地服务） |
+| `cd apps/brain-service && pnpm run load:chat` | 压测：health + 队列 + **Web 对话全链路**（`LOAD_SKIP_CHAT=1` 可跳过对话段） |
+| `cd apps/brain-service && pnpm run eval:run` | Eval **全量**写入 `reports/eval-report.*`；`--case` / `*-only` **不覆盖**全量报表 |
+| `cd apps/brain-service && pnpm run eval:run -- --vault-only` | vault_workspace golden probe（不写全量 GATE eval 段） |
 | `pnpm run parse:documents -- <path...>` | **文档解析师**：CLI 批量解析（**自动分类**，无需 userId；语料归属见 `.env` `FAMBRAIN_CORPUS_USER_ID`） |
 | `cd apps/brain-service && pnpm run verify:memory` | Mem0 / LangMem 本地验证（LangMem 可不依赖 Mem0） |
 | `cd apps/brain-service && pnpm run verify:user-memory-extract` | 静默用户记忆 schema 合法化（无 Ollama） |
 | `cd apps/brain-service && pnpm run verify:langchain-tools` | LangChain StructuredTool 注册 + invoke 冒烟 |
-| `cd apps/brain-service && pnpm run eval:run` | Eval MVP：G1～G5c + KM + E2E（含 **E2E-five-composite**）+ memProbe/profileProbe/**fiveCompositeProbe** |
 | `cd apps/brain-service && pnpm run verify:user-fact` | P0-16：Intake 结构化 remember/recall + Mem0 跨 conversationId |
 | `cd apps/brain-service && pnpm run verify:doc-parser` | DocParser 格式与路径单测 |
 | `pnpm run summarize:document -- <file.md>` | 内容摘要师（需 Ollama） |

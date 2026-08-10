@@ -15,6 +15,7 @@
     "corpus-worker": "tsx --env-file=../../.env src/worker/corpus-worker.ts",
     "load:chat": "tsx --env-file=../../.env scripts/load/chat-baseline.ts",
     "e2e:api:vault": "tsx --env-file=../../.env scripts/e2e/api-vault-workspace.ts",
+    "e2e:api:chat": "tsx --env-file=../../.env scripts/e2e/api-chat-chain.ts",
     "e2e:inprocess:vault": "tsx --env-file=../../.env scripts/e2e/inprocess-vault-list.ts",
     "e2e:gate": "tsx --env-file=../../.env scripts/e2e/run-e2e-gate.ts",
     "report:unit": "tsx --env-file=../../.env scripts/unit-report.ts",

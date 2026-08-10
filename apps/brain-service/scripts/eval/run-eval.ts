@@ -1115,39 +1115,48 @@ const main = async (): Promise<void> => {
         ...corpusEditFailed,
     ].map((r) => `- ${r.id}: ${r.reason}`);
 
-    await writeGateReport({
-        kind: "eval",
-        title: "Eval 全量报表",
-        pass,
-        summary: {
-            corpusUserId,
-            chromaUp,
-            metrics: report.metrics,
-            totals: {
-                cases: results.length,
-                failed: failed.length,
-                memFailed: memFailed.length,
-                profileFailed: profileFailed.length,
-                listPaginationFailed: listPaginationFailed.length,
-                dualListPaginationFailed: dualListPaginationFailed.length,
-                fiveCompositeFailed: fiveCompositeFailed.length,
-                identityCompositeFailed: identityCompositeFailed.length,
-                familyFailed: familyFailed.length,
-                vaultFailed: corpusEditFailed.length,
-                coalesceFailures: report.metrics.coalesceFailures,
+    // 子集（--case / 仅某 probe）不得覆盖 reports/eval-report 全量段
+    const isSubset = Boolean(caseFilter);
+    if (isSubset) {
+        console.log(
+            `[eval] subset (--case ${caseFilter}) — 跳过覆盖 reports/eval-report；请跑无过滤的 eval:run 写全量`
+        );
+    } else {
+        await writeGateReport({
+            kind: "eval",
+            title: "Eval 全量报表",
+            pass,
+            summary: {
+                scope: "full",
+                corpusUserId,
+                chromaUp,
+                metrics: report.metrics,
+                totals: {
+                    cases: results.length,
+                    failed: failed.length,
+                    memFailed: memFailed.length,
+                    profileFailed: profileFailed.length,
+                    listPaginationFailed: listPaginationFailed.length,
+                    dualListPaginationFailed: dualListPaginationFailed.length,
+                    fiveCompositeFailed: fiveCompositeFailed.length,
+                    identityCompositeFailed: identityCompositeFailed.length,
+                    familyFailed: familyFailed.length,
+                    vaultFailed: corpusEditFailed.length,
+                    coalesceFailures: report.metrics.coalesceFailures,
+                },
+                failures: failDetails,
+                fullReport: report,
             },
-            failures: failDetails,
-            fullReport: report,
-        },
-        markdownBody: [
-            mdBody,
-            "",
-            "## 失败明细",
-            "",
-            failDetails.length ? failDetails.join("\n") : "_无_",
-            "",
-        ].join("\n"),
-    });
+            markdownBody: [
+                mdBody,
+                "",
+                "## 失败明细",
+                "",
+                failDetails.length ? failDetails.join("\n") : "_无_",
+                "",
+            ].join("\n"),
+        });
+    }
 
     if (!jsonOnly) {
         console.log("\n" + mdBody);

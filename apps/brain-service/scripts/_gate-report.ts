@@ -2,6 +2,8 @@
  * 工程门禁报表（全部落在仓库根目录 reports/）：
  * - reports/{kind}-report.{md,json}
  * - reports/GATE-REPORT.md（四段合一：unit / eval / load / e2e）
+ *
+ * 分项文件：覆盖写。GATE：按 kind 段覆盖合并（非历史累加）。
  */
 import { mkdir, readFile, writeFile } from "node:fs/promises";
 import path from "node:path";
@@ -23,8 +25,27 @@ export const repoRootFromScripts = (): string =>
 
 export const reportsDir = (): string => path.join(repoRootFromScripts(), "reports");
 
+/** 报表里把绝对路径收成相对仓库根，避免噪音。 */
+export const relRepoPath = (p: string): string => {
+  const root = repoRootFromScripts();
+  const norm = p.replace(/\\/g, "/");
+  const rootNorm = root.replace(/\\/g, "/");
+  if (norm.startsWith(rootNorm + "/")) return norm.slice(rootNorm.length + 1);
+  if (norm.startsWith(rootNorm)) return norm.slice(rootNorm.length).replace(/^\//, "");
+  return p;
+};
+
 const sectionMarker = (kind: GateKind): string =>
   `<!-- GATE-SECTION:${kind} -->`;
+
+/** 去掉段首重复的 `# …` / 空行，避免 GATE 叠标题。 */
+const stripLeadingH1 = (md: string): string => {
+  let s = md.trim();
+  while (/^#\s+.+/m.test(s.split("\n")[0] ?? "")) {
+    s = s.replace(/^#\s+.+\n*/, "").trim();
+  }
+  return s;
+};
 
 const extractSection = (md: string, kind: GateKind): string | null => {
   const start = sectionMarker(kind);
@@ -33,8 +54,12 @@ const extractSection = (md: string, kind: GateKind): string | null => {
   const after = md.slice(idx + start.length);
   const next = after.search(/<!-- GATE-SECTION:/);
   const body = (next < 0 ? after : after.slice(0, next)).trim();
-  return body || null;
+  return body ? stripLeadingH1(body) : null;
 };
+
+const sectionHasPass = (body: string): boolean =>
+  /^\s*-\s*\*\*结果\*\*:\s*PASS/m.test(body) ||
+  /\*\*结果\*\*:\s*PASS/.test(body);
 
 export const writeGateReport = async (input: {
   kind: GateKind;
@@ -56,9 +81,9 @@ export const writeGateReport = async (input: {
   const base = `${input.kind}-report`;
   const jsonPath = path.join(dir, `${base}.json`);
   const mdPath = path.join(dir, `${base}.md`);
+
+  // 分项正文：结果行 + body（不含外层 H1；standalone / GATE 各自加一层标题）
   const sectionBody = [
-    `## ${input.title}`,
-    "",
     `- **结果**: ${input.pass ? "PASS" : "FAIL"}`,
     `- **生成时间**: ${stamp}`,
     "",
@@ -67,7 +92,7 @@ export const writeGateReport = async (input: {
   ].join("\n");
 
   await writeFile(jsonPath, JSON.stringify(payload, null, 2), "utf8");
-  const standaloneMd = `# ${input.title}\n\n${sectionBody.replace(/^## /, "")}`;
+  const standaloneMd = [`# ${input.title}`, "", sectionBody].join("\n");
   await writeFile(mdPath, standaloneMd, "utf8");
 
   const gatePath = path.join(dir, "GATE-REPORT.md");
@@ -80,28 +105,27 @@ export const writeGateReport = async (input: {
 
   const sections = new Map<GateKind, string>();
   for (const k of KIND_ORDER) {
-    if (k === input.kind) sections.set(k, sectionBody);
-    else {
-      const prev = extractSection(existing, k);
-      if (prev) sections.set(k, prev);
-      else {
-        try {
-          const side = await readFile(path.join(dir, `${k}-report.md`), "utf8");
-          sections.set(k, side.replace(/^# .+\n+/, "").trim());
-        } catch {
-          /* skip */
-        }
-      }
+    if (k === input.kind) {
+      sections.set(k, sectionBody);
+      continue;
+    }
+    const prev = extractSection(existing, k);
+    if (prev) {
+      sections.set(k, prev);
+      continue;
+    }
+    try {
+      const side = await readFile(path.join(dir, `${k}-report.md`), "utf8");
+      sections.set(k, stripLeadingH1(side));
+    } catch {
+      /* skip */
     }
   }
 
   const overallPass = KIND_ORDER.every((k) => {
     const body = sections.get(k);
     if (!body) return false;
-    return (
-      /^\s*-\s*\*\*结果\*\*:\s*PASS/m.test(body) ||
-      /\*\*结果\*\*:\s*PASS/.test(body)
-    );
+    return sectionHasPass(body);
   });
   const known = KIND_ORDER.filter((k) => sections.has(k));
   const statusLine =
@@ -110,8 +134,7 @@ export const writeGateReport = async (input: {
       : known
           .map((k) => {
             const body = sections.get(k)!;
-            const pass = /\*\*结果\*\*:\s*PASS/.test(body);
-            return `${k}:${pass ? "PASS" : "FAIL"}`;
+            return `${k}:${sectionHasPass(body) ? "PASS" : "FAIL"}`;
           })
           .join(" · ");
 
@@ -123,8 +146,9 @@ export const writeGateReport = async (input: {
     `- **最后更新**: ${stamp}`,
     `- **目录**: \`reports/\``,
     `- **机器可读**: \`reports/{unit,eval,load,e2e}-report.json\``,
+    `- **写入策略**: 分项覆盖；GATE 按段覆盖合并（非历史累加）`,
     "",
-    `> 本目录聚合 unit / eval / load / e2e 四份详细报表，便于复盘引用。`,
+    `> 分层门禁：unit / eval / load / e2e。Load 含 health+队列+对话全链路；E2E 含 vault 与对话主链。`,
     "",
   ];
   for (const k of KIND_ORDER) {
@@ -133,11 +157,12 @@ export const writeGateReport = async (input: {
     parts.push(`# ${KIND_TITLE[k]}`);
     parts.push("");
     if (sections.has(k)) {
-      parts.push(sections.get(k)!);
+      parts.push(stripLeadingH1(sections.get(k)!));
     } else {
       parts.push(`_尚未生成（跑对应门禁后自动写入）_`);
       parts.push("");
     }
+    parts.push("");
   }
   await writeFile(gatePath, parts.join("\n").replace(/\n{3,}/g, "\n\n"), "utf8");
 

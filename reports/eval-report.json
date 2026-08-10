@@ -1,72 +1,531 @@
 {
   "kind": "eval",
   "title": "Eval 全量报表",
-  "pass": true,
-  "generatedAt": "2026-08-10T10:06:40.998Z",
+  "pass": false,
+  "generatedAt": "2026-08-10T10:38:45.615Z",
+  "scope": "full",
   "corpusUserId": "cmp9ihokn00000mbmhwh6gn0b",
   "chromaUp": true,
   "metrics": {
-    "goldenPassRate": 1,
-    "passed": 1,
-    "total": 1,
+    "goldenPassRate": 0.9629629629629629,
+    "passed": 26,
+    "total": 27,
     "coalesceFailureRate": 0,
-    "coalesceChecks": 0,
+    "coalesceChecks": 7,
     "coalesceFailures": 0,
-    "cacheHitRate": null,
+    "cacheHitRate": 0,
     "cacheHits": 0,
-    "cacheEligibleTurns": 0,
-    "cacheNote": "无 cache 探测用例",
+    "cacheEligibleTurns": 1,
+    "cacheNote": "检索 cache 尚未接入 pipeline（指标占位 0/N）",
     "latencyMs": {
-      "avg": 11355,
-      "min": 11355,
-      "max": 11355,
-      "p95": 11355
+      "avg": 4849.962962962963,
+      "min": 1,
+      "max": 15695,
+      "p95": 11574
     }
   },
   "totals": {
-    "cases": 1,
-    "failed": 0,
+    "cases": 27,
+    "failed": 1,
     "memFailed": 0,
-    "profileFailed": 0,
+    "profileFailed": 2,
     "listPaginationFailed": 0,
     "dualListPaginationFailed": 0,
     "fiveCompositeFailed": 0,
     "identityCompositeFailed": 0,
-    "familyFailed": 0,
+    "familyFailed": 1,
     "vaultFailed": 0,
     "coalesceFailures": 0
   },
-  "failures": [],
+  "failures": [
+    "- G5b: 缺少 step（任一即可）: km_retrieve | list_retrieve | plan_slot_join | plan_merge | retrieval | plan_executor; answer 未匹配 /城管|城市管理|React|UniApp|TypeScript|Vite/; answer 不应匹配 /哪|哪个|请说明|指的是|哪一段|哪一家|什么项目|能否说明/",
+    "- G-履历综合-t1: answer 缺少「云联智慧」; answer 缺少「友谊时光」; answer 缺少「奖多多」",
+    "- G-履历综合-t2: answer 缺少「云联智慧」; answer 缺少「友谊时光」; answer 缺少「奖多多」",
+    "- G-个人档案-亲友-t2: answer 未匹配 /乔乔|乔/; answer 缺少「潘小强」"
+  ],
   "fullReport": {
-    "generatedAt": "2026-08-10T10:06:40.997Z",
+    "generatedAt": "2026-08-10T10:38:45.611Z",
     "corpusUserId": "cmp9ihokn00000mbmhwh6gn0b",
     "chromaUp": true,
     "metrics": {
-      "goldenPassRate": 1,
-      "passed": 1,
-      "total": 1,
+      "goldenPassRate": 0.9629629629629629,
+      "passed": 26,
+      "total": 27,
       "coalesceFailureRate": 0,
-      "coalesceChecks": 0,
+      "coalesceChecks": 7,
       "coalesceFailures": 0,
-      "cacheHitRate": null,
+      "cacheHitRate": 0,
       "cacheHits": 0,
-      "cacheEligibleTurns": 0,
-      "cacheNote": "无 cache 探测用例",
+      "cacheEligibleTurns": 1,
+      "cacheNote": "检索 cache 尚未接入 pipeline（指标占位 0/N）",
       "latencyMs": {
-        "avg": 11355,
-        "min": 11355,
-        "max": 11355,
-        "p95": 11355
+        "avg": 4849.962962962963,
+        "min": 1,
+        "max": 15695,
+        "p95": 11574
       }
     },
     "results": [
+      {
+        "id": "G1",
+        "tier": "pipeline",
+        "label": "闲聊不检索",
+        "pass": true,
+        "reason": "ok",
+        "latencyMs": 5808
+      },
+      {
+        "id": "G2",
+        "tier": "pipeline",
+        "label": "姓名（语料 retrieve 或 Mem0 recall）",
+        "pass": true,
+        "reason": "ok",
+        "latencyMs": 7320
+      },
+      {
+        "id": "G2b",
+        "tier": "pipeline",
+        "label": "姓名口语变体：我的名字叫什么",
+        "pass": true,
+        "reason": "ok",
+        "latencyMs": 5369
+      },
+      {
+        "id": "G2c",
+        "tier": "pipeline",
+        "label": "姓名口语变体：我叫什么",
+        "pass": true,
+        "reason": "ok",
+        "latencyMs": 6269
+      },
+      {
+        "id": "G3",
+        "tier": "pipeline",
+        "label": "项目与技术",
+        "pass": true,
+        "reason": "ok",
+        "latencyMs": 6706
+      },
+      {
+        "id": "G4",
+        "tier": "pipeline",
+        "label": "城管平台技术",
+        "pass": true,
+        "reason": "ok",
+        "latencyMs": 5939
+      },
+      {
+        "id": "G5",
+        "tier": "pipeline",
+        "label": "无上下文 clarify",
+        "pass": true,
+        "reason": "ok",
+        "latencyMs": 6001
+      },
+      {
+        "id": "G5b",
+        "tier": "pipeline",
+        "label": "多轮指代补全（QU-02）",
+        "pass": false,
+        "reason": "缺少 step（任一即可）: km_retrieve | list_retrieve | plan_slot_join | plan_merge | retrieval | plan_executor; answer 未匹配 /城管|城市管理|React|UniApp|TypeScript|Vite/; answer 不应匹配 /哪|哪个|请说明|指的是|哪一段|哪一家|什么项目|能否说明/",
+        "latencyMs": 6344
+      },
+      {
+        "id": "G5c",
+        "tier": "pipeline",
+        "label": "实体替换续问（入职年份 · 云联智慧 · QU-03）",
+        "pass": true,
+        "reason": "ok",
+        "latencyMs": 8026
+      },
+      {
+        "id": "K1",
+        "tier": "km",
+        "label": "姓名（Intake 改写 searchQuery）",
+        "pass": true,
+        "reason": "ok (hybrid, candidates=12)",
+        "latencyMs": 175,
+        "coalesceViolation": false
+      },
+      {
+        "id": "K2",
+        "tier": "km",
+        "label": "姓名（identityGuard）",
+        "pass": true,
+        "reason": "ok (hybrid, candidates=12)",
+        "latencyMs": 170,
+        "coalesceViolation": false
+      },
+      {
+        "id": "K2b",
+        "tier": "km",
+        "label": "姓名口语：我的名字叫什么",
+        "pass": true,
+        "reason": "ok (hybrid, candidates=12)",
+        "latencyMs": 139,
+        "coalesceViolation": false
+      },
+      {
+        "id": "K-family-brother",
+        "tier": "km",
+        "label": "亲友哥哥（default 检索）",
+        "pass": true,
+        "reason": "ok (hybrid, candidates=12)",
+        "latencyMs": 156,
+        "coalesceViolation": false
+      },
+      {
+        "id": "K-family-sil",
+        "tier": "km",
+        "label": "亲友嫂子（default 检索）",
+        "pass": true,
+        "reason": "ok (hybrid, candidates=12)",
+        "latencyMs": 119,
+        "coalesceViolation": false
+      },
+      {
+        "id": "L3",
+        "tier": "list",
+        "label": "列举经历（corpus-lister 目录扫盘）",
+        "pass": true,
+        "reason": "ok (list_corpus, total=5, hits=5)",
+        "latencyMs": 1
+      },
+      {
+        "id": "K4",
+        "tier": "km",
+        "label": "项目技术",
+        "pass": true,
+        "reason": "ok (hybrid, candidates=16)",
+        "latencyMs": 173,
+        "coalesceViolation": false
+      },
+      {
+        "id": "K5",
+        "tier": "km",
+        "label": "奥卡云经历",
+        "pass": true,
+        "reason": "ok (hybrid, candidates=12)",
+        "latencyMs": 121,
+        "coalesceViolation": false
+      },
+      {
+        "id": "E2E-identity",
+        "tier": "pipeline",
+        "label": "全链路姓名",
+        "pass": true,
+        "reason": "ok",
+        "latencyMs": 4439
+      },
+      {
+        "id": "E2E-age",
+        "tier": "pipeline",
+        "label": "全链路年龄",
+        "pass": true,
+        "reason": "ok",
+        "latencyMs": 4384
+      },
+      {
+        "id": "E2E-phone",
+        "tier": "pipeline",
+        "label": "全链路手机（语料 identity）",
+        "pass": true,
+        "reason": "ok",
+        "latencyMs": 3861
+      },
+      {
+        "id": "E2E-brother",
+        "tier": "pipeline",
+        "label": "亲友：哥哥姓名",
+        "pass": true,
+        "reason": "ok",
+        "latencyMs": 3808
+      },
+      {
+        "id": "E2E-sister-in-law",
+        "tier": "pipeline",
+        "label": "亲友：嫂子姓名",
+        "pass": true,
+        "reason": "ok（retry）",
+        "latencyMs": 4263
+      },
+      {
+        "id": "E2E-family-tri",
+        "tier": "pipeline",
+        "label": "三连问：本人+哥哥+嫂子姓名",
+        "pass": true,
+        "reason": "ok",
+        "latencyMs": 8221
+      },
+      {
+        "id": "E2E-enumeration",
+        "tier": "pipeline",
+        "label": "全链路列举",
+        "pass": true,
+        "reason": "ok",
+        "latencyMs": 9966
+      },
+      {
+        "id": "E2E-dual-list",
+        "tier": "pipeline",
+        "label": "纯 list 双槽：项目经历 + 从业经历",
+        "pass": true,
+        "reason": "ok",
+        "latencyMs": 5902
+      },
+      {
+        "id": "E2E-five-composite",
+        "tier": "pipeline",
+        "label": "五连问：姓名+年龄+记住QQ side-effect+履历list+开源链接",
+        "pass": true,
+        "reason": "ok",
+        "latencyMs": 15695
+      },
       {
         "id": "E2E-six-composite-qq-phone",
         "tier": "pipeline",
         "label": "六连问：姓名+年龄+QQ(recall)+履历+GitHub+手机（QQ 须先 remember）",
         "pass": true,
         "reason": "ok（retry）",
-        "latencyMs": 11355
+        "latencyMs": 11574
+      }
+    ],
+    "memProbe": [
+      {
+        "id": "GMem-t1",
+        "tier": "pipeline",
+        "label": "P0-16 对话 A 记 QQ → 新对话 B 问（对齐 Intake 示例 remember/recall） · a",
+        "pass": true,
+        "reason": "ok",
+        "latencyMs": 4066
+      },
+      {
+        "id": "GMem-t2",
+        "tier": "pipeline",
+        "label": "P0-16 对话 A 记 QQ → 新对话 B 问（对齐 Intake 示例 remember/recall） · b",
+        "pass": true,
+        "reason": "ok",
+        "latencyMs": 3283
+      }
+    ],
+    "cacheProbe": [
+      {
+        "id": "CACHE-G4-repeat-t1",
+        "tier": "pipeline",
+        "label": "同问重复（cache 探测；主路径为 planFanOut 真实步骤） · turn1",
+        "pass": true,
+        "reason": "ok",
+        "latencyMs": 5196,
+        "cacheHit": false,
+        "cacheExpected": false
+      },
+      {
+        "id": "CACHE-G4-repeat-t2",
+        "tier": "pipeline",
+        "label": "同问重复（cache 探测；主路径为 planFanOut 真实步骤） · turn2",
+        "pass": true,
+        "reason": "ok（cache 探测：miss，cache 未接入）",
+        "latencyMs": 5084,
+        "cacheHit": false,
+        "cacheExpected": true
+      }
+    ],
+    "profileProbe": [
+      {
+        "id": "G-履历综合-t1",
+        "tier": "pipeline",
+        "label": "R6-3 综合履历四轮（fail-first） · turn1",
+        "pass": false,
+        "reason": "answer 缺少「云联智慧」; answer 缺少「友谊时光」; answer 缺少「奖多多」",
+        "latencyMs": 8355,
+        "repeatHit": false,
+        "repeatExpected": false
+      },
+      {
+        "id": "G-履历综合-t2",
+        "tier": "pipeline",
+        "label": "R6-3 综合履历四轮（fail-first） · turn2",
+        "pass": false,
+        "reason": "answer 缺少「云联智慧」; answer 缺少「友谊时光」; answer 缺少「奖多多」",
+        "latencyMs": 10,
+        "repeatHit": true,
+        "repeatExpected": true
+      },
+      {
+        "id": "G-履历综合-t3",
+        "tier": "pipeline",
+        "label": "R6-3 综合履历四轮（fail-first） · turn3",
+        "pass": true,
+        "reason": "ok",
+        "latencyMs": 7838,
+        "repeatHit": false,
+        "repeatExpected": false
+      },
+      {
+        "id": "G-履历综合-t4",
+        "tier": "pipeline",
+        "label": "R6-3 综合履历四轮（fail-first） · turn4",
+        "pass": true,
+        "reason": "ok",
+        "latencyMs": 13859,
+        "repeatHit": false,
+        "repeatExpected": false
+      }
+    ],
+    "listPaginationProbe": [
+      {
+        "id": "E2E-list-pagination-t1",
+        "tier": "pipeline",
+        "label": "列举 exhaustive→continue（blocks 游标 + 整页展示） · turn1",
+        "pass": true,
+        "reason": "ok",
+        "latencyMs": 378
+      },
+      {
+        "id": "E2E-list-pagination-t2",
+        "tier": "pipeline",
+        "label": "列举 exhaustive→continue（blocks 游标 + 整页展示） · turn2",
+        "pass": true,
+        "reason": "ok",
+        "latencyMs": 371
+      }
+    ],
+    "dualListPaginationProbe": [
+      {
+        "id": "E2E-dual-list-pagination-t1",
+        "tier": "pipeline",
+        "label": "双槽首问 + 更多项目续页 · turn1",
+        "pass": true,
+        "reason": "ok",
+        "latencyMs": 4467
+      },
+      {
+        "id": "E2E-dual-list-pagination-t2",
+        "tier": "pipeline",
+        "label": "双槽首问 + 更多项目续页 · turn2",
+        "pass": true,
+        "reason": "ok",
+        "latencyMs": 895
+      }
+    ],
+    "fiveCompositeProbe": [
+      {
+        "id": "E2E-five-composite-probe-t1",
+        "tier": "pipeline",
+        "label": "五连问分轮：remember QQ 单轮 + 四槽语料复合 · turn1",
+        "pass": true,
+        "reason": "ok",
+        "latencyMs": 4242
+      },
+      {
+        "id": "E2E-five-composite-probe-t2",
+        "tier": "pipeline",
+        "label": "五连问分轮：remember QQ 单轮 + 四槽语料复合 · turn2",
+        "pass": true,
+        "reason": "ok",
+        "latencyMs": 8050
+      }
+    ],
+    "identityCompositeProbe": [
+      {
+        "id": "E2E-six-composite-qq-phone-probe-t1",
+        "tier": "pipeline",
+        "label": "六连问分轮：remember QQ → 姓名+年龄+QQ recall+履历+GitHub+手机 · turn1",
+        "pass": true,
+        "reason": "ok",
+        "latencyMs": 7802
+      },
+      {
+        "id": "E2E-six-composite-qq-phone-probe-t2",
+        "tier": "pipeline",
+        "label": "六连问分轮：remember QQ → 姓名+年龄+QQ recall+履历+GitHub+手机 · turn2",
+        "pass": true,
+        "reason": "ok",
+        "latencyMs": 13004
+      }
+    ],
+    "familyProbe": [
+      {
+        "id": "G-个人档案-亲友-t1",
+        "tier": "pipeline",
+        "label": "个人档案：姓名变体后接亲友三连问（同会话；单轮亲友见 E2E-brother / E2E-sister-in-law） · turn1",
+        "pass": true,
+        "reason": "ok",
+        "latencyMs": 4963
+      },
+      {
+        "id": "G-个人档案-亲友-t2",
+        "tier": "pipeline",
+        "label": "个人档案：姓名变体后接亲友三连问（同会话；单轮亲友见 E2E-brother / E2E-sister-in-law） · turn2",
+        "pass": false,
+        "reason": "answer 未匹配 /乔乔|乔/; answer 缺少「潘小强」",
+        "latencyMs": 10262
+      }
+    ],
+    "corpusEditProbe": [
+      {
+        "id": "V-list-pathplan",
+        "tier": "pipeline",
+        "label": "未指定路径 → list pathPlan",
+        "pass": true,
+        "reason": "pathPlan list ok",
+        "latencyMs": 0
+      },
+      {
+        "id": "V-ui-prompts",
+        "tier": "pipeline",
+        "label": "UI exact-match list/open + entry 常量",
+        "pass": true,
+        "reason": "ui prompts ok",
+        "latencyMs": 0
+      },
+      {
+        "id": "V-ui-crud-prompts",
+        "tier": "pipeline",
+        "label": "UI exact-match create/delete prompts",
+        "pass": true,
+        "reason": "ui crud prompts ok",
+        "latencyMs": 0
+      },
+      {
+        "id": "V-corpus-edit-dropped",
+        "tier": "pipeline",
+        "label": "corpus_edit 步 legalize 丢弃",
+        "pass": true,
+        "reason": "corpus_edit legalize-dropped",
+        "latencyMs": 0
+      },
+      {
+        "id": "V-crud-materialize",
+        "tier": "pipeline",
+        "label": "create/update/delete + materialize/purge",
+        "pass": true,
+        "reason": "crud+materialize+purge ok",
+        "latencyMs": 82
+      },
+      {
+        "id": "V-nested-folder",
+        "tier": "pipeline",
+        "label": "嵌套目录 materialize/purge",
+        "pass": true,
+        "reason": "nested path ok",
+        "latencyMs": 12
+      },
+      {
+        "id": "V-update-body",
+        "tier": "pipeline",
+        "label": "改写 txt 后 rematerialize",
+        "pass": true,
+        "reason": "update+rematerialize ok",
+        "latencyMs": 12
+      },
+      {
+        "id": "V-pipeline-list",
+        "tier": "pipeline",
+        "label": "pipeline「我的原文库」旁路 list",
+        "pass": true,
+        "reason": "pipeline list ok (原文库「(根目录)」共 3 项： 📁 folder-msn0uoti/ 📁 folder-msn0yygd/ 📄 untitled-msn0zaqx.tx)",
+        "latencyMs": 903
       }
     ]
   }

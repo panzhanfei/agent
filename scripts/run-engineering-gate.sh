@@ -179,9 +179,10 @@ ensure_corpus_worker
 
 run_unit
 run_eval
-run_load
 
+# load 含对话全链路，需 web；e2e 同依赖
 ensure_web
+run_load
 run_e2e
 
 log "完成: unit=$UNIT_OK eval=$EVAL_OK load=$LOAD_OK e2e=$E2E_OK"

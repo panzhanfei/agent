@@ -1,6 +1,6 @@
 #!/usr/bin/env node
 /**
- * E2E 门禁：inprocess vault → API vault → Playwright vault。
+ * E2E 门禁：inprocess vault → API vault → API 对话主链 → Playwright（vault + chat）。
  * 汇总写入 reports/e2e-report + reports/GATE-REPORT.md。
  */
 import { spawn } from "node:child_process";
@@ -89,12 +89,22 @@ const main = async () => {
     )
   );
 
+  steps.push(
+    await run(
+      "api-chat-chain",
+      "API E2E 对话主链（姓名/年龄/手机）",
+      "pnpm",
+      ["run", "e2e:api:chat"],
+      brain
+    )
+  );
+
   const pwReportDir = path.join(reportsDir(), "playwright");
   await mkdir(pwReportDir, { recursive: true });
   steps.push(
     await run(
-      "playwright-vault",
-      "Playwright vault UI 冒烟",
+      "playwright",
+      "Playwright（vault UI + 对话主链）",
       "pnpm",
       ["exec", "playwright", "test", "--config=playwright.config.ts"],
       web,
@@ -106,6 +116,11 @@ const main = async () => {
 
   const pass = steps.every((s) => s.pass);
   const body = [
+    "### 覆盖说明",
+    "",
+    "- **vault**：原文库 CRUD 冒烟（inprocess / API / Playwright）",
+    "- **对话主链**：Web 登录 → 会话 → 多轮问答 → brain pipeline（API + Playwright）",
+    "",
     "### 步骤总览",
     "",
     `| 步骤 | 结果 | exit | 耗时 |`,

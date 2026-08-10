@@ -1,17 +1,21 @@
 # E2E 报表
 
-E2E 报表
-
 - **结果**: PASS
-- **生成时间**: 2026-08-10T09:24:46.005Z
+- **生成时间**: 2026-08-10T10:40:26.714Z
+
+### 覆盖说明
+
+- **vault**：原文库 CRUD 冒烟（inprocess / API / Playwright）
+- **对话主链**：Web 登录 → 会话 → 多轮问答 → brain pipeline（API + Playwright）
 
 ### 步骤总览
 
 | 步骤 | 结果 | exit | 耗时 |
 |---|---|---:|---:|
-| Inprocess vault list（pipeline 旁路） | PASS | 0 | 10947ms |
-| API E2E vault list/create/open/delete | PASS | 0 | 7820ms |
-| Playwright vault UI 冒烟 | PASS | 0 | 13627ms |
+| Inprocess vault list（pipeline 旁路） | PASS | 0 | 12787ms |
+| API E2E vault list/create/open/delete | PASS | 0 | 10167ms |
+| API E2E 对话主链（姓名/年龄/手机） | PASS | 0 | 15032ms |
+| Playwright（vault UI + 对话主链） | PASS | 0 | 17941ms |
 
 ### 环境
 
@@ -32,6 +36,10 @@ _通过_
 
 _通过_
 
-#### Playwright vault UI 冒烟
+#### API E2E 对话主链（姓名/年龄/手机）
+
+_通过_
+
+#### Playwright（vault UI + 对话主链）
 
 _通过_
