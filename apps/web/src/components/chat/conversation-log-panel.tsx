@@ -3,6 +3,7 @@
 import type { PipelineStepName } from "@fambrain/brain-types";
 import {
     AGENT_LABELS,
+    formatTokenByNodeEntries,
     formatTokenSummary,
     type ConversationLogBundle,
     type ConversationTurnLog,
@@ -89,17 +90,61 @@ const TurnSummary = ({ turn }: { turn: ConversationTurnLog }) => {
             ) : null}
             {nodeEntries.length > 0 ? (
                 <ul className="mt-2 grid grid-cols-2 gap-1.5">
-                    {nodeEntries.map(([name, ms]) => (
-                        <li
-                            key={name}
-                            className="flex items-center justify-between rounded-lg bg-white px-2 py-1 text-[11px]"
-                        >
-                            <span className="text-[#6b7280]">{STEP_LABELS[name] ?? name}</span>
-                            <span className="font-mono text-[#111827]">{formatDuration(ms)}</span>
-                        </li>
-                    ))}
+                    {nodeEntries.map(([name, ms]) => {
+                        const tok = timing?.tokens?.byNode?.[name];
+                        const tokTotal = tok
+                            ? tok.prompt + tok.completion
+                            : 0;
+                        return (
+                            <li
+                                key={name}
+                                className="flex items-center justify-between gap-2 rounded-lg bg-white px-2 py-1 text-[11px]"
+                            >
+                                <span className="truncate text-[#6b7280]">
+                                    {STEP_LABELS[name] ?? name}
+                                </span>
+                                <span className="shrink-0 font-mono text-[#111827]">
+                                    {formatDuration(ms)}
+                                    {tokTotal > 0
+                                        ? ` · ${tokTotal.toLocaleString()}t`
+                                        : ""}
+                                </span>
+                            </li>
+                        );
+                    })}
                 </ul>
             ) : null}
+            {(() => {
+                const tokenNodes = formatTokenByNodeEntries(timing);
+                if (tokenNodes.length === 0) return null;
+                return (
+                    <div className="mt-2">
+                        <div className="text-[11px] font-medium text-[#6b7280]">
+                            Token 分节点
+                        </div>
+                        <ul className="mt-1 grid grid-cols-2 gap-1.5">
+                            {tokenNodes.map((e) => (
+                                <li
+                                    key={e.name}
+                                    className="flex items-center justify-between rounded-lg bg-white px-2 py-1 text-[11px]"
+                                >
+                                    <span className="truncate text-[#6b7280]">
+                                        {STEP_LABELS[e.name as PipelineStepName] ??
+                                            e.name}
+                                    </span>
+                                    <span className="shrink-0 font-mono text-[#111827]">
+                                        {e.total.toLocaleString()}
+                                        <span className="text-[#9ca3af]">
+                                            {" "}
+                                            ({e.prompt}/{e.completion})
+                                        </span>
+                                    </span>
+                                </li>
+                            ))}
+                        </ul>
+                    </div>
+                );
+            })()}
         </div>
     );
 };

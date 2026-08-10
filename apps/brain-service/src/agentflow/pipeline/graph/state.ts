@@ -1,6 +1,10 @@
 import { Annotation } from "@langchain/langgraph";
-import type { AgentPipelineContext, DbChatTurn } from "@fambrain/brain-types";
-import type { AssistantMessageBlock } from "@fambrain/brain-types";
+import type {
+    AgentPipelineContext,
+    Citation,
+    DbChatTurn,
+    AssistantMessageBlock,
+} from "@fambrain/brain-types";
 import type { RoutedIntakeDecision } from "@/agentflow/agents/online/intake-coordinator";
 import type { InformationAnalystInput } from "@/agentflow/agents/online/information-analyst";
 import type {
@@ -39,6 +43,8 @@ export const PipelineGraphAnnotation = Annotation.Root({
     enumerationMeta: Annotation<EnumerationMeta | null>,
     answer: Annotation<string | null>,
     assistantBlocks: Annotation<AssistantMessageBlock[] | null>,
+    /** Analyst / 工具引用列表 */
+    citations: Annotation<Citation[] | null>,
     error: Annotation<string | null>,
     exitEarly: Annotation<boolean>,
     checkerPassed: Annotation<boolean>,

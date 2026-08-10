@@ -101,6 +101,7 @@ export async function* streamAgentPipeline(
       const payload = JSON.parse(msg.data) as {
         answer?: string;
         blocks?: AgentPipelineResult["blocks"];
+        citations?: AgentPipelineResult["citations"];
         retrievalCacheHit?: boolean;
         retrievalPaths?: AgentPipelineResult["retrievalPaths"];
         timing?: AgentPipelineResult["timing"];
@@ -113,6 +114,7 @@ export async function* streamAgentPipeline(
       return {
         answer: payload.answer ?? "",
         blocks: payload.blocks,
+        citations: payload.citations,
         retrievalCacheHit: payload.retrievalCacheHit,
         retrievalPaths: payload.retrievalPaths,
         timing: payload.timing,

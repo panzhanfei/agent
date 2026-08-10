@@ -41,6 +41,7 @@ export const GET = async (_request: Request, context: {
                     (m.metadata as {
                         retrievalPaths?: string[];
                         blocks?: AssistantMessageBlock[];
+                        citations?: Array<{ path: string; excerpt: string }>;
                     })
                 :   undefined;
             return {
@@ -50,6 +51,7 @@ export const GET = async (_request: Request, context: {
                 createdAt: m.createdAt.toISOString(),
                 retrievalPaths: meta?.retrievalPaths,
                 blocks: meta?.blocks,
+                citations: meta?.citations,
             };
         });
         return NextResponse.json(messages);

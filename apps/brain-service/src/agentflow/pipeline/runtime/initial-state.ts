@@ -33,6 +33,7 @@ export const buildInitialState = (
         notes: null,
         answer: null,
         assistantBlocks: null,
+        citations: null,
         error: null,
         exitEarly: false,
         checkerPassed: true,

@@ -246,7 +246,7 @@ flowchart TD
 
 **端到端 PathPlan：** Intake **主路径** = LLM 执行终稿（有序 `steps[]`，`kind` = km|list|mem|tool|summarize|dag|**corpus_edit**）；**旁路** = normalize / JSON 修复 / 结构归一与派生。勿把散文兜底当成二次 Intake。旧 `retrievalPlan` 编译链与 `composite-route-guard` 已删除。
 
-**TurnTrace（运行轨迹入库）：** 每轮对答结束时 BFF 将 `timing` + `steps` + `pipeline_log` 写入 `TurnTrace`（键=助手 `messageId`）；进行中仍走 SSE；历史由 `GET /api/conversations/[id]/traces` 回放至运行日志面板。
+**TurnTrace（运行轨迹入库）：** 每轮对答结束时 BFF 将 `timing`（含 `tokens.byNode`）+ `steps` + `pipeline_log` 写入 `TurnTrace`（键=助手 `messageId`）；进行中仍走 SSE；历史由 `GET /api/conversations/[id]/traces` 回放至运行日志面板（Token 分节点 + 耗时）。**引用：** Analyst `citations` 经 SSE / `pipeline_done` / 消息 metadata 落库，聊天气泡下方 `MessageCitations` 展示。
 
 **P0-30 补充字段：** `identityField` 含 **`tenure`**（从业年限 → `compute_tenure_from_hits`）；`enumerationControl.timeWindowYears`（近 N 年列举过滤）。合并/拆分以 Intake LLM 为准；规则见 `.cursor/rules/no-scene-hardcoding.mdc`。
 

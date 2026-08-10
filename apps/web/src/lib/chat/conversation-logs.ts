@@ -52,6 +52,25 @@ export const formatTokenSummary = (timing?: PipelineTiming): string | null => {
     return `${tokens.totalTokens.toLocaleString()} tokens${est} · 输入 ${tokens.promptTokens.toLocaleString()} · 输出 ${tokens.completionTokens.toLocaleString()}`;
 };
 
+/** 按节点 token 分桶（供运行日志 / 气泡展开） */
+export const formatTokenByNodeEntries = (
+    timing?: PipelineTiming
+): Array<{ name: string; prompt: number; completion: number; total: number }> => {
+    const byNode = timing?.tokens?.byNode;
+    if (!byNode) return [];
+    return (Object.entries(byNode) as Array<
+        [string, { prompt: number; completion: number }]
+    >)
+        .map(([name, v]) => ({
+            name,
+            prompt: v.prompt,
+            completion: v.completion,
+            total: v.prompt + v.completion,
+        }))
+        .filter((e) => e.total > 0)
+        .sort((a, b) => b.total - a.total);
+};
+
 export const AGENT_LABELS: Record<string, string> = {
     Pipeline: "编排",
     TurnStart: "准备",

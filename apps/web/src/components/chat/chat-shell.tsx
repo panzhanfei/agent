@@ -5,6 +5,7 @@ import type {
   PipelineStepName,
   PipelineTiming,
   AssistantMessageBlock,
+  Citation,
 } from "@fambrain/brain-types";
 import { AssistantMessageContent } from "@/components/chat/assistant-message-content";
 import { CorpusEditModal } from "@/components/chat/corpus-edit-modal";
@@ -18,6 +19,7 @@ import {
 } from "@/lib/chat/action-lifecycle";
 import {
   createTurnLog,
+  formatTokenByNodeEntries,
   upsertStep,
   type ConversationLogBundle,
   type ConversationTurnLog,
@@ -33,6 +35,7 @@ import {
 } from "react";
 import { flushSync } from "react-dom";
 import { useSpeechInput } from "@/components/chat/use-speech-input";
+import { MessageCitations } from "@/components/chat/message-citations";
 import { MessageRetrievalFeedback } from "@/components/chat/message-retrieval-feedback";
 import {
   extractDocuments,
@@ -52,6 +55,21 @@ type ChatMessage = {
   timing?: MessageTiming;
   retrievalPaths?: string[];
   blocks?: AssistantMessageBlock[];
+  citations?: Citation[];
+};
+
+const parseMessageCitations = (raw: unknown): Citation[] | undefined => {
+  if (!Array.isArray(raw)) return undefined;
+  const out: Citation[] = [];
+  for (const item of raw) {
+    if (!item || typeof item !== "object") continue;
+    const path = (item as { path?: unknown }).path;
+    const excerpt = (item as { excerpt?: unknown }).excerpt;
+    if (typeof path === "string" && typeof excerpt === "string") {
+      out.push({ path, excerpt });
+    }
+  }
+  return out.length ? out : undefined;
 };
 
 const STEP_TIMING_LABELS: Record<PipelineStepName, string> = {
@@ -131,7 +149,9 @@ const MessageTimingLine = ({ timing }: { timing: MessageTiming }) => {
   const nodeEntries = (
     Object.entries(timing.nodes ?? {}) as [PipelineStepName, number][]
   ).filter(([, ms]) => ms > 0);
+  const tokenNodes = formatTokenByNodeEntries(timing);
   const tokenLine = formatTokenLine(timing);
+  const canExpand = nodeEntries.length > 0 || tokenNodes.length > 0;
 
   return (
     <div className="mt-1.5 text-[11px] leading-snug text-[#9ca3af]">
@@ -148,15 +168,31 @@ const MessageTimingLine = ({ timing }: { timing: MessageTiming }) => {
         {timing.clientTotalMs != null
           ? ` · 全链路 ${formatDuration(timing.clientTotalMs)}`
           : ""}
-        {nodeEntries.length > 0 ? (expanded ? " ▴" : " ▾") : ""}
+        {canExpand ? (expanded ? " ▴" : " ▾") : ""}
       </button>
-      {expanded && nodeEntries.length > 0 ? (
+      {expanded && canExpand ? (
         <ul className="mt-1 space-y-0.5 pl-2">
-          {nodeEntries.map(([name, ms]) => (
-            <li key={name}>
-              {STEP_TIMING_LABELS[name] ?? name} {formatDuration(ms)}
+          {nodeEntries.map(([name, ms]) => {
+            const tok = timing.tokens?.byNode?.[name];
+            const tokTotal = tok ? tok.prompt + tok.completion : 0;
+            return (
+              <li key={name}>
+                {STEP_TIMING_LABELS[name] ?? name} {formatDuration(ms)}
+                {tokTotal > 0 ? ` · ${tokTotal.toLocaleString()} tok` : ""}
+              </li>
+            );
+          })}
+          {tokenNodes.length > 0 ? (
+            <li className="pt-0.5 text-[#9ca3af]">
+              Token 分节点：{" "}
+              {tokenNodes
+                .map(
+                  (e) =>
+                    `${STEP_TIMING_LABELS[e.name as PipelineStepName] ?? e.name} ${e.total}`
+                )
+                .join(" · ")}
             </li>
-          ))}
+          ) : null}
         </ul>
       ) : null}
     </div>
@@ -871,9 +907,19 @@ export const ChatShell = ({ initialConversations, viewer }: ChatShellProps) => {
           const liveTimingById = new Map(
             prev.filter((m) => m.timing).map((m) => [m.id, m.timing] as const)
           );
+          const liveCitationsById = new Map(
+            prev
+              .filter((m) => m.citations?.length)
+              .map((m) => [m.id, m.citations] as const)
+          );
           return msgResult.data.map((m) => ({
             ...m,
             timing: liveTimingById.get(m.id) ?? timingByMessageId.get(m.id),
+            citations:
+              liveCitationsById.get(m.id) ??
+              parseMessageCitations(
+                (m as { citations?: unknown }).citations
+              ),
           }));
         });
         // 刷新后末条是用户消息：后台可能仍在生成，短轮询补齐助手（每条 user 最多 2 次）
@@ -1580,6 +1626,9 @@ export const ChatShell = ({ initialConversations, viewer }: ChatShellProps) => {
                         }
                       ).blocks
                     : undefined,
+                  citations: parseMessageCitations(
+                    (p.assistantMessage as { citations?: unknown }).citations
+                  ),
                 };
                 flushSync(() => {
                   setMessages((prev) => {
@@ -2043,6 +2092,9 @@ export const ChatShell = ({ initialConversations, viewer }: ChatShellProps) => {
                   ? (p.assistantMessage as { blocks: AssistantMessageBlock[] })
                       .blocks
                   : undefined,
+                citations: parseMessageCitations(
+                  (p.assistantMessage as { citations?: unknown }).citations
+                ),
               };
               flushSync(() => {
                 setMessages((prev) => {
@@ -2602,6 +2654,9 @@ export const ChatShell = ({ initialConversations, viewer }: ChatShellProps) => {
                       )}
                       {m.role === "assistant" && m.timing ? (
                         <MessageTimingLine timing={m.timing} />
+                      ) : null}
+                      {m.role === "assistant" ? (
+                        <MessageCitations citations={m.citations} />
                       ) : null}
                       {m.role === "assistant" && activeConversationId ? (
                         <MessageRetrievalFeedback

@@ -53,6 +53,8 @@ export type PipelineEvalSnapshot = {
     cacheHit?: boolean;
     repeatHit?: boolean;
     blocks?: import("@fambrain/brain-types").AssistantMessageBlock[];
+    /** Pipeline timing.tokens（按节点分桶；无 LLM 时 undefined） */
+    tokens?: import("@fambrain/brain-types").PipelineTokenUsage;
 };
 
 const re = (pattern: string): RegExp => new RegExp(pattern, "i");

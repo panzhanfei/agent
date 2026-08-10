@@ -3,6 +3,7 @@ import path from "node:path";
 import { HumanMessage, SystemMessage } from "@langchain/core/messages";
 import { ChatOllama } from "@langchain/ollama";
 import type { DbChatTurn } from "@fambrain/brain-types";
+import { recordLangChainOllamaUsage } from "@fambrain/brain-shared/pipeline-run-context";
 import { getMemoryConfig } from "../config";
 import type { SessionSummaryRecord } from "./types";
 /**
@@ -79,6 +80,11 @@ export const summarizeSessionTurns = async (previousSummary: string | null, turn
                 .join("")
                 .trim()
             : "";
+    recordLangChainOllamaUsage(msg, {
+        promptText: `${SUMMARY_SYSTEM}\n${body}`,
+        completionText: text,
+        node: "persist_turn_end",
+    });
     return text || previousSummary || "";
 };
 export const persistSessionSummary = async (conversationId: string, history: DbChatTurn[], assistantAnswer: string): Promise<void> => {

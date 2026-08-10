@@ -109,6 +109,7 @@ export const handlePipelineStream = async (req: IncomingMessage, res: ServerResp
         let pipelineResult: {
             answer: string;
             blocks?: import("@fambrain/brain-types").AssistantMessageBlock[];
+            citations?: import("@fambrain/brain-types").Citation[];
             retrievalCacheHit?: boolean;
             retrievalPaths?: string[];
             timing?: import("@fambrain/brain-types").PipelineTiming;
@@ -130,6 +131,7 @@ export const handlePipelineStream = async (req: IncomingMessage, res: ServerResp
         writeSse(res, "pipeline_done", {
             answer: pipelineResult?.answer ?? "",
             blocks: pipelineResult?.blocks,
+            citations: pipelineResult?.citations,
             retrievalCacheHit: pipelineResult?.retrievalCacheHit,
             retrievalPaths: pipelineResult?.retrievalPaths,
             timing: pipelineResult?.timing,

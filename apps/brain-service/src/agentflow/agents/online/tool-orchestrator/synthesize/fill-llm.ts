@@ -5,11 +5,7 @@
 import { HumanMessage, SystemMessage } from "@langchain/core/messages";
 import { ChatOllama } from "@langchain/ollama";
 import { getBrainServiceConfig } from "@fambrain/brain-config";
-import {
-  estimateTokenUsage,
-  recordLangChainOllamaUsage,
-  recordPipelineTokenUsage,
-} from "@fambrain/brain-shared/pipeline-run-context";
+import { recordLangChainOllamaUsage } from "@fambrain/brain-shared/pipeline-run-context";
 import { parseJsonObject, textFromResponse } from "@/agentflow/utils";
 import type { ToolRunResult } from "../interface";
 import { parseMatchReport } from "./match-report";
@@ -62,14 +58,15 @@ export const fillMatchReportWithLlm = async (input: {
       new SystemMessage(SYSTEM),
       new HumanMessage(JSON.stringify(materials, null, 2)),
     ];
+    const promptText = JSON.stringify(materials);
     const res = await llm.invoke(messages);
-    recordLangChainOllamaUsage(res, { node: "synthesize_match" });
-    const text = textFromResponse(res);
+    const text = textFromResponse(res.content);
+    recordLangChainOllamaUsage(res, {
+      promptText,
+      completionText: text,
+      node: "plan_dag",
+    });
     if (!text.trim()) {
-      recordPipelineTokenUsage(
-        estimateTokenUsage(JSON.stringify(materials), ""),
-        { estimated: true, node: "synthesize_match" }
-      );
       return null;
     }
     const obj = parseJsonObject(text);

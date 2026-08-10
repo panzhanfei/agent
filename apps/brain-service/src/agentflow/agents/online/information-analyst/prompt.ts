@@ -9,18 +9,15 @@ import type {
     IntakeRouteMode,
 } from "@/agentflow/agents/online/intake-coordinator";
 import type { CompositeSessionKey } from "@fambrain/infra";
+import type { Citation } from "@fambrain/brain-types";
+
+export type { Citation };
 /**
  * InformationAnalyst 系统指令（P0）。
  * 职责：基于检索片段（或空检索）归纳、对比并生成面向用户的最终回答。
  *
  * 期望输出见 {@link InformationAnalystResult}；编排器将 answer 写入助手消息。
  */
-export type Citation = {
-  /** 引用来源路径，须与 KnowledgeHit.path 一致 */
-  path: string;
-  /** 支撑结论的原文短引（来自 hit.excerpt，勿编造） */
-  excerpt: string;
-};
 export type InformationAnalystResult = {
   /** 面向用户的完整回答，Markdown _plain 文本即可 */
   answer: string;

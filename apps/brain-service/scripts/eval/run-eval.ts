@@ -166,6 +166,10 @@ type CaseResult = {
     cacheExpected?: boolean;
     repeatHit?: boolean | null;
     repeatExpected?: boolean;
+    /** pipeline 用例：token 总量（有则写入报表） */
+    totalTokens?: number;
+    /** pipeline 用例：按节点 token（prompt+completion） */
+    tokensByNode?: Record<string, number>;
 };
 
 type EvalMetrics = {
@@ -185,6 +189,13 @@ type EvalMetrics = {
         max: number;
         p95: number;
     };
+    /** pipeline 有 token 样本时的汇总；否则 null */
+    tokens: {
+        samples: number;
+        avgTotal: number;
+        p95Total: number;
+        byNodeAvg: Record<string, number>;
+    } | null;
 };
 
 type EvalReport = {
@@ -258,12 +269,14 @@ const runPipelineCase = async (
     let cacheHit = false;
     let repeatHit = false;
     let blocks: PipelineEvalSnapshot["blocks"];
+    let tokens: PipelineEvalSnapshot["tokens"];
     const gen = runPipelineStream(history, context);
     while (true) {
         const next = await gen.next();
         if (next.done) {
             answer = next.value.answer;
             blocks = next.value.blocks;
+            tokens = next.value.timing?.tokens;
             if (next.value.retrievalCacheHit) cacheHit = true;
             if (next.value.repeatQuestionHit) repeatHit = true;
             break;
@@ -272,6 +285,9 @@ const runPipelineCase = async (
         if (ev.type === "step" && ev.status === "running") steps.push(ev.name);
         if (ev.type === "error") error = ev.message;
         if (ev.type === "retrieval_meta" && ev.cacheHit) cacheHit = true;
+        if (ev.type === "pipeline_timing" && ev.timing?.tokens) {
+            tokens = ev.timing.tokens;
+        }
     }
     return {
         steps,
@@ -283,6 +299,24 @@ const runPipelineCase = async (
         cacheHit,
         repeatHit,
         blocks,
+        tokens,
+    };
+};
+
+const tokensFromSnap = (
+    snap: PipelineEvalSnapshot
+): Pick<CaseResult, "totalTokens" | "tokensByNode"> => {
+    const t = snap.tokens;
+    if (!t || t.totalTokens <= 0) return {};
+    const tokensByNode: Record<string, number> = {};
+    for (const [node, v] of Object.entries(t.byNode ?? {})) {
+        if (!v) continue;
+        const sum = v.prompt + v.completion;
+        if (sum > 0) tokensByNode[node] = sum;
+    }
+    return {
+        totalTokens: t.totalTokens,
+        ...(Object.keys(tokensByNode).length ? { tokensByNode } : {}),
     };
 };
 
@@ -458,6 +492,7 @@ const evaluateCase = async (
                     : "ok"
                 : issues.join("; "),
         latencyMs: snap.latencyMs || Date.now() - started,
+        ...tokensFromSnap(snap),
     };
 };
 
@@ -492,6 +527,7 @@ const runMemProbe = async (
             pass: issues.length === 0,
             reason: issues.length === 0 ? "ok" : issues.join("; "),
             latencyMs: snap.latencyMs,
+            ...tokensFromSnap(snap),
         });
     }
     return out;
@@ -526,6 +562,7 @@ const runCacheProbe = async (
             latencyMs: snap.latencyMs,
             cacheHit,
             cacheExpected: turn.expectCacheHit ?? false,
+            ...tokensFromSnap(snap),
         });
     }
     return out;
@@ -644,6 +681,7 @@ const runProfileProbe = async (
             latencyMs: snap.latencyMs,
             repeatHit,
             repeatExpected: turn.expectRepeatHit ?? false,
+            ...tokensFromSnap(snap),
         });
         priorHistory = [
             ...priorHistory,
@@ -698,6 +736,7 @@ const runListPaginationProbe = async (
             pass,
             reason: pass ? "ok" : issues.join("; "),
             latencyMs: snap.latencyMs,
+            ...tokensFromSnap(snap),
         });
         priorHistory = [
             ...priorHistory,
@@ -736,6 +775,24 @@ const buildMetrics = (
     const cacheEligible = cacheProbe.filter((r) => r.cacheExpected);
     const cacheHits = cacheEligible.filter((r) => r.cacheHit === true).length;
 
+    const tokenSamples = results.filter(
+        (r) => typeof r.totalTokens === "number" && r.totalTokens > 0
+    );
+    const tokenTotals = tokenSamples.map((r) => r.totalTokens!);
+    const byNodeSum: Record<string, number> = {};
+    for (const r of tokenSamples) {
+        for (const [node, n] of Object.entries(r.tokensByNode ?? {})) {
+            byNodeSum[node] = (byNodeSum[node] ?? 0) + n;
+        }
+    }
+    const byNodeAvg: Record<string, number> = {};
+    const sampleN = tokenSamples.length;
+    if (sampleN > 0) {
+        for (const [node, sum] of Object.entries(byNodeSum)) {
+            byNodeAvg[node] = Math.round(sum / sampleN);
+        }
+    }
+
     return {
         goldenPassRate: total === 0 ? 0 : passed / total,
         passed,
@@ -765,6 +822,17 @@ const buildMetrics = (
             max: latencies.length === 0 ? 0 : Math.max(...latencies),
             p95: percentile(latencies, 95),
         },
+        tokens:
+            sampleN === 0
+                ? null
+                : {
+                      samples: sampleN,
+                      avgTotal: Math.round(
+                          tokenTotals.reduce((a, b) => a + b, 0) / sampleN
+                      ),
+                      p95Total: Math.round(percentile(tokenTotals, 95)),
+                      byNodeAvg,
+                  },
     };
 };
 
@@ -785,97 +853,102 @@ const formatMarkdown = (report: EvalReport): string => {
         `| candidates>0 但 hits=0 | **${m.coalesceFailures}/${m.coalesceChecks}** (${(m.coalesceFailureRate * 100).toFixed(1)}%) |`,
         `| cache 命中率 | ${m.cacheHitRate === null ? "N/A" : `${m.cacheHits}/${m.cacheEligibleTurns} (${(m.cacheHitRate * 100).toFixed(1)}%)`} |`,
         `| 端到端 latency p95 | **${Math.round(m.latencyMs.p95)}ms** (avg ${Math.round(m.latencyMs.avg)}ms) |`,
+        `| Token（pipeline） | ${
+            m.tokens
+                ? `**avg ${m.tokens.avgTotal}** / p95 ${m.tokens.p95Total}（n=${m.tokens.samples}）`
+                : "N/A"
+        } |`,
         ``,
         `> cache：${m.cacheNote}`,
         ``,
+    ];
+    if (m.tokens && Object.keys(m.tokens.byNodeAvg).length > 0) {
+        const nodeLine = Object.entries(m.tokens.byNodeAvg)
+            .sort((a, b) => b[1] - a[1])
+            .map(([n, v]) => `${n}=${v}`)
+            .join(" · ");
+        lines.push(`> Token 按节点（avg）：${nodeLine}`, ``);
+    }
+    lines.push(
         `## 用例`,
         ``,
-        `| ID | 层 | 结果 | latency | 说明 |`,
-        `|----|-----|------|---------|------|`,
-    ];
+        `| ID | 层 | 结果 | latency | tokens | 说明 |`,
+        `|----|-----|------|---------|--------|------|`
+    );
     for (const r of report.results) {
+        const tok =
+            typeof r.totalTokens === "number" && r.totalTokens > 0
+                ? String(r.totalTokens)
+                : "—";
         lines.push(
-            `| ${r.id} | ${r.tier} | ${r.pass ? "✅" : "❌"} | ${r.latencyMs}ms | ${r.reason.replace(/\|/g, "\\|")} |`
+            `| ${r.id} | ${r.tier} | ${r.pass ? "✅" : "❌"} | ${r.latencyMs}ms | ${tok} | ${r.reason.replace(/\|/g, "\\|")} |`
         );
     }
+    const probeLine = (r: CaseResult, icon: string): string => {
+        const tok =
+            typeof r.totalTokens === "number" && r.totalTokens > 0
+                ? ` · ${r.totalTokens} tok`
+                : "";
+        return `- ${r.id}: ${icon} ${r.reason} (${r.latencyMs}ms${tok})`;
+    };
     if (report.cacheProbe?.length) {
         lines.push(``, `## Cache 探测`, ``);
         for (const r of report.cacheProbe) {
-            lines.push(
-                `- ${r.id}: ${r.pass ? "✅" : "⚠️"} ${r.reason} (${r.latencyMs}ms)`
-            );
+            lines.push(probeLine(r, r.pass ? "✅" : "⚠️"));
         }
     }
     if (report.memProbe?.length) {
         lines.push(``, `## Mem 探测（GMem / P0-16）`, ``);
         for (const r of report.memProbe) {
-            lines.push(
-                `- ${r.id}: ${r.pass ? "✅" : "❌"} ${r.reason} (${r.latencyMs}ms)`
-            );
+            lines.push(probeLine(r, r.pass ? "✅" : "❌"));
         }
     }
     if (report.profileProbe?.length) {
         lines.push(``, `## Profile 探测（R6-3）`, ``);
         for (const r of report.profileProbe) {
-            lines.push(
-                `- ${r.id}: ${r.pass ? "✅" : "❌"} ${r.reason} (${r.latencyMs}ms)`
-            );
+            lines.push(probeLine(r, r.pass ? "✅" : "❌"));
         }
     }
     if (report.listPaginationProbe?.length) {
         lines.push(``, `## 列举分页探测`, ``);
         for (const r of report.listPaginationProbe) {
-            lines.push(
-                `- ${r.id}: ${r.pass ? "✅" : "❌"} ${r.reason} (${r.latencyMs}ms)`
-            );
+            lines.push(probeLine(r, r.pass ? "✅" : "❌"));
         }
     }
     if (report.dualListPaginationProbe?.length) {
         lines.push(``, `## 双槽列举续页探测`, ``);
         for (const r of report.dualListPaginationProbe) {
-            lines.push(
-                `- ${r.id}: ${r.pass ? "✅" : "❌"} ${r.reason} (${r.latencyMs}ms)`
-            );
+            lines.push(probeLine(r, r.pass ? "✅" : "❌"));
         }
     }
     if (report.fiveCompositeProbe?.length) {
         lines.push(``, `## 五连问探测`, ``);
         for (const r of report.fiveCompositeProbe) {
-            lines.push(
-                `- ${r.id}: ${r.pass ? "✅" : "❌"} ${r.reason} (${r.latencyMs}ms)`
-            );
+            lines.push(probeLine(r, r.pass ? "✅" : "❌"));
         }
     }
     if (report.identityCompositeProbe?.length) {
         lines.push(``, `## 六连问 QQ+手机探测`, ``);
         for (const r of report.identityCompositeProbe) {
-            lines.push(
-                `- ${r.id}: ${r.pass ? "✅" : "❌"} ${r.reason} (${r.latencyMs}ms)`
-            );
+            lines.push(probeLine(r, r.pass ? "✅" : "❌"));
         }
     }
     if (report.familyProbe?.length) {
         lines.push(``, `## 个人档案 / 亲友探测`, ``);
         for (const r of report.familyProbe) {
-            lines.push(
-                `- ${r.id}: ${r.pass ? "✅" : "❌"} ${r.reason} (${r.latencyMs}ms)`
-            );
+            lines.push(probeLine(r, r.pass ? "✅" : "❌"));
         }
     }
     if (report.corpusEditProbe?.length) {
         lines.push(``, `## vault_workspace 探测`, ``);
         for (const r of report.corpusEditProbe) {
-            lines.push(
-                `- ${r.id}: ${r.pass ? "✅" : "❌"} ${r.reason} (${r.latencyMs}ms)`
-            );
+            lines.push(probeLine(r, r.pass ? "✅" : "❌"));
         }
     }
     if (report.matchReportProbe?.length) {
         lines.push(``, `## 匹配结构化探测（MatchReport）`, ``);
         for (const r of report.matchReportProbe) {
-            lines.push(
-                `- ${r.id}: ${r.pass ? "✅" : "❌"} ${r.reason} (${r.latencyMs}ms)`
-            );
+            lines.push(probeLine(r, r.pass ? "✅" : "❌"));
         }
     }
     return lines.join("\n");

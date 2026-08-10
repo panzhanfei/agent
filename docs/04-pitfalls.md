@@ -43,7 +43,7 @@
 
 ### 流式输出与可观测性（1）
 
-- [x] **#18 推理黑盒（P0 部分）** — **已做：** SSE `step` 展示 intake / retrieval / **fact_checker** / **`content_organizer`** / analyst；`thinking` 展示推理流；`agent-log` 打 Intake / KM / **FactChecker** / **ContentOrganizer** / Pipeline — **待做：** Token 统计、引用列表 UI、完整调试面板（P1）
+- [x] **#18 推理黑盒（P0 部分）** — **已做：** SSE `step` 展示 intake / retrieval / **fact_checker** / **`content_organizer`** / analyst；`thinking` 展示推理流；`agent-log` 打 Intake / KM / **FactChecker** / **ContentOrganizer** / Pipeline；**Token 按节点**（`pipeline_timing.tokens.byNode` → 气泡展开 / 运行日志 / Pipeline 出去日志 / Eval 报表）；**引用列表 UI**（SSE `citations` + 消息 metadata → `MessageCitations`）— **待做：** 完整调试面板（P1）
 
 ---
 

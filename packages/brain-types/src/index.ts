@@ -12,6 +12,12 @@ export type {
     EnumerationListItem,
     EnumerationListKind,
 } from "./message-blocks";
+
+/** Analyst / 工具产出的引用（path + excerpt）；贯通 SSE / 消息 metadata / UI */
+export type Citation = {
+    path: string;
+    excerpt: string;
+};
 /** 本轮聊天附件（已抽取文本；原件由 Brain attachmentBatch 暂存） */
 export type TurnAttachment = {
     fileName: string;
@@ -152,7 +158,12 @@ export type AgentStreamEvent = {
     message: {
         plainText: string;
         blocks: AssistantMessageBlock[];
+        citations?: Citation[];
     };
+} | {
+    /** 引用列表（可与 assistant_message 同发；历史回放走 metadata） */
+    type: "citations";
+    citations: Citation[];
 } | {
     /** Turn 被 cancel / supersede；BFF 据此决定是否落库 */
     type: "aborted";
@@ -163,6 +174,8 @@ export type AgentPipelineResult = {
     answer: string;
     /** 结构化块；Web 优先渲染 blocks，content 存 plainText */
     blocks?: AssistantMessageBlock[];
+    /** Analyst / 工具引用（path + excerpt） */
+    citations?: Citation[];
     /** D5-2：同会话字面重复问，复用 history 答 */
     repeatQuestionHit?: boolean;
     retrievalCacheHit?: boolean;

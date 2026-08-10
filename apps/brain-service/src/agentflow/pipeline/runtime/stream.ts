@@ -151,9 +151,20 @@ const summarizePipelineOut = (
       ?.retrievalPlanGuardReason ?? null,
   compositeSlotCount: state.compositeSubResults?.length ?? 0,
   compositeFacetCacheHits: state.compositeFacetCacheHits ?? null,
+  citationCount: state.citations?.length ?? 0,
+  citationPaths: (state.citations ?? []).slice(0, 8).map((c) => c.path),
   error: state.error,
   hitPaths: state.hits.map((h) => h.path),
   timing,
+  tokens: timing.tokens
+    ? {
+        total: timing.tokens.totalTokens,
+        prompt: timing.tokens.promptTokens,
+        completion: timing.tokens.completionTokens,
+        estimated: timing.tokens.estimated ?? false,
+        byNode: timing.tokens.byNode ?? {},
+      }
+    : null,
 });
 
 /**
@@ -671,15 +682,26 @@ async function* runPipelineStreamInner(
     summarizePipelineOut(finalState, answer, pipelineTiming)
   );
   const blocks = finalState.assistantBlocks ?? undefined;
-  if (blocks?.length) {
+  const citations = finalState.citations?.length
+    ? finalState.citations
+    : undefined;
+  if (blocks?.length || citations?.length) {
     yield {
       type: "assistant_message",
-      message: { plainText: answer, blocks },
+      message: {
+        plainText: answer,
+        blocks: blocks ?? [],
+        ...(citations?.length ? { citations } : {}),
+      },
     };
+  }
+  if (citations?.length) {
+    yield { type: "citations", citations };
   }
   return {
     answer,
     blocks,
+    citations,
     repeatQuestionHit: finalState.repeatQuestionHit,
     retrievalCacheHit: finalState.retrievalCacheHit,
     compositeFacetCacheHits: finalState.compositeFacetCacheHits,

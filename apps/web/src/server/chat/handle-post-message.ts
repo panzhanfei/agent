@@ -263,13 +263,18 @@ const runTurnPipeline = async (input: {
   const assistantRow = await appendAssistantMessage(
     options.conversationId,
     finalContent,
-    pipelineResult?.retrievalPaths?.length || pipelineResult?.blocks?.length
+    pipelineResult?.retrievalPaths?.length ||
+      pipelineResult?.blocks?.length ||
+      pipelineResult?.citations?.length
       ? {
           ...(pipelineResult?.retrievalPaths?.length
             ? { retrievalPaths: pipelineResult.retrievalPaths }
             : {}),
           ...(pipelineResult?.blocks?.length
             ? { blocks: pipelineResult.blocks as AssistantMessageBlock[] }
+            : {}),
+          ...(pipelineResult?.citations?.length
+            ? { citations: pipelineResult.citations }
             : {}),
         }
       : undefined
@@ -303,6 +308,7 @@ const runTurnPipeline = async (input: {
       content: assistantRow.content,
       retrievalPaths: pipelineResult?.retrievalPaths,
       blocks: pipelineResult?.blocks,
+      citations: pipelineResult?.citations,
     },
     timing: pipelineResult?.timing,
   });
