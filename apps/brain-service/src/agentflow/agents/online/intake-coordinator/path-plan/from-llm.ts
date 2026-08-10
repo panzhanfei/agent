@@ -441,7 +441,8 @@ const legalizeStep = (raw: unknown, index: number): ExecutionStep | null => {
       searchQuery = `亲友关系 ${label}`;
     }
   }
-  let toolId = asToolId(o.toolId ?? o.tool_id);
+  const rawToolId = asToolId(o.toolId ?? o.tool_id);
+  let toolId = rawToolId;
   toolId = defaultToolIdForStep(kind, queryType, identityField, toolId);
   // schema：extract_identity_* 必须挂合法 identityField；非法字段被剥掉后勿残留 toolId
   if (
@@ -453,6 +454,45 @@ const legalizeStep = (raw: unknown, index: number): ExecutionStep | null => {
     toolId = null;
   }
   const dataSourceRaw = asDataSource(o.dataSource ?? o.data_source);
+  const dataSourceHint = String(o.dataSource ?? o.data_source ?? "")
+    .trim()
+    .toLowerCase();
+
+  /**
+   * LLM 偶发把 Mem0 槽写成 km-<slug>（如 km-qq）且未填 userFactKey/identityField：
+   * 仅在非亲友、且 slug 不属于 identity 闭集时，从 step.id 抬升为 mem。
+   * 信号：step.id / 原 toolId=extract_identity / dataSource 暗示 memory。
+   */
+  const rawIdentityAbsent =
+    rawIdentityField == null ||
+    (typeof rawIdentityField === "string" && !rawIdentityField.trim());
+  if (
+    !userFactKey &&
+    !identityField &&
+    !topicFamily &&
+    rawIdentityAbsent &&
+    (kind === "km" || kind === "mem")
+  ) {
+    const stepId = String(o.id ?? "").trim();
+    const idSlug = stepId
+      .match(/^(?:km|mem)[-_]?([a-z][a-z0-9_+-]{0,63})$/i)?.[1]
+      ?.toLowerCase();
+    if (
+      idSlug &&
+      !legalizeIdentityField(idSlug) &&
+      legalizeUserFactKey(idSlug) === idSlug
+    ) {
+      const hintsMem =
+        kind === "mem" ||
+        rawToolId === "extract_identity_from_hits" ||
+        dataSourceHint === "mem0" ||
+        dataSourceHint === "memory" ||
+        queryType === "identity";
+      if (hintsMem) {
+        userFactKey = idSlug;
+      }
+    }
+  }
 
   // km/mem + userFactKey 且无闭集 identity → mem（含 identityField=qq 抬升）
   if (userFactKey && !identityField && (kind === "mem" || kind === "km")) {

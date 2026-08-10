@@ -412,3 +412,18 @@ pnpm --filter @fambrain/brain-service exec tsx --env-file=../../.env scripts/dia
 pnpm exec vitest run apps/brain-service/tests/intake-coordinator/effective-intake-question.test.ts
 pnpm --filter @fambrain/brain-service run verify:intake-coreference
 ```
+
+---
+
+## 14. 猜模型意图兜底债 → Dify/换模型后删除（P0-34 · 2026-08）
+
+> **问题：** P0-30/31 已定「意图归 LLM、代码只 schema 合法化」，但本地小模型 pathPlan 不稳时，代码仍在 **猜 LLM 本意**（亲友 `searchQuery` 改写、`km-qq`→mem、空 plan→remember、年龄口语 regex 等）。这与「去硬编码」目标冲突，只是暂为过 eval 保留。
+>
+> **处置：** 与 **控制面阶段 8（Dify/复盘）** 同批——抽离到 Dify / 换更强 Intake 模型 → 全量 eval 验证 → **删除**猜意图代码。完整清单见 [坑点 §2.11](./04-pitfalls.md#211-猜模型意图兜底债-p0-34--与-dify-抽离同批--2026-08)。
+
+| 现在 | 换模型后 |
+|------|----------|
+| 暂留 `from-llm.ts` / `intake-pipeline` / schema lift / 工具口语 fallback | 只留 Zod 合法化、空 plan→clarify、UI exact-match、schema→executor |
+| 复盘先怀疑兜底是否掩盖了坏 JSON | 复盘先看 Dify/模型工单；兜底应接近零 |
+
+**验证：** `eval:run -- --mem-only` · `--case E2E-six-composite-qq-phone` · 全量 `eval:run` · `test:unit`。

@@ -66,6 +66,7 @@
 | **Mem0 / 用户事实** | corpus 与 memory 矛盾、跨会话遗忘 | P0-14、P0-16 | §2.5.2、§2.6 |
 | **工具 / 确定性编排** | 年龄不计算、公司年限答成总从业、列举 blocks、联网 | P0-23、**P0-32**、P0-24、P0-22 | §2.5.6、§2.5.7、**§2.5.11**、[架构 v2 §11](./05-architecture-v2-tool-orchestration.md#11-pathplan-统一执行计划-2026-07) |
 | **Intake 架构（档 B）** | 代码二次规划、散文触发指代、复盘难 | **P0-30**、**P0-31** | **§2.9**、**§2.10** · [架构 v2 §12–13](./05-architecture-v2-tool-orchestration.md#12-intake-llm-主导--schema-兜底2026-07--去问句硬编码) |
+| **猜模型意图兜底债** | pathPlan/userFact 抬升、亲友改写、口语工具 fallback；换模型后应删 | **P0-34** | **§2.11** · [架构 v2 §14](./05-architecture-v2-tool-orchestration.md#14-猜模型意图兜底债--dify换模型后删除-p0-34--2026-08) |
 
 ### Agent 职责边界（合同）
 
@@ -116,6 +117,59 @@
 | P0-20 | Analyst / KM / composite | **综合问**公司段只列 2 家；子问「2～8 句」压缩；Organizer 固定 cap **5** | `MAX_SUB_QUESTION_HITS=4`；子问 prompt 句数限制；CO 未跟 profile | **`maxAnalystHitsForProfile`** + CO **`queryProfile` maxHits**；enumeration 子问 prompt「须列全 hits」 | ✅ **已解决**（2026-06）← §2.5.5 |
 | P0-21 | Intake / KM / Analyst | composite 槽 label「**具体项目名称**」→ 答 **云联智慧/友谊时光** 等公司 | 所有 enumeration 共用 **experience fill**；Intake 误标 `topics:experience` → canonical 到 employers | **`resolveEnumerationTarget`**（label 优先）+ KM **projects/** 专扫 + Analyst project prompt | ✅ **已解决**（2026-06）← §2.5.5 |
 | **P0-33** | HITL / 语料写盘 | 直接改 `corpus/**/*.md` + 软清空 `<!-- fambrain:cleared -->`；用户难记 path | 编辑面与检索产物耦合；软删仍占向量 path | **模型 A**：只 CRUD `vault/originals/workspace/*.txt`；`vault_workspace` list/CRUD；语料化 md+向量；**硬删**级联；`corpus_edit` 退役 | ✅ **已解决**（2026-08）← [流程 · 原文库](./02-agent-flows.md) |
+| **P0-34** | Intake / Tool / Mem0 | 小模型 pathPlan 不稳 → 代码「猜 LLM 本意」抬升/改写（亲友 searchQuery、`km-qq`→mem、空 plan→remember、年龄口语 regex 等） | 本地小模型 JSON 纪律弱；为过 eval 叠加结构兜底，复盘时难分「模型工单错」vs「代码又规划」 | **暂留**；与 **Dify 抽离 + 换更强 Intake 模型** 同批验证；绿后按 §2.11 清单删除 | ⬜ **待清理** ← **§2.11** · [架构 v2 §14](./05-architecture-v2-tool-orchestration.md#14-猜模型意图兜底债--dify换模型后删除-p0-34--2026-08) |
+
+### 2.11 猜模型意图兜底债（⬜ P0-34 · 与 Dify 抽离同批 · 2026-08）
+
+> **背景：** P0-30/31 已禁止「口语二次 Intake」，但本地小模型仍常把 QQ 写成 `kind=km`、漏 `userFactKey`、或把非法 `identityField` 塞进闭集外字段。工程收口期为过 GMem / 六连问等 eval，在 `from-llm.ts` / pipeline / schema / 工具层叠了多层 **「LLM 偶发 → 猜本意」** 兜底。体感仍像硬编码；**正确收敛路径不是继续加词表，而是换模型后删掉这些猜意图代码。**
+
+#### 处置约定（与 Dify 同批）
+
+| 阶段 | 动作 |
+|------|------|
+| **现在** | 清单入库；**暂不删**（eval / 现网仍依赖） |
+| **Dify 抽离** | Intake（及必要 Agent）迁 Dify / 更强模型；只信结构化 JSON |
+| **换模型后验证** | 全量 `eval:run` + GMem / 六连问 / 亲友 / G5b；`test:unit` |
+| **验证通过** | 按下方清单 **删除或收窄** 猜意图代码；只留 Zod 合法化、空 plan→clarify、UI exact-match、schema→executor |
+
+**复盘口诀：** 先看 Intake JSON 对不对 → 再决定是否还需要某条 `guard_*` / `legalize*` 抬升。模型工单稳了，抬升就该删。
+
+#### 待删 / 待收窄清单（生产 `src/`）
+
+| 优先级 | 位置 | 行为（猜意图气味） | 换模型后建议 |
+|--------|------|-------------------|--------------|
+| **P0** | `path-plan/from-llm.ts` | 非法 `identityField`：开集 ascii→`userFactKey`；否则改写 ``searchQuery=`亲友关系 ${label}```（含 `/亲友/`） | **删**亲友改写；开集→mem 抬升在强模型下应可删 |
+| **P0** | 同上 | `topics` 含 `family` → 剥 identity + 亲友 searchQuery 改写 | **删**改写；仅保留剥非法 identity + strip toolId |
+| **P0** | 同上 | `step.id` 如 `km-qq` + identity/`extract_identity` 等 hint → 发明 `userFactKey`→mem | **删**；要求 LLM 直接写 `kind=mem` + `userFactKey` |
+| **P0** | `pipeline/intake-pipeline.ts` | 空 plan + 顶层 `userFactKey`+`Value` → `retrieve` 改 `remember_user_fact` | **删**；要求 intent 直接 remember |
+| **P0** | 同上 | 单步 `mem` → early `recall`；缺 key 时 `normalizeFactKey(label\|searchQuery)` / `"user_fact"` | **收窄**：无 key 则 clarify，禁止发明 key |
+| **P1** | `contract/schema.ts` | intent/queryType 别名；`liftUserFactFieldsFromPathPlan`（params / `mem-*` id） | 别名可留极薄一层；**pathPlan 抬升尽量删** |
+| **P1** | `from-llm.ts` `ensureMemRecallStepFromTopUserFact` | 顶层 key 无 mem 步 → 注入 mem 步 | **删**；复合问须 LLM 写齐 mem 步 |
+| **P1** | `tools/.../run-sub-question.ts` + `compute-age.ts` | 问句 `/年龄\|多大\|几岁/` → 强行走 age 工具 | **删**口语；只信 `identityField`/`toolId` |
+| **P1** | `tools/links/extract-external-links.ts` | 对 label/问句剥离开源·GitHub 类口语 | **删**或仅保留对 **excerpt** 的 URL 抽取（允许 D） |
+| **P2** | `composite/repair-retrieval-plan.ts` | 缺 `listKind` 时用 topics 猜 project/experience | **收窄**；缺则 clarify 或丢步 |
+| **P2** | `guards/intake-link-lookup-guard.ts` | 按 plan 形状改写 `external_link` | 复盘后能删则删 |
+| **P2** | `user-fact/mem-retrieve` | 无 key：`normalizeFactKey(label) \|\| "user_fact"` | **删**发明 key |
+| — | `signals/pure-social-utterance` / `inferQueryProfile` 等 | 已 stub | 死代码可随时清 |
+
+#### 允许保留（对照 `.cursor/rules/no-scene-hardcoding.mdc`）
+
+| 类型 | 例子 |
+|------|------|
+| **C schema→executor** | `identityField: age` → `compute_age_from_hits`；`defaultToolIdForStep` |
+| **D 语料抽取** | 对 **excerpt** 抽出生日期 / URL（不对用户口语猜意图） |
+| **E 结构信号** | 空 plan→clarify；UI exact-match；JSON 格式修复 1×；multipart 结构 |
+
+#### 验证命令（换模型后）
+
+```bash
+pnpm test:unit
+pnpm --filter @fambrain/brain-service run eval:run -- --mem-only
+pnpm --filter @fambrain/brain-service run eval:run -- --case E2E-six-composite-qq-phone
+pnpm --filter @fambrain/brain-service run eval:run   # 全量
+```
+
+详见 [架构 v2 §14](./05-architecture-v2-tool-orchestration.md#14-猜模型意图兜底债--dify换模型后删除-p0-34--2026-08)、[控制面阶段 8](./06-architecture-control-plane.md#8-实现阶段)。
 
 ### 2.8 PathPlan 统一编排（✅ P0-28 · 2026-07）
 
@@ -1194,6 +1248,7 @@ pnpm run verify:fact-checker
 | **P0-29** | #1 意图误判（纯问候 → retrieve） | ✅ §2.8.1 |
 | **P0-30** | #2 任务拆分不合理（口语二次规划） | ✅ §2.9 |
 | **P0-31** | #1 意图误判（盲预合并 / 散文当指代）；#17 上下文污染（误并上轮）；复盘黑盒 | ✅ §2.10 |
+| **P0-34** | #1 意图误判 / #2 任务拆分（代码猜 LLM pathPlan/userFact）；与 Dify 抽离同批删兜底 | ⬜ §2.11 |
 | **P0-32** | #5 工具选择/语义错误（公司年限误用总从业工具）；#11 过度自信（复合甩推算文案） | ⬜ §2.5.11 |
 | **P0-28** | #2 任务拆分不合理；#4 计划漂移（多槽互斥） | ✅ §2.8 · 架构 v2 §11 |
 | P0-14 | #9 信息捏造；#16 Mem0 vs corpus 同句矛盾 | ✅ KM 优化 |
@@ -1222,6 +1277,7 @@ pnpm run verify:fact-checker
 - [ ] Analyst 输入里 `hits` / `coverage` 是否与 KM 一致 ← P0-6
 - [ ] 终稿是否出现候选中不存在的公司、项目、日期（幻觉）
 - [ ] 换模型复现：区分 prompt 问题 vs 模型能力（`OLLAMA_MODEL` / `OLLAMA_MODEL_INTAKE_COORDINATOR`）
+- [ ] **Dify / 换模型后（P0-34）：** GMem + 六连问 QQ 不依赖 `km-qq`→mem / 空 plan→remember；通过后按 §2.11 删猜意图兜底
 - [ ] agents 服务 `:3001` 是否唯一实例（无 EADDRINUSE）← D3-12
 - [ ] FactChecker 日志：`passed` / `refinedSearchQuery` / `retryCount` 是否符合 §2.2 判定表
 - [ ] **FC 二次放行 + hitCount=0**：Analyst 应 `rules_empty_hits_skip_llm`（**P0-12** ✅）← §2.2.1

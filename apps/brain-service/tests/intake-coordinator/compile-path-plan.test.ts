@@ -251,6 +251,28 @@ describe("legalizePathPlan + deriveCompositeSlots", () => {
         expect(pathPlan.steps[0]?.identityField).toBeNull();
     });
 
+    it("remaps km-qq step.id to mem when identityField omitted", () => {
+        const pathPlan = legalizePathPlan({
+            steps: [
+                {
+                    id: "km-qq",
+                    kind: "km",
+                    label: "QQ号",
+                    searchQuery: "个人信息 QQ号 联系方式",
+                    queryType: "identity",
+                    topics: ["personal", "resume"],
+                    identityField: null,
+                    toolId: "extract_identity_from_hits",
+                    dataSource: "corpus",
+                },
+            ],
+        });
+        expect(pathPlan.steps).toHaveLength(1);
+        expect(pathPlan.steps[0]?.kind).toBe("mem");
+        expect(pathPlan.steps[0]?.userFactKey).toBe("qq");
+        expect(pathPlan.steps[0]?.dataSource).toBe("mem0");
+    });
+
     it("demotes identityField when topics include family", () => {
         const pathPlan = legalizePathPlan({
             steps: [

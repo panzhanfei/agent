@@ -80,7 +80,9 @@ Understand + Plan（可融合为一次 LLM）
 
 ## 8. 实现阶段
 
-0 约定 → 1 状态机+预算+DAG 裁剪 → 2 Turn 取消 → 3 子图壳 → 4 全局 B → 5 写时去重+翻译 → **6 HITL（本阶段）** → 7 Eval → 8 Dify/复盘  
+0 约定 → 1 状态机+预算+DAG 裁剪 → 2 Turn 取消 → 3 子图壳 → 4 全局 B → 5 写时去重+翻译 → **6 HITL（本阶段）** → 7 Eval → **8 Dify/复盘（含 P0-34：换模型后删猜意图兜底）**
+
+**阶段 8 备忘（P0-34）：** Dify 抽离 + 换更强 Intake 模型后，跑通 GMem / 六连问 QQ / 亲友等 eval，再删除 `from-llm.ts` 亲友改写、`km-*`→mem 抬升、空 plan→remember、问句年龄 regex 等「猜 LLM 本意」代码。清单：[坑点 §2.11](./04-pitfalls.md#211-猜模型意图兜底债-p0-34--与-dify-抽离同批--2026-08) · [架构 v2 §14](./05-architecture-v2-tool-orchestration.md#14-猜模型意图兜底债--dify换模型后删除-p0-34--2026-08)。
 
 ### 阶段 5 定稿（补充）
 
