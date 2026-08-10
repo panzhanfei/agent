@@ -120,9 +120,16 @@ describe("planFanOut merge helpers", () => {
             toolId: "synthesize_merge",
             label: "综合",
             ok: true,
-            answer: "综合评估结论",
+            answer: "## 匹配点\n\n- x\n\n## 缺口\n\n- y\n\n## 风险/不确定\n\n- z\n\n## 结论\n\n谨慎",
             citations: [],
             hits: [],
+            blocks: [
+              {
+                type: "text",
+                markdown:
+                  "## 匹配点\n\n- x\n\n## 缺口\n\n- y\n\n## 风险/不确定\n\n- z\n\n## 结论\n\n谨慎",
+              },
+            ],
             insufficientEvidence: false,
             confidence: 0.8,
           },
@@ -133,6 +140,7 @@ describe("planFanOut merge helpers", () => {
       "km-age",
       "dag-fit",
     ]);
-    expect(merged.compositeSubResults?.[1]?.notes).toContain("综合评估结论");
+    expect(merged.compositeSubResults?.[1]?.notes).toContain("## 匹配点");
+    expect(merged.compositeSubResults?.[1]?.assistantBlocks?.length).toBe(1);
   });
 });

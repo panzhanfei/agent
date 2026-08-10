@@ -2,6 +2,7 @@ export * from "./interface";
 export * from "./catalog";
 export * from "./enrich";
 export * from "./execute";
+export * from "./synthesize";
 export {
   pickToolResultForSubQuestion,
   toolRunToAnalystResult,

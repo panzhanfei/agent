@@ -97,6 +97,8 @@ export type ToolRunResult = {
     /** DAG 执行期裁剪：结构化 skip（非口语规则） */
     skipped?: boolean;
     skipReason?: "deps" | "timeout" | "budget" | "cancelled";
+    /** synthesize_merge：匹配结构化报告（L2）；answer 为其 L1 Markdown 渲染 */
+    matchReport?: import("./synthesize/interface").MatchReport;
 };
 
 export type ExecutionPlanNode = {

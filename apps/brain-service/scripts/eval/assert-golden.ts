@@ -27,6 +27,8 @@ export type JsonAssert = {
     answerMustNotRe?: string;
     /** answer 须同时包含这些子串（R6-3 公司枚举等） */
     answerMustIncludeAll?: string[];
+    /** L5：hybrid 匹配结构化 —— 须含四栏标题 + 结论枚举 */
+    expectMatchReport?: boolean;
 };
 
 export type KmEvalSnapshot = {
@@ -162,6 +164,22 @@ export const assertPipeline = (
     for (const needle of assert.answerMustIncludeAll ?? []) {
         if (!snap.answer.includes(needle)) {
             issues.push(`answer 缺少「${needle}」`);
+        }
+    }
+    if (assert.expectMatchReport) {
+        const headings = [
+            "## 匹配点",
+            "## 缺口",
+            "## 风险/不确定",
+            "## 结论",
+        ];
+        for (const h of headings) {
+            if (!snap.answer.includes(h)) {
+                issues.push(`MatchReport 缺少标题「${h}」`);
+            }
+        }
+        if (!/适合|谨慎|信息不足/.test(snap.answer)) {
+            issues.push("MatchReport 结论栏缺少枚举值（适合|谨慎|信息不足）");
         }
     }
     return issues;

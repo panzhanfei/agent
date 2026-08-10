@@ -99,7 +99,11 @@ export const mergeCompositeWithDagSteps = (
       label: dagRun.label,
       hits: dagPatch.hits ?? [],
       coverage: dagPatch.coverage ?? "partial",
+      // L4：MatchReport Markdown 进 notes；blocks 挂载后 Analyst 跳过 LLM 改写
       notes: synthesis?.answer ?? dagPatch.notes ?? null,
+      assistantBlocks: synthesis?.blocks?.length
+        ? synthesis.blocks
+        : undefined,
       cacheHit: false,
       facetAnswerCacheHit: false,
     });

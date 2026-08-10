@@ -693,5 +693,14 @@
         }
       }
     ]
+  },
+  "matchReportProbe": {
+    "id": "G-匹配结构化",
+    "label": "hybrid synthesize_merge：MatchReport 四栏+结论枚举（L1～L5，fixture 不依赖外网）",
+    "assert": {
+      "expectMatchReport": true,
+      "answerMustIncludeAll": ["## 匹配点", "## 缺口", "## 风险/不确定", "## 结论"],
+      "answerRe": "适合|谨慎|信息不足"
+    }
   }
 }

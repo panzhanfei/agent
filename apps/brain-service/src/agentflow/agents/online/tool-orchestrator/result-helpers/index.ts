@@ -67,6 +67,24 @@ export const pickToolResultForSubQuestion = (
         }
     }
 
+    // L4：hybrid 匹配结构化 —— 直接消费 synthesize_merge，禁止 Analyst 散文覆盖
+    const synthesis = toolResults.synthesis;
+    if (
+        synthesis?.toolId === "synthesize_merge" &&
+        (synthesis.matchReport || synthesis.answer.includes("## 匹配点"))
+    ) {
+        return synthesis;
+    }
+    if (input.slotId) {
+        const dagRun = toolResults[input.slotId];
+        if (
+            dagRun?.toolId === "synthesize_merge" &&
+            (dagRun.matchReport || dagRun.answer.includes("## 匹配点"))
+        ) {
+            return dagRun;
+        }
+    }
+
     if (toolResults.web) return toolResults.web;
 
     return null;

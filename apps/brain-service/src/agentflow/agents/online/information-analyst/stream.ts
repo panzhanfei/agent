@@ -98,17 +98,33 @@ async function* streamSinglePlainAnalyze(
 async function* streamSingleAnalyze(
     input: InformationAnalystInput
 ): AsyncGenerator<AnalystStreamChunk, InformationAnalystResult> {
-    // 纯 hybrid / 单槽：synthesis 进 notes；多槽时 dag 步已挂在 compositeSubResults
+    // L4：匹配结构化已就绪 → 直接渲染，禁止再注入 notes 让 LLM 散文改写
+    const synthesis = input.toolResults?.synthesis;
     if (
-        input.toolResults?.synthesis?.answer &&
+        synthesis?.toolId === "synthesize_merge" &&
+        (synthesis.matchReport || synthesis.answer.includes("## 匹配点")) &&
         (input.compositeSubResults?.length ?? 0) <= 1
     ) {
-        input = {
-            ...input,
-            notes: [input.notes, input.toolResults.synthesis.answer]
-                .filter(Boolean)
-                .join("\n\n"),
-        };
+        const { toolRunToAnalystResult } = await import(
+            "@/agentflow/agents/online/tool-orchestrator"
+        );
+        const rendered = toolRunToAnalystResult(synthesis);
+        logAgentOut("InformationAnalyst", "出去", {
+            source: "synthesize_match_report",
+            insufficientEvidence: rendered.insufficientEvidence,
+            confidence: rendered.confidence,
+            citationCount: rendered.citations.length,
+            blockCount: rendered.blocks?.length ?? 0,
+            answerPreview:
+                rendered.answer.length > 400
+                    ? `${rendered.answer.slice(0, 400)}…`
+                    : rendered.answer,
+        });
+        yield { type: "assistant", text: rendered.answer };
+        for (const block of rendered.blocks ?? []) {
+            yield { type: "ui_block", block };
+        }
+        return rendered;
     }
     const l3Cached = resolveSingleSlotCachedAnswer(input);
     if (l3Cached) {

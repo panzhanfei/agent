@@ -25,7 +25,7 @@
 | ① 静态知识 | 文档里写了什么政策 | 本地向量库（Chroma + BM25） | `retrieval` → KM |
 | ② 个人信息 / 计算 | 我今年多大 | 语料检索 + **计算工具** | KM → `toolOrchestrator` → `compute_age_from_hits` |
 | ③ 实时动态 | xxx 公司最近怎么样 | **联网搜索**（corpus-first） | KM 弱命中 → `search_web` |
-| ④ 混合 | 根据简历 + 行情评估去某公司机会 | **DAG 编排** | `dagExecutor` 并行语料+联网 → `synthesize_merge` → Analyst |
+| ④ 混合 | 根据简历 + 行情评估去某公司机会 | **DAG 编排** | `dagExecutor` 并行语料+联网 → `synthesize_merge`（**MatchReport 四栏**）→ Analyst 只渲染 |
 
 **原则：** 尽量少硬编码口语；字段 → 工具映射集中在 **`field-catalog.ts`**，Intake guard 只 **富化计划**，不算答案。
 
@@ -310,6 +310,22 @@ flowchart LR
 - dag **仅** `hybrid_multi_source`（多源汇合）。
 - 回答顺序 = Intake `steps[]` / 派生 `compositeSlots` 顺序；searchQuery 用 **`EXTERNAL_LINK_SLOT`** canonical（P0-27）。
 - 列举分页 / UI exact-match 实现在 **`corpus-lister/enumeration`**（Intake 经 barrel re-export，无独立 enumeration 目录）。
+
+### 11.3b 匹配结构化（MatchReport · synthesize_merge）
+
+hybrid 汇合**不是**散文拼接材料包，而是固定契约：
+
+| 层 | 内容 |
+|----|------|
+| L1 | Markdown 四栏：`## 匹配点` / `## 缺口` / `## 风险/不确定` / `## 结论` |
+| L2 | `MatchReport` JSON（Zod）；`ToolRunResult.matchReport` |
+| L3 | 证据不足时结论不得为「适合」；软依赖降级写入风险栏 |
+| L4 | Analyst **直接渲染** `synthesize_merge`（`pickToolResult` / `assistantBlocks`），禁止二次散文覆盖 |
+| L5 | eval `expectMatchReport` + `matchReportProbe`；`verify:dag-hybrid` |
+
+结论枚举仅：`适合` \| `谨慎` \| `信息不足`。`SYNTHESIZE_MATCH_LLM=0` 可关 LLM 填表（单测默认关）。
+
+实现：`tool-orchestrator/synthesize/`。
 
 ### 11.4 新 Pipeline 拓扑
 

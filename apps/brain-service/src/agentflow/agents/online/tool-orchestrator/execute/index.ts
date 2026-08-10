@@ -231,34 +231,13 @@ export const invokeComposeEnumeration = (input: {
     );
 };
 
-export const invokeSynthesizeMerge = (input: {
+export const invokeSynthesizeMerge = async (input: {
     label: string;
     deps: ToolRunResult[];
-}): ToolRunResult => {
-    const resume = input.deps.find((d) => d.toolId === "retrieve_corpus");
-    const webs = input.deps.filter((d) => d.toolId === "search_web");
-    const sections: string[] = [];
-    if (resume?.answer) {
-        sections.push(`【个人档案摘要】\n${resume.answer.slice(0, 800)}`);
-    }
-    for (const w of webs) {
-        if (w.answer) sections.push(`【${w.label}】\n${w.answer}`);
-    }
-    const answer =
-        sections.length > 0
-            ? `${sections.join("\n\n")}\n\n（以上为语料与外部检索摘录的综合材料；具体匹配结论请结合各段证据判断，勿编造未出现的事实。）`
-            : "综合评估所需材料不足（简历或外部检索未返回有效内容）。";
-    const citations = dedupeCitations(input.deps.flatMap((d) => d.citations));
-    return {
-        toolId: "synthesize_merge",
-        label: input.label,
-        ok: sections.length >= 2,
-        answer,
-        citations,
-        hits: resume?.hits ?? [],
-        insufficientEvidence: sections.length < 2,
-        confidence: sections.length >= 2 ? 0.72 : 0.85,
-    };
+    userQuestion?: string;
+}): Promise<ToolRunResult> => {
+    const { buildSynthesizeMergeResult } = await import("../synthesize");
+    return buildSynthesizeMergeResult(input);
 };
 
 export const invokeComputeTenure = (input: {
@@ -507,7 +486,11 @@ export const runExecutionPlanNode = async (
             });
         case "synthesize_merge": {
             const deps = node.deps.map((id) => prior[id]).filter(Boolean) as ToolRunResult[];
-            return invokeSynthesizeMerge({ label: node.label, deps });
+            return invokeSynthesizeMerge({
+                label: node.label,
+                deps,
+                userQuestion: state.userQuestion,
+            });
         }
         default:
             return {
@@ -577,6 +560,39 @@ export const executeDagPlan = async (
                     return [node.id, result] as const;
                 }
                 const note = `可选依赖未就绪（${softMissing.join(", ")}），已降级继续。`;
+                // MatchReport：软依赖降级写入风险栏，避免破坏 L1 四栏正文
+                if (result.matchReport) {
+                    const { renderMatchReportMarkdown, matchReportToBlocks } =
+                        await import("../synthesize");
+                    const matchReport = {
+                        ...result.matchReport,
+                        risks: [
+                            ...result.matchReport.risks,
+                            { text: note },
+                        ],
+                        conclusion:
+                            result.matchReport.conclusion === "适合"
+                                ? ("谨慎" as const)
+                                : result.matchReport.conclusion,
+                        evidenceGrade:
+                            result.matchReport.evidenceGrade === "sufficient"
+                                ? ("partial" as const)
+                                : result.matchReport.evidenceGrade,
+                    };
+                    const answer = renderMatchReportMarkdown(matchReport);
+                    return [
+                        node.id,
+                        {
+                            ...result,
+                            matchReport,
+                            answer,
+                            blocks: matchReportToBlocks(matchReport),
+                            confidence: Math.min(result.confidence, 0.75),
+                            insufficientEvidence:
+                                result.insufficientEvidence || !result.ok,
+                        },
+                    ] as const;
+                }
                 return [
                     node.id,
                     {

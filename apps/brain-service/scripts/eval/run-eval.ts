@@ -147,6 +147,11 @@ type GoldenFile = {
     };
     vaultWorkspaceProbe?: VaultWorkspaceProbeSpec;
     corpusEditProbe?: CorpusEditProbeSpec;
+    matchReportProbe?: {
+        id: string;
+        label: string;
+        assert: JsonAssert;
+    };
 };
 
 type CaseResult = {
@@ -197,6 +202,7 @@ type EvalReport = {
     identityCompositeProbe?: CaseResult[];
     familyProbe?: CaseResult[];
     corpusEditProbe?: CaseResult[];
+    matchReportProbe?: CaseResult[];
 };
 
 const chromaUrl = (): string => {
@@ -525,6 +531,85 @@ const runCacheProbe = async (
     return out;
 };
 
+/** L5：fixture 驱动 MatchReport（不跑全链路外网） */
+const runMatchReportProbe = async (
+    probe: NonNullable<GoldenFile["matchReportProbe"]>
+): Promise<CaseResult[]> => {
+    const prev = process.env.SYNTHESIZE_MATCH_LLM;
+    process.env.SYNTHESIZE_MATCH_LLM = "0";
+    const t0 = Date.now();
+    try {
+        const { invokeSynthesizeMerge } = await import(
+            "@/agentflow/agents/online/tool-orchestrator"
+        );
+        const merged = await invokeSynthesizeMerge({
+            label: "综合评估",
+            deps: [
+                {
+                    toolId: "retrieve_corpus",
+                    label: "个人简历",
+                    ok: true,
+                    answer: "前端工程师，React/TypeScript；带过小团队",
+                    citations: [
+                        { path: "personal/简历.md", excerpt: "React" },
+                    ],
+                    hits: [],
+                    insufficientEvidence: false,
+                    confidence: 0.8,
+                },
+                {
+                    toolId: "search_web",
+                    label: "目标公司",
+                    ok: true,
+                    answer: "云计算与 ToG；招聘前端负责人",
+                    citations: [
+                        {
+                            path: "https://example.com",
+                            excerpt: "云计算",
+                        },
+                    ],
+                    hits: [],
+                    insufficientEvidence: false,
+                    confidence: 0.7,
+                },
+            ],
+        });
+        const snap: PipelineEvalSnapshot = {
+            steps: ["plan_dag", "analyst"],
+            answer: merged.answer,
+            hitCount: 0,
+            coverage: merged.insufficientEvidence ? "partial" : "sufficient",
+            latencyMs: Date.now() - t0,
+            blocks: merged.blocks,
+        };
+        const issues = assertPipeline(snap, probe.assert);
+        return [
+            {
+                id: probe.id,
+                tier: "pipeline",
+                label: probe.label,
+                pass: issues.length === 0,
+                reason: issues.length === 0 ? "ok" : issues.join("; "),
+                latencyMs: snap.latencyMs,
+            },
+        ];
+    } catch (e) {
+        return [
+            {
+                id: probe.id,
+                tier: "pipeline",
+                label: probe.label,
+                pass: false,
+                reason: e instanceof Error ? e.message : String(e),
+                latencyMs: Date.now() - t0,
+            },
+        ];
+    } finally {
+        if (prev === undefined) delete process.env.SYNTHESIZE_MATCH_LLM;
+        else process.env.SYNTHESIZE_MATCH_LLM = prev;
+    }
+};
+
 const runProfileProbe = async (
     probe: NonNullable<GoldenFile["profileProbe"]>,
     corpusUserId: string
@@ -785,6 +870,14 @@ const formatMarkdown = (report: EvalReport): string => {
             );
         }
     }
+    if (report.matchReportProbe?.length) {
+        lines.push(``, `## 匹配结构化探测（MatchReport）`, ``);
+        for (const r of report.matchReportProbe) {
+            lines.push(
+                `- ${r.id}: ${r.pass ? "✅" : "❌"} ${r.reason} (${r.latencyMs}ms)`
+            );
+        }
+    }
     return lines.join("\n");
 };
 
@@ -1035,6 +1128,11 @@ const main = async (): Promise<void> => {
             ? []
             : await runVaultWorkspaceProbe(vaultSpec, corpusUserId);
 
+    const matchReportProbe =
+        caseFilter || !golden.matchReportProbe
+            ? []
+            : await runMatchReportProbe(golden.matchReportProbe);
+
     const report: EvalReport = {
         generatedAt: new Date().toISOString(),
         corpusUserId,
@@ -1058,6 +1156,9 @@ const main = async (): Promise<void> => {
             : undefined,
         familyProbe: familyProbe.length ? familyProbe : undefined,
         corpusEditProbe: corpusEditProbe.length ? corpusEditProbe : undefined,
+        matchReportProbe: matchReportProbe.length
+            ? matchReportProbe
+            : undefined,
     };
 
     const failed = results.filter((r) => !r.pass);
@@ -1077,6 +1178,9 @@ const main = async (): Promise<void> => {
     );
     const familyFailed = (report.familyProbe ?? []).filter((r) => !r.pass);
     const corpusEditFailed = (report.corpusEditProbe ?? []).filter((r) => !r.pass);
+    const matchReportFailed = (report.matchReportProbe ?? []).filter(
+        (r) => !r.pass
+    );
     const coalesceBad = report.metrics.coalesceFailures > 0;
     const pass =
         failed.length === 0 &&
@@ -1088,6 +1192,7 @@ const main = async (): Promise<void> => {
         identityCompositeFailed.length === 0 &&
         familyFailed.length === 0 &&
         corpusEditFailed.length === 0 &&
+        matchReportFailed.length === 0 &&
         !coalesceBad;
 
     const mdBody = formatMarkdown(report);
@@ -1113,6 +1218,7 @@ const main = async (): Promise<void> => {
         ...identityCompositeFailed,
         ...familyFailed,
         ...corpusEditFailed,
+        ...matchReportFailed,
     ].map((r) => `- ${r.id}: ${r.reason}`);
 
     // 子集（--case / 仅某 probe）不得覆盖 reports/eval-report 全量段
@@ -1140,10 +1246,11 @@ const main = async (): Promise<void> => {
                     dualListPaginationFailed: dualListPaginationFailed.length,
                     fiveCompositeFailed: fiveCompositeFailed.length,
                     identityCompositeFailed: identityCompositeFailed.length,
-                    familyFailed: familyFailed.length,
-                    vaultFailed: corpusEditFailed.length,
-                    coalesceFailures: report.metrics.coalesceFailures,
-                },
+                familyFailed: familyFailed.length,
+                vaultFailed: corpusEditFailed.length,
+                matchReportFailed: matchReportFailed.length,
+                coalesceFailures: report.metrics.coalesceFailures,
+            },
                 failures: failDetails,
                 fullReport: report,
             },
