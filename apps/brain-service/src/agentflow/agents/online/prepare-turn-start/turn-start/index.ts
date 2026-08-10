@@ -1,6 +1,6 @@
 /**
  * PrepareTurnStart：LangGraph START 后首节点（非 LLM）。
- * 仅挂 ALS 记事本（token 统计 + pipeline_log 队列）；同问短路与 Mem0/LangMem 在后续独立节点。
+ * ALS 记事本应由 stream 入口挂好；此处仅兜底（单测 / 直调节点时）。
  */
 import { logAgentIn, logAgentOut } from "@fambrain/brain-shared/agent-log";
 import {
@@ -9,7 +9,7 @@ import {
 } from "@fambrain/brain-shared/pipeline-run-context";
 import type { PipelineGraphState } from "@/agentflow/pipeline/graph/state";
 
-/** 为本轮绑定 ALS；图内首节点调用一次即可 */
+/** 兜底：stream 未挂 ALS 时再建一份（正常路径为 no-op） */
 const ensurePipelineRunStore = (): void => {
     if (pipelineRunStorage.getStore()) return;
     pipelineRunStorage.enterWith(createPipelineRunStore());

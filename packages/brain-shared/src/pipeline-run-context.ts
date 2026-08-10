@@ -2,9 +2,11 @@
  * 单轮 Pipeline 运行的「隐式上下文」：token 统计 + Agent 日志队列。
  *
  * 为什么用 AsyncLocalStorage？
- * - 一轮对话从 prepareTurnStart 节点 enterWith 起、到 Intake/KM/Analyst 多层 async 调用，若每层传 runStore 参数很啰嗦。
- * - enterWith(runStore) 后，同一条 async 链上的任意深度代码可通过 getStore() 拿到「本轮专属」仓库。
- * - 并发多用户时，每个 HTTP 请求各自 enterWith，互不串数据（类似其他语言的 thread-local，但是 async 版）。
+ * - stream.ts 入口 enterWith(runStore)，图内 Intake/KM/Analyst 任意深度 getStore() 即可记 token / 入队日志。
+ * - 并发多用户时，每个 HTTP 请求各自一份 store，互不串数据。
+ *
+ * 注意：async generator 每次 yield 后 ALS 可能丢失；stream 消费侧须持有同一 runStore 引用，
+ * flush / finish 时显式传入或 re-enterWith，不能只靠 getStore()。
  *
  * 不是事件发布订阅：没有 subscribe/on；是「写时入队、读时 drain」的生产者-消费者模式。
  * - 生产者：logAgentIn/Out → enqueuePipelineLog；LLM 返回 → recordLangChainOllamaUsage
@@ -71,14 +73,14 @@ export class PipelineTokenTracker {
 }
 
 /** 单轮 Pipeline 运行仓库：挂在 AsyncLocalStorage 上，一轮一个实例 */
-type PipelineRunStore = {
+export type PipelineRunStore = {
     tokenTracker: PipelineTokenTracker;
     logQueue: PipelineLogEntry[];
 };
 
 /**
  * Node.js 内置：按 async 调用链隔离的键值存储。
- * prepareTurnStart 节点开头 enterWith(runStore)，深层 getStore() 取本轮仓库。
+ * stream 入口 enterWith(runStore)，深层 getStore() 取本轮仓库。
  */
 export const pipelineRunStorage = new AsyncLocalStorage<PipelineRunStore>();
 
@@ -91,20 +93,59 @@ export const createPipelineRunStore = (): PipelineRunStore => ({
     logQueue: [],
 });
 
+/** LangGraph runnable config.configurable 上挂本轮 store 的键 */
+export const PIPELINE_RUN_STORE_CONFIG_KEY = "pipelineRunStore";
+
+/** 绑定本轮 store（stream 入口 / 每次 await 拉图前调用，避免 generator yield 丢 ALS） */
+export const bindPipelineRunStore = (store: PipelineRunStore): void => {
+    pipelineRunStorage.enterWith(store);
+};
+
+/**
+ * 包装 LangGraph 节点：从 config.configurable 取 store，用 ALS.run 包一层。
+ * 解决 Pregel / fan-out 调度导致 enterWith 丢失、token/log 记不上的问题。
+ */
+// eslint-disable-next-line @typescript-eslint/no-explicit-any
+export const withPipelineRunAls = <T extends (...args: any[]) => any>(
+    fn: T
+): T => {
+    const wrapped = async (
+        state: unknown,
+        config?: unknown
+    ): Promise<unknown> => {
+        const configurable =
+            config && typeof config === "object"
+                ? (config as { configurable?: Record<string, unknown> })
+                      .configurable
+                : undefined;
+        const fromConfig = configurable?.[PIPELINE_RUN_STORE_CONFIG_KEY] as
+            | PipelineRunStore
+            | undefined;
+        const store = fromConfig ?? pipelineRunStorage.getStore() ?? undefined;
+        if (!store) {
+            return fn(state, config);
+        }
+        return pipelineRunStorage.run(store, () => fn(state, config));
+    };
+    return wrapped as T;
+};
+
 /** 取当前 async 链上的 tokenTracker；无 enterWith 时返回 null */
 export const getPipelineTokenTracker = (): PipelineTokenTracker | null => {
     return pipelineRunStorage.getStore()?.tokenTracker ?? null;
 };
 
 /**
- * 取出并清空当前轮的 logQueue（splice 移出，非拷贝）。
- * stream.ts flushPipelineLogs 调用，批量 yield 为 pipeline_log SSE。
+ * 取出并清空 logQueue（splice 移出，非拷贝）。
+ * 优先用显式 store（stream 消费侧）；否则读 ALS。
  */
-export const drainPipelineLogQueue = (): PipelineLogEntry[] => {
-    const store = pipelineRunStorage.getStore();
-    if (!store?.logQueue.length)
+export const drainPipelineLogQueue = (
+    store?: PipelineRunStore | null
+): PipelineLogEntry[] => {
+    const s = store ?? pipelineRunStorage.getStore();
+    if (!s?.logQueue.length)
         return [];
-    return store.logQueue.splice(0);
+    return s.logQueue.splice(0);
 };
 
 /**

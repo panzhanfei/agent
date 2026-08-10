@@ -1,4 +1,5 @@
 import { END, START, StateGraph } from "@langchain/langgraph";
+import { withPipelineRunAls } from "@fambrain/brain-shared/pipeline-run-context";
 import { runContentOrganizerNode } from "@/agentflow/agents/online/content-organizer";
 import {
   runContentSummarizerNode,
@@ -53,17 +54,22 @@ import {
   routeAfterRepeat,
 } from "./routes";
 
+/** 节点包 ALS：token / pipeline_log 与 stream 入口同一 store */
+const als = withPipelineRunAls;
+
 /**
  * 单槽子图若直接挂父图，invoke 会把整份 Pipeline 状态（含 history LastValue）写回；
  * 并行 Send 时触发 INVALID_CONCURRENT_GRAPH_UPDATE。只透传工人补丁通道。
  */
 const asFanOutSlotNode = (compiled: {
-  invoke: (state: PipelineGraphState) => Promise<PipelineGraphState>;
+  // 子图 CompiledStateGraph.invoke 签名与父状态略有差异，运行时透传 config 即可
+  invoke: (state: PipelineGraphState, config?: unknown) => Promise<PipelineGraphState>;
 }) => {
   return async (
-    state: PipelineGraphState
+    state: PipelineGraphState,
+    config?: unknown
   ): Promise<Partial<PipelineGraphState>> => {
-    const out = await compiled.invoke(state);
+    const out = await compiled.invoke(state, config);
     const patches = out.fanOutSlotPatches ?? [];
     /** 子图内 reducer 可能叠上父级残留；工人每次只应追加本槽最新一条 */
     const last = patches.length > 0 ? patches[patches.length - 1]! : null;
@@ -83,31 +89,37 @@ const asFanOutSlotNode = (compiled: {
  */
 const buildPipelineGraph = () => {
   return new StateGraph(PipelineGraphAnnotation)
-    .addNode("prepareTurnStart", runPrepareTurnStart)
-    .addNode("repeatQuestionGuard", runRepeatQuestionGuard)
-    .addNode("repeatRespondEarly", runRepeatRespondEarlyNode)
-    .addNode("preparePipelineMemory", runPreparePipelineMemory)
-    .addNode("intake", runIntakeNode)
-    .addNode("planCacheResolve", runPlanCacheResolveNode)
-    .addNode("listRetriever", runListRetrieverNode)
-    .addNode("kmRetrieve", asFanOutSlotNode(getCompiledKmSlotGraph()))
-    .addNode("listRetrieve", runListRetrieveNode)
-    .addNode("memRetrieve", runMemRetrieveNode)
-    .addNode("toolRetrieve", asFanOutSlotNode(getCompiledToolSlotGraph()))
-    .addNode("summarizeSlot", runSummarizeSlotNode)
-    .addNode("vaultWorkspace", runVaultWorkspaceNode)
-    .addNode("corpusEdit", runCorpusEditNode)
-    .addNode("planSlotJoin", runPlanSlotJoinNode)
-    .addNode("planSlotPost", runPlanSlotPostNode)
-    .addNode("planDag", runPlanDagNode)
-    .addNode("userFactSide", runUserFactSideNode)
-    .addNode("planMerge", runPlanMergeNode)
-    .addNode("contentSummarizer", runContentSummarizerNode)
-    .addNode("contentOrganizer", runContentOrganizerNode)
-    .addNode("analyst", runAnalystNode)
-    .addNode("userFact", userFactNode)
-    .addNode("respondEarly", runRespondEarlyNode)
-    .addNode("persistTurnEnd", runPersistTurnEnd)
+    .addNode("prepareTurnStart", als(runPrepareTurnStart))
+    .addNode("repeatQuestionGuard", als(runRepeatQuestionGuard))
+    .addNode("repeatRespondEarly", als(runRepeatRespondEarlyNode))
+    .addNode("preparePipelineMemory", als(runPreparePipelineMemory))
+    .addNode("intake", als(runIntakeNode))
+    .addNode("planCacheResolve", als(runPlanCacheResolveNode))
+    .addNode("listRetriever", als(runListRetrieverNode))
+    .addNode(
+      "kmRetrieve",
+      als(asFanOutSlotNode(getCompiledKmSlotGraph() as never))
+    )
+    .addNode("listRetrieve", als(runListRetrieveNode))
+    .addNode("memRetrieve", als(runMemRetrieveNode))
+    .addNode(
+      "toolRetrieve",
+      als(asFanOutSlotNode(getCompiledToolSlotGraph() as never))
+    )
+    .addNode("summarizeSlot", als(runSummarizeSlotNode))
+    .addNode("vaultWorkspace", als(runVaultWorkspaceNode))
+    .addNode("corpusEdit", als(runCorpusEditNode))
+    .addNode("planSlotJoin", als(runPlanSlotJoinNode))
+    .addNode("planSlotPost", als(runPlanSlotPostNode))
+    .addNode("planDag", als(runPlanDagNode))
+    .addNode("userFactSide", als(runUserFactSideNode))
+    .addNode("planMerge", als(runPlanMergeNode))
+    .addNode("contentSummarizer", als(runContentSummarizerNode))
+    .addNode("contentOrganizer", als(runContentOrganizerNode))
+    .addNode("analyst", als(runAnalystNode))
+    .addNode("userFact", als(userFactNode))
+    .addNode("respondEarly", als(runRespondEarlyNode))
+    .addNode("persistTurnEnd", als(runPersistTurnEnd))
     .addEdge(START, "prepareTurnStart")
     .addEdge("prepareTurnStart", "repeatQuestionGuard")
     .addConditionalEdges("repeatQuestionGuard", routeAfterRepeat)

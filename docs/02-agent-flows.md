@@ -159,7 +159,7 @@ flowchart TD
 
 **职责：**
 
-1. `createPipelineRunStore` + `pipelineRunStorage.enterWith` — 本轮 ALS（token 统计 + `pipeline_log` 队列）
+1. stream 入口 `createPipelineRunStore` + `configurable.pipelineRunStore`；图节点 `withPipelineRunAls` 包一层 — 本轮 ALS（token 统计 + `pipeline_log` 队列）
 2. **同问短路** `findRepeatAnswerInHistory` — 命中 → `exitEarly` + `respondEarly`
 3. `preparePipelineMemory` — Mem0 检索 + LangMem 摘要 → 写入 state 的 `memoryBlock` / `intakeHistory` / `userMemories`
 

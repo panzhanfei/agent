@@ -32,9 +32,12 @@ import type {
   TurnStepEvent,
 } from "@fambrain/brain-types";
 import {
+  bindPipelineRunStore,
+  createPipelineRunStore,
   drainPipelineLogQueue,
-  pipelineRunStorage,
+  PIPELINE_RUN_STORE_CONFIG_KEY,
   setPipelineActiveNode,
+  type PipelineRunStore,
 } from "@fambrain/brain-shared/pipeline-run-context";
 import {
   getTurnAbortReason,
@@ -173,23 +176,27 @@ const summarizePipelineOut = (
  */
 const finishPipeline = function* (
   timing: PipelineTimingTracker,
-  collectedLogs: PipelineLogEntry[]
+  collectedLogs: PipelineLogEntry[],
+  runStore: PipelineRunStore
 ): Generator<AgentStreamEvent, PipelineTiming> {
-  yield* flushPipelineLogs(collectedLogs);
-  const tokenTracker = pipelineRunStorage.getStore()?.tokenTracker;
+  bindPipelineRunStore(runStore);
+  yield* flushPipelineLogs(collectedLogs, runStore);
+  const tokenSnap = runStore.tokenTracker.snapshot();
   const snapshot: PipelineTiming = {
     ...timing.snapshot(),
-    ...(tokenTracker ? { tokens: tokenTracker.snapshot() } : {}),
+    ...(tokenSnap.totalTokens > 0 ? { tokens: tokenSnap } : {}),
   };
   yield { type: "pipeline_timing", timing: snapshot };
   return snapshot;
 };
 
-/** 把 AsyncLocalStorage 队列里积压的 Agent 日志批量 yield 为 pipeline_log SSE 事件 */
+/** 把本轮 logQueue 积压的 Agent 日志批量 yield 为 pipeline_log SSE 事件 */
 function* flushPipelineLogs(
-  collectedLogs: PipelineLogEntry[]
+  collectedLogs: PipelineLogEntry[],
+  runStore: PipelineRunStore
 ): Generator<AgentStreamEvent> {
-  for (const entry of drainPipelineLogQueue()) {
+  bindPipelineRunStore(runStore);
+  for (const entry of drainPipelineLogQueue(runStore)) {
     collectedLogs.push(entry);
     yield { type: "pipeline_log", entry };
   }
@@ -212,6 +219,9 @@ async function* runPipelineStreamInner(
   context: AgentPipelineContext
 ): AsyncGenerator<AgentStreamEvent, AgentPipelineResult> {
   ensureBrainServiceRuntime();
+  /** 本轮 ALS 仓库：入口创建并持有引用（generator yield 后 getStore 可能丢） */
+  const runStore = createPipelineRunStore();
+  bindPipelineRunStore(runStore);
   const userQuestion = lastUserQuestion(history);
   const timing = new PipelineTimingTracker();
   const collectedLogs: PipelineLogEntry[] = [];
@@ -236,13 +246,14 @@ async function* runPipelineStreamInner(
     status: "running",
   });
   yield { type: "step", name: "prepare_turn_start", status: "running" };
+  bindPipelineRunStore(runStore);
 
   const finishAborted = function* (
     reason: TurnAbortReason
   ): Generator<AgentStreamEvent, AgentPipelineResult> {
     finalState = { ...finalState, turnAborted: true };
     yield { type: "aborted", turnId, reason };
-    const pipelineTiming = yield* finishPipeline(timing, collectedLogs);
+    const pipelineTiming = yield* finishPipeline(timing, collectedLogs, runStore);
     logAgentOut(
       "Pipeline",
       "出去",
@@ -269,17 +280,24 @@ async function* runPipelineStreamInner(
   };
 
   try {
+  bindPipelineRunStore(runStore);
+  const langsmithCfg = buildLangGraphRunConfig({
+    conversationId: context.conversationId,
+    corpusUserId: context.corpusUserId,
+    actorUserId: context.actorUserId,
+    userQuestion,
+  });
   const stream = await graph.stream(
     input as Parameters<typeof graph.stream>[0],
     {
       streamMode: ["updates", "values", "custom"],
       signal: turnSignal,
-      ...buildLangGraphRunConfig({
-        conversationId: context.conversationId,
-        corpusUserId: context.corpusUserId,
-        actorUserId: context.actorUserId,
-        userQuestion,
-      }),
+      ...langsmithCfg,
+      configurable: {
+        ...((langsmithCfg as { configurable?: Record<string, unknown> })
+          .configurable ?? {}),
+        [PIPELINE_RUN_STORE_CONFIG_KEY]: runStore,
+      },
     }
   );
   /** 结束 step：记耗时、yield step done（支持并行多 step） */
@@ -306,7 +324,7 @@ async function* runPipelineStreamInner(
       status: "done",
       ...(durationMs !== undefined ? { durationMs } : {}),
     } as const;
-    yield* flushPipelineLogs(collectedLogs);
+    yield* flushPipelineLogs(collectedLogs, runStore);
   };
   /** 开始 step：支持并行（不强制结束其它 running） */
   const startStep = function* (name: PipelineStepName) {
@@ -318,7 +336,13 @@ async function* runPipelineStreamInner(
     upsertCollectedStep(collectedSteps, { name, status: "running" });
     yield { type: "step", name, status: "running" } as const;
   };
-  for await (const chunk of stream) {
+  const streamIter = stream[Symbol.asyncIterator]();
+  while (true) {
+    bindPipelineRunStore(runStore);
+    const iterNext = await streamIter.next();
+    if (iterNext.done) break;
+    const chunk = iterNext.value;
+    bindPipelineRunStore(runStore);
     if (turnSignal.aborted) {
       const reason = getTurnAbortReason(turnId) ?? "cancelled";
       return yield* finishAborted(reason);
@@ -344,13 +368,13 @@ async function* runPipelineStreamInner(
     }
     if (nodeName === "prepareTurnStart") {
       yield* finishStep("prepare_turn_start");
-      yield* flushPipelineLogs(collectedLogs);
+      yield* flushPipelineLogs(collectedLogs, runStore);
       yield* startStep("repeat_question_guard");
       continue;
     }
     if (nodeName === "repeatQuestionGuard") {
       yield* finishStep("repeat_question_guard");
-      yield* flushPipelineLogs(collectedLogs);
+      yield* flushPipelineLogs(collectedLogs, runStore);
       if (finalState.repeatQuestionHit) {
         yield* startStep("repeat_respond_early");
       } else {
@@ -360,13 +384,13 @@ async function* runPipelineStreamInner(
     }
     if (nodeName === "preparePipelineMemory") {
       yield* finishStep("prepare_pipeline_memory");
-      yield* flushPipelineLogs(collectedLogs);
+      yield* flushPipelineLogs(collectedLogs, runStore);
       if (finalState.error && finalState.exitEarly) {
         yield { type: "error", message: finalState.error };
         const answer =
           finalState.answer ?? "（准备对话上下文失败，请稍后重试）";
         timing.markFirstToken();
-        const pipelineTiming = yield* finishPipeline(timing, collectedLogs);
+        const pipelineTiming = yield* finishPipeline(timing, collectedLogs, runStore);
         logAgentOut(
           "Pipeline",
           "出去",
@@ -387,20 +411,20 @@ async function* runPipelineStreamInner(
     }
     if (nodeName === "repeatRespondEarly") {
       yield* finishStep("repeat_respond_early");
-      yield* flushPipelineLogs(collectedLogs);
+      yield* flushPipelineLogs(collectedLogs, runStore);
       yield* startStep("persist_turn_end");
       continue;
     }
     if (nodeName === "intake") {
       yield* finishStep("intake");
-      yield* flushPipelineLogs(collectedLogs);
+      yield* flushPipelineLogs(collectedLogs, runStore);
       if (finalState.error) {
         yield { type: "error", message: finalState.error };
         const answer =
           finalState.answer ??
           "（模型调用失败：请确认本地 Ollama 已启动且模型已拉取）";
         timing.markFirstToken();
-        const pipelineTiming = yield* finishPipeline(timing, collectedLogs);
+        const pipelineTiming = yield* finishPipeline(timing, collectedLogs, runStore);
         logAgentOut(
           "Pipeline",
           "出去",
@@ -643,7 +667,7 @@ async function* runPipelineStreamInner(
     }
     if (nodeName === "persistTurnEnd") {
       yield* finishStep("persist_turn_end");
-      yield* flushPipelineLogs(collectedLogs);
+      yield* flushPipelineLogs(collectedLogs, runStore);
       continue;
     }
   }
@@ -675,7 +699,7 @@ async function* runPipelineStreamInner(
     timing.markFirstToken();
     yield* emitAssistant(answer);
   }
-  const pipelineTiming = yield* finishPipeline(timing, collectedLogs);
+  const pipelineTiming = yield* finishPipeline(timing, collectedLogs, runStore);
   logAgentOut(
     "Pipeline",
     "出去",

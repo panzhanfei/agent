@@ -61,6 +61,7 @@ export type PipelineStepName =
     | "list_retrieve"
     | "corpus_edit"
     | "vault_workspace"
+    | "plan_cache_resolve"
     | "plan_slot_join"
     | "plan_slot_post"
     | "global_rebatch"

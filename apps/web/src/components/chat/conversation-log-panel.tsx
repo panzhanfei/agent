@@ -21,6 +21,7 @@ const STEP_LABELS: Record<PipelineStepName, string> = {
     list_retrieve: "列举检索",
     corpus_edit: "语料修订",
     vault_workspace: "原文库",
+    plan_cache_resolve: "解析缓存",
     plan_slot_join: "槽位汇合",
     plan_slot_post: "检索后工具",
     plan_dag: "多源汇合",
