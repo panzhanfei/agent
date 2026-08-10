@@ -1,0 +1,31 @@
+{
+  "kind": "e2e",
+  "title": "E2E 报表",
+  "pass": true,
+  "generatedAt": "2026-08-10T09:24:46.005Z",
+  "steps": [
+    {
+      "id": "inprocess-vault",
+      "label": "Inprocess vault list（pipeline 旁路）",
+      "pass": true,
+      "exitCode": 0,
+      "elapsedMs": 10947
+    },
+    {
+      "id": "api-vault",
+      "label": "API E2E vault list/create/open/delete",
+      "pass": true,
+      "exitCode": 0,
+      "elapsedMs": 7820
+    },
+    {
+      "id": "playwright-vault",
+      "label": "Playwright vault UI 冒烟",
+      "pass": true,
+      "exitCode": 0,
+      "elapsedMs": 13627
+    }
+  ],
+  "passCount": 3,
+  "failCount": 0
+}

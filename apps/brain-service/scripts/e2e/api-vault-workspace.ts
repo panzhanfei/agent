@@ -126,22 +126,38 @@ const main = async () => {
   const convId = (conv.body as { id?: string }).id;
   if (!convId) throw new Error("missing conversation id");
 
+  const steps: Array<{ id: string; ok: boolean; detail: string }> = [];
+  const track = (id: string, answer: string, re: RegExp) => {
+    try {
+      assertMatch(id, answer, re);
+      steps.push({ id, ok: true, detail: answer.slice(0, 120).replace(/\n/g, " ") });
+    } catch (e) {
+      steps.push({
+        id,
+        ok: false,
+        detail: e instanceof Error ? e.message : String(e),
+      });
+      throw e;
+    }
+  };
+
   // 1) 根 list
   const list1 = await postChat(convId, "我的原文库");
-  assertMatch("list-root", list1, /原文库|Workspace|暂无文件|项：|新建/);
+  track("list-root", list1, /原文库|Workspace|暂无文件|项：|新建/);
 
-  // 2) UI create folder（旁路 exact-match）
+  // 2) 空文件夹 list（旁路）
+  const listEmpty = await postChat(convId, `__FAMBRAIN_VAULT_WS_LIST__:`);
+  track("list-prefix", listEmpty, /原文库|Workspace|暂无文件|项：|新建|文件夹/);
+
+  // 3) create folder（根）
   const createFolderPrompt = `__FAMBRAIN_VAULT_WS_CREATE_FOLDER__:`;
   const createdFolderAns = await postChat(convId, createFolderPrompt);
-  // 旁路会用随机名；再显式建我们的测试文件夹+文件用结构化 create 更稳
-  // 改走带 name 的 create_file 前先用 create_folder via list CTA 不够稳，直接再发 open/create prompts
-  void createdFolderAns;
+  track("create-folder", createdFolderAns, /已新建|Created|文件夹|folder|入队|同步/i);
 
-  // 用 create_file 在根创建（旁路会生成 untitled-*.txt）；再删掉不够精确。
-  // 改：用 delete/create 前缀 + 再用 open。为可控 path，调用 create_file 后从回答里解析路径。
+  // 4) create_file 在根
   const createFilePrompt = `__FAMBRAIN_VAULT_WS_CREATE_FILE__:`;
   const createAns = await postChat(convId, createFilePrompt);
-  assertMatch("create-file", createAns, /已新建|Created|同步|入队/);
+  track("create-file", createAns, /已新建|Created|同步|入队/);
 
   const createdMatch = createAns.match(/([A-Za-z0-9_\-./]+\.txt)/);
   const createdRel = (createdMatch?.[1] ?? "").trim();
@@ -150,35 +166,52 @@ const main = async () => {
   }
   console.log(`[e2e:api] created=${createdRel}`);
 
-  // 3) open
+  // 5) open
   const openAns = await postChat(
     convId,
     `__FAMBRAIN_VAULT_WS_OPEN__:${createdRel}`
   );
-  assertMatch("open", openAns, new RegExp(createdRel.replace(/\./g, "\\.") + "|```txt"));
+  track(
+    "open",
+    openAns,
+    new RegExp(createdRel.replace(/\./g, "\\.") + "|```txt")
+  );
 
-  // 4) delete
+  // 6) list 后应能看到文件名线索
+  const listMid = await postChat(convId, "我的原文库");
+  track("list-mid", listMid, /原文库|Workspace|项：|新建|\.txt/);
+
+  // 7) delete
   const delAns = await postChat(
     convId,
     `__FAMBRAIN_VAULT_WS_DELETE_FILE__:${createdRel}`
   );
-  assertMatch("delete", delAns, /已硬删除|Hard-deleted|入队硬删|硬删/);
+  track("delete", delAns, /已硬删除|Hard-deleted|入队硬删|硬删/);
 
-  // 5) list 再次，不应再强调该文件（弱断言：不应 open 失败以外的「已打开」）
+  // 8) list 再次
   const list2 = await postChat(convId, "我的原文库");
-  assertMatch("list-after-delete", list2, /原文库|Workspace|暂无文件|项：|新建/);
+  track("list-after-delete", list2, /原文库|Workspace|暂无文件|项：|新建/);
   if (list2.includes(createdRel) && /打开|```txt/.test(list2)) {
     throw new Error("deleted file still appears as opened content");
   }
 
-  // 清理可能生成的随机 folder（best-effort，忽略失败）
+  // 9) 再 list 指定前缀（回归）
   try {
     await postChat(convId, `__FAMBRAIN_VAULT_WS_LIST__:`);
-  } catch {
-    /* ignore */
+    steps.push({ id: "list-prefix-final", ok: true, detail: "ok" });
+  } catch (e) {
+    steps.push({
+      id: "list-prefix-final",
+      ok: false,
+      detail: e instanceof Error ? e.message : String(e),
+    });
   }
 
   console.log("[e2e:api] PASS full vault list/create/open/delete");
+  console.log(
+    "[e2e:api] steps=" +
+      JSON.stringify(steps.map((s) => ({ id: s.id, ok: s.ok })))
+  );
   void fileRel;
   void folder;
   void fileName;

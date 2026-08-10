@@ -16,6 +16,8 @@
     "load:chat": "tsx --env-file=../../.env scripts/load/chat-baseline.ts",
     "e2e:api:vault": "tsx --env-file=../../.env scripts/e2e/api-vault-workspace.ts",
     "e2e:inprocess:vault": "tsx --env-file=../../.env scripts/e2e/inprocess-vault-list.ts",
+    "e2e:gate": "tsx --env-file=../../.env scripts/e2e/run-e2e-gate.ts",
+    "report:unit": "tsx --env-file=../../.env scripts/unit-report.ts",
     "index:corpus": "tsx --env-file=../../.env scripts/index-all-corpus.ts",
     "parse:documents": "tsx --env-file=../../.env scripts/parse-documents.ts",
     "verify:doc-parser": "tsx scripts/verify-doc-parser.ts",

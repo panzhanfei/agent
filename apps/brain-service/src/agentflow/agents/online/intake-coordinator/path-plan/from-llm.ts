@@ -404,20 +404,31 @@ const legalizeStep = (raw: unknown, index: number): ExecutionStep | null => {
       : [];
   const rawIdentityField = o.identityField ?? o.identity_field;
   let identityField = legalizeIdentityField(rawIdentityField);
-  // 发明了不在闭集的 identityField → 非简历闭集槽：default 检索 + 用 label 回落亲友向 query
+  let userFactKey = legalizeUserFactKey(o.userFactKey ?? o.user_fact_key);
+  /**
+   * LLM 偶发把 Mem0 开集 slug（全小写 ascii，如 qq）误写入 identityField：
+   * → 抬升为 userFactKey 走 mem。camelCase 发明字段（sisterInLawName）仍走亲友语料回落。
+   */
   if (
     typeof rawIdentityField === "string" &&
     rawIdentityField.trim() &&
     !identityField
   ) {
-    if (queryType === "identity") queryType = "default";
-    if (label && !/亲友/.test(searchQuery)) {
-      searchQuery = `亲友关系 ${label}`;
+    const rawId = rawIdentityField.trim();
+    const asMemKey = legalizeUserFactKey(rawId);
+    const looksOpenFactSlug =
+      Boolean(asMemKey) &&
+      !/[A-Z]/.test(rawId) &&
+      asMemKey === rawId.toLowerCase().replace(/[^a-z0-9_+-]/g, "");
+    if (looksOpenFactSlug && asMemKey) {
+      if (!userFactKey) userFactKey = asMemKey;
+    } else {
+      if (queryType === "identity") queryType = "default";
+      if (label && !/亲友/.test(searchQuery)) {
+        searchQuery = `亲友关系 ${label}`;
+      }
     }
   }
-  const userFactKey = legalizeUserFactKey(
-    o.userFactKey ?? o.user_fact_key
-  );
   const userFactLabelRaw = o.userFactLabel ?? o.user_fact_label;
   const userFactLabel =
     typeof userFactLabelRaw === "string" ? userFactLabelRaw.trim() || null : null;
@@ -443,7 +454,8 @@ const legalizeStep = (raw: unknown, index: number): ExecutionStep | null => {
   }
   const dataSourceRaw = asDataSource(o.dataSource ?? o.data_source);
 
-  if (kind === "mem") {
+  // km/mem + userFactKey 且无闭集 identity → mem（含 identityField=qq 抬升）
+  if (userFactKey && !identityField && (kind === "mem" || kind === "km")) {
     return {
       id: trimId(o.id, `mem-${index}`),
       kind: "mem",

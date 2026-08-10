@@ -397,6 +397,36 @@ export const runIntakePipeline = async (
       decision.searchQuery.trim().length > 0);
 
   if (needsPathPlan && isPathPlanEmpty(pathPlan)) {
+    /**
+     * LLM 偶发：intent=retrieve 但 steps 非法被合法化清空，同时顶层已填
+     * userFactKey+Value → 结构上等价整轮 remember，勿落到 clarify。
+     */
+    const factKey = decision.userFactKey?.trim() ?? "";
+    const factValue = decision.userFactValue?.trim() ?? "";
+    if (factKey && factValue && decision.intent === "retrieve_and_answer") {
+      decision = {
+        ...decision,
+        intent: "remember_user_fact",
+        pathPlan: emptyPathPlan(),
+        retrievalPlan: [],
+        composeMode: "qa",
+        clarifyingQuestion: null,
+        briefReply: null,
+      };
+      logAgentOut("IntakeCoordinator", "guard_空plan+userFact→remember", {
+        userFactKey: factKey,
+        userFactLabel: decision.userFactLabel,
+        hasValue: true,
+      });
+      const routed = buildEarlyExitRoutedDecision(decision);
+      logAgentOut("IntakeCoordinator", "最终路由", {
+        earlyExit: true,
+        reason: "remember_user_fact",
+        ...summarizeDecision(routed),
+      });
+      return { decision: routed, parseUsedFallback, earlyExit: true };
+    }
+
     decision = emptyPlanClarify(decision);
     logAgentOut("IntakeCoordinator", "guard_PathPlan", {
       reason: "empty_path_plan_to_clarify",

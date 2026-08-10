@@ -225,6 +225,30 @@ describe("legalizePathPlan + deriveCompositeSlots", () => {
         expect(pathPlan.steps[0]?.identityField).toBeNull();
         expect(pathPlan.steps[0]?.toolId).toBeNull();
         expect(pathPlan.steps[0]?.queryType).toBe("default");
+        expect(pathPlan.steps[0]?.kind).toBe("km");
+    });
+
+    it("remaps lowercase open-fact identityField (qq) to mem", () => {
+        const pathPlan = legalizePathPlan({
+            steps: [
+                {
+                    id: "km-qq",
+                    kind: "km",
+                    label: "QQ号",
+                    searchQuery: "个人简介 简历 QQ号",
+                    queryType: "identity",
+                    topics: ["personal", "resume"],
+                    identityField: "qq",
+                    toolId: "extract_identity_from_hits",
+                    dataSource: "corpus",
+                },
+            ],
+        });
+        expect(pathPlan.steps).toHaveLength(1);
+        expect(pathPlan.steps[0]?.kind).toBe("mem");
+        expect(pathPlan.steps[0]?.userFactKey).toBe("qq");
+        expect(pathPlan.steps[0]?.dataSource).toBe("mem0");
+        expect(pathPlan.steps[0]?.identityField).toBeNull();
     });
 
     it("demotes identityField when topics include family", () => {

@@ -25,6 +25,7 @@ import {
   ensureVaultWorkspaceRoot,
   getVaultWorkspaceRoot,
 } from "@fambrain/corpus";
+import { writeGateReport } from "../_gate-report";
 
 const base = (
   process.env.LOAD_BASE_URL ??
@@ -36,6 +37,34 @@ const corpusJobs = Number(process.env.LOAD_CORPUS_JOBS ?? "80");
 
 const latencies: number[] = [];
 let errors = 0;
+
+type QueueSnapshot = {
+  waiting: number;
+  active: number;
+  delayed: number;
+  failed: number;
+  completed?: number;
+};
+
+type LoadStats = {
+  health: {
+    n: number;
+    errors: number;
+    avgMs: number;
+    p50Ms: number;
+    p95Ms: number;
+    p99Ms: number;
+    maxMs: number;
+  };
+  corpusQueue: {
+    enabled: boolean;
+    materializeJobs: number;
+    digestMs: number;
+    peakBacklog: number;
+    finalCounts: QueueSnapshot | null;
+    purgeFinalCounts: QueueSnapshot | null;
+  };
+};
 
 const one = async (): Promise<void> => {
   const t0 = Date.now();
@@ -81,7 +110,6 @@ const runHealthBurst = async (): Promise<void> => {
 const resolveCorpusUserId = async (): Promise<string> => {
   const fromEnv = process.env.FAMBRAIN_CORPUS_USER_ID?.trim();
   if (fromEnv) return fromEnv;
-  // 与 eval 一致：扫 data/doc/users 取第一个
   const { listCorpusUserIds } = await import(
     "@/agentflow/agents/offline/knowledge-indexer/list-corpus-users"
   );
@@ -90,10 +118,19 @@ const resolveCorpusUserId = async (): Promise<string> => {
   return ids[0]!;
 };
 
-const runCorpusQueueLoad = async (corpusUserId: string): Promise<void> => {
+const runCorpusQueueLoad = async (
+  corpusUserId: string
+): Promise<LoadStats["corpusQueue"]> => {
   if (!isCorpusQueueEnabled()) {
     console.log("[load] corpus queue disabled — skip enqueue burst");
-    return;
+    return {
+      enabled: false,
+      materializeJobs: 0,
+      digestMs: 0,
+      peakBacklog: 0,
+      finalCounts: null,
+      purgeFinalCounts: null,
+    };
   }
 
   const stamp = Date.now().toString(36);
@@ -121,10 +158,12 @@ const runCorpusQueueLoad = async (corpusUserId: string): Promise<void> => {
     )
   );
   let peakWaiting = 0;
+  let finalCounts: QueueSnapshot | null = null;
   for (let i = 0; i < 60; i++) {
     const c = await getCorpusQueueJobCounts();
     if (c) {
       peakWaiting = Math.max(peakWaiting, c.waiting + c.active + c.delayed);
+      finalCounts = c;
       console.log(
         `[load] queue t+${i}s waiting=${c.waiting} active=${c.active} delayed=${c.delayed} failed=${c.failed}`
       );
@@ -136,9 +175,11 @@ const runCorpusQueueLoad = async (corpusUserId: string): Promise<void> => {
 
   console.log(`[load] enqueue purge n=${rels.length}`);
   await enqueueCorpusPurge({ corpusUserId, workspaceRels: rels });
+  let purgeFinalCounts: QueueSnapshot | null = null;
   for (let i = 0; i < 60; i++) {
     const c = await getCorpusQueueJobCounts();
     if (c) {
+      purgeFinalCounts = c;
       console.log(
         `[load] purge-queue t+${i}s waiting=${c.waiting} active=${c.active} failed=${c.failed}`
       );
@@ -147,7 +188,6 @@ const runCorpusQueueLoad = async (corpusUserId: string): Promise<void> => {
     await new Promise((r) => setTimeout(r, 1000));
   }
 
-  // 清理负载文件夹（同步删源；md 已由 purge job 处理）
   try {
     const root = getVaultWorkspaceRoot(corpusUserId);
     await rm(path.join(root, folder), { recursive: true, force: true });
@@ -158,7 +198,15 @@ const runCorpusQueueLoad = async (corpusUserId: string): Promise<void> => {
   console.log(
     `[load] corpus queue digestMs=${digestMs} peakBacklog≈${peakWaiting}`
   );
-  await closeCorpusQueue();
+
+  return {
+    enabled: true,
+    materializeJobs: rels.length,
+    digestMs,
+    peakBacklog: peakWaiting,
+    finalCounts,
+    purgeFinalCounts,
+  };
 };
 
 const main = async () => {
@@ -170,7 +218,10 @@ const main = async () => {
   );
 
   await runHealthBurst();
+  const p50 = percentile(latencies, 50);
   const p95 = percentile(latencies, 95);
+  const p99 = percentile(latencies, 99);
+  const maxMs = latencies.length ? Math.max(...latencies) : 0;
   const avg =
     latencies.reduce((a, b) => a + b, 0) / Math.max(1, latencies.length);
   console.log(
@@ -178,16 +229,118 @@ const main = async () => {
   );
 
   const corpusUserId = await resolveCorpusUserId();
-  await runCorpusQueueLoad(corpusUserId);
+  const corpusQueue = await runCorpusQueueLoad(corpusUserId);
 
-  if (errors / Math.max(1, latencies.length) > 0.05) {
+  const errorRate = errors / Math.max(1, latencies.length);
+  const queueFailed =
+    (corpusQueue.finalCounts?.failed ?? 0) +
+    (corpusQueue.purgeFinalCounts?.failed ?? 0);
+  const pass =
+    errorRate <= 0.05 &&
+    (!corpusQueue.enabled || queueFailed === 0);
+
+  const stats: LoadStats = {
+    health: {
+      n: latencies.length,
+      errors,
+      avgMs: Number(avg.toFixed(2)),
+      p50Ms: p50,
+      p95Ms: p95,
+      p99Ms: p99,
+      maxMs,
+    },
+    corpusQueue,
+  };
+
+  await writeGateReport({
+    kind: "load",
+    title: "压测报表（中档）",
+    pass,
+    summary: {
+      base,
+      concurrency,
+      requests: total,
+      corpusJobs,
+      corpusUserId,
+      errorRate,
+      queueFailed,
+      ...stats,
+    },
+    markdownBody: [
+      "### 参数",
+      "",
+      `| 项 | 值 |`,
+      `|---|---|`,
+      `| base | \`${base}\` |`,
+      `| concurrency | ${concurrency} |`,
+      `| requests | ${total} |`,
+      `| corpusJobs | ${corpusJobs} |`,
+      `| corpusUserId | \`${corpusUserId}\` |`,
+      `| queue enabled | ${corpusQueue.enabled} |`,
+      "",
+      "### Health 并发",
+      "",
+      `| 指标 | 值 |`,
+      `|---|---|`,
+      `| n | ${stats.health.n} |`,
+      `| errors | ${stats.health.errors} |`,
+      `| errorRate | ${(errorRate * 100).toFixed(2)}% |`,
+      `| avgMs | ${stats.health.avgMs} |`,
+      `| p50Ms | ${stats.health.p50Ms} |`,
+      `| p95Ms | ${stats.health.p95Ms} |`,
+      `| p99Ms | ${stats.health.p99Ms} |`,
+      `| maxMs | ${stats.health.maxMs} |`,
+      "",
+      "### Corpus Queue",
+      "",
+      corpusQueue.enabled
+        ? [
+            `| 指标 | 值 |`,
+            `|---|---|`,
+            `| materializeJobs | ${corpusQueue.materializeJobs} |`,
+            `| digestMs | ${corpusQueue.digestMs} |`,
+            `| peakBacklog | ${corpusQueue.peakBacklog} |`,
+            `| materialize final | \`${JSON.stringify(corpusQueue.finalCounts)}\` |`,
+            `| purge final | \`${JSON.stringify(corpusQueue.purgeFinalCounts)}\` |`,
+            `| queueFailed | ${queueFailed} |`,
+          ].join("\n")
+        : "_队列未启用，已跳过 enqueue 段_",
+      "",
+      "### 判定",
+      "",
+      `- health errorRate ≤ 5%: ${errorRate <= 0.05 ? "OK" : "FAIL"}`,
+      `- queue failed = 0（若启用）: ${!corpusQueue.enabled || queueFailed === 0 ? "OK" : "FAIL"}`,
+      "",
+    ].join("\n"),
+  });
+
+  try {
+    await closeCorpusQueue();
+  } catch {
+    /* ignore */
+  }
+
+  if (!pass) {
+    console.error("[load] FAIL baseline");
     process.exit(1);
   }
   console.log("[load] PASS baseline (medium)");
+  process.exit(0);
 };
 
 main().catch(async (e) => {
   console.error(e);
+  try {
+    await writeGateReport({
+      kind: "load",
+      title: "压测报表（中档）",
+      pass: false,
+      summary: { error: e instanceof Error ? e.message : String(e) },
+      markdownBody: `### 异常\n\n\`\`\`\n${e instanceof Error ? e.stack ?? e.message : String(e)}\n\`\`\`\n`,
+    });
+  } catch {
+    /* ignore */
+  }
   try {
     await closeCorpusQueue();
   } catch {

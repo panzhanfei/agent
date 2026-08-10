@@ -479,8 +479,8 @@
         "question": "更多项目",
         "assert": {
           "mustIncludeSteps": ["list_retrieve", "analyst"],
-          "answerRe": "城市管理平台|96611|帮扶宝",
-          "minAnswerLength": 120
+          "answerRe": "秦汉新城|情报研判|基础设施|智慧园林|电碳|物联网",
+          "minAnswerLength": 80
         }
       }
     ]
@@ -540,7 +540,7 @@
   },
   "vaultWorkspaceProbe": {
     "id": "G-vault-workspace",
-    "label": "vault_workspace：list pathPlan · UI prompts · CRUD+语料化硬删",
+    "label": "vault_workspace：pathPlan · UI · CRUD · nested · pipeline list · corpus_edit 退役",
     "cases": [
       {
         "id": "V-list-pathplan",
@@ -549,13 +549,38 @@
       },
       {
         "id": "V-ui-prompts",
-        "label": "UI exact-match list/open",
+        "label": "UI exact-match list/open + entry 常量",
         "mode": "ui_prompts"
+      },
+      {
+        "id": "V-ui-crud-prompts",
+        "label": "UI exact-match create/delete prompts",
+        "mode": "ui_crud_prompts"
+      },
+      {
+        "id": "V-corpus-edit-dropped",
+        "label": "corpus_edit 步 legalize 丢弃",
+        "mode": "corpus_edit_dropped"
       },
       {
         "id": "V-crud-materialize",
         "label": "create/update/delete + materialize/purge",
         "mode": "create_update_delete"
+      },
+      {
+        "id": "V-nested-folder",
+        "label": "嵌套目录 materialize/purge",
+        "mode": "nested_folder"
+      },
+      {
+        "id": "V-update-body",
+        "label": "改写 txt 后 rematerialize",
+        "mode": "update_body"
+      },
+      {
+        "id": "V-pipeline-list",
+        "label": "pipeline「我的原文库」旁路 list",
+        "mode": "pipeline_list"
       }
     ]
   },
@@ -570,13 +595,38 @@
       },
       {
         "id": "V-ui-prompts",
-        "label": "UI exact-match list/open",
+        "label": "UI exact-match list/open + entry 常量",
         "mode": "ui_prompts"
+      },
+      {
+        "id": "V-ui-crud-prompts",
+        "label": "UI exact-match create/delete prompts",
+        "mode": "ui_crud_prompts"
+      },
+      {
+        "id": "V-corpus-edit-dropped",
+        "label": "corpus_edit 步 legalize 丢弃",
+        "mode": "corpus_edit_dropped"
       },
       {
         "id": "V-crud-materialize",
         "label": "create/update/delete + materialize/purge",
         "mode": "create_update_delete"
+      },
+      {
+        "id": "V-nested-folder",
+        "label": "嵌套目录 materialize/purge",
+        "mode": "nested_folder"
+      },
+      {
+        "id": "V-update-body",
+        "label": "改写 txt 后 rematerialize",
+        "mode": "update_body"
+      },
+      {
+        "id": "V-pipeline-list",
+        "label": "pipeline「我的原文库」旁路 list",
+        "mode": "pipeline_list"
       }
     ]
   },

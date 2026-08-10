@@ -1,0 +1,13 @@
+{
+  "kind": "unit",
+  "title": "单元测试报表",
+  "pass": true,
+  "generatedAt": "2026-08-10T09:31:48.612Z",
+  "exitCode": 0,
+  "numTotalTests": 170,
+  "numPassedTests": 170,
+  "numFailedTests": 0,
+  "numPendingTests": 0,
+  "elapsedMs": 19155,
+  "success": true
+}

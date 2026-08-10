@@ -39,7 +39,12 @@
     "test:deps:json": "tsx packages/test-kit/src/cli.ts --json",
     "test:all": "pnpm test:deps && pnpm test:unit",
     "check:deps": "pnpm test:deps",
-    "fambrain-check-deps": "tsx packages/test-kit/src/cli.ts"
+    "fambrain-check-deps": "tsx packages/test-kit/src/cli.ts",
+    "gate:engineering": "bash scripts/run-engineering-gate.sh",
+    "report:unit": "pnpm --filter @fambrain/brain-service run report:unit",
+    "eval:run": "pnpm --filter @fambrain/brain-service run eval:run",
+    "load:chat": "pnpm --filter @fambrain/brain-service run load:chat",
+    "e2e:gate": "pnpm --filter @fambrain/brain-service run e2e:gate"
   },
   "devDependencies": {
     "tsx": "^4.22.3",
