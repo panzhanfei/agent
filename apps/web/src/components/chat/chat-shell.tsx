@@ -19,7 +19,9 @@ import {
 } from "@/lib/chat/action-lifecycle";
 import {
   createTurnLog,
+  formatStepTokenLabel,
   formatTokenByNodeEntries,
+  formatTokenTotalShort,
   upsertStep,
   type ConversationLogBundle,
   type ConversationTurnLog,
@@ -139,21 +141,28 @@ const shortConversationTitle = (title: string, maxLen = 18): string => {
   return `${first.slice(0, maxLen)}…`;
 };
 
-const formatTokenLine = (timing: MessageTiming): string | null => {
-  const tokens = timing.tokens;
-  if (!tokens || tokens.totalTokens <= 0) return null;
-  const est = tokens.estimated ? "（估算）" : "";
-  return `Token ${tokens.totalTokens.toLocaleString()}${est}`;
-};
-
 const MessageTimingLine = ({ timing }: { timing: MessageTiming }) => {
   const [expanded, setExpanded] = useState(false);
   const nodeEntries = (
     Object.entries(timing.nodes ?? {}) as [PipelineStepName, number][]
   ).filter(([, ms]) => ms > 0);
   const tokenNodes = formatTokenByNodeEntries(timing);
-  const tokenLine = formatTokenLine(timing);
-  const canExpand = nodeEntries.length > 0 || tokenNodes.length > 0;
+  const tokenLine = formatTokenTotalShort(timing);
+  const tokens = timing.tokens;
+  /** 耗时步 + 仅有 token、未进 nodes 的 LLM 步 */
+  const stepNames = (() => {
+    const seen = new Set<string>();
+    const names: string[] = [];
+    for (const [name] of nodeEntries) {
+      seen.add(name);
+      names.push(name);
+    }
+    for (const e of tokenNodes) {
+      if (!seen.has(e.name)) names.push(e.name);
+    }
+    return names;
+  })();
+  const canExpand = stepNames.length > 0;
 
   return (
     <div className="mt-1.5 text-[11px] leading-snug text-[#9ca3af]">
@@ -174,25 +183,25 @@ const MessageTimingLine = ({ timing }: { timing: MessageTiming }) => {
       </button>
       {expanded && canExpand ? (
         <ul className="mt-1 space-y-0.5 pl-2">
-          {nodeEntries.map(([name, ms]) => {
-            const tok = timing.tokens?.byNode?.[name];
-            const tokTotal = tok ? tok.prompt + tok.completion : 0;
+          {stepNames.map((name) => {
+            const ms = timing.nodes?.[name as PipelineStepName];
+            const tokLabel = formatStepTokenLabel(
+              timing.tokens?.byNode?.[name as PipelineStepName]
+            );
             return (
               <li key={name}>
-                {STEP_TIMING_LABELS[name] ?? name} {formatDuration(ms)}
-                {tokTotal > 0 ? ` · ${tokTotal.toLocaleString()} tok` : ""}
+                {STEP_TIMING_LABELS[name as PipelineStepName] ?? name}
+                {ms != null && ms > 0 ? ` ${formatDuration(ms)}` : ""}
+                {tokLabel ? ` · ${tokLabel}` : ""}
               </li>
             );
           })}
-          {tokenNodes.length > 0 ? (
-            <li className="pt-0.5 text-[#9ca3af]">
-              Token 分节点：{" "}
-              {tokenNodes
-                .map(
-                  (e) =>
-                    `${STEP_TIMING_LABELS[e.name as PipelineStepName] ?? e.name} ${e.total}`
-                )
-                .join(" · ")}
+          {tokens && tokens.totalTokens > 0 ? (
+            <li className="pt-0.5 font-medium text-[#6b7280]">
+              合计 {tokens.totalTokens.toLocaleString()} tok（入{" "}
+              {tokens.promptTokens.toLocaleString()} / 出{" "}
+              {tokens.completionTokens.toLocaleString()}）
+              {tokens.estimated ? "（估算）" : ""}
             </li>
           ) : null}
         </ul>

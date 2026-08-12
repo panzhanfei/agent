@@ -3,6 +3,7 @@
 import type { PipelineStepName } from "@fambrain/brain-types";
 import {
     AGENT_LABELS,
+    formatStepTokenLabel,
     formatTokenByNodeEntries,
     formatTokenSummary,
     type ConversationLogBundle,
@@ -67,7 +68,20 @@ const TurnSummary = ({ turn }: { turn: ConversationTurnLog }) => {
     const nodeEntries = timing
         ? (Object.entries(timing.nodes ?? {}) as [PipelineStepName, number][]).filter(([, ms]) => ms > 0)
         : [];
+    const tokenNodes = formatTokenByNodeEntries(timing);
     const tokenText = formatTokenSummary(timing);
+    const stepNames = (() => {
+        const seen = new Set<string>();
+        const names: string[] = [];
+        for (const [name] of nodeEntries) {
+            seen.add(name);
+            names.push(name);
+        }
+        for (const e of tokenNodes) {
+            if (!seen.has(e.name)) names.push(e.name);
+        }
+        return names;
+    })();
 
     return (
         <div className="mt-3 rounded-xl border border-[#e5e7eb] bg-[#f9fafb] p-3 text-[12px] text-[#374151]">
@@ -81,6 +95,13 @@ const TurnSummary = ({ turn }: { turn: ConversationTurnLog }) => {
                         {timing.clientTotalMs != null ? (
                             <span>全链路 {formatDuration(timing.clientTotalMs)}</span>
                         ) : null}
+                        {timing.tokens && timing.tokens.totalTokens > 0 ? (
+                            <span>
+                                Token 合计{" "}
+                                {timing.tokens.totalTokens.toLocaleString()}
+                                {timing.tokens.estimated ? "（估算）" : ""}
+                            </span>
+                        ) : null}
                     </>
                 ) : turn.status === "running" ? (
                     <span className="text-[#4f46e5]">运行中…</span>
@@ -89,63 +110,44 @@ const TurnSummary = ({ turn }: { turn: ConversationTurnLog }) => {
             {tokenText ? (
                 <div className="mt-1.5 text-[#6b7280]">{tokenText}</div>
             ) : null}
-            {nodeEntries.length > 0 ? (
-                <ul className="mt-2 grid grid-cols-2 gap-1.5">
-                    {nodeEntries.map(([name, ms]) => {
-                        const tok = timing?.tokens?.byNode?.[name];
-                        const tokTotal = tok
-                            ? tok.prompt + tok.completion
-                            : 0;
+            {stepNames.length > 0 ? (
+                <ul className="mt-2 space-y-1.5">
+                    {stepNames.map((name) => {
+                        const ms = timing?.nodes?.[name as PipelineStepName];
+                        const tokLabel = formatStepTokenLabel(
+                            timing?.tokens?.byNode?.[name as PipelineStepName]
+                        );
                         return (
                             <li
                                 key={name}
-                                className="flex items-center justify-between gap-2 rounded-lg bg-white px-2 py-1 text-[11px]"
+                                className="flex items-start justify-between gap-2 rounded-lg bg-white px-2 py-1.5 text-[11px]"
                             >
-                                <span className="truncate text-[#6b7280]">
-                                    {STEP_LABELS[name] ?? name}
+                                <span className="min-w-0 truncate text-[#6b7280]">
+                                    {STEP_LABELS[name as PipelineStepName] ?? name}
                                 </span>
-                                <span className="shrink-0 font-mono text-[#111827]">
-                                    {formatDuration(ms)}
-                                    {tokTotal > 0
-                                        ? ` · ${tokTotal.toLocaleString()}t`
-                                        : ""}
+                                <span className="shrink-0 text-right font-mono text-[#111827]">
+                                    {ms != null && ms > 0
+                                        ? formatDuration(ms)
+                                        : "—"}
+                                    {tokLabel ? (
+                                        <span className="mt-0.5 block text-[10px] text-[#4f46e5]">
+                                            {tokLabel}
+                                        </span>
+                                    ) : null}
                                 </span>
                             </li>
                         );
                     })}
                 </ul>
             ) : null}
-            {(() => {
-                const tokenNodes = formatTokenByNodeEntries(timing);
-                if (tokenNodes.length === 0) return null;
-                return (
-                    <div className="mt-2">
-                        <div className="text-[11px] font-medium text-[#6b7280]">
-                            Token 分节点
-                        </div>
-                        <ul className="mt-1 grid grid-cols-2 gap-1.5">
-                            {tokenNodes.map((e) => (
-                                <li
-                                    key={e.name}
-                                    className="flex items-center justify-between rounded-lg bg-white px-2 py-1 text-[11px]"
-                                >
-                                    <span className="truncate text-[#6b7280]">
-                                        {STEP_LABELS[e.name as PipelineStepName] ??
-                                            e.name}
-                                    </span>
-                                    <span className="shrink-0 font-mono text-[#111827]">
-                                        {e.total.toLocaleString()}
-                                        <span className="text-[#9ca3af]">
-                                            {" "}
-                                            ({e.prompt}/{e.completion})
-                                        </span>
-                                    </span>
-                                </li>
-                            ))}
-                        </ul>
-                    </div>
-                );
-            })()}
+            {timing?.tokens && timing.tokens.totalTokens > 0 ? (
+                <div className="mt-2 rounded-lg bg-[#eef2ff] px-2 py-1.5 text-[11px] font-medium text-[#4338ca]">
+                    合计 {timing.tokens.totalTokens.toLocaleString()} tok（入{" "}
+                    {timing.tokens.promptTokens.toLocaleString()} / 出{" "}
+                    {timing.tokens.completionTokens.toLocaleString()}）
+                    {timing.tokens.estimated ? "（估算）" : ""}
+                </div>
+            ) : null}
         </div>
     );
 };

@@ -49,7 +49,25 @@ export const formatTokenSummary = (timing?: PipelineTiming): string | null => {
     if (!tokens || tokens.totalTokens <= 0)
         return null;
     const est = tokens.estimated ? "（估算）" : "";
-    return `${tokens.totalTokens.toLocaleString()} tokens${est} · 输入 ${tokens.promptTokens.toLocaleString()} · 输出 ${tokens.completionTokens.toLocaleString()}`;
+    return `Token 合计 ${tokens.totalTokens.toLocaleString()}${est} · 输入 ${tokens.promptTokens.toLocaleString()} · 输出 ${tokens.completionTokens.toLocaleString()}`;
+};
+
+/** 气泡摘要行：Token 合计 N */
+export const formatTokenTotalShort = (timing?: PipelineTiming): string | null => {
+    const tokens = timing?.tokens;
+    if (!tokens || tokens.totalTokens <= 0) return null;
+    const est = tokens.estimated ? "（估算）" : "";
+    return `Token 合计 ${tokens.totalTokens.toLocaleString()}${est}`;
+};
+
+/** 单步 token 文案：1234 tok（入 1000 / 出 234）；无 LLM 消耗时 null */
+export const formatStepTokenLabel = (
+    tok?: { prompt: number; completion: number } | null
+): string | null => {
+    if (!tok) return null;
+    const total = tok.prompt + tok.completion;
+    if (total <= 0) return null;
+    return `${total.toLocaleString()} tok（入 ${tok.prompt.toLocaleString()} / 出 ${tok.completion.toLocaleString()}）`;
 };
 
 /** 按节点 token 分桶（供运行日志 / 气泡展开） */
