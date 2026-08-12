@@ -1,7 +1,7 @@
 # 压测报表（中档）
 
 - **结果**: PASS
-- **生成时间**: 2026-08-10T10:39:29.900Z
+- **生成时间**: 2026-08-12T13:48:37.444Z
 
 ### 覆盖说明
 
@@ -33,18 +33,18 @@
 | n | 200 |
 | errors | 0 |
 | errorRate | 0.00% |
-| avgMs | 29.23 |
-| p50Ms | 12 |
-| p95Ms | 143 |
-| p99Ms | 167 |
-| maxMs | 173 |
+| avgMs | 64.34 |
+| p50Ms | 21 |
+| p95Ms | 296 |
+| p99Ms | 337 |
+| maxMs | 349 |
 
 ### Corpus Queue
 
 | 指标 | 值 |
 |---|---|
 | materializeJobs | 80 |
-| digestMs | 6096 |
+| digestMs | 8106 |
 | peakBacklog | 80 |
 | materialize final | `{"waiting":0,"active":0,"delayed":0,"failed":0}` |
 | purge final | `{"waiting":0,"active":0,"delayed":0,"failed":0}` |
@@ -59,11 +59,11 @@
 | emptyAnswers | 0 |
 | patternMiss | 0 |
 | chatErrorRate | 0.00% |
-| avgMs | 8928.6 |
-| p50Ms | 8615 |
-| p95Ms | 11196 |
-| p99Ms | 11196 |
-| maxMs | 11196 |
+| avgMs | 9003.6 |
+| p50Ms | 8810 |
+| p95Ms | 11177 |
+| p99Ms | 11177 |
+| maxMs | 11177 |
 
 ### 判定
 

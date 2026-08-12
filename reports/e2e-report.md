@@ -1,7 +1,7 @@
 # E2E 报表
 
 - **结果**: PASS
-- **生成时间**: 2026-08-10T10:40:26.714Z
+- **生成时间**: 2026-08-12T14:18:43.124Z
 
 ### 覆盖说明
 
@@ -12,10 +12,10 @@
 
 | 步骤 | 结果 | exit | 耗时 |
 |---|---|---:|---:|
-| Inprocess vault list（pipeline 旁路） | PASS | 0 | 12787ms |
-| API E2E vault list/create/open/delete | PASS | 0 | 10167ms |
-| API E2E 对话主链（姓名/年龄/手机） | PASS | 0 | 15032ms |
-| Playwright（vault UI + 对话主链） | PASS | 0 | 17941ms |
+| Inprocess vault list（pipeline 旁路） | PASS | 0 | 11680ms |
+| API E2E vault list/create/open/delete | PASS | 0 | 11918ms |
+| API E2E 对话主链（姓名/年龄/手机） | PASS | 0 | 18210ms |
+| Playwright（vault UI + 对话主链） | PASS | 0 | 17716ms |
 
 ### 环境
 

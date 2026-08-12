@@ -444,7 +444,6 @@ const runLiveLikeIntakeNode = async (history: DbChatTurn[]) => {
     intakeHistoryForLlm = rewriteLastUserTurn(history, effectiveQuestion);
     raw = await completeIntakeCoordinator(intakeHistoryForLlm, {
       intakeHistory: intakeHistoryForLlm,
-      coreferenceMergeRetry: true,
     });
   }
   return runIntakePipeline({

@@ -61,6 +61,11 @@ const testFormatAndSource = () => {
             confidence: 0.9,
             clarifyingQuestion: null,
             briefReply: null,
+            queryType: null,
+            retrievalPlan: [],
+            userFactKey: null,
+            userFactLabel: null,
+            userFactValue: null,
         },
         hits: [
             {

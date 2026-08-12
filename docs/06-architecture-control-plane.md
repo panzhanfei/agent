@@ -17,9 +17,10 @@ Understand + Plan（可融合为一次 LLM）
 | **Understand+Plan** | 续问指代、pathPlan 终稿；`unresolved` → clarify | Plan 级指代拼接重试；口语二次拆槽 |
 | **首遍 Execute** | 槽/子图执行；DAG hard/soft 结构裁剪 | 工人内 FC 改 query 再检；每槽规划 LLM |
 | **全局 B** | 汇合后对**有问题的槽**（及可救的 DAG 节点信号）**统一一次**规划 LLM → 结构化补丁 → 再批 | 每槽单独规划；过半整句重 Intake；改槽列表/answerOrder |
-| **代码** | 状态机、预算、Abort、deps 裁剪、非法字段降级 | 问句词表、场景名、Mem0 字段名表猜意图 |
+| **代码** | 状态机、预算、Abort、deps 裁剪、DAG seed+闭包再批、`emptyPolicy` 合法化 | 问句词表、场景名、Mem0 字段名表猜意图 |
 
-**单槽作用域：** B 产出的补丁只改对应槽的结构化字段（`searchQuery` / `toolId` / `webQuery` / `executor`…），不是「每槽各开一轮规划」。
+**单槽作用域：** B 产出的补丁只改对应槽的结构化字段（`searchQuery` / `toolId` / `webQuery` / `executor`…），不是「每槽各开一轮规划」。  
+**DAG 再批：** 仍 `Send("planDag")`，但 `executeDagPlan` 用首遍 `toolResults` 作 seed，只重跑 `forceRerunIds ∪ 下游闭包`，成功节点复用（非整图盲重跑）。
 
 ## 2. 槽状态机
 
@@ -70,7 +71,7 @@ Understand + Plan（可融合为一次 LLM）
 - 改 query / 外搜再试 **只**发生在 Join 后全局 B（≤1），结构化补丁  
 - Tool：结构失败可 `toolId=search_web` + query；成功不准 → 不验真，回答层标注/降级  
 - **不做**过半失败整句重规划  
-- `StepResult.fc` 仅保留兼容占位（工人写入 skipped）
+- FactChecker 模块已删；`StepResult` 无 `fc` 字段  
 
 ## 7. 子图与 DAG
 
@@ -78,10 +79,12 @@ Understand + Plan（可融合为一次 LLM）
 - list/mem/summarize：扁平  
 - DAG：**不**另起规划器；失败信号并进同一 B  
 - DAG **动态裁剪**：`deps` + `optionalDeps`（soft）；仅 hard 未满足才 skip；soft 失败 → 下游可继续并 `degraded`/备注  
+- DAG **部分再批**：`pendingGlobalRebatchDagNodeIds` + `fanOutDagPatch.toolResults` seed；`collectDownstreamRerunClosure`；`canReuseDagNodeResult`（deps-skip / 失败不可复用）  
+- **`emptyPolicy`**：`require` \| `omit` \| `degrade`（pathPlan 步 / 槽 / DAG 节点）。hybrid 默认：resume=`require`，company/market=`omit`，synthesis=`degrade`。planMerge 强制 require；omit 空步从 stepResults 去掉；omit 不进全局 B 候选  
 
 ## 8. 实现阶段
 
-0 约定 → 1 状态机+预算+DAG 裁剪 → 2 Turn 取消 → 3 子图壳 → 4 全局 B → 5 写时去重+翻译 → **6 HITL（本阶段）** → 7 Eval → **8 Dify/复盘（含 P0-34：换模型后删猜意图兜底）**
+0 约定 → 1 状态机+预算+DAG 裁剪 → 2 Turn 取消 → 3 子图壳 → 4 全局 B → 5 写时去重+翻译 → **6 HITL** → **6b DAG seed+闭包再批 + emptyPolicy（2026-08）** → 7 Eval → **8 Dify/复盘（含 P0-34：换模型后删猜意图兜底）**
 
 **阶段 8 备忘（P0-34）：** Dify 抽离 + 换更强 Intake 模型后，跑通 GMem / 六连问 QQ / 亲友等 eval，再删除 `from-llm.ts` 亲友改写、`km-*`→mem 抬升、空 plan→remember、问句年龄 regex 等「猜 LLM 本意」代码。清单：[坑点 §2.11](./04-pitfalls.md#211-猜模型意图兜底债-p0-34--与-dify-抽离同批--2026-08) · [架构 v2 §14](./05-architecture-v2-tool-orchestration.md#14-猜模型意图兜底债--dify换模型后删除-p0-34--2026-08)。
 
@@ -120,12 +123,16 @@ Eval：`golden.json` → `corpusEditProbe`；`eval:run -- --corpus-edit-only`。
 
 ## 9. 代码兜底白名单（仅此）
 
-1. Zod/schema 合法化  
+1. Zod/schema 合法化（含 `emptyPolicy` → require/omit/degrade，非法→degrade）  
 2. 按结构化 key 去重/合并  
 3. 空 plan / 解析失败 → clarify  
 4. JSON 格式修复 **1** 次  
 5. deps 未满足（hard）→ 下游 skip；soft 不阻断  
 6. 预算/Abort 到点强制终态  
-7. 进 B 的候选：结构信号（error / coverage none / tool `ok:false` / skipped…），非口语  
+7. 进 B 的候选：结构信号（error / coverage none / tool `ok:false` / skipped…），非口语；**omit 不进 B**  
+8. DAG 再批：seed 复用 + force 下游闭包（结构边）  
+9. planMerge：`require` 仍空 → 结构化 error；`omit` 空步从 stepResults 省略  
 
-详见 `.cursor/rules/no-scene-hardcoding.mdc`。
+详见 `.cursor/rules/no-scene-hardcoding.mdc`。  
+
+验证：`pnpm --filter @fambrain/brain-service run verify:dag-partial-reexec`；单测 `tests/execution/dag-partial-reexec.test.ts`、`empty-policy.test.ts`。

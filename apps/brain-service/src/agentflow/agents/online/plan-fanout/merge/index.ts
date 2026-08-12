@@ -2,10 +2,12 @@
  * plan-fanout：slots + dag 混排时，按 answerOrder 合并 stepResults / compositeSubResults。
  */
 import type {
-  CompositeSlotPlan,
   CompositeSubRetrieval,
-  IncrementalCompositePlan,
 } from "@/agentflow/agents/online/knowledge-manager/composite/interface";
+import type {
+  CompositeSlotPlan,
+  IncrementalCompositePlan,
+} from "@/agentflow/cache";
 import type {
   ExecutionStep,
   PathPlan,
@@ -13,7 +15,6 @@ import type {
 } from "@/agentflow/agents/online/intake-coordinator/path-plan/interface";
 import type { PipelineGraphState } from "@/agentflow/pipeline/graph/state";
 import type { PipelineToolResults } from "@/agentflow/agents/online/tool-orchestrator/interface";
-
 
 const isDagStepId = (pathPlan: PathPlan, stepId: string): boolean =>
   pathPlan.steps.some((d) => d.kind === "dag" && d.id === stepId);
@@ -83,7 +84,11 @@ export const mergeCompositeWithDagSteps = (
   dagPatch: Partial<PipelineGraphState>
 ): Pick<
   PipelineGraphState,
-  "compositeSubResults" | "compositeIncrementalPlan" | "hits" | "coverage" | "notes"
+  | "compositeSubResults"
+  | "compositeIncrementalPlan"
+  | "hits"
+  | "coverage"
+  | "notes"
 > => {
   const synthesis = (dagPatch.toolResults as PipelineToolResults | undefined)
     ?.synthesis;
@@ -99,9 +104,7 @@ export const mergeCompositeWithDagSteps = (
       coverage: dagPatch.coverage ?? "partial",
       // L4：MatchReport Markdown 进 notes；blocks 挂载后 Analyst 跳过 LLM 改写
       notes: synthesis?.answer ?? dagPatch.notes ?? null,
-      assistantBlocks: synthesis?.blocks?.length
-        ? synthesis.blocks
-        : undefined,
+      assistantBlocks: synthesis?.blocks?.length ? synthesis.blocks : undefined,
       cacheHit: false,
       facetAnswerCacheHit: false,
     });
@@ -132,10 +135,7 @@ export const mergeCompositeWithDagSteps = (
   const order =
     answerOrder.length > 0
       ? answerOrder
-      : [
-          ...Array.from(slotById.keys()),
-          ...dagRuns.map((d) => d.id),
-        ];
+      : [...Array.from(slotById.keys()), ...dagRuns.map((d) => d.id)];
 
   for (const id of order) {
     if (isDagStepId(pathPlan, id)) {
@@ -160,12 +160,15 @@ export const mergeCompositeWithDagSteps = (
     ? {
         ...basePlan,
         slots,
+        slotPlanById: Object.fromEntries(slots.map((s) => [String(s.id), s])),
       }
     : slots.length > 0
       ? {
           slots,
+          slotPlanById: Object.fromEntries(slots.map((s) => [String(s.id), s])),
           activeRetrievalSlots: [],
           facetCacheHits: 0,
+          hitsCacheHits: 0,
           sessionCleared: false,
         }
       : null;
@@ -175,6 +178,7 @@ export const mergeCompositeWithDagSteps = (
     compositeIncrementalPlan,
     hits: [...(state.hits ?? []), ...(dagPatch.hits ?? [])],
     coverage: dagPatch.coverage ?? state.coverage,
-    notes: [state.notes, dagPatch.notes].filter(Boolean).join(" ") || state.notes,
+    notes:
+      [state.notes, dagPatch.notes].filter(Boolean).join(" ") || state.notes,
   };
 };

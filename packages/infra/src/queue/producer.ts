@@ -1,6 +1,7 @@
 import { Queue } from "bullmq";
 import { getInfraConfig } from "../config";
-import { createRedisConnection, isRedisConfigured } from "../redis/client";
+import { isRedisConfigured } from "../redis/client";
+import { bullmqConnection } from "./bullmq-connection";
 import type { PipelineJobPayload } from "./job-types";
 
 let queue: Queue<PipelineJobPayload> | null = null;
@@ -11,15 +12,16 @@ const getPipelineQueue = (): Queue<PipelineJobPayload> => {
     if (!cfg.pipelineQueue.enabled) {
         throw new Error("PIPELINE_QUEUE_ENABLED 未开启");
     }
-    queue = new Queue<PipelineJobPayload>(cfg.pipelineQueue.name, {
-        connection: createRedisConnection(),
+    const next = new Queue<PipelineJobPayload>(cfg.pipelineQueue.name, {
+        connection: bullmqConnection(),
         defaultJobOptions: {
             removeOnComplete: 100,
             removeOnFail: 200,
             attempts: 1,
         },
     });
-    return queue;
+    queue = next;
+    return next;
 };
 
 export const isPipelineQueueEnabled = (): boolean => {

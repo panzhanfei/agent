@@ -4,7 +4,7 @@
  */
 import { Document } from "@langchain/core/documents";
 import { Chroma } from "@langchain/community/vectorstores/chroma";
-import { ChromaClient } from "chromadb";
+import { ChromaClient, DefaultEmbeddingFunction } from "chromadb";
 import type { Logger } from "pino";
 import {
   addDocumentsWithEmbedLimit,
@@ -31,7 +31,10 @@ export const deleteCorpusVectorsByPath = async (
 
   const client = new ChromaClient({ path: getChromaServerUrl() });
   try {
-    const collection = await client.getCollection({ name: collectionName });
+    const collection = await client.getCollection({
+      name: collectionName,
+      embeddingFunction: new DefaultEmbeddingFunction(),
+    });
     await collection.delete({ where: { path: pathKey } });
     return { deleted: true, collectionName };
   } catch {
@@ -50,7 +53,11 @@ export const upsertCorpusDocumentsByPath = async (
   docs: Document[],
   logger: Logger,
   options: EmbedIndexOptions = getEmbedIndexOptions()
-): Promise<{ collectionName: string; chunkCount: number; deleted: boolean }> => {
+): Promise<{
+  collectionName: string;
+  chunkCount: number;
+  deleted: boolean;
+}> => {
   const pathKey = normalizeRepoPath(repoPath);
   const collectionName = corpusCollectionName(corpusUserId);
 

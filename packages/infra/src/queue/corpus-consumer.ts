@@ -3,7 +3,7 @@
  */
 import { Worker, type Job } from "bullmq";
 import { getInfraConfig } from "../config";
-import { createRedisConnection } from "../redis/client";
+import { bullmqConnection } from "./bullmq-connection";
 import type { CorpusJobPayload } from "./corpus-job-types";
 
 export type CorpusJobHandler = (job: CorpusJobPayload) => Promise<void>;
@@ -22,7 +22,7 @@ export const startCorpusWorker = (handler: CorpusJobHandler): Worker => {
       await handler(job.data);
     },
     {
-      connection: createRedisConnection(),
+      connection: bullmqConnection(),
       concurrency: cfg.corpusQueue.concurrency,
     }
   );

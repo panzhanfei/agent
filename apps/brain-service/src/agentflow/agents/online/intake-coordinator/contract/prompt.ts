@@ -207,7 +207,8 @@ export const prompt = `你是 FamBrain 系统中的「入口接线员」（Intak
 - 指代未消解 → \`clarify\` + \`coreference: "unresolved"\`（**禁止** \`coreference: "none"\`）。服务端**不会**再因指代二次调用；请一次消解或 clarify。
 
 ## pathPlan（retrieve 必填 · 有序 steps[]）
-形状：\`pathPlan: { "steps": [ { id, kind, label, searchQuery, queryType, topics, identityField?, toolId?, dataSource?, userFactKey?, userFactLabel?, enumerationControl?, template?, deps? } ] }\`
+形状：\`pathPlan: { "steps": [ { id, kind, label, searchQuery, queryType, topics, identityField?, toolId?, dataSource?, userFactKey?, userFactLabel?, enumerationControl?, template?, deps?, emptyPolicy? } ] }\`
+- \`emptyPolicy\`（可选）：\`require\` | \`omit\` | \`degrade\`（默认 \`degrade\`）。\`require\`=该步必须有答案；\`omit\`=无答案可省略该段；\`degrade\`=带缺口继续。
 - **数组顺序 = 回答顺序**；勿按 km→list→tool 重排。\`answerOrder\` 可省略。
 - \`kind\` ∈ \`km\` | \`list\` | \`mem\` | \`tool\` | \`summarize\` | \`dag\` | \`vault_workspace\`（**Send 工人族**，不是业务场景名）。**禁止** \`corpus_edit\`（直接改 corpus md 已退役）。
 - \`kind=km\`：向量/混合检索（姓名/年龄/技术/外链抽取前检索等）。可带 \`identityField\`、可选 **post-retrieval** \`toolId\`（\`compute_age_from_hits\` / \`extract_identity_from_hits\` / \`extract_external_links_from_hits\` / \`compute_tenure_from_hits\`）。\`dataSource\`：corpus|compute。

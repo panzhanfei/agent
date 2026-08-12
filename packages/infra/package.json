@@ -11,6 +11,7 @@
     "./queue": "./src/queue/index.ts"
   },
   "dependencies": {
+    "@fambrain/brain-types": "workspace:*",
     "bullmq": "^5.49.2",
     "ioredis": "^5.6.1"
   },

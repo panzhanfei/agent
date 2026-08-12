@@ -59,7 +59,9 @@ test.describe("vault workspace UI", () => {
     expect(answer.length).toBeGreaterThan(0);
 
     await page.goto("/");
-    await expect(page.getByText(title).first()).toBeVisible({ timeout: 30_000 });
+    await expect(page.getByText(title).first()).toBeVisible({
+      timeout: 30_000,
+    });
     await page.getByText(title).first().click();
     await expect(page.getByRole("button", { name: "日志" })).toBeEnabled({
       timeout: 20_000,
@@ -68,19 +70,20 @@ test.describe("vault workspace UI", () => {
       timeout: 20_000,
     });
 
-    await page.getByRole("button", { name: /新建 txt/i }).first().click();
+    // 点「新建 txt」：旧消息按钮会 stale；新回复 blocks 含「已新建」+ 可点删除
+    await page
+      .getByRole("button", { name: /新建 txt/i, disabled: false })
+      .last()
+      .click();
     await expect(
       page.getByText(/已新建|Created|同步|入队/i).first()
     ).toBeVisible({ timeout: 90_000 });
 
-    const del = page
-      .getByRole("button", { name: /删除 untitled|删除 .+\.txt/i })
-      .first();
-    if (await del.isVisible().catch(() => false)) {
-      await del.click();
-    } else {
-      await page.getByRole("button", { name: /^删除(?!对话)/ }).first().click();
-    }
+    const deleteBtn = page
+      .getByRole("button", { name: /删除 .+\.txt/i, disabled: false })
+      .last();
+    await expect(deleteBtn).toBeEnabled({ timeout: 90_000 });
+    await deleteBtn.click();
     await expect(
       page.getByText(/已硬删除|Hard-deleted|入队硬删/i).first()
     ).toBeVisible({ timeout: 90_000 });

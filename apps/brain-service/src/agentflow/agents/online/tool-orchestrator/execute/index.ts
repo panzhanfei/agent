@@ -13,6 +13,8 @@ import {
 import type { PipelineGraphState } from "@/agentflow/pipeline/graph/state";
 import type { RoutedIntakeDecision } from "@/agentflow/agents/online/intake-coordinator";
 import {
+    canReuseDagNodeResult,
+    collectDownstreamRerunClosure,
     shouldSkipForDeps,
     skippedDepsResult,
     unsatisfiedOptionalDeps,
@@ -521,15 +523,42 @@ const topoWaves = (nodes: ExecutionPlanNode[]): ExecutionPlanNode[][] => {
     return waves;
 };
 
+export type ExecuteDagPlanOptions = {
+    /** 首遍 / 上轮节点结果；再批时复用可复用节点 */
+    seedToolResults?: PipelineToolResults | null;
+    /** 全局 B 改过的节点（根）；会扩展为下游闭包 */
+    forceRerunIds?: ReadonlySet<string> | readonly string[];
+};
+
 export const executeDagPlan = async (
     plan: ExecutionPlanNode[],
-    state: PipelineGraphState
+    state: PipelineGraphState,
+    options?: ExecuteDagPlanOptions
 ): Promise<PipelineToolResults> => {
+    const seed = options?.seedToolResults ?? null;
+    const forceRoots = options?.forceRerunIds ?? [];
+    const rerunSet =
+        seed && [...forceRoots].length > 0
+            ? collectDownstreamRerunClosure(plan, forceRoots)
+            : new Set<string>();
+    const useSeed = Boolean(seed) && rerunSet.size > 0;
+
     const results: PipelineToolResults = {};
     let skippedForDeps = 0;
+    let reused = 0;
+    let ran = 0;
     for (const wave of topoWaves(plan)) {
         const settled = await Promise.all(
             wave.map(async (node) => {
+                if (
+                    useSeed &&
+                    !rerunSet.has(node.id) &&
+                    canReuseDagNodeResult(seed?.[node.id])
+                ) {
+                    reused += 1;
+                    return [node.id, seed![node.id]!] as const;
+                }
+
                 const optionalDeps = node.optionalDeps ?? [];
                 if (shouldSkipForDeps(node.deps, results, optionalDeps)) {
                     skippedForDeps += 1;
@@ -552,6 +581,7 @@ export const executeDagPlan = async (
                     results,
                     optionalDeps
                 );
+                ran += 1;
                 const result = await runExecutionPlanNode(node, {
                     state,
                     prior: results,
@@ -613,6 +643,10 @@ export const executeDagPlan = async (
         nodeIds: Object.keys(results),
         synthesis: results.synthesis?.ok ?? null,
         skippedForDeps,
+        reused,
+        ran,
+        forceRerun: [...rerunSet],
+        partialReexec: useSeed,
     });
     return results;
 };

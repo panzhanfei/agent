@@ -1,7 +1,7 @@
 import { Worker, type Job } from "bullmq";
 import { getInfraConfig } from "../config";
-import { createRedisConnection } from "../redis/client";
 import { publishPipelineEvent } from "./events";
+import { bullmqConnection } from "./bullmq-connection";
 import type { PipelineJobPayload, PipelineJobResult } from "./job-types";
 
 export type PipelineJobHandler = (
@@ -38,7 +38,7 @@ export const startPipelineWorker = (
             return result;
         },
         {
-            connection: createRedisConnection(),
+            connection: bullmqConnection(),
             concurrency: cfg.pipelineQueue.concurrency,
         }
     );

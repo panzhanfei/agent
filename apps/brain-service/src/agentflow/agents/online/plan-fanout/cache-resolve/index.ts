@@ -53,6 +53,7 @@ export const runPlanCacheResolveNode = async (
       globalRebatchUsed: false,
       pendingGlobalRebatchSlotIds: [],
       pendingGlobalRebatchDag: false,
+      pendingGlobalRebatchDagNodeIds: [],
     };
   } catch (e) {
     const msg = e instanceof Error ? e.message : "缓存计划解析失败";

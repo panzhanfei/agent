@@ -27,7 +27,9 @@ export const parseVaultWorkspaceParams = (
   raw: Record<string, unknown> | undefined | null
 ): VaultWorkspaceParams | null => {
   if (!raw || typeof raw !== "object") return null;
-  const op = String(raw.operation ?? raw.op ?? "").trim().toLowerCase();
+  const op = String(raw.operation ?? raw.op ?? "")
+    .trim()
+    .toLowerCase();
   if (!(VAULT_WORKSPACE_OPS as readonly string[]).includes(op)) return null;
   return {
     operation: op as VaultWorkspaceParams["operation"],
@@ -153,12 +155,13 @@ export const runVaultWorkspaceOp = async (input: {
           entries,
           language: input.language,
         });
+        const notice = zh
+          ? `已新建文件夹 ${created.relativePath}`
+          : `Created folder ${created.relativePath}`;
         return {
           ok: true,
-          answer: zh
-            ? `已新建文件夹 ${created.relativePath}\n\n${built.plainText}`
-            : `Created folder ${created.relativePath}\n\n${built.plainText}`,
-          blocks: built.blocks,
+          answer: `${notice}\n\n${built.plainText}`,
+          blocks: [{ type: "text", markdown: notice }, ...built.blocks],
         };
       }
       case "create_file": {
@@ -171,19 +174,29 @@ export const runVaultWorkspaceOp = async (input: {
           content
         );
         const note = await syncMaterialize(corpusUserId, created.relativePath);
+        const entries = await listVaultWorkspaceDir(corpusUserId, folderRel);
+        const built = buildVaultWorkspaceListBlocks({
+          folderRel,
+          entries,
+          language: input.language,
+        });
+        const notice = zh
+          ? `已新建 ${created.relativePath}。${note}`
+          : `Created ${created.relativePath}. ${note}`;
         return {
           ok: true,
-          answer: zh
-            ? `已新建 ${created.relativePath}。${note}`
-            : `Created ${created.relativePath}. ${note}`,
+          answer: `${notice}\n\n${built.plainText}`,
           syncNote: note,
+          blocks: [{ type: "text", markdown: notice }, ...built.blocks],
         };
       }
       case "update": {
         if (!folderRel.toLowerCase().endsWith(".txt")) {
           return {
             ok: false,
-            answer: zh ? "更新仅支持 .txt 路径。" : "Update requires a .txt path.",
+            answer: zh
+              ? "更新仅支持 .txt 路径。"
+              : "Update requires a .txt path.",
             error: "not_txt",
           };
         }

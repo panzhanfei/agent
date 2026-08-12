@@ -33,7 +33,7 @@ const main = async () => {
         channel_versions: { probe: 1 },
         versions_seen: {},
     };
-    await saver.put(writeConfig, checkpoint as never, {} as never, {} as never);
+    await saver.put(writeConfig, checkpoint as never, {} as never);
     const loaded = await saver.getTuple({
         configurable: { thread_id: threadId },
     });

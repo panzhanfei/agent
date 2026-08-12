@@ -115,5 +115,13 @@ export const PipelineGraphAnnotation = Annotation.Root({
         reducer: (_prev, next) => next,
         default: () => false,
     }),
+    /**
+     * 再批时强制重跑的 DAG 节点 id（B 打过补丁的根）；
+     * executeDagPlan 会扩展为下游闭包，其余成功节点复用 fanOutDagPatch.toolResults。
+     */
+    pendingGlobalRebatchDagNodeIds: Annotation<string[]>({
+        reducer: (_prev, next) => next,
+        default: () => [],
+    }),
 });
 export type PipelineGraphState = typeof PipelineGraphAnnotation.State;

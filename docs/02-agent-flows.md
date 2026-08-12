@@ -15,7 +15,7 @@
 | **`CorpusLister`** | **语料列举器** | 纯 list 路径：目录扫盘分页（projects / experience）；**不经 KM hybrid** |
 | **`PlanFanOut`** | **计划并行执行** | 复合路径：`fanOutPlanWorkers` Send 派发 → `planSlotJoin` → `planMerge`（retrieve/tools/userFact 节点归各 Agent） |
 | `ContentOrganizer` | 内容整理师 | planMerge 后对 `hits` 做 Zod 规范化与 path 去重，再交给分析师 |
-| **全局再规划 B** | Join 后补救 | 结构失败槽改 query / 外搜；**已替代**已删除的 FactChecker 打回环 |
+| **全局再规划 B** | Join 后补救 | 结构失败槽改 query / 外搜；DAG 再批用 seed+下游闭包（非整图盲重跑）；`emptyPolicy` 管必答/可省略 |
 | **`ToolOrchestrator`** | **工具编排器** | `runToolOrchestratorNode` + **`runPlanSlotPostNode`**（fan-out 槽后 tools） |
 | **`DagExecutor`** | **DAG 执行器** | `runDagExecutorNode` + **`runPlanDagNode`**（fan-out hybrid DAG 工人） |
 | **`UserFact`** | **用户记忆** | `userFactNode`（纯 remember/recall）+ **`runUserFactSideNode`**（复合并行 side-effect） |
@@ -36,7 +36,7 @@
 - **队列（可选）**：`CORPUS_QUEUE_ENABLED=1` 时 `corpus.materialize` / `corpus.purge` 入 BullMQ；worker：`pnpm --filter @fambrain/brain-service run corpus-worker`。未开队列则聊天路径同步语料化。
 - **已退役**：`kind=corpus_edit` 直接改 corpus md、软清空 `<!-- fambrain:cleared -->` 主路径。
 
-**PathPlan 有序 steps（2026-07 · 端到端）：** Intake LLM 直接产出 `pathPlan.steps[]` + `composeMode`（数组顺序 = 回答/执行顺序；`answerOrder` 可选）；pipeline **合法化 + 结构归一**（`dataSource`/`userFactKey`/`identityField`/`toolId` 族修正 kind）并派生 `compositeSlots`。LangGraph：**纯 list** → `listRetriever` → `contentOrganizer` → `analyst`；**纯总结（无查库）** → `contentSummarizer`；**复合** → `planCacheResolve`（`agentflow/cache` 全量 facet+hits）→ `planFanOut`（每槽 `Send`→`kmRetrieve`（FC）/`listRetrieve`/… ∥`planDag`→`planMerge`）→ `contentOrganizer` → `analyst`。SSE 按真实图节点报步骤。
+**PathPlan 有序 steps（2026-07 · 端到端）：** Intake LLM 直接产出 `pathPlan.steps[]` + `composeMode`（数组顺序 = 回答/执行顺序；`answerOrder` 可选）；pipeline **合法化 + 结构归一**（`dataSource`/`userFactKey`/`identityField`/`toolId` 族修正 kind）并派生 `compositeSlots`。LangGraph：**纯 list** → `listRetriever` → `contentOrganizer` → `analyst`；**纯总结（无查库）** → `contentSummarizer`；**复合** → `planCacheResolve` → `planFanOut`（每槽 `Send`→`kmRetrieve`/`listRetrieve`/… ∥`planDag`→Join 可选全局 B→`planMerge`）→ `contentOrganizer` → `analyst`。步可带 `emptyPolicy`（require/omit/degrade）。SSE 按真实图节点报步骤。
 
 **架构双线（2026-06，目录 2026-07 对齐）：**
 

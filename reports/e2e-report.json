@@ -2,35 +2,35 @@
   "kind": "e2e",
   "title": "E2E 报表",
   "pass": true,
-  "generatedAt": "2026-08-10T10:40:26.714Z",
+  "generatedAt": "2026-08-12T14:18:43.124Z",
   "steps": [
     {
       "id": "inprocess-vault",
       "label": "Inprocess vault list（pipeline 旁路）",
       "pass": true,
       "exitCode": 0,
-      "elapsedMs": 12787
+      "elapsedMs": 11680
     },
     {
       "id": "api-vault",
       "label": "API E2E vault list/create/open/delete",
       "pass": true,
       "exitCode": 0,
-      "elapsedMs": 10167
+      "elapsedMs": 11918
     },
     {
       "id": "api-chat-chain",
       "label": "API E2E 对话主链（姓名/年龄/手机）",
       "pass": true,
       "exitCode": 0,
-      "elapsedMs": 15032
+      "elapsedMs": 18210
     },
     {
       "id": "playwright",
       "label": "Playwright（vault UI + 对话主链）",
       "pass": true,
       "exitCode": 0,
-      "elapsedMs": 17941
+      "elapsedMs": 17716
     }
   ],
   "passCount": 4,

@@ -8,6 +8,9 @@ export type {
   StepResult,
 } from "./interface";
 
+export type { EmptyPolicy } from "./empty-policy";
+export { DEFAULT_EMPTY_POLICY, legalizeEmptyPolicy } from "./empty-policy";
+
 export { subToStepResult } from "./step-result";
 
 export { expandHybridMultiSourceTemplate } from "./dag-templates";

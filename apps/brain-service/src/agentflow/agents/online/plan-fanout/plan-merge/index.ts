@@ -7,6 +7,7 @@ import type { StepResult } from "@/agentflow/agents/online/intake-coordinator/pa
 import type { PipelineToolResults } from "@/agentflow/agents/online/tool-orchestrator/interface";
 
 import type { PipelineGraphState } from "@/agentflow/pipeline/graph/state";
+import { applyEmptyPolicies } from "../empty-policy";
 import {
   buildDagStepResults,
   mergeCompositeWithDagSteps,
@@ -104,21 +105,51 @@ export const runPlanMergeNode = async (
     };
   }
 
-  const stepResults = mergeStepResultsByAnswerOrder(
+  const mergedSteps = mergeStepResultsByAnswerOrder(
     answerOrder,
     pathPlan,
     slotStepResults,
     dagStepResults
   );
 
+  const policyApplied = applyEmptyPolicies({
+    pathPlan,
+    slots: decision.compositeSlots ?? [],
+    stepResults: mergedSteps,
+    compositeSubResults: working.compositeSubResults ?? null,
+    executionPlan: decision.executionPlan ?? null,
+    dagToolResults: dagPatch?.toolResults ?? null,
+  });
+
+  if (policyApplied.requireError) {
+    logAgentOut("PlanMerge", "emptyPolicy require 失败", {
+      requireError: policyApplied.requireError,
+    });
+    return {
+      error: policyApplied.requireError,
+      coverage: "none",
+      hits: [],
+      notes: policyApplied.requireError,
+      stepResults: policyApplied.stepResults,
+      toolResults: mergedToolResults,
+      checkerPassed: true,
+      fanOutSlotPatches: [],
+      fanOutSlotPatch: null,
+      fanOutDagPatch: null,
+      activeSlotId: null,
+      pendingGlobalRebatchDagNodeIds: [],
+    };
+  }
+
   const notesWithSide = [state.sideEffectAnswer, working.notes]
     .filter(Boolean)
     .join("\n\n") || working.notes;
 
   logAgentOut("PlanMerge", "完成", {
-    stepCount: stepResults.length,
+    stepCount: policyApplied.stepResults.length,
     slotSteps: slotStepResults.length,
     dagSteps: dagStepResults.length,
+    omittedStepIds: policyApplied.omittedStepIds,
     hasSideEffect: Boolean(state.sideEffectAnswer),
     toolKeys: Object.keys(mergedToolResults),
     coverage: working.coverage,
@@ -126,14 +157,16 @@ export const runPlanMergeNode = async (
 
   return {
     ...working,
+    compositeSubResults: policyApplied.compositeSubResults,
     notes: notesWithSide,
     toolResults: mergedToolResults,
-    stepResults,
+    stepResults: policyApplied.stepResults,
     checkerPassed: true,
     // 清工人通道
     fanOutSlotPatches: [],
     fanOutSlotPatch: null,
     fanOutDagPatch: null,
     activeSlotId: null,
+    pendingGlobalRebatchDagNodeIds: [],
   };
 };

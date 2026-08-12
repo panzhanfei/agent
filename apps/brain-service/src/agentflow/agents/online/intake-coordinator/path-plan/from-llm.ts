@@ -23,6 +23,7 @@ import {
 } from "@/agentflow/agents/online/tool-orchestrator";
 import { expandHybridMultiSourceTemplate } from "./dag-templates";
 import { emptyPathPlan, defaultComposeMode } from "./defaults";
+import { legalizeEmptyPolicy } from "./empty-policy";
 import type {
   ComposeMode,
   ExecutionStep,
@@ -221,6 +222,7 @@ const toMemStep = (step: ExecutionStep): ExecutionStep => {
     userFactKey: key,
     userFactLabel: step.userFactLabel?.trim() || step.label || key,
     enumerationControl: null,
+    emptyPolicy: step.emptyPolicy ?? "degrade",
   };
 };
 
@@ -237,6 +239,7 @@ const toSummarizeStep = (step: ExecutionStep): ExecutionStep => ({
   userFactKey: null,
   userFactLabel: null,
   enumerationControl: null,
+  emptyPolicy: step.emptyPolicy ?? "degrade",
 });
 
 const toToolStep = (step: ExecutionStep): ExecutionStep | null => {
@@ -251,12 +254,15 @@ const toToolStep = (step: ExecutionStep): ExecutionStep | null => {
     identityField: null,
     toolId: step.toolId,
     dataSource:
-      step.dataSource && step.dataSource !== "mem0" && step.dataSource !== "user_text"
+      step.dataSource &&
+      step.dataSource !== "mem0" &&
+      step.dataSource !== "user_text"
         ? step.dataSource
         : defaultDataSourceForStandaloneTool(step.toolId),
     userFactKey: null,
     userFactLabel: null,
     enumerationControl: null,
+    emptyPolicy: step.emptyPolicy ?? "degrade",
   };
 };
 
@@ -322,7 +328,10 @@ export const normalizePathPlanSteps = (plan: PathPlan): PathPlan => {
       s.toolId &&
       !isPostRetrievalToolId(s.toolId) &&
       s.toolId !== "synthesize_merge";
-    if (s.kind === "tool" || (standaloneTool && (s.dataSource === "web" || s.kind === "km"))) {
+    if (
+      s.kind === "tool" ||
+      (standaloneTool && (s.dataSource === "web" || s.kind === "km"))
+    ) {
       if (standaloneTool && s.toolId) {
         const tool = toToolStep({ ...s, toolId: s.toolId });
         if (tool) {
@@ -431,7 +440,9 @@ const legalizeStep = (raw: unknown, index: number): ExecutionStep | null => {
   }
   const userFactLabelRaw = o.userFactLabel ?? o.user_fact_label;
   const userFactLabel =
-    typeof userFactLabelRaw === "string" ? userFactLabelRaw.trim() || null : null;
+    typeof userFactLabelRaw === "string"
+      ? userFactLabelRaw.trim() || null
+      : null;
   // 结构信号：topics 含 family → 非本人 identity；searchQuery 须落亲友语料
   const topicFamily = topics.some((t) => t.toLowerCase() === "family");
   if (topicFamily) {
@@ -608,10 +619,7 @@ const legalizeStep = (raw: unknown, index: number): ExecutionStep | null => {
       return null;
     }
     // create_folder 无 name → 丢弃（create_file 工人可默认 untitled）
-    if (
-      operation === "create_folder" &&
-      !String(params.name ?? "").trim()
-    ) {
+    if (operation === "create_folder" && !String(params.name ?? "").trim()) {
       return null;
     }
     const afterContent =
@@ -623,8 +631,7 @@ const legalizeStep = (raw: unknown, index: number): ExecutionStep | null => {
     if (operation === "update" && !afterContent.trim()) {
       operation = "open";
     }
-    const name =
-      typeof params.name === "string" ? params.name.trim() : null;
+    const name = typeof params.name === "string" ? params.name.trim() : null;
     return {
       id: trimId(o.id, `vault-ws-${index}`),
       kind: "vault_workspace",
@@ -676,9 +683,20 @@ export const legalizePathPlan = (raw: unknown): PathPlan => {
   const o = raw as Record<string, unknown>;
   const rawSteps = Array.isArray(o.steps) ? o.steps : [];
 
-  const steps = rawSteps
-    .map((item, i) => legalizeStep(item, i))
-    .filter((x): x is ExecutionStep => Boolean(x));
+  const steps: ExecutionStep[] = [];
+  for (let i = 0; i < rawSteps.length; i++) {
+    const item = rawSteps[i];
+    const step = legalizeStep(item, i);
+    if (!step) continue;
+    const raw =
+      item && typeof item === "object" && !Array.isArray(item)
+        ? (item as Record<string, unknown>)
+        : {};
+    steps.push({
+      ...step,
+      emptyPolicy: legalizeEmptyPolicy(raw.emptyPolicy ?? raw.empty_policy),
+    });
+  }
 
   const seen = new Set<string>();
   const deduped: ExecutionStep[] = [];
@@ -716,9 +734,7 @@ export const ensureMemRecallStepFromTopUserFact = (
   if (plan.steps.length === 0) return plan;
 
   const hasMem = plan.steps.some(
-    (s) =>
-      s.kind === "mem" &&
-      normalizeFactKey(s.userFactKey ?? "") === factKey
+    (s) => s.kind === "mem" && normalizeFactKey(s.userFactKey ?? "") === factKey
   );
   if (hasMem) return plan;
 
@@ -741,8 +757,7 @@ export const ensureMemRecallStepFromTopUserFact = (
   const ageIdx = plan.steps.findIndex(
     (s) => s.identityField === "age" || s.id === "km-age"
   );
-  const insertIdx =
-    ageIdx >= 0 ? ageIdx + 1 : Math.min(1, plan.steps.length);
+  const insertIdx = ageIdx >= 0 ? ageIdx + 1 : Math.min(1, plan.steps.length);
   const steps = [...plan.steps];
   steps.splice(insertIdx, 0, memStep);
   return { steps };
@@ -856,6 +871,7 @@ export const deriveCompositeSlotsFromPathPlan = (
       queryType: step.kind === "list" ? "enumeration" : step.queryType,
       topics: [...step.topics],
       subTasks: [step.label],
+      emptyPolicy: step.emptyPolicy ?? "degrade",
       executor,
       enumerationControl:
         step.kind === "list" ? (step.enumerationControl ?? null) : null,

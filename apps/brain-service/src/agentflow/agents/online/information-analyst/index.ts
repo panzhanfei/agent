@@ -53,7 +53,7 @@ export const runAnalystNode = async (
   const write = getWriter(config);
   try {
     const sideBlock = sideEffectAnswerToAssistantBlock(state.sideEffectAnswer);
-    if (sideBlock) {
+    if (sideBlock?.type === "text") {
       write?.({ type: "ui_block", block: sideBlock });
       write?.({
         type: "assistant",
@@ -98,9 +98,7 @@ export const runAnalystNode = async (
     return {
       answer: side ? `${side}\n\n${result.value.answer}` : result.value.answer,
       assistantBlocks: assistantBlocks.length > 0 ? assistantBlocks : null,
-      citations: result.value.citations?.length
-        ? result.value.citations
-        : null,
+      citations: result.value.citations?.length ? result.value.citations : null,
       sideEffectAnswer: null,
     };
   } catch (e) {

@@ -1,6 +1,7 @@
 import { Queue } from "bullmq";
 import { getInfraConfig } from "../config";
-import { createRedisConnection, isRedisConfigured } from "../redis/client";
+import { isRedisConfigured } from "../redis/client";
+import { bullmqConnection } from "./bullmq-connection";
 import type { CorpusJobPayload } from "./corpus-job-types";
 
 let queue: Queue<CorpusJobPayload> | null = null;
@@ -11,8 +12,8 @@ const getCorpusQueue = (): Queue<CorpusJobPayload> => {
   if (!cfg.corpusQueue.enabled) {
     throw new Error("CORPUS_QUEUE_ENABLED 未开启");
   }
-  queue = new Queue<CorpusJobPayload>(cfg.corpusQueue.name, {
-    connection: createRedisConnection(),
+  const next = new Queue<CorpusJobPayload>(cfg.corpusQueue.name, {
+    connection: bullmqConnection(),
     defaultJobOptions: {
       removeOnComplete: 200,
       removeOnFail: 200,
@@ -20,7 +21,8 @@ const getCorpusQueue = (): Queue<CorpusJobPayload> => {
       backoff: { type: "exponential", delay: 2000 },
     },
   });
-  return queue;
+  queue = next;
+  return next;
 };
 
 export const isCorpusQueueEnabled = (): boolean =>

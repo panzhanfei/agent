@@ -11,6 +11,7 @@ import type {
   DataSource,
   ToolRunId,
 } from "@/agentflow/agents/online/tool-orchestrator";
+import type { EmptyPolicy } from "@/agentflow/agents/online/intake-coordinator/path-plan/empty-policy";
 
 /** 已知 canonical facet（槽 id 前缀；动态槽为 `${facet}-${index}`） */
 export type CompositeFacetId = "identity" | "projects" | "employers";
@@ -26,6 +27,8 @@ export type CompositeRetrievalSlot = {
   queryType: NonNullable<IntakeRoutingDecision["queryType"]>;
   topics: string[];
   subTasks: string[];
+  /** 空证据策略（来自 pathPlan.steps） */
+  emptyPolicy?: EmptyPolicy;
   /**
    * Send 工人：km_retrieve | list_corpus | mem_recall | tool_run | summarize_slot | corpus_edit
    */

@@ -23,7 +23,9 @@ export type GlobalRebatchPlanResult = {
   decision: RoutedIntakeDecision;
   /** 需再批的槽 id（已应用 rewrite / use_web_search） */
   rebatchSlotIds: string[];
-  /** 是否再跑整图 DAG（节点 query 有补丁） */
+  /** 是否再跑 planDag（节点有补丁；执行期 seed+闭包，非整图盲重跑） */
   rebatchDag: boolean;
+  /** B 打过补丁的 DAG 节点 id（force 根；execute 时扩下游闭包） */
+  rebatchDagNodeIds: string[];
   repairs: GlobalRebatchRepair[];
 };

@@ -65,11 +65,15 @@ export const runGlobalRebatchPlanning = async (input: {
   dagToolResults?: PlanSlotsPatch["toolResults"] | null;
 }): Promise<GlobalRebatchPlanResult | null> => {
   const slots = input.decision.compositeSlots ?? [];
+  const emptyPolicyBySlotId = new Map(
+    slots.map((s) => [String(s.id), s.emptyPolicy] as const)
+  );
   const slotIds = selectSalvageableSlotIds({
     slotIds: slots.map((s) => String(s.id)),
     patches: input.patches,
     slotRuntimeById: input.slotRuntimeById,
     policy: input.policy,
+    emptyPolicyBySlotId,
   });
   const dagPlan = input.decision.executionPlan ?? [];
   const dagNodeIds = selectSalvageableDagNodeIds(
@@ -114,12 +118,14 @@ export const runGlobalRebatchPlanning = async (input: {
   logAgentOut("GlobalRebatch", "应用补丁", {
     rebatchSlotIds: applied.rebatchSlotIds,
     rebatchDag: applied.rebatchDag,
+    rebatchDagNodeIds: applied.rebatchDagNodeIds,
   });
 
   return {
     decision: applied.decision,
     rebatchSlotIds: applied.rebatchSlotIds,
     rebatchDag: applied.rebatchDag,
+    rebatchDagNodeIds: applied.rebatchDagNodeIds,
     repairs,
   };
 };

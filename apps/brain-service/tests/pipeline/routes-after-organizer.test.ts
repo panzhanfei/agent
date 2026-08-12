@@ -28,7 +28,7 @@ const baseState = (): PipelineGraphState =>
             routePlanSource: null,
         },
         error: null,
-    }) as PipelineGraphState;
+    }) as unknown as PipelineGraphState;
 
 describe("routeAfterContentOrganizer", () => {
     it("routes list/qa to analyst", () => {

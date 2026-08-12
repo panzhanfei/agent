@@ -5,8 +5,8 @@ import type {
   QueryProfile,
 } from "@/agentflow/agents/online/knowledge-manager";
 import type {
-    CompositeSlotId,
-    IntakeRouteMode,
+  CompositeSlotId,
+  IntakeRouteMode,
 } from "@/agentflow/agents/online/intake-coordinator";
 import type { CompositeSessionKey } from "@fambrain/infra";
 import type { Citation } from "@fambrain/brain-types";
@@ -67,6 +67,8 @@ export type InformationAnalystInput = {
       value: string | null;
     } | null;
     dataSource?: string | null;
+    /** HITL / vault 等工人直接挂载的 UI 块 */
+    assistantBlocks?: import("@fambrain/brain-types").AssistantMessageBlock[];
   }>;
   /** composite 增量计划（含 槽答案缓存 命中标记） */
   compositeIncrementalPlan?: {
@@ -82,13 +84,19 @@ export type InformationAnalystInput = {
   /** Intake topics（项目/经历列举分流） */
   topics?: string[];
   /** KM 列举元数据（分页 total/shown/page） */
-  enumerationMeta?: import("@/agentflow/agents/online/knowledge-manager").EnumerationMeta | null;
+  enumerationMeta?:
+    | import("@/agentflow/agents/online/knowledge-manager").EnumerationMeta
+    | null;
   /** 列举分页意图（preview / exhaustive / continue） */
-  listIntent?: import("@/agentflow/agents/online/intake-coordinator").EnumerationListIntent | null;
+  listIntent?:
+    | import("@/agentflow/agents/online/intake-coordinator").EnumerationListIntent
+    | null;
   /** prepareTurnStart 注入的计算基准日 */
   asOfDate?: string;
   /** ToolOrchestrator / DagExecutor 预计算（年龄、列举、联网等） */
-  toolResults?: import("@/agentflow/agents/online/tool-orchestrator").PipelineToolResults | null;
+  toolResults?:
+    | import("@/agentflow/agents/online/tool-orchestrator").PipelineToolResults
+    | null;
 };
 export const prompt = `你是 FamBrain 系统中的「信息分析师」（InformationAnalyst）。
 

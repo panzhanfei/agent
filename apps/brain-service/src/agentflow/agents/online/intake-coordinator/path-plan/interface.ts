@@ -35,6 +35,8 @@ export type ComposeMode = "qa" | "summarize" | "composite";
 /** 仅通用多源汇合；禁止为单业务场景再加 named template */
 export type DagTemplateId = "hybrid_multi_source";
 
+import type { EmptyPolicy } from "./empty-policy";
+
 /**
  * 单步执行计划（LLM 终稿字段）。
  * - km：向量/混合检索；可挂 post-tool（age/links/identity）
@@ -51,6 +53,11 @@ export type ExecutionStep = {
   kind: PathKind;
   /** 面向用户的子问题标题 */
   label: string;
+  /**
+   * 空证据策略（缺省 degrade）。
+   * require=必须有答案；omit=可省略；degrade=带缺口继续。
+   */
+  emptyPolicy?: EmptyPolicy;
   /**
    * km/list/tool：检索/工具查询词；summarize：待总结正文；
    * vault_workspace：可作 targetPath 回退（优先 params.targetPath；list 根用 ""）

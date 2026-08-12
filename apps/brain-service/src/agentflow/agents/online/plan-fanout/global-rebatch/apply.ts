@@ -60,6 +60,7 @@ export const applyGlobalRebatchRepairs = (input: {
   decision: RoutedIntakeDecision;
   rebatchSlotIds: string[];
   rebatchDag: boolean;
+  rebatchDagNodeIds: string[];
 } => {
   const slotRepairs = new Map<string, GlobalRebatchRepair>();
   const dagRepairs = new Map<string, GlobalRebatchRepair>();
@@ -89,17 +90,18 @@ export const applyGlobalRebatchRepairs = (input: {
   let executionPlan = input.decision.executionPlan
     ? [...input.decision.executionPlan]
     : undefined;
-  let rebatchDag = false;
+  const rebatchDagNodeIds: string[] = [];
   if (executionPlan && dagRepairs.size > 0) {
     executionPlan = executionPlan.map((node) => {
       const repair = dagRepairs.get(node.id);
       if (!repair) return node;
       const next = patchDagNode(node, repair);
       if (!next) return node;
-      rebatchDag = true;
+      rebatchDagNodeIds.push(node.id);
       return next;
     });
   }
+  const rebatchDag = rebatchDagNodeIds.length > 0;
 
   let pathPlan = input.decision.pathPlan;
   if (pathPlan?.steps?.length && rebatchSlotIds.length > 0) {
@@ -142,5 +144,6 @@ export const applyGlobalRebatchRepairs = (input: {
     },
     rebatchSlotIds,
     rebatchDag,
+    rebatchDagNodeIds,
   };
 };

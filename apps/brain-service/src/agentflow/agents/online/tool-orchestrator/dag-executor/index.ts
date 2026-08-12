@@ -9,7 +9,13 @@ export const runDagExecutorNode = async (
     return { error: "DAG 路由缺少 executionPlan" };
   }
   try {
-    const toolResults = await executeDagPlan(plan, state);
+    const forceIds = state.pendingGlobalRebatchDagNodeIds ?? [];
+    const seed =
+      forceIds.length > 0 ? state.fanOutDagPatch?.toolResults ?? null : null;
+    const toolResults = await executeDagPlan(plan, state, {
+      seedToolResults: seed,
+      forceRerunIds: forceIds,
+    });
     const resume = toolResults.resume;
     const synthesis = toolResults.synthesis;
     return {

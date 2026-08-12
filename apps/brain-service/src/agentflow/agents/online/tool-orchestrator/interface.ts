@@ -122,6 +122,11 @@ export type ExecutionPlanNode = {
      * 仍写入结果 notes / degraded。未列出的 dep 视为 hard。
      */
     optionalDeps?: string[];
+    /**
+     * 空证据策略：require / omit / degrade（缺省 degrade）。
+     * 与 pathPlan.emptyPolicy 同语义。
+     */
+    emptyPolicy?: import("@/agentflow/agents/online/intake-coordinator/path-plan/empty-policy").EmptyPolicy;
     /** composite 槽位执行时覆盖 state.hits */
     hitsOverride?: KnowledgeHit[];
     /** composite 列举槽的 KM 元数据 */

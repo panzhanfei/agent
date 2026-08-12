@@ -23,7 +23,10 @@ export type AgentLogName =
   | "UserFactSide"
   | "ToolOrchestrator"
   | "ListRetriever"
-  | "DagExecutor";
+  | "DagExecutor"
+  | "HitlWrite"
+  | "VaultWrite"
+  | "PlanCacheResolve";
 
 export const AGENT_LOG_LABEL_IN = "进入";
 export const AGENT_LOG_LABEL_OUT = "出去";
@@ -52,6 +55,9 @@ const AGENT_EMOJI: Record<AgentLogName, string> = {
   ToolOrchestrator: "🛠️",
   DagExecutor: "🕸️",
   ListRetriever: "🔍",
+  HitlWrite: "✍️",
+  VaultWrite: "🗄️",
+  PlanCacheResolve: "💾",
 };
 
 const MAX_JSON_CHARS = 6000;

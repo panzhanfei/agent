@@ -36,6 +36,8 @@ export {
   shouldSkipForDeps,
   skippedDepsResult,
   unsatisfiedOptionalDeps,
+  canReuseDagNodeResult,
+  collectDownstreamRerunClosure,
 } from "./dag";
 
 export type { RegisteredTurn, TurnControl } from "./turn";

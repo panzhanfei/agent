@@ -23,6 +23,7 @@ export const expandHybridMultiSourceTemplate = (
             topics: ["personal", "resume"],
             field: null,
             deps: [],
+            emptyPolicy: "require",
         },
         {
             id: "company",
@@ -31,6 +32,7 @@ export const expandHybridMultiSourceTemplate = (
             toolId: "search_web",
             webQuery: `${company} 公司 业务 招聘 发展 最近`,
             deps: [],
+            emptyPolicy: "omit",
         },
         {
             id: "market",
@@ -39,6 +41,7 @@ export const expandHybridMultiSourceTemplate = (
             toolId: "search_web",
             webQuery: `${year} 年 市场行情 行业趋势 招聘`,
             deps: [],
+            emptyPolicy: "omit",
         },
         {
             id: "synthesis",
@@ -48,6 +51,7 @@ export const expandHybridMultiSourceTemplate = (
             deps: ["resume", "company", "market"],
             /** company/market soft：外搜失败仍可基于简历综合 */
             optionalDeps: ["company", "market"],
+            emptyPolicy: "degrade",
         },
     ];
 };

@@ -182,6 +182,7 @@ export const runPlanSlotJoinNode = async (
       },
       pendingGlobalRebatchSlotIds: [],
       pendingGlobalRebatchDag: false,
+      pendingGlobalRebatchDagNodeIds: [],
     };
   }
 
@@ -214,6 +215,7 @@ export const runPlanSlotJoinNode = async (
       slotRuntimeById,
       pendingGlobalRebatchSlotIds: [],
       pendingGlobalRebatchDag: false,
+      pendingGlobalRebatchDagNodeIds: [],
     };
   }
 
@@ -225,6 +227,7 @@ export const runPlanSlotJoinNode = async (
       slotRuntimeById,
       pendingGlobalRebatchSlotIds: [],
       pendingGlobalRebatchDag: false,
+      pendingGlobalRebatchDagNodeIds: [],
     };
   }
 
@@ -233,6 +236,7 @@ export const runPlanSlotJoinNode = async (
       fanOutSlotPatch: null,
       pendingGlobalRebatchSlotIds: [],
       pendingGlobalRebatchDag: false,
+      pendingGlobalRebatchDagNodeIds: [],
     };
   }
 
@@ -248,6 +252,7 @@ export const runPlanSlotJoinNode = async (
   let nextDecision = decision;
   let pendingSlotIds: string[] = [];
   let pendingDag = false;
+  let pendingDagNodeIds: string[] = [];
   let globalRebatchUsed = state.globalRebatchUsed;
 
   const globalRebatchEnabled = isGlobalRebatchEnabledFromEnv();
@@ -271,6 +276,7 @@ export const runPlanSlotJoinNode = async (
       nextDecision = planned.decision;
       pendingSlotIds = planned.rebatchSlotIds;
       pendingDag = planned.rebatchDag;
+      pendingDagNodeIds = planned.rebatchDagNodeIds;
       globalRebatchUsed = true;
       // 再批前把目标槽打回 pending（保留 attempts）
       for (const id of pendingSlotIds) {
@@ -306,6 +312,7 @@ export const runPlanSlotJoinNode = async (
     globalRebatchUsed,
     pendingGlobalRebatchSlotIds: pendingSlotIds,
     pendingGlobalRebatchDag: pendingDag,
+    pendingGlobalRebatchDagNodeIds: pendingDagNodeIds,
     hasDagPatch: Boolean(state.fanOutDagPatch),
   });
 
@@ -316,6 +323,7 @@ export const runPlanSlotJoinNode = async (
     slotRuntimeById,
     pendingGlobalRebatchSlotIds: pendingSlotIds,
     pendingGlobalRebatchDag: pendingDag,
+    pendingGlobalRebatchDagNodeIds: pendingDagNodeIds,
     globalRebatchUsed,
   };
 };
