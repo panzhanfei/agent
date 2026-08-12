@@ -12,8 +12,10 @@
     "@fambrain/brain-shared": "workspace:*",
     "@fambrain/brain-types": "workspace:*",
     "@fambrain/corpus": "workspace:*",
+    "@fambrain/db": "workspace:*",
     "@langchain/core": "^1.1.46",
     "@langchain/ollama": "^1.2.7",
+    "chromadb": "1.10.3",
     "mem0ai": "^2.4.6"
   },
   "devDependencies": {

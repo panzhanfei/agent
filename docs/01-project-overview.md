@@ -32,8 +32,8 @@
 | Pino | 知识入库师结构化日志 |
 | p-limit | 入库 embed 并发控制；**DocParser** 批量解析并发（`DOC_PARSE_CONCURRENCY`） |
 | Redis + BullMQ | `@fambrain/infra`：检索 hits 缓存（D5-2）、pipeline 异步队列（可选 `PIPELINE_QUEUE_ENABLED`） |
-| Mem0 | 跨会话语义记忆检索，注入 Intake / Analyst prompt；**P0-16** 结构化 `remember_user_fact` / `recall_user_fact` 经 **userFact 节点**显式读写 |
-| LangMem | 单会话摘要压缩（`data/memory/sessions/`），配合 DB 历史裁剪 Intake 上下文 |
+| Mem0 | 跨会话语义记忆；向量落 **Chroma** 独立 collection（`fambrain_user_memories`），history 在 SQLite；**P0-16** 结构化 remember/recall 经 **userFact** |
+| LangMem | 单会话摘要压缩，落 **Prisma `Conversation.sessionSummary`**，配合 Message 历史裁剪 Intake 上下文 |
 | MCP SDK | 实验：`experiment:mcp-vault` 只读列 vault |
 | Recall（BM25 sparse） | `recallSparseRetrieve` / `recallKeywordRetrieve`；`verify:sparse-recall`；对比 `experiment:recall-compare` |
 | Vercel AI SDK | 实验：`experiment:vercel-ai`（主链仍自研 SSE） |
@@ -104,10 +104,11 @@ pnpm run dev
 | `cd apps/brain-service && pnpm run eval:run` | Eval **全量**写入 `reports/eval-report.*`；`--case` / `*-only` **不覆盖**全量报表 |
 | `cd apps/brain-service && pnpm run eval:run -- --vault-only` | vault_workspace golden probe（不写全量 GATE eval 段） |
 | `pnpm run parse:documents -- <path...>` | **文档解析师**：CLI 批量解析（**自动分类**，无需 userId；语料归属见 `.env` `FAMBRAIN_CORPUS_USER_ID`） |
-| `cd apps/brain-service && pnpm run verify:memory` | Mem0 / LangMem 本地验证（LangMem 可不依赖 Mem0） |
+| `cd apps/brain-service && pnpm run verify:memory` | LangMem→Prisma + prompt block（可 `MEM0_ENABLED=false`） |
+| `cd apps/brain-service && pnpm run verify:hitl-checkpointer` | HITL SqliteSaver 独立 checkpoints.db put/get |
 | `cd apps/brain-service && pnpm run verify:user-memory-extract` | 静默用户记忆 schema 合法化（无 Ollama） |
 | `cd apps/brain-service && pnpm run verify:langchain-tools` | LangChain StructuredTool 注册 + invoke 冒烟 |
-| `cd apps/brain-service && pnpm run verify:user-fact` | P0-16：Intake 结构化 remember/recall + Mem0 跨 conversationId |
+| `cd apps/brain-service && pnpm run verify:user-fact` | P0-16：remember/recall + Mem0→Chroma（需 Ollama+Chroma） |
 | `cd apps/brain-service && pnpm run verify:doc-parser` | DocParser 格式与路径单测 |
 | `pnpm run summarize:document -- <file.md>` | 内容摘要师（需 Ollama） |
 | `pnpm run experiment:mcp-vault` | MCP stdio 服务（列 vault） |
@@ -165,10 +166,11 @@ pnpm run dev
 | `DOC_PARSE_CONCURRENCY` | 否 | DocParser 批量解析并发，默认 `2` |
 | `OLLAMA_MODEL_VISION` | 否 | 图片 OCR 视觉模型，默认沿用 `OLLAMA_MODEL`（建议 `llava` 等） |
 | `MEM0_ENABLED` / `LANGMEM_ENABLED` | 否 | 记忆层开关，默认 `true` |
-| `MEM0_HISTORY_DB_PATH` | 否 | Mem0 SQLite，默认 `data/memory/mem0/history.db` |
-| `LANGMEM_SESSIONS_DIR` | 否 | LangMem 会话摘要目录，默认 `data/memory/sessions` |
+| `MEM0_HISTORY_DB_PATH` | 否 | Mem0 操作流水 SQLite，默认 `data/memory/mem0/history.db` |
+| `MEM0_CHROMA_COLLECTION` | 否 | Mem0 向量 collection，默认 `fambrain_user_memories`（与语料 collection 隔离） |
 | `LANGMEM_SUMMARIZE_AFTER_TURNS` | 否 | 满 N 轮后触发会话摘要，默认 `8` |
 | `LANGMEM_KEEP_RECENT_TURNS` | 否 | 摘要后保留最近轮数，默认 `4` |
+| `LANGGRAPH_CHECKPOINT_DB_PATH` | 否 | HITL 子图 SqliteSaver，默认 `data/memory/langgraph/checkpoints.db`（主 Pipeline 不用） |
 | `LANGSMITH_API_KEY` | 否 | 配置后启用 LangSmith tracing（亦支持 `LANGCHAIN_API_KEY`） |
 | `LANGSMITH_PROJECT` | 否 | 项目名，默认 `fambrain` |
 | `LANGSMITH_TRACING` | 否 | 设为 `false` 可关闭（即使已配 Key） |
@@ -232,7 +234,7 @@ pnpm run dev
 | `verify:embed-batches` | `apps/brain-service/scripts/` | Indexer p-limit 分批逻辑 |
 | `verify:memory` / `verify:doc-parser` | `apps/brain-service/scripts/` | Mem0+LangMem / DocParser |
 | `preparePipelineMemory` | `packages/brain-memory/`（由 **prepare-turn-start** 调用） | 每轮加载 Mem0 + LangMem → `memoryBlock` |
-| `persistPipelineMemory` | `packages/brain-memory/`（由 **persist-turn-end** 调用） | 每轮写入 Mem0 + LangMem |
+| `persistPipelineMemory` | `packages/brain-memory/`（由 **persist-turn-end** 调用） | 每轮写 LangMem→Prisma；静默/显式 Mem0 另路径 |
 | `ingestDocumentBatch` | `agentflow/agents/offline/doc-parser/` | 批量上传解析 → corpus + 可选入库 |
 | `summarizeContent` | `agentflow/agents/online/content-summarizer/` | 在线摘要分支 + CLI（D9） |
 | `listVaultFiles` | `agentflow/knowledge/list-vault-files.ts` | vault 只读列举（MCP 共用） |

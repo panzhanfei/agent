@@ -96,7 +96,7 @@ Understand + Plan（可融合为一次 LLM）
 |----|------|
 | **PathKind** | `corpus_edit` → `SlotExecutor=corpus_edit` → Send `corpusEdit` |
 | **结构化入参** | `params.targetPath` / `operation`（update\|clear\|create）/ `afterContent`；path 白名单 `corpus/{personal,experience,projects}/**/*.md` |
-| **子图** | `hitl-write`：propose → `interrupt` →（approve）快照+写盘+**按 path 向量 upsert**；MemorySaver checkpointer |
+| **子图** | `hitl-write`：propose → `interrupt` →（approve）快照+写盘+**按 path 向量 upsert**；SqliteSaver（`data/memory/langgraph/checkpoints.db`） |
 | **槽状态** | 提案就绪 → `awaiting_human`（Join 终态，本波可合成）；resume **不**走主图任意点恢复 |
 | **Resume** | `POST /pipeline/corpus-edit/resume`（approve\|reject\|detail）；优先 Command 续跑，失败则 DB 直写兜底 |
 | **UI** | `actions` 块 + exact-match prompt（`__FAMBRAIN_CORPUS_EDIT_*__:`）；Intake 旁路同列举按钮 |
@@ -109,8 +109,9 @@ Eval：`golden.json` → `corpusEditProbe`；`eval:run -- --corpus-edit-only`。
 | 层 | 职责 | 写入口 |
 |----|------|--------|
 | Working | 图 state | 运行时 |
-| LangMem | 会话摘要 | `persistPipelineMemory` |
-| Mem0 | 跨会话结构化用户事实 | 显式 remember / 静默 `user-memory-extract` |
+| LangMem | 会话摘要 → Prisma `Conversation.sessionSummary` | `persistPipelineMemory` |
+| Mem0 | 跨会话结构化用户事实 → Chroma `fambrain_user_memories` + history.db | 显式 remember / 静默 `user-memory-extract` |
+| HITL checkpointer | 子图 interrupt 续跑 → 独立 SQLite | `data/memory/langgraph/checkpoints.db` |
 | Corpus/Chroma | 知识库 | **HITL `corpus_edit`** / 入库脚本（**禁止**静默自学写） |
 
 - **废除**：整轮 `addTurnToMem0`；旧 Learning pending / auto corpus / `/learning` HITL  

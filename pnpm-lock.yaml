@@ -56,6 +56,9 @@ importers:
       '@langchain/langgraph':
         specifier: ^1.3.2
         version: 1.3.2(@langchain/core@1.1.46(@opentelemetry/api@1.9.1)(openai@6.39.0(ws@8.20.1)(zod@4.4.3))(ws@8.20.1))(react-dom@19.2.4(react@19.2.4))(react@19.2.4)(zod-to-json-schema@3.25.2(zod@4.4.3))(zod@4.4.3)
+      '@langchain/langgraph-checkpoint-sqlite':
+        specifier: ^1.0.0
+        version: 1.0.3(@langchain/core@1.1.46(@opentelemetry/api@1.9.1)(openai@6.39.0(ws@8.20.1)(zod@4.4.3))(ws@8.20.1))(@langchain/langgraph-checkpoint@1.0.2(@langchain/core@1.1.46(@opentelemetry/api@1.9.1)(openai@6.39.0(ws@8.20.1)(zod@4.4.3))(ws@8.20.1)))
       '@langchain/ollama':
         specifier: ^1.2.7
         version: 1.2.7(@langchain/core@1.1.46(@opentelemetry/api@1.9.1)(openai@6.39.0(ws@8.20.1)(zod@4.4.3))(ws@8.20.1))
@@ -217,15 +220,21 @@ importers:
       '@fambrain/corpus':
         specifier: workspace:*
         version: link:../corpus
+      '@fambrain/db':
+        specifier: workspace:*
+        version: link:../db
       '@langchain/core':
         specifier: ^1.1.46
-        version: 1.1.46(@opentelemetry/api@1.9.1)(openai@6.39.0(ws@8.20.1)(zod@3.25.76))(ws@8.20.1)
+        version: 1.1.46(@opentelemetry/api@1.9.1)(openai@4.104.0(ws@8.20.1)(zod@4.4.3))(ws@8.20.1)
       '@langchain/ollama':
         specifier: ^1.2.7
-        version: 1.2.7(@langchain/core@1.1.46(@opentelemetry/api@1.9.1)(openai@6.39.0(ws@8.20.1)(zod@3.25.76))(ws@8.20.1))
+        version: 1.2.7(@langchain/core@1.1.46(@opentelemetry/api@1.9.1)(openai@4.104.0(ws@8.20.1)(zod@4.4.3))(ws@8.20.1))
+      chromadb:
+        specifier: 1.10.3
+        version: 1.10.3(openai@4.104.0(ws@8.20.1)(zod@4.4.3))
       mem0ai:
         specifier: ^2.4.6
-        version: 2.4.6(@anthropic-ai/sdk@0.27.3)(@azure/identity@4.13.1)(@azure/search-documents@12.2.0)(@cloudflare/workers-types@4.20260531.1)(@google/genai@1.52.0(@modelcontextprotocol/sdk@1.29.0(@cfworker/json-schema@4.1.1)(zod@3.25.76)))(@langchain/core@1.1.46(@opentelemetry/api@1.9.1)(openai@6.39.0(ws@8.20.1)(zod@3.25.76))(ws@8.20.1))(@mistralai/mistralai@1.15.1)(@qdrant/js-client-rest@1.13.0(typescript@5.9.3))(@supabase/supabase-js@2.106.2)(@types/jest@29.5.14)(@types/pg@8.11.0)(better-sqlite3@12.10.0)(cloudflare@4.5.0)(groq-sdk@0.3.0)(neo4j-driver@5.28.3)(ollama@0.6.3)(pg@8.11.3)(redis@4.7.1)(ws@8.20.1)
+        version: 2.4.6(@anthropic-ai/sdk@0.27.3)(@azure/identity@4.13.1)(@azure/search-documents@12.2.0)(@cloudflare/workers-types@4.20260531.1)(@google/genai@1.52.0(@modelcontextprotocol/sdk@1.29.0(@cfworker/json-schema@4.1.1)(zod@4.4.3)))(@langchain/core@1.1.46(@opentelemetry/api@1.9.1)(openai@4.104.0(ws@8.20.1)(zod@4.4.3))(ws@8.20.1))(@mistralai/mistralai@1.15.1)(@qdrant/js-client-rest@1.13.0(typescript@5.9.3))(@supabase/supabase-js@2.106.2)(@types/jest@29.5.14)(@types/pg@8.11.0)(better-sqlite3@12.10.0)(cloudflare@4.5.0)(groq-sdk@0.3.0)(neo4j-driver@5.28.3)(ollama@0.6.3)(pg@8.11.3)(redis@4.7.1)(ws@8.20.1)
     devDependencies:
       '@types/node':
         specifier: ^20.19.41
@@ -1359,6 +1368,13 @@ packages:
   '@langchain/core@1.1.46':
     resolution: {integrity: sha512-i8rDC83BpItxChCw4Lf+6tAr+k+OUcbirc5ZkrhI9ywYWmvxegUljLGOGYvtJNTbEAIFkhYIODPE5QRqyjF6sA==}
     engines: {node: '>=20'}
+
+  '@langchain/langgraph-checkpoint-sqlite@1.0.3':
+    resolution: {integrity: sha512-odOy8z45HvbWerx4t9g//fA38QNq0Rr6cw8UeHbx1LDOXbarMsfJ5CrmmJs5FlhK16MTlsyaF2m+JJ2cXkTLPg==}
+    engines: {node: '>=18'}
+    peerDependencies:
+      '@langchain/core': ^1.1.44
+      '@langchain/langgraph-checkpoint': ^1.0.0
 
   '@langchain/langgraph-checkpoint@1.0.2':
     resolution: {integrity: sha512-F4E5Tr0nt8FGghgdscJtHw+ABzChOHeI80R7Y1pjIHdiJom6c2ieo76vL+FWiny80JmoGqhrVAEIWrw0cXKPxg==}
@@ -5993,19 +6009,6 @@ snapshots:
 
   '@fastify/busboy@2.1.1': {}
 
-  '@google/genai@1.52.0(@modelcontextprotocol/sdk@1.29.0(@cfworker/json-schema@4.1.1)(zod@3.25.76))':
-    dependencies:
-      google-auth-library: 10.6.2
-      p-retry: 4.6.2
-      protobufjs: 7.6.2
-      ws: 8.20.1
-    optionalDependencies:
-      '@modelcontextprotocol/sdk': 1.29.0(@cfworker/json-schema@4.1.1)(zod@3.25.76)
-    transitivePeerDependencies:
-      - bufferutil
-      - supports-color
-      - utf-8-validate
-
   '@google/genai@1.52.0(@modelcontextprotocol/sdk@1.29.0(@cfworker/json-schema@4.1.1)(zod@4.4.3))':
     dependencies:
       google-auth-library: 10.6.2
@@ -6250,12 +6253,12 @@ snapshots:
       - '@opentelemetry/sdk-trace-base'
       - peggy
 
-  '@langchain/core@1.1.46(@opentelemetry/api@1.9.1)(openai@6.39.0(ws@8.20.1)(zod@3.25.76))(ws@8.20.1)':
+  '@langchain/core@1.1.46(@opentelemetry/api@1.9.1)(openai@4.104.0(ws@8.20.1)(zod@4.4.3))(ws@8.20.1)':
     dependencies:
       '@cfworker/json-schema': 4.1.1
       '@standard-schema/spec': 1.1.0
       js-tiktoken: 1.0.21
-      langsmith: 0.7.1(@opentelemetry/api@1.9.1)(openai@6.39.0(ws@8.20.1)(zod@3.25.76))(ws@8.20.1)
+      langsmith: 0.7.1(@opentelemetry/api@1.9.1)(openai@4.104.0(ws@8.20.1)(zod@4.4.3))(ws@8.20.1)
       mustache: 4.2.0
       p-queue: 6.6.2
       zod: 4.4.3
@@ -6281,6 +6284,12 @@ snapshots:
       - '@opentelemetry/sdk-trace-base'
       - openai
       - ws
+
+  '@langchain/langgraph-checkpoint-sqlite@1.0.3(@langchain/core@1.1.46(@opentelemetry/api@1.9.1)(openai@6.39.0(ws@8.20.1)(zod@4.4.3))(ws@8.20.1))(@langchain/langgraph-checkpoint@1.0.2(@langchain/core@1.1.46(@opentelemetry/api@1.9.1)(openai@6.39.0(ws@8.20.1)(zod@4.4.3))(ws@8.20.1)))':
+    dependencies:
+      '@langchain/core': 1.1.46(@opentelemetry/api@1.9.1)(openai@6.39.0(ws@8.20.1)(zod@4.4.3))(ws@8.20.1)
+      '@langchain/langgraph-checkpoint': 1.0.2(@langchain/core@1.1.46(@opentelemetry/api@1.9.1)(openai@6.39.0(ws@8.20.1)(zod@4.4.3))(ws@8.20.1))
+      better-sqlite3: 12.10.0
 
   '@langchain/langgraph-checkpoint@1.0.2(@langchain/core@1.1.46(@opentelemetry/api@1.9.1)(openai@6.39.0(ws@8.20.1)(zod@4.4.3))(ws@8.20.1))':
     dependencies:
@@ -6316,9 +6325,9 @@ snapshots:
       - svelte
       - vue
 
-  '@langchain/ollama@1.2.7(@langchain/core@1.1.46(@opentelemetry/api@1.9.1)(openai@6.39.0(ws@8.20.1)(zod@3.25.76))(ws@8.20.1))':
+  '@langchain/ollama@1.2.7(@langchain/core@1.1.46(@opentelemetry/api@1.9.1)(openai@4.104.0(ws@8.20.1)(zod@4.4.3))(ws@8.20.1))':
     dependencies:
-      '@langchain/core': 1.1.46(@opentelemetry/api@1.9.1)(openai@6.39.0(ws@8.20.1)(zod@3.25.76))(ws@8.20.1)
+      '@langchain/core': 1.1.46(@opentelemetry/api@1.9.1)(openai@4.104.0(ws@8.20.1)(zod@4.4.3))(ws@8.20.1)
       ollama: 0.6.3
 
   '@langchain/ollama@1.2.7(@langchain/core@1.1.46(@opentelemetry/api@1.9.1)(openai@6.39.0(ws@8.20.1)(zod@4.4.3))(ws@8.20.1))':
@@ -6350,31 +6359,6 @@ snapshots:
     transitivePeerDependencies:
       - bufferutil
       - utf-8-validate
-
-  '@modelcontextprotocol/sdk@1.29.0(@cfworker/json-schema@4.1.1)(zod@3.25.76)':
-    dependencies:
-      '@hono/node-server': 1.19.11(hono@4.12.19)
-      ajv: 8.20.0
-      ajv-formats: 3.0.1(ajv@8.20.0)
-      content-type: 1.0.5
-      cors: 2.8.6
-      cross-spawn: 7.0.6
-      eventsource: 3.0.7
-      eventsource-parser: 3.1.0
-      express: 5.2.1
-      express-rate-limit: 8.5.2(express@5.2.1)
-      hono: 4.12.19
-      jose: 6.2.3
-      json-schema-typed: 8.0.2
-      pkce-challenge: 5.0.1
-      raw-body: 3.0.2
-      zod: 3.25.76
-      zod-to-json-schema: 3.25.2(zod@3.25.76)
-    optionalDependencies:
-      '@cfworker/json-schema': 4.1.1
-    transitivePeerDependencies:
-      - supports-color
-    optional: true
 
   '@modelcontextprotocol/sdk@1.29.0(@cfworker/json-schema@4.1.1)(zod@4.4.3)':
     dependencies:
@@ -7645,6 +7629,15 @@ snapshots:
 
   chownr@1.1.4: {}
 
+  chromadb@1.10.3(openai@4.104.0(ws@8.20.1)(zod@4.4.3)):
+    dependencies:
+      cliui: 8.0.1
+      isomorphic-fetch: 3.0.0
+    optionalDependencies:
+      openai: 4.104.0(ws@8.20.1)(zod@4.4.3)
+    transitivePeerDependencies:
+      - encoding
+
   chromadb@1.10.3(openai@6.39.0(ws@8.20.1)(zod@4.4.3)):
     dependencies:
       cliui: 8.0.1
@@ -8683,7 +8676,7 @@ snapshots:
       jsonwebtoken: 9.0.3
       load-esm: 1.0.3
       mime-types: 2.1.35
-      retry-axios: 2.6.0(axios@1.16.1(debug@4.3.4))
+      retry-axios: 2.6.0(axios@1.16.1)
       tough-cookie: 4.1.3
     transitivePeerDependencies:
       - supports-color
@@ -9049,12 +9042,12 @@ snapshots:
       - ws
       - zod-to-json-schema
 
-  langsmith@0.7.1(@opentelemetry/api@1.9.1)(openai@6.39.0(ws@8.20.1)(zod@3.25.76))(ws@8.20.1):
+  langsmith@0.7.1(@opentelemetry/api@1.9.1)(openai@4.104.0(ws@8.20.1)(zod@4.4.3))(ws@8.20.1):
     dependencies:
       p-queue: 6.6.2
     optionalDependencies:
       '@opentelemetry/api': 1.9.1
-      openai: 6.39.0(ws@8.20.1)(zod@3.25.76)
+      openai: 4.104.0(ws@8.20.1)(zod@4.4.3)
       ws: 8.20.1
 
   langsmith@0.7.1(@opentelemetry/api@1.9.1)(openai@6.39.0(ws@8.20.1)(zod@4.4.3))(ws@8.20.1):
@@ -9212,14 +9205,14 @@ snapshots:
 
   media-typer@1.1.0: {}
 
-  mem0ai@2.4.6(@anthropic-ai/sdk@0.27.3)(@azure/identity@4.13.1)(@azure/search-documents@12.2.0)(@cloudflare/workers-types@4.20260531.1)(@google/genai@1.52.0(@modelcontextprotocol/sdk@1.29.0(@cfworker/json-schema@4.1.1)(zod@3.25.76)))(@langchain/core@1.1.46(@opentelemetry/api@1.9.1)(openai@6.39.0(ws@8.20.1)(zod@3.25.76))(ws@8.20.1))(@mistralai/mistralai@1.15.1)(@qdrant/js-client-rest@1.13.0(typescript@5.9.3))(@supabase/supabase-js@2.106.2)(@types/jest@29.5.14)(@types/pg@8.11.0)(better-sqlite3@12.10.0)(cloudflare@4.5.0)(groq-sdk@0.3.0)(neo4j-driver@5.28.3)(ollama@0.6.3)(pg@8.11.3)(redis@4.7.1)(ws@8.20.1):
+  mem0ai@2.4.6(@anthropic-ai/sdk@0.27.3)(@azure/identity@4.13.1)(@azure/search-documents@12.2.0)(@cloudflare/workers-types@4.20260531.1)(@google/genai@1.52.0(@modelcontextprotocol/sdk@1.29.0(@cfworker/json-schema@4.1.1)(zod@4.4.3)))(@langchain/core@1.1.46(@opentelemetry/api@1.9.1)(openai@4.104.0(ws@8.20.1)(zod@4.4.3))(ws@8.20.1))(@mistralai/mistralai@1.15.1)(@qdrant/js-client-rest@1.13.0(typescript@5.9.3))(@supabase/supabase-js@2.106.2)(@types/jest@29.5.14)(@types/pg@8.11.0)(better-sqlite3@12.10.0)(cloudflare@4.5.0)(groq-sdk@0.3.0)(neo4j-driver@5.28.3)(ollama@0.6.3)(pg@8.11.3)(redis@4.7.1)(ws@8.20.1):
     dependencies:
       '@anthropic-ai/sdk': 0.27.3
       '@azure/identity': 4.13.1
       '@azure/search-documents': 12.2.0
       '@cloudflare/workers-types': 4.20260531.1
-      '@google/genai': 1.52.0(@modelcontextprotocol/sdk@1.29.0(@cfworker/json-schema@4.1.1)(zod@3.25.76))
-      '@langchain/core': 1.1.46(@opentelemetry/api@1.9.1)(openai@6.39.0(ws@8.20.1)(zod@3.25.76))(ws@8.20.1)
+      '@google/genai': 1.52.0(@modelcontextprotocol/sdk@1.29.0(@cfworker/json-schema@4.1.1)(zod@4.4.3))
+      '@langchain/core': 1.1.46(@opentelemetry/api@1.9.1)(openai@4.104.0(ws@8.20.1)(zod@4.4.3))(ws@8.20.1)
       '@mistralai/mistralai': 1.15.1
       '@qdrant/js-client-rest': 1.13.0(typescript@5.9.3)
       '@supabase/supabase-js': 2.106.2
@@ -9531,10 +9524,20 @@ snapshots:
     transitivePeerDependencies:
       - encoding
 
-  openai@6.39.0(ws@8.20.1)(zod@3.25.76):
+  openai@4.104.0(ws@8.20.1)(zod@4.4.3):
+    dependencies:
+      '@types/node': 18.19.130
+      '@types/node-fetch': 2.6.13
+      abort-controller: 3.0.0
+      agentkeepalive: 4.6.0
+      form-data-encoder: 1.7.2
+      formdata-node: 4.4.1
+      node-fetch: 2.7.0
     optionalDependencies:
       ws: 8.20.1
-      zod: 3.25.76
+      zod: 4.4.3
+    transitivePeerDependencies:
+      - encoding
     optional: true
 
   openai@6.39.0(ws@8.20.1)(zod@4.4.3):
@@ -9992,7 +9995,7 @@ snapshots:
       path-parse: 1.0.7
       supports-preserve-symlinks-flag: 1.0.0
 
-  retry-axios@2.6.0(axios@1.16.1(debug@4.3.4)):
+  retry-axios@2.6.0(axios@1.16.1):
     dependencies:
       axios: 1.16.1(debug@4.3.4)
 
@@ -10775,11 +10778,6 @@ snapshots:
       graphmatch: 1.1.1
 
   zlibjs@0.3.1: {}
-
-  zod-to-json-schema@3.25.2(zod@3.25.76):
-    dependencies:
-      zod: 3.25.76
-    optional: true
 
   zod-to-json-schema@3.25.2(zod@4.4.3):
     dependencies:

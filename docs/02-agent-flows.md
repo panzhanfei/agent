@@ -264,7 +264,7 @@ flowchart TD
 |----|------|
 | Intake | `kind=corpus_edit` + `params.targetPath/operation/afterContent`（few-shot 示例 20）；禁止口语猜 path |
 | Fan-out | `executor=corpus_edit` → Send `corpusEdit` → `awaiting_human` + `actions` UI |
-| 子图 | `hitl-write`：propose → `interrupt`（MemorySaver）→ approve 后 apply |
+| 子图 | `hitl-write`：propose → `interrupt`（SqliteSaver / 独立 checkpoints.db）→ approve 后 apply |
 | Resume | `POST /pipeline/corpus-edit/resume`；聊天 exact-match prompt 走 Intake 旁路 |
 | 向量 | `upsertCorpusDocumentsByPath` / `deleteCorpusVectorsByPath`（`@fambrain/corpus`） |
 
@@ -492,11 +492,20 @@ flowchart TD
 
 **触发：** 每轮 LangGraph **`prepareTurnStart` 节点**内调用 `preparePipelineMemory()`（`agentflow/agents/online/prepare-turn-start/prepare-turn-start.ts`）。**不参与**离线入库链路。
 
-**职责：** **Mem0** 按 `actorUserId` 检索跨会话偏好/事实；**LangMem** 按 `conversationId` 维护会话摘要；合并为 `memoryBlock` 注入 **IntakeCoordinator** 与 **InformationAnalyst** prompt。轮次结束后由 **`persistTurnEnd` 节点**写回 Mem0 与 LangMem。
+**职责：** **Mem0** 按 `actorUserId` 检索跨会话偏好/事实；**LangMem** 按 `conversationId` 维护会话摘要；合并为 `memoryBlock` 注入 **IntakeCoordinator** 与 **InformationAnalyst** prompt。轮次结束后由 **`persistTurnEnd` 节点**写 LangMem；可选静默抽事实写 Mem0。
 
 **P0-16 补充：** 联系方式类 **remember/recall** 走 **userFact 节点**（`addStructuredUserFact` / `searchUserFactMemories`），不依赖轮次后 LLM 抽取；LangMem 仍仅本会话。
 
-**存储：** `data/memory/mem0/history.db`（Mem0 SQLite）、`data/memory/sessions/<conversationId>.json`（LangMem）。BFF 请求体须带 `conversationId`（`packages/brain-types`）。
+**存储：**
+
+| 层 | 落点 |
+|----|------|
+| Mem0 向量 | Chroma collection `fambrain_user_memories`（`MEM0_CHROMA_COLLECTION`） |
+| Mem0 流水 | `data/memory/mem0/history.db` |
+| LangMem | Prisma `Conversation.sessionSummary` / `sessionSummaryAt` |
+| HITL checkpointer | `data/memory/langgraph/checkpoints.db`（仅 HITL 子图） |
+
+BFF 请求体须带 `conversationId`（`packages/brain-types`）。
 
 ```mermaid
 flowchart LR
@@ -519,7 +528,11 @@ flowchart LR
 | 2 | 注入 | `memoryBlock` 拼入 system/human | `build-prompt-block.ts` | `buildMemoryPromptBlock()` |
 | 3 | 持久化 | LangMem 摘要；可选静默 Mem0 结构化事实 | `persist-turn-end/`、`user-memory-extract/`、`persist-turn.ts` | `runPersistTurnEnd()` |
 
-**验证：** `pnpm run verify:memory`（需 Ollama；可 `MEM0_ENABLED=false` 仅测 LangMem）。
+**验证：**
+
+- `pnpm run verify:memory`（需 Ollama；`MEM0_ENABLED=false` 时测 LangMem→Prisma）
+- `pnpm run verify:user-fact`（需 Ollama + Chroma；Mem0→Chroma）
+- `pnpm run verify:hitl-checkpointer`（SqliteSaver 独立 DB put/get）
 
 ### 9. ContentSummarizer — 内容摘要师（D9）✅
 

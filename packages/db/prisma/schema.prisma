@@ -131,6 +131,9 @@ model Conversation {
   title     String    @default("新对话")
   /// 侧边栏置顶（置顶项排在列表最前）
   pinned    Boolean   @default(false)
+  /// LangMem：较早轮次压缩摘要（最近 N 轮仍走 Message 原文）
+  sessionSummary   String?
+  sessionSummaryAt DateTime?
   createdAt DateTime  @default(now())
   updatedAt DateTime  @updatedAt
 

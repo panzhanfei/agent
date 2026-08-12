@@ -3,18 +3,36 @@ import path from "node:path";
 import { logAgentIn, logAgentOut } from "@fambrain/brain-shared/agent-log";
 import { Memory } from "mem0ai/oss";
 import { getMemoryConfig } from "../config";
+import { ChromaMem0VectorStore } from "./chroma-vector-store";
+
 type Mem0SearchHit = {
     memory?: string;
     text?: string;
 };
+
+/** Mem0 类内 vectorStore 为 private，不能与公开字段做交叉类型（会缩成 never） */
+type MemoryInternals = {
+    vectorStore: ChromaMem0VectorStore;
+    _ensureInitialized?: () => Promise<void>;
+};
+
+const memoryInternals = (memory: Memory): MemoryInternals =>
+    memory as unknown as MemoryInternals;
+
 let client: Memory | null = null;
+
+/** 测试 / 配置热切换：丢弃单例（下次 ensureClient 按新 config 重建） */
+export const resetMem0Client = (): void => {
+    client = null;
+};
+
 const ensureClient = async (): Promise<Memory | null> => {
     const cfg = getMemoryConfig();
-    if (!cfg.mem0Enabled)
-        return null;
+    if (!cfg.mem0Enabled) return null;
     if (!client) {
         await mkdir(path.dirname(cfg.mem0HistoryDbPath), { recursive: true });
-        client = new Memory({
+        // 先用内存 SQLite 占位完成 Mem0 初始化，再换成 Chroma 适配器（需完整 get/list/delete）
+        const memory = new Memory({
             llm: {
                 provider: "ollama",
                 config: {
@@ -33,10 +51,28 @@ const ensureClient = async (): Promise<Memory | null> => {
             vectorStore: {
                 provider: "memory",
                 config: {
-                    collectionName: "fambrain_user_memories",
+                    collectionName: cfg.mem0ChromaCollection,
                     dimension: 768,
+                    dbPath: ":memory:",
                 },
             },
+            historyDbPath: cfg.mem0HistoryDbPath,
+        });
+        const internals = memoryInternals(memory);
+        if (typeof internals._ensureInitialized === "function") {
+            await internals._ensureInitialized();
+        }
+        const chromaStore = new ChromaMem0VectorStore({
+            collectionName: cfg.mem0ChromaCollection,
+            dimension: 768,
+        });
+        await chromaStore.initialize();
+        internals.vectorStore = chromaStore;
+        client = memory;
+        logAgentOut("Mem0", "出去", {
+            action: "client_ready",
+            vectorStore: "chroma",
+            collection: cfg.mem0ChromaCollection,
             historyDbPath: cfg.mem0HistoryDbPath,
         });
     }

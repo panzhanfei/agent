@@ -41,7 +41,7 @@ export const resumeCorpusEdit = async (input: {
       };
     }
   } catch {
-    // MemorySaver 丢失或 thread 不在本进程 → DB 兜底
+    // checkpointer 无该 thread / 损坏 → DB 提案兜底
   }
 
   if (input.action === "reject") {

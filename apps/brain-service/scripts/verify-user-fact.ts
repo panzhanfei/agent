@@ -174,62 +174,86 @@ console.log("\n— Mem0 跨会话（需 Ollama · MEM0_ENABLED 默认 true）—
 
 const main = async () => {
     const tmp = await mkdtemp(path.join(os.tmpdir(), "fambrain-uf-"));
+    const collection = `fambrain_uf_verify_${Date.now()}`;
     process.env.MEM0_HISTORY_DB_PATH = path.join(tmp, "history.db");
+    process.env.MEM0_CHROMA_COLLECTION = collection;
     process.env.LANGMEM_ENABLED = "false";
-    const { resetMemoryConfigCache, addStructuredUserFact, searchUserFactMemories } =
-        await import("@fambrain/brain-memory");
+    const {
+        resetMemoryConfigCache,
+        resetMem0Client,
+        addStructuredUserFact,
+        searchUserFactMemories,
+    } = await import("@fambrain/brain-memory");
     resetMemoryConfigCache();
+    resetMem0Client();
 
     const userId = `uf-${Date.now()}`;
-    await addStructuredUserFact({
-        userId,
-        factKey: "qq",
-        label: "QQ号",
-        value: QQ,
-    });
+    try {
+        await addStructuredUserFact({
+            userId,
+            factKey: "qq",
+            label: "QQ号",
+            value: QQ,
+        });
 
-    const memories = await searchUserFactMemories(
-        userId,
-        "qq",
-        "QQ号",
-        "我的qq是多少"
-    );
-    assert.ok(memories.length >= 1, "Mem0 search 应至少 1 条");
-    assert.equal(findUserFactValueInTexts(memories, "qq", "QQ号"), QQ);
+        const memories = await searchUserFactMemories(
+            userId,
+            "qq",
+            "QQ号",
+            "我的qq是多少"
+        );
+        assert.ok(memories.length >= 1, "Mem0 search 应至少 1 条");
+        assert.equal(findUserFactValueInTexts(memories, "qq", "QQ号"), QQ);
 
-    const recallState = baseState("我的qq是多少", {
-        context: {
-            actorUserId: userId,
-            corpusUserId: userId,
-            displayName: "Test",
-            conversationId: "conv-b",
-        },
-        decision: buildEarlyExitRoutedDecision(recallIntake()),
-        userMemories: memories,
-        memoryBlock: `### 用户长期记忆（Mem0）\n- ${serializeUserFactRecord({ factKey: "qq", label: "QQ号", value: QQ })}`,
-    });
+        const recallState = baseState("我的qq是多少", {
+            context: {
+                actorUserId: userId,
+                corpusUserId: userId,
+                displayName: "Test",
+                conversationId: "conv-b",
+            },
+            decision: buildEarlyExitRoutedDecision(recallIntake()),
+            userMemories: memories,
+            memoryBlock: `### 用户长期记忆（Mem0）\n- ${serializeUserFactRecord({ factKey: "qq", label: "QQ号", value: QQ })}`,
+        });
 
-    const recallOut = await userFactNode(recallState);
-    assert.ok(recallOut.answer?.includes(QQ), `recall 应答含 QQ: ${recallOut.answer}`);
+        const recallOut = await userFactNode(recallState);
+        assert.ok(
+            recallOut.answer?.includes(QQ),
+            `recall 应答含 QQ: ${recallOut.answer}`
+        );
 
-    const rememberState = baseState(`我的qq是${QQ} 请帮我记住`, {
-        context: {
-            actorUserId: userId,
-            corpusUserId: userId,
-            displayName: "Test",
-            conversationId: "conv-c",
-        },
-        decision: buildEarlyExitRoutedDecision(rememberIntake()),
-    });
-    const rememberOut = await userFactNode(rememberState);
-    assert.ok(
-        rememberOut.answer?.includes(QQ),
-        `remember 确认应答含 QQ: ${rememberOut.answer}`
-    );
+        const rememberState = baseState(`我的qq是${QQ} 请帮我记住`, {
+            context: {
+                actorUserId: userId,
+                corpusUserId: userId,
+                displayName: "Test",
+                conversationId: "conv-c",
+            },
+            decision: buildEarlyExitRoutedDecision(rememberIntake()),
+        });
+        const rememberOut = await userFactNode(rememberState);
+        assert.ok(
+            rememberOut.answer?.includes(QQ),
+            `remember 确认应答含 QQ: ${rememberOut.answer}`
+        );
 
-    console.log("✓ Mem0 remember → 新 conversation recall");
-
-    await rm(tmp, { recursive: true, force: true });
+        console.log("✓ Mem0 remember → Chroma → 新 conversation recall");
+    } finally {
+        try {
+            const { ChromaClient } = await import("chromadb");
+            const { resolveChromaServerUrl } = await import(
+                "@fambrain/brain-config/service-url"
+            );
+            const client = new ChromaClient({ path: resolveChromaServerUrl() });
+            await client.deleteCollection({ name: collection });
+        } catch {
+            /* 清理失败不挡断言结果 */
+        }
+        resetMem0Client();
+        delete process.env.MEM0_CHROMA_COLLECTION;
+        await rm(tmp, { recursive: true, force: true });
+    }
     console.log("\nverify-user-fact OK");
 };
 

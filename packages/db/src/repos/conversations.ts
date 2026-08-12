@@ -193,3 +193,38 @@ export const editUserMessageAndTruncateAfter = async (input: {
     };
   });
 };
+
+/** LangMem：读会话摘要（无行 / 空摘要 → null） */
+export const getConversationSessionSummary = async (
+  conversationId: string
+): Promise<string | null> => {
+  if (!conversationId.trim()) return null;
+  const row = await prisma.conversation.findUnique({
+    where: { id: conversationId },
+    select: { sessionSummary: true },
+  });
+  const summary = row?.sessionSummary?.trim();
+  return summary && summary.length > 0 ? summary : null;
+};
+
+/** LangMem：覆盖写会话摘要；会话不存在时 no-op（避免孤儿写） */
+export const upsertConversationSessionSummary = async (
+  conversationId: string,
+  summary: string
+): Promise<boolean> => {
+  const trimmed = summary.trim();
+  if (!conversationId.trim() || !trimmed) return false;
+  const existing = await prisma.conversation.findUnique({
+    where: { id: conversationId },
+    select: { id: true },
+  });
+  if (!existing) return false;
+  await prisma.conversation.update({
+    where: { id: conversationId },
+    data: {
+      sessionSummary: trimmed,
+      sessionSummaryAt: new Date(),
+    },
+  });
+  return true;
+};

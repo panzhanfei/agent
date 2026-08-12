@@ -47,6 +47,11 @@ export {
   startCorpusEditGraph,
 } from "./graph";
 
+export {
+  getHitlCheckpointer,
+  resolveHitlCheckpointDbPath,
+} from "./checkpointer";
+
 export { resumeCorpusEdit } from "./resume";
 
 export {

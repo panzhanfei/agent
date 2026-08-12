@@ -4,7 +4,7 @@ LangGraph **END 前**最后一个在线节点（非图内 LLM）。
 
 ## 职责
 
-1. `persistPipelineMemory` — LangMem 会话摘要（不再整轮 `addTurnToMem0`）
+1. `persistPipelineMemory` — LangMem 会话摘要 → Prisma `Conversation.sessionSummary`
 2. `persistUserMemoryAutoLearnAfterTurn` — 可选静默结构化记忆（`USER_MEMORY_AUTO_LEARN_ENABLED`；本轮显式 `userFact` / remember|recall 跳过）
 
 ## 不负责

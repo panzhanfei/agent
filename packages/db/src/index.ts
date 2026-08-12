@@ -8,6 +8,8 @@ export {
     maybeUpdateConversationTitle,
     deleteOwnedConversation,
     editUserMessageAndTruncateAfter,
+    getConversationSessionSummary,
+    upsertConversationSessionSummary,
     type MessageRow,
     type EditUserMessageTruncateResult,
 } from "./repos/conversations";

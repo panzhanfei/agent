@@ -1,9 +1,10 @@
 /**
  * 文件 HITL 子图：propose → interrupt → apply（快照+写盘+按 path 向量）
- * checkpointer: MemorySaver（进程内）；提案持久化在 DB，跨请求可 Apply 兜底。
+ * checkpointer: 独立 SQLite（SqliteSaver）；提案仍在 Prisma，跨请求可 Apply 兜底。
  */
-import { Annotation, END, MemorySaver, START, StateGraph, interrupt, Command } from "@langchain/langgraph";
+import { Annotation, END, START, StateGraph, interrupt, Command } from "@langchain/langgraph";
 import { applyCorpusEditProposal, rejectCorpusEditProposal } from "./apply";
+import { getHitlCheckpointer } from "./checkpointer";
 import { parseEditOperation, proposeCorpusEdit, targetPathFromStep } from "./propose";
 import type { CorpusEditOperation, CorpusEditResumeAction } from "./interface";
 
@@ -92,8 +93,6 @@ const applyNode = async (
   return { applied: true, indexedChunks: result.indexedChunks, error: null };
 };
 
-const checkpointer = new MemorySaver();
-
 const buildCorpusEditGraph = () =>
   new StateGraph(CorpusEditAnnotation)
     .addNode("propose", proposeNode)
@@ -108,7 +107,7 @@ let compiled: ReturnType<ReturnType<typeof buildCorpusEditGraph>["compile"]> | n
 export const getCompiledCorpusEditGraph = () => {
   if (!compiled) {
     compiled = buildCorpusEditGraph().compile({
-      checkpointer,
+      checkpointer: getHitlCheckpointer(),
       name: "fambrain-corpus-edit",
     });
   }

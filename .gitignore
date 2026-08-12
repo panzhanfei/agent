@@ -31,7 +31,7 @@ package-lock.json
 /data/memory/*
 !/data/memory/.gitkeep
 !/data/memory/mem0/.gitkeep
-!/data/memory/sessions/.gitkeep
+!/data/memory/langgraph/.gitkeep
 
 # 入库 CLI 日志
 /logs/*
