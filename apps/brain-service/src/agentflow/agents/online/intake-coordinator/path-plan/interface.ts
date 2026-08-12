@@ -12,7 +12,6 @@ import type {
   KnowledgeHit,
   KnowledgeRetrievalResult,
 } from "@/agentflow/agents/online/knowledge-manager";
-import type { FactCheckerIssue } from "@/agentflow/agents/online/fact-checker";
 import type {
   DataSource,
   ToolRunId,
@@ -98,13 +97,6 @@ export type PathPlanCounts = {
   total: number;
 };
 
-export type StepFactCheck = {
-  passed: boolean;
-  refinedSearchQuery?: string | null;
-  issues?: FactCheckerIssue[];
-  checkerNotes?: string | null;
-};
-
 export type StepResult = {
   stepId: string;
   pathKind: PathKind;
@@ -117,5 +109,4 @@ export type StepResult = {
   toolOutput?: ToolRunResult | null;
   cacheHit?: boolean;
   facetKey?: string;
-  fc: StepFactCheck;
 };

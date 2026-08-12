@@ -133,12 +133,6 @@ describe("runWithSlotBudget", () => {
       hits: [],
       coverage: "sufficient",
       notes: null,
-      fc: {
-        passed: true,
-        refinedSearchQuery: null,
-        issues: [],
-        checkerNotes: null,
-      },
     },
   });
 

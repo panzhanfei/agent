@@ -62,7 +62,6 @@ export const buildDagStepResults = (
         hits: dagPatch.hits ?? [],
         coverage: dagPatch.coverage ?? "none",
         notes: dagPatch.notes ?? null,
-        fc: { passed: true },
       },
     ];
   }
@@ -73,7 +72,6 @@ export const buildDagStepResults = (
     hits: dagPatch.hits ?? [],
     coverage: dagPatch.coverage ?? "none",
     notes: dagPatch.notes ?? null,
-    fc: { passed: true },
   }));
 };
 

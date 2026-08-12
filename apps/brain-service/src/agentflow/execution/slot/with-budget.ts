@@ -49,12 +49,6 @@ const timeoutStep = (
   confidenceTier: null,
   enumerationMeta: null,
   cacheHit: false,
-  fc: {
-    passed: true,
-    refinedSearchQuery: null,
-    issues: [],
-    checkerNotes: "slot_deadline_exceeded",
-  },
 });
 
 const pathKindForExecutor = (

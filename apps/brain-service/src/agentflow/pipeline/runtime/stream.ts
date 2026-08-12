@@ -105,11 +105,6 @@ const upsertCollectedStep = (
   steps.push(event);
 };
 
-/** FactChecker 打回且尚未 retry 时，stream 层需再 yield retrieval step */
-const shouldRetryRetrieval = (state: PipelineGraphState): boolean => {
-  return !state.checkerPassed && state.retryCount < 1;
-};
-
 /** 组装 Pipeline「出去」日志与调试用的结构化摘要（intent、hits、route、timing 等） */
 const summarizePipelineOut = (
   state: PipelineGraphState,
@@ -592,22 +587,6 @@ async function* runPipelineStreamInner(
       }
       continue;
     }
-    if (nodeName === "retrieval") {
-      yield* finishStep("retrieval");
-      yield {
-        type: "retrieval_meta",
-        cacheHit: Boolean(finalState.retrievalCacheHit),
-      };
-      if (finalState.decision?.intent === "summarize_content") {
-        yield* startStep("content_summarizer");
-      } else {
-        yield* startStep("fact_checker");
-      }
-      if (finalState.error) {
-        yield { type: "error", message: finalState.error };
-      }
-      continue;
-    }
     if (nodeName === "contentSummarizer") {
       yield* finishStep("content_summarizer");
       if (finalState.exitEarly && finalState.answer) {
@@ -615,16 +594,6 @@ async function* runPipelineStreamInner(
         yield* emitAssistant(finalState.answer);
       } else if (!finalState.exitEarly) {
         yield* startStep("analyst");
-      }
-      continue;
-    }
-    if (nodeName === "factChecker") {
-      yield* startStep("fact_checker");
-      yield* finishStep("fact_checker");
-      if (shouldRetryRetrieval(finalState)) {
-        yield* startStep("retrieval");
-      } else {
-        yield* startStep("content_organizer");
       }
       continue;
     }

@@ -46,12 +46,6 @@ const toolStepResult = (
   enumerationMeta: null,
   toolOutput: run,
   cacheHit: false,
-  fc: {
-    passed: true,
-    refinedSearchQuery: null,
-    issues: [],
-    checkerNotes: "tool_run_skip_fc",
-  },
 });
 
 export const runToolSlotWorker = async (

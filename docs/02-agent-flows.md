@@ -14,15 +14,15 @@
 | `KnowledgeManager` | 知识管理员 | hybrid 检索（vector ∥ sparse），返回 `hits` / `coverage` / `notes` |
 | **`CorpusLister`** | **语料列举器** | 纯 list 路径：目录扫盘分页（projects / experience）；**不经 KM hybrid** |
 | **`PlanFanOut`** | **计划并行执行** | 复合路径：`fanOutPlanWorkers` Send 派发 → `planSlotJoin` → `planMerge`（retrieve/tools/userFact 节点归各 Agent） |
-| `FactChecker` | 事实核查员 | **km 槽** per-step FC；list_corpus 不经 FC；km 失败且有 refinedQuery 时该槽局部重检一次 |
-| `ContentOrganizer` | 内容整理师 | **核查通过后**对 `hits` 做 Zod 规范化与 path 去重，再交给分析师 |
+| `ContentOrganizer` | 内容整理师 | planMerge 后对 `hits` 做 Zod 规范化与 path 去重，再交给分析师 |
+| **全局再规划 B** | Join 后补救 | 结构失败槽改 query / 外搜；**已替代**已删除的 FactChecker 打回环 |
 | **`ToolOrchestrator`** | **工具编排器** | `runToolOrchestratorNode` + **`runPlanSlotPostNode`**（fan-out 槽后 tools） |
 | **`DagExecutor`** | **DAG 执行器** | `runDagExecutorNode` + **`runPlanDagNode`**（fan-out hybrid DAG 工人） |
 | **`UserFact`** | **用户记忆** | `userFactNode`（纯 remember/recall）+ **`runUserFactSideNode`**（复合并行 side-effect） |
 | `InformationAnalyst` | 信息分析师 | 消费 `stepResults` + `toolResults` + 整理后的 `hits` 写终稿；可并入同轮 remember side-effect |
 | **`VaultWrite`** | **原文库** | `kind=vault_workspace`：两层 list + `.txt`/文件夹 CRUD；语料化写入 `corpus/personal/imports/workspace/**/*.md` + 向量；**硬删**级联；**禁止**直接 HITL 改 corpus md |
 
-**链路：** 用户提问 → **轮次开始** → 意图识别 → **PathPlan fan-out**（按 `steps[]`：km / list / tool / vault_workspace / dag 并行工人；km 槽 per-step FC，list 不经 FC）→ **内容整理** → **Compose**（qa / composite / summarize）→ 回答 → **轮次结束**。跨轮 **两层 cache**（同问短路 + 检索结果 cache）见 [坑点 §2.2](./04-pitfalls.md)。
+**链路：** 用户提问 → **轮次开始** → 意图识别 → **PathPlan fan-out**（按 `steps[]` 并行工人 → Join，可选全局 B）→ **内容整理** → **Compose**（qa / composite / summarize）→ 回答 → **轮次结束**。跨轮 cache 见 [坑点 §2.2](./04-pitfalls.md)。
 
 ### 原文库（vault workspace · 模型 A）
 
@@ -165,7 +165,7 @@ flowchart TD
 
 **代码：** `agentflow/agents/online/prepare-turn-start/` · 图节点 `compile.ts` · SSE step 名 **`prepare_turn_start`**（UI：准备上下文）
 
-**验证：** `pnpm run verify:repeat-question-smoke`（同问短路，无 Ollama）；全链路 `verify:fact-checker:pipeline`（首步 `prepare_turn_start`，末步 `persist_turn_end`）。
+**验证：** `pnpm run verify:repeat-question-smoke`（同问短路，无 Ollama）；全链路见 `golden:regression` / `eval:run`。
 
 ### 0.5 TurnEnd — 轮次结束 ✅
 
@@ -179,7 +179,7 @@ flowchart TD
 
 **代码：** `agentflow/agents/online/persist-turn-end/` · SSE step 名 **`persist_turn_end`**（UI：写入记忆）
 
-**验证：** `verify:fact-checker:pipeline` 闲聊/检索链末步应为 `persist_turn_end`；同问短路仍会经过 `persist_turn_end`（内部 no-op）。
+**验证：** 闲聊/检索链末步应为 `persist_turn_end`；同问短路仍会经过 `persist_turn_end`（内部 no-op）。
 
 ### 1. KnowledgeIndexer — 知识入库师 ✅
 
@@ -343,32 +343,11 @@ flowchart TD
 | 6 | 置信分档 | 融合分 + gap + path 权威 → `high` / `mid` / `low` | `score-candidate.ts` | `assessConfidence()`、`deriveCoverageFromTier()` |
 | 7 | 输出 | **maxHits 按 profile**；列举型 notes 标明覆盖段数；可选 `confidenceTier` | `types.ts` | `KnowledgeRetrievalResult` |
 
-### 4. FactChecker — 事实核查员（D5）✅
+### 4. FactChecker — 已删除
 
-**职责：** 审查当轮 `hits` / `coverage` 是否足以回答 `userQuestion`；**不写终稿**。`passed=false` 时产出 `refinedSearchQuery`，编排器最多再打回 KM **1 次**。
-
-**技术：** LangChain `ChatOllama`；`confidenceTier=high` 时规则快检跳过 LLM（`tier_skip_llm`）；规则兜底 `buildRuleBasedFactCheck()`；输出 **Zod**（`factCheckerResultSchema`）；`retryCount≥1` 时代码强制放行。
-
-```mermaid
-flowchart TD
-  IN["userQuestion + hits + coverage<br/>searchQuery + retryCount"] --> LLM["completeFactCheck()"]
-  LLM --> NORM["normalizeFactCheckerResult()"]
-  NORM -->|passed=false, retry=0| REWRITE["更新 decision.searchQuery"]
-  NORM -->|passed=true 或 retry≥1| NOTES["合并 checkerNotes → notes"]
-  REWRITE --> RET["retrieval 节点再打回"]
-  NOTES --> CO["ContentOrganizer"]
-  CO --> IA["InformationAnalyst"]
-```
-
-| 步骤 | 做什么 | 规则 | 文件 | 方法 |
-|------|--------|------|------|------|
-| 1 | 输入 | 含 `retryCount`（0=首次，1=已重试） | `fact-checker/prompt.ts` | `FactCheckerInput` |
-| 2 | 调模型 | 与 Intake 同 `OLLAMA_MODEL_INTAKE_COORDINATOR` | `check-facts.ts` | `completeFactCheck()` |
-| 3 | 解析 | JSON → **Zod** → `passed` / `evidenceScore` / `issues` | `check-helpers.ts`, `schema.ts` | `normalizeFactCheckerResult()` |
-| 4 | 兜底 | LLM 失败走规则；重试后强制 `passed=true` | `check-helpers.ts` | `buildRuleBasedFactCheck()` |
-| 5 | 编排 | `checkerPassed` → contentOrganizer 或 retrieval | `pipeline/graph/routes.ts`、`fact-checker/fact-checker-node.ts` | `runFactCheckerNode()`, `routeAfterFactChecker()` |
-
-**验证：** `pnpm run verify:fact-checker`（规则）、`pnpm run verify:fact-checker:pipeline`（轻量冒烟）、`pnpm run golden:regression`（G1～G5 标准回归）。同句再问走 **同问短路** 或 **检索结果 cache**，见 [坑点 §2.2](./04-pitfalls.md)。
+主链 **FactChecker 模块与打回再检索环已移除**（`apps/brain-service/.../fact-checker/` 已删）。  
+失败槽补救改为 **`planSlotJoin` 后全局再规划 B**（≤1），见 [控制面 §6](./06-architecture-control-plane.md)。  
+`StepResult.fc` 仍为工人占位字段，兼容下游，不再表示真实核查。
 
 ### 5. InformationAnalyst — 信息分析师 ✅
 

@@ -42,12 +42,6 @@ const emptyPatch = (
     hits: [],
     coverage: opts?.coverage ?? "none",
     notes: null,
-    fc: {
-      passed: true,
-      refinedSearchQuery: null,
-      issues: [],
-      checkerNotes: null,
-    },
   },
   error: opts?.error ?? null,
 });

@@ -1,7 +1,7 @@
 /**
  * Golden G1～G5 + GMem：在线 Agent 全链路标准回归（最终验收用）。
  *
- * 覆盖 Intake → KM → FactChecker → ContentOrganizer → Analyst；
+ * 覆盖 Intake → planFanOut / KM → ContentOrganizer → Analyst；
  * 用固定问法 + steps/answer 断言建立基线，填坑前后对比通过率。
  *
  *   pnpm run golden:regression

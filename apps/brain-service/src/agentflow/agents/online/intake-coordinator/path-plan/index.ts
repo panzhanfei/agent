@@ -5,9 +5,10 @@ export type {
   PathKind,
   PathPlan,
   PathPlanCounts,
-  StepFactCheck,
   StepResult,
 } from "./interface";
+
+export { subToStepResult } from "./step-result";
 
 export { expandHybridMultiSourceTemplate } from "./dag-templates";
 

@@ -43,10 +43,17 @@ const main = async (): Promise<void> => {
     console.log("answer:", answer.slice(0, 400));
 
     const issues: string[] = [];
-    if (!steps.includes("retrieval")) issues.push("应进入 retrieval");
-    if (!steps.includes("fact_checker")) issues.push("应进入 fact_checker");
-    if (steps.filter((s) => s === "retrieval").length !== 1) {
-        issues.push("不应二次 KM");
+    if (!steps.includes("retrieval") && !steps.includes("km_retrieve")) {
+        issues.push("应进入 retrieval / km_retrieve");
+    }
+    if (steps.includes("fact_checker")) {
+        issues.push("主链不应再有 fact_checker（模块已删）");
+    }
+    const kmSteps = steps.filter(
+        (s) => s === "retrieval" || s === "km_retrieve"
+    ).length;
+    if (kmSteps > 2) {
+        issues.push("KM 步次数异常偏多");
     }
     if (!answer.includes("潘展飞")) issues.push("回答应含「潘展飞」");
 

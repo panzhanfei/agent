@@ -5,10 +5,8 @@
  */
 import assert from "node:assert/strict";
 import { parseIntakeRoutingDecision } from "../src/agentflow/agents/online/intake-coordinator";
-import { parseFactCheckerResult } from "../src/agentflow/agents/online/fact-checker/contract/schema";
 import { parseKnowledgeRetrievalResult } from "../src/agentflow/agents/online/knowledge-manager/contract/schema";
 import { parseAnalystResult } from "../src/agentflow/agents/online/information-analyst/schema";
-import { buildRuleBasedFactCheck } from "../src/agentflow/agents/online/fact-checker/helpers";
 import { buildFallbackAnswer } from "../src/agentflow/agents/online/information-analyst/analyze-helpers";
 const testIntake = () => {
     const ok = parseIntakeRoutingDecision({
@@ -79,29 +77,6 @@ const testKnowledgeManager = () => {
     assert.equal(r.coverage, "partial");
     assert.equal(r.notes, "note");
 };
-const testFactChecker = () => {
-    const fallback = buildRuleBasedFactCheck({
-        userQuestion: "q",
-        intent: "retrieve_and_answer",
-        searchQuery: "q",
-        subTasks: [],
-        topics: [],
-        language: "zh",
-        hits: [],
-        coverage: "none",
-        notes: null,
-        retryCount: 1,
-    });
-    const r = parseFactCheckerResult({
-        passed: false,
-        evidenceScore: 0.2,
-        refinedSearchQuery: "refined",
-        checkerNotes: null,
-        issues: [{ code: "no_hits_when_needed", message: "无命中" }],
-    }, fallback, 1);
-    assert.equal(r.passed, true);
-    assert.equal(r.refinedSearchQuery, null);
-};
 const testAnalyst = () => {
     const fallback = buildFallbackAnswer({
         userQuestion: "q",
@@ -134,7 +109,6 @@ const testAnalyst = () => {
 const main = () => {
     testIntake();
     testKnowledgeManager();
-    testFactChecker();
     testAnalyst();
     console.log("在线 Agent Zod 单测通过。");
 };

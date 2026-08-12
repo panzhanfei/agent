@@ -44,7 +44,6 @@ describe("planFanOut merge helpers", () => {
           hits: [],
           coverage: "sufficient",
           notes: null,
-          fc: { passed: true },
         },
       ],
       buildDagStepResults(pathPlan, {

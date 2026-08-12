@@ -31,7 +31,6 @@ const runKmSlot = async (
     slotId: patch?.slotId ?? state.activeSlotId,
     hitCount: patch?.sub.hits.length ?? 0,
     coverage: patch?.sub.coverage ?? null,
-    fcPassed: patch?.stepResult.fc?.passed ?? null,
     retried: Boolean(patch?.retried),
     slotStatus: patch?.slotRuntime?.status ?? null,
     slotReason: patch?.slotRuntime?.reason ?? null,

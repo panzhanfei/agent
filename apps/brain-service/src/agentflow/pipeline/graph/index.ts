@@ -1,6 +1,5 @@
 export { getCompiledPipelineGraph } from "./compile";
 export {
-  routeAfterFactChecker,
   routeAfterIntake,
   routeAfterPlanExecutor,
   routeAfterPrepareMemory,

@@ -28,7 +28,7 @@
 | LangChain | Intake / Analyst / Organizer 等模型调用；**StructuredTool**（`agentflow/tools/`）；离线入库 + 在线检索经 `@langchain/community` Chroma + `@langchain/ollama` Embeddings（`@fambrain/corpus`） |
 | LangSmith | LangGraph run trace + 节点 metadata | 配 `LANGSMITH_API_KEY` 后自动上报 [smith.langchain.com](https://smith.langchain.com)；`/health` 可见状态 |
 | ChromaDB | 按 `corpusUserId` 分 collection；离线入库 + **在线检索**；单文件 HITL 按 path 增量 upsert |
-| Zod | 注册/会话 + 入库 metadata；**在线 Agent JSON schema**（Intake / KM / FactChecker / Analyst / Organizer） |
+| Zod | 注册/会话 + 入库 metadata；**在线 Agent JSON schema**（Intake / KM / Analyst / Organizer） |
 | Pino | 知识入库师结构化日志 |
 | p-limit | 入库 embed 并发控制；**DocParser** 批量解析并发（`DOC_PARSE_CONCURRENCY`） |
 | Redis + BullMQ | `@fambrain/infra`：检索 hits 缓存（D5-2）、pipeline 异步队列（可选 `PIPELINE_QUEUE_ENABLED`） |
@@ -225,11 +225,10 @@ pnpm run dev
 | `addStructuredUserFact` / `searchUserFactMemories` | `packages/brain-memory/src/mem0/store.ts` | Mem0 结构化写入 + 按 factKey 语义检索 |
 | `completeIntakeCoordinator` | `agentflow/agents/online/intake-coordinator/` | 一次 `invoke` → 路由 JSON |
 | `retrieveKnowledge` | `agentflow/agents/online/knowledge-manager/` | 向量 + 关键词扫盘 + **规则精排**（无 LLM）；v3 业界对标见 [km-retrieval-design.md](./km-retrieval-design.md) |
-| `completeFactCheck` | `agentflow/agents/online/fact-checker/` | 证据包核查；打回再检索 |
+| 全局再规划 B | `agentflow/agents/online/plan-fanout/global-rebatch/` | Join 后结构失败槽补救（替代已删 FactChecker 闭环） |
 | `organizeKnowledge` | `agentflow/agents/online/content-organizer/` | hits Zod 规范化 + path 去重 |
 | `streamAnalyzeInformation` | `agentflow/agents/online/information-analyst/` | 流式 thinking + assistant |
 | `golden:regression` | `apps/brain-service/scripts/golden-regression.ts` | 在线 Agent **G1～G5c + GMem** 全链路回归（`GOLDEN_RUNS=3` 稳定性） |
-| `verify:fact-checker` / `verify:fact-checker:pipeline` | `apps/brain-service/scripts/` | FactChecker 规则 + 轻量全链路冒烟 |
 | `verify:content-organizer` / `verify:agent-schemas` | `apps/brain-service/scripts/` | ContentOrganizer / 全 Agent Zod |
 | `verify:embed-batches` | `apps/brain-service/scripts/` | Indexer p-limit 分批逻辑 |
 | `verify:memory` / `verify:doc-parser` | `apps/brain-service/scripts/` | Mem0+LangMem / DocParser |

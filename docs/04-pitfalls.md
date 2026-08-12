@@ -13,7 +13,7 @@
 - [ ] **#1 意图误判** — **触发：** 入口接线员把「帮我总结一下」误判为检索，实际是要对已检索结果做分析 — **对策：** 入口接线员输出结构化意图标签，信息分析师二次确认
 - [ ] **#2 任务拆分不合理** — **触发：** 复杂问题只分给一个 Agent，简单问题却拆给三个 — **对策：** 入口接线员维护拆分规则，简单问题直通，复杂问题并行分发
 - [ ] **#3 过早终止** — **触发：** 信息分析师只检索一次就回答，信息不足但强行输出 — **对策：** 加信息充分性检查节点，不足时触发补充检索
-- [ ] **#4 计划漂移** — **触发：** 多步推理中第一步偏了，后续全部跑偏 — **对策：** 事实核查员中途介入，验证中间结果再放行
+- [ ] **#4 计划漂移** — **触发：** 多步推理中第一步偏了，后续全部跑偏 — **对策：** Join 后 **全局再规划 B**（结构失败槽改 query / 补救，≤1 轮）；证据空时 Analyst `shouldSkipAnalystLlm` 兜底
 
 ### 工具调用（4）
 
@@ -24,14 +24,14 @@
 
 ### 幻觉与事实性（3）
 
-- [ ] **#9 信息捏造** — **触发：** 信息分析师编造不存在的文档引用 — **对策：** 事实核查员用向量库反向验证，未找到来源就打回
-- [ ] **#10 断章取义** — **触发：** 检索片段与原文限定条件不一致 — **对策：** 回答时标注原文引用，事实核查员对比一致性
+- [ ] **#9 信息捏造** — **触发：** 信息分析师编造不存在的文档引用 — **对策：** 空/弱 hits 时 Analyst skip LLM；终稿带 citations；可选生成后 groundedness（仍待做）
+- [ ] **#10 断章取义** — **触发：** 检索片段与原文限定条件不一致 — **对策：** 回答时标注原文引用；KM 摘录忠实原文（`pickExcerpt`）
 - [ ] **#11 过度自信** — **触发：** 信息分析师用肯定语气输出错误估算 — **对策：** 不确定时标注「估算，建议核实」；可信度低于 0.7 时降低语气
 
 ### 多 Agent 协作（4）
 
 - [ ] **#12 重复输出** — **触发：** 知识管理员和文档处理师都返回同一份文档内容 — **对策：** 内容整理师去重，按来源合并
-- [ ] **#13 协商死循环** — **触发：** 事实核查员打回 → 分析师修正 → 又被同一问题打回 — **对策：** 最多 2 轮修正，协调官强制终止并标记「存疑」
+- [ ] **#13 协商死循环** — **触发：** 补救环反复改 query 仍失败 — **对策：** 全局 B ≤1 轮；槽 deadline；超限降级 / insufficientEvidence
 - [ ] **#14 发言顺序混乱** — **触发：** 两个 Agent 同时推送消息，顺序不确定 — **对策：** 入口接线员通过优先级队列 + 回合令牌控制发言顺序
 - [ ] **#15 信息不对称** — **触发：** 分析师看到旧索引，文档刚更新 — **对策：** 统一数据快照，每次任务前刷新索引状态
 
@@ -39,11 +39,11 @@
 
 - [ ] **#16 关键信息遗忘** — **触发：** 用户第 1 轮说「我是前端开发」，第 5 轮却推荐后端框架 — **对策：** 用户偏好写入共享状态，每轮对话前注入偏好摘要
 - [ ] **#17 上下文污染** — **触发：** 中间错误步骤留在上下文中，影响后续决策 — **对策：** 上下文分层管理，错误步骤清除，只保留修正后的结果
-- [ ] **#19 跨轮重复检索** — **触发：** 用户在同一会话再次发送相同或极相似问题（如连续两遍「城管平台用了什么技术？」），系统仍全量走 Intake → KM → FactChecker → Analyst，体感「又核查、又检索」 — **对策：** 不依赖 FactChecker 跨轮记忆；采用 **检索结果缓存**（`corpusUserId + searchQuery`，TTL）+ **Intake 识别重复问**（复用上轮 grounded 回答或 `direct_answer`）；同义改写走 semantic cache；详见 §2.2
+- [x] **#19 跨轮重复检索** — **触发：** 同句再问仍全量 Intake → KM → Analyst — **对策：** **同问短路**（`prepareTurnStart` / `repeatQuestionGuard`）+ **L2 检索 cache** + **L3 facet 答案 cache**；详见 §2.2
 
 ### 流式输出与可观测性（1）
 
-- [x] **#18 推理黑盒（P0 部分）** — **已做：** SSE `step` 展示 intake / retrieval / **fact_checker** / **`content_organizer`** / analyst；`thinking` 展示推理流；`agent-log` 打 Intake / KM / **FactChecker** / **ContentOrganizer** / Pipeline；**Token 按节点**（`pipeline_timing.tokens.byNode` → 气泡展开 / 运行日志 / Pipeline 出去日志 / Eval 报表）；**引用列表 UI**（SSE `citations` + 消息 metadata → `MessageCitations`）— **待做：** 完整调试面板（P1）
+- [x] **#18 推理黑盒（P0 部分）** — **已做：** SSE `step` 展示 intake / retrieval（km/list/mem/…）/ **`content_organizer`** / analyst；`thinking` 展示推理流；`agent-log` 打 Intake / KM / **ContentOrganizer** / Pipeline；**Token 按节点**；**引用列表 UI** — **待做：** 完整调试面板（P1）。（历史 `fact_checker` step 仅旧日志；模块已删）
 
 ---
 
@@ -60,7 +60,7 @@
 | **Intake / 意图路由** | 问候走检索、clarify 误触、续问被澄清、单字噪声、盲预合并误伤 | P0-1、P0-13、**P0-29**、P0-25、**P0-31** | §2.5.1、§2.5.9、**§2.8.1**、**§2.10** |
 | **多槽 / PathPlan 编排** | 混合问丢段、列举+链接只出一段、routeMode 互斥 | P0-15、P0-26、P0-27、**P0-28** | §2.5.3、§2.5.10、**§2.8** |
 | **KM / 检索召回** | hits 空、枚举不全、chunk 边界 | P0-3、P0-4、R6-1、D3-2 | §2.3、§2.1.1 |
-| **FactChecker / 编排** | meta refined 打回、force_pass 后空 hits | P0-12、P0-17、D5-* | §2.2、§2.2.1、§2.2.2 |
+| **补救 / 空证据（原 FC）** | 结构失败槽再检；空 hits 幻觉 | P0-12、P0-17（历史）、全局 B | §2.2 |
 | **Analyst / 终稿** | 幻觉、列举压缩、项目/公司槽混淆 | P0-19～21、P0-12 | §2.5.5 |
 | **Cache / 跨轮** | 同句再问全链路、答案降级 | P0-11、D5-2、R6-3 | §2.2、§2.7 |
 | **Mem0 / 用户事实** | corpus 与 memory 矛盾、跨会话遗忘 | P0-14、P0-16 | §2.5.2、§2.6 |
@@ -74,7 +74,7 @@
 |--------|--------|------|
 | IntakeCoordinator | **执行终稿 / 任务规划**：`intent`、`pathPlan.steps[]`、`composeMode`、`searchQuery`、`coreference` 等（`answerOrder`/`retrievalPlan`/`compositeSlots` 由 steps 派生） | 写长答案、编造履历、口语二次拆槽、决定「下一个 Agent 名字」 |
 | KnowledgeManager | 从 **candidates** 选 `hits`（path / excerpt / relevance） | 对用户说话、归纳终稿、编造未出现在候选中的事实 |
-| FactChecker | 审当轮 `hits`/`coverage`；产出 `passed`、`refinedSearchQuery`、`checkerNotes` | 写用户终稿、编造 hits、跨轮缓存「已验过」 |
+| PlanFanOut / 全局 B | Join 汇合；结构失败槽 **≤1** 轮补救（改 query / 外搜等） | 工人内核查环；跨轮记「已验过」 |
 | ContentOrganizer | 规范化 / 去重 `hits`；空 hits 时 `coverage=none` | 调 LLM、写终稿、跨轮改 searchQuery |
 | InformationAnalyst | 据 `hits` 写 `answer` + `citations`；无据时 `insufficientEvidence` | 无 `hits` 时按训练数据编造经历 |
 
@@ -92,9 +92,9 @@
 | P0-8 | 多 Agent | Intake/KM/Analyst 串台 | 单 prompt 包打天下 | 严守合同；终稿只在 Analyst | 🔄 持续 |
 | P0-9 | RAG | 口语命中率低 | 曾仅关键词；离线向量已入库 | Intake 补全指代；在线向量检索 | ✅ D3 已接 LangChain |
 | P0-10 | 上下文 | `corpusUserId` 与「我是谁」混淆 | 语料主人 ≠ 登录者 | session / direct_answer 与 corpus 分离 | ⬜ 待做 |
-| P0-11 | FactChecker / 编排 | 用户以为「核查过一次，同句再问不应再进 FactChecker」 | **两类现象混为一谈：**（A）同轮打回再检索 → FactChecker 跑 2 次是 Corrective RAG 设计；（B）**新一条用户消息** = 新 pipeline，`checkerPassed`/`retryCount` 重置，无跨轮 cache | 见 §2.2；消坑 sprint **D5-消坑** | ⬜ 待做 |
-| P0-12 | Analyst + FC | **路径 B：** FC **二次 force_pass** 后 KM 仍 `hits=[]` / `coverage=none`，Analyst 编造终稿（陈明 / Charlie） | `streamAnalyzeInformation` hits 空仍调 LLM | **`shouldSkipAnalystLlm`** → `rules_empty_hits_skip_llm` 直出 fallback；`insufficientEvidence=true` | ✅ **已解决**（2026-06-18） |
-| P0-17 | FactChecker + 编排 | **路径 A：** KM₁ 有 hits，FC 产出 meta 式 `refinedSearchQuery`（如「姓名 **全名 完整称呼**」），编排覆盖 `searchQuery` → KM₂ 变差 | FC LLM 把「怎么查」写成检索词；编排无条件覆盖；无 refined 有效性校验 | `personal/` + 姓名类 → **跳过 FC LLM 直接 pass**；`mergeRetrySearchQuery` meta  strip + 无增量不重检；见 **§2.2.2** | ✅ **已解决**（2026-06） |
+| P0-11 | Cache / 编排 | 同句再问仍体感「又检索一遍」 | **新消息 = 新 pipeline**；跨轮去重靠 cache / 同问短路，不靠已删 FC | **同问短路** + L2/L3 cache；见 §2.2 | ✅ **已缓解**（D5-2；FC 模块已删） |
+| P0-12 | Analyst | 空/弱 hits 时 Analyst 编造终稿（陈明 / Charlie）；旧路径曾经 FC force_pass | `streamAnalyzeInformation` hits 空仍调 LLM | **`shouldSkipAnalystLlm`** → `rules_empty_hits_skip_llm`；`insufficientEvidence=true` | ✅ **已解决**（2026-06-18） |
+| P0-17 | 编排（历史 FC） | 旧 FC meta `refinedSearchQuery` 覆盖 → KM₂ 变差 | FC LLM 把「怎么查」写成检索词 | **FactChecker 模块已删**；再检仅 **全局 B** 结构补救 | ✅ **已归档**（2026-06 修；2026-08 删 FC） |
 | P0-18 | Intake / Cache / Analyst | 单问「今年多大」→ Intake `clarify`；composite 单槽空 hits 走「未标注年龄」；同问 1ms 复用错答 | Mem0 工作年限≠出生日期；终稿 cache 跳过 KM 但 merge 空；repeat 复用兜底文案 | Intake **示例 9**；`knowledge-manager/composite/retrieve.ts` citations→hits；`runtime/stream.ts` 单槽回放；三层 cache **env 可关**；`clear-pipeline-cache` | ✅ **已解决**（2026-06 · Web 复测）← §2.5.4 |
 | P0-13 | Intake | Golden / Web「你好」→ `briefReply` 出现 **「大表哥」** 等未定义称呼 | `chitchat` 路径不经 Analyst；Intake 小模型在 `briefReply` 自由发挥 | **`applyIntakeChitchatGuard`** 服务端固定模板（LLM `briefReply` 须 null）；Intake JSON snake_case 归一 | ✅ **已解决**（2026-06-18）← `verify:intake-chitchat` |
 | P0-14 | Analyst + Mem0 | Golden / Web「我的名字」→ 同句 **「知识库没有记录」+「长期记忆已知潘展飞」** 自相矛盾 | hits 弱时走 insufficientEvidence 话术，Mem0 又补姓名；**corpus 与 memory 优先级未定义** | **KM 优化**后 `personal/` 姓名类检索稳定 → hits 含简历，Analyst 直答 corpus；不再触发「空 hits + Mem0 补履历」路径 | ✅ **已解决**（KM 优化 · Web/G2 复测 2026-06） |
@@ -109,7 +109,7 @@
 | P0-25 | Intake / KM / Analyst | 问「开源项目 **GitHub 链接**」→ 答 **aky 内部路径**；应 **2 条 URL** 只给 release-bot；「不止这一个」→ **clarify** 或 LLM 写齐 plan；点名物联网/工具库 → 一未覆盖、一错绑 release-bot | Intake 误标 **enumeration** → KM **projects fill** 扫 offline 文档；会话 **stale subTasks** 继承；省略续问误 clarify；Analyst 跨槽借 URL | **`queryType=external_link`** + **`applyIntakeLinkLookupGuard`**（harmonize only）+ KM **`applyExternalLinkGuard`** + Analyst external_link 规则；**LLM 写齐 `retrievalPlan`** | ✅ **已解决**（2026-07）← §2.5.9 |
 | P0-26 | Intake / KM / 编排 | **混合问**「React 经验 + **列出全部项目**」→ 整句走 list、tech 段丢失；续问「更多项目」靠 **口语 regex** 误判 | P0-22 用 **整句 `routeMode=list`** 表达穷举；`enumeration-list-intent` 堆 regex，与 per-slot composite 冲突；KM 无 **按槽 executor** | **per-slot** `enumerationControl` + `executor=km_retrieve\|list_corpus`；`applyEnumerationSlotGuard`；UI **`ENUMERATION_ACTION_PROMPTS`** exact-match；`retrieval-node` 按槽执行 | ✅ **已解决**（2026-07）← §2.5.10 · [架构 v2 §10](./05-architecture-v2-tool-orchestration.md#10-列举执行-per-slot-演进-2026-07) |
 | P0-27 | Intake / Web | 「列出全部项目 + **开源** GitHub/线上地址」→ 第 2 段变成「**每个**项目的 GitHub」且无 URL；前端无分页按钮 | LLM 双槽皆标 enumeration；link guard 误 aggregate；槽 id 撞车；Web BFF `pipeline_done` **丢 blocks** | Intake 示例 16 + `harmonizeRetrievalPlanQueryTypes`（`inferQueryProfile`）+ 保留混合 plan；`planItemToSlot` 唯一 id；BFF 透传 blocks；分页文案对齐 `ENUMERATION_ACTION_PROMPTS` | ✅ **已解决**（2026-07）← §2.5.10 · diagnose-mixed-projects-github-query |
-| **P0-28** | Intake / KM / FC / 编排 | **混合问**「列举项目 + 开源 GitHub 链接」→ composite 只答 **一段**（或 external_link 槽被 label regex 漏掉）；FC 对 composite≥2 **整轮跳过** | `routeMode` / `compositeSlots` / `executionPlan` / toolPlan **四套多槽互斥**；opensource 与 enumeration **并行 KM** 而非依赖链；FC 一次失败拖垮全答 | **PathPlan** 有序 `steps[]` + **`planFanOut`（LangGraph Send）**；external_link 作 km 步 + extract 工具（无场景 DAG）；**km 槽 per-step FC**（list 不经 FC）；`composeMode` 一次 composite | ✅ **已解决**（2026-07）← **§2.8** · [架构 v2 §11](./05-architecture-v2-tool-orchestration.md#11-pathplan-统一执行计划-2026-07) |
+| **P0-28** | Intake / KM / 编排 | **混合问**「列举项目 + 开源 GitHub 链接」→ composite 只答 **一段**（或 external_link 槽被 label regex 漏掉）；旧 FC 对 composite≥2 **整轮跳过** | `routeMode` / `compositeSlots` / `executionPlan` / toolPlan **四套多槽互斥**；opensource 与 enumeration **并行 KM** 而非依赖链 | **PathPlan** 有序 `steps[]` + **`planFanOut`（LangGraph Send）**；external_link 作 km 步 + extract 工具；补救走 **全局 B**（FC 已删）；`composeMode` 一次 composite | ✅ **已解决**（2026-07）← **§2.8** · [架构 v2 §11](./05-architecture-v2-tool-orchestration.md#11-pathplan-统一执行计划-2026-07) |
 | **P0-29** | Intake | `verify:intake-chitchat` 偶发「你好」→ **`retrieve_and_answer`**；脚本断言逻辑反了 | 小模型对极短句非确定性；prompt 检索示例偏多；parse 失败 → `defaultIntakeDecision`；测试在 intent=chitchat 时误 throw | **`isPureSocialUtterance`** 入口跳过 LLM；chitchat briefReply 仍走 P0-13 模板 | ✅ **已解决**（2026-07）← **§2.8.1** · `verify:intake-chitchat` |
 | **P0-30** | Intake / KM / Analyst / Web | 超长复合履历问：重复「工作经历/任职」、表头误「项目名称」、年限只算近段、近两年未过滤；`labels` 口语二次规划 | Intake 过拆 + repair 口语注入；canonicalize 盖掉 tenure 检索词；UI 写死表头；list 无时间窗 | **LLM 主导合并拆分**；schema 合法化 + facet 去重；`tenure` + `timeWindowYears`；职位/链接 UI；单测迁 `tests/` | ✅ **已解决**（2026-07）← **§2.9** · [架构 v2 §12](./05-architecture-v2-tool-orchestration.md#12-intake-llm-主导--schema-兜底2026-07--去问句硬编码) |
 | **P0-31** | Intake | 单字乱敲浪费 token；短续问**盲预合并**误伤换题；散文当指代信号；复盘时「代码像二次 Intake」 | 结构启发当语义；散文兜底驱动重试；规划与纠偏缠在一起 | **档 B 定型**：主路径=LLM 任务规划；旁路=normalize / JSON 修复 / 指代拼接≤1 / guard 纠偏；`coreference` 字段 | ✅ **已解决**（2026-07）← **§2.10** · [架构 v2 §13](./05-architecture-v2-tool-orchestration.md#13-intake-档-b主路径规划--旁路纠偏-2026-07) |
@@ -181,7 +181,7 @@ pnpm --filter @fambrain/brain-service run eval:run   # 全量
 |--------|------|--------------|
 | 列举全部项目 + 开源 GitHub 链接 | 两段：项目列表 + 简历中 2 条公开 URL | 常只答一段；或 external_link 槽被 **label 正则** 漏配 |
 | React 经验 + 列出全部项目（混合） | 同轮 tech KM + list 分页 | 整句 `routeMode=list` 劫持，tech 段丢失（P0-26 同类） |
-| composite ≥2 槽 | km 槽 per-step FC；list 不经 FC；km 一段失败可局部重试 | 旧 FC **整轮 skip**；或一次打回拖垮全答 |
+| composite ≥2 槽 | Join 后结构失败可走全局 B；list/km 工人无 FC | 旧 FC **整轮 skip** 或一次打回拖垮全答（已删） |
 
 #### 根因（架构层）
 
@@ -190,7 +190,7 @@ pnpm --filter @fambrain/brain-service run eval:run   # 全量
 | **路由模型** | ~~routes 堆判定~~ → **`routeMode` 图边 1:1** | 复杂判定在 Intake `resolveIntakeGraphRouteMode`；routes 只分发 |
 | **多槽实现分裂** | compositeSlots / toolPlan / executionPlan 各维护一套 | Intake 与 planFanOut 语义不一致，guard 顺序敏感 |
 | **opensource 链接** | external_link 与 enumeration **并行 KM** | 应 **先 list 实体 → 再抽 URL**（有 deps 的子图） |
-| **FactChecker** | 单次、composite≥2 跳过 | → **km 槽**工人内 per-step FC；list_corpus 不经 FC |
+| **补救环** | 旧整轮 FC / composite≥2 跳过 | → **全局再规划 B（≤1）**；工人无 FC；`StepResult` 无 `fc` |
 | **硬编码** | label 口语猜 external_link 槽 | 与 P0-25「只信 queryType」原则冲突 |
 
 #### 对策（已实现）
@@ -202,7 +202,7 @@ pnpm --filter @fambrain/brain-service run eval:run   # 全量
 | `path-plan/compile-path-plan.ts` | 旧分桶编译（测试/兼容；主 pipeline 不再走） |
 | `path-plan/dag-templates.ts` | 仅 `hybrid_multi_source`（多源汇合；禁止场景 named DAG） |
 | **`plan-fanout/`** | `fan-out` + `planSlotJoin` + `planMerge`；Send 目标节点在 KM / Lister / ToolOrchestrator / UserFact |
-| `corpus-lister/` | LangGraph **`listRetriever` / `listRetrieve`**：纯 list / 复合 list 工人（**均不经 FC**） |
+| `corpus-lister/` | LangGraph **`listRetriever` / `listRetrieve`**：纯 list / 复合 list 工人 |
 | `tool-orchestrator/plan-slot-post/`、`plan-dag/` | fan-out 内 tools / DAG 图节点出口 |
 | `user-fact/side/` | fan-out 并行 remember side-effect |
 | `corpus-lister/enumeration/` | 列举分页 / UI **exact-match**（Intake barrel re-export） |
@@ -450,7 +450,7 @@ pnpm --filter @fambrain/brain-service run verify:r6-no-cache   # R6-1：同句�
 |------|----------|
 | **Intake** | `chitchat` 的 `briefReply` 已模板兜底（**P0-13** ✅） |
 | **KM** | `personal/` 检索不稳定；复合问法一次 hit 简历、一次 hit 别的 chunk 或空（P0-15、D3-2） |
-| **FactChecker** | meta `refinedSearchQuery` 打回 KM₂（**P0-17** ✅）；二次 force_pass 后空 hits → Analyst skip LLM（**P0-12** ✅） |
+| **补救 / 空证据** | 旧 FC meta refined（**P0-17** 已归档）；空 hits → Analyst skip LLM（**P0-12** ✅）；现网补救 = 全局 B |
 | **Analyst** | hits 空已 skip LLM（P0-12 ✅）；弱 hits 仍可能编造（赵一）（**P0-15**）；P0-17 下游受害已修 |
 | **Mem0** | corpus/Mem0 同句矛盾（**P0-14** ✅，KM 稳定命中后不再触发）；跨会话自述事实（P0-16 ✅） |
 
@@ -458,7 +458,7 @@ pnpm --filter @fambrain/brain-service run verify:r6-no-cache   # R6-1：同句�
 
 | 优先级 | 对策 | 解决哪条现象 | 计划日历 | 改动面 |
 |--------|------|--------------|----------|--------|
-| **P0** | FC：`personal/` + 姓名类 → pass；meta refined **不覆盖、不重检 KM**（P0-17） | KM₁ 好 → KM₂ 坏 | **当前优先** | `fact-checker/check-facts.ts`、`check-helpers.ts` |
+| **P0** | ~~FC personal pass / meta strip（P0-17）~~ → **FC 模块已删**；再检仅全局 B | 历史 KM₁→KM₂ 变差 | ✅ 归档 | （无 `fact-checker/`） |
 | **P0** | Analyst：`hits=[]` / `coverage=none` **不调 LLM**，直出 fallback（**P0-12**） | 陈明类幻觉（路径 B） | Day 3 | `information-analyst/stream.ts` ✅ |
 | **P0** | Intake：chitchat `briefReply` 服务端固定模板 | 大表哥 | Day 3 | `intake-chitchat-guard.ts` ✅ |
 | **P0** | KM：`personal/` 姓名类检索稳定（identity query）→ hits 含简历，消除 corpus/Mem0 同句矛盾 | P0-14 | KM 优化 | `knowledge-manager/recall/retrieve.ts` 等 ✅ |
@@ -474,8 +474,8 @@ pnpm --filter @fambrain/brain-service run verify:r6-no-cache   # R6-1：同句�
 
 - [x] 「你好」10 次无「大表哥」类称呼（P0-13）← `verify:intake-chitchat`（`CHITCHAT_RUNS=10`）✅
 - [x] 「我的名字」无「库里无 + 记忆有」同句矛盾（P0-14）← KM 优化后 Web/G2 复测 ✅
-- [x] 「我的名字」3 遍均含 **潘展飞**，无陈明/赵一（P0-15 延伸）；agent-log 无 FC meta refined 打回（P0-17）← 随 P0-15 ✅
-- [x] 复现 **路径 B** 后：`hitCount=0` + FC force_pass 时 Analyst 不调 LLM（P0-12）← `verify:analyst-empty-hits` ✅
+- [x] 「我的名字」3 遍均含 **潘展飞**，无陈明/赵一（P0-15 延伸）；无二次坏 query 打回（P0-17 归档）← 随 P0-15 ✅
+- [x] `hitCount=0` / `coverage=none` 时 Analyst 不调 LLM（P0-12）← `verify:analyst-empty-hits` ✅
 - [x] 单问「我今年多大 / 多大了」走 `routeMode=slots`（1 槽）+ 简历 excerpt 含出生日期；无 clarify / 无「未标注年龄」兜底（**P0-18**）← Web 复测 + `diagnose-age-query.ts` ✅
 - [x] 「我叫什么 年龄 职业 从业经历」3 遍姓名均为 **潘展飞**，无赵一/陈明（**P0-15**）← `verify:r6-no-cache` ✅
 - [x] `GOLDEN_RUNS=3` Golden 稳定性 **7/7×3**（2026-06）
@@ -974,7 +974,7 @@ Web：对话 A「我的qq是734858469」→ 确认；**新建**对话 B「我的
 | **Intake** | 编号「1～4」可能被当成**新检索任务**，未绑定为**同一 composite profile**；`searchQuery` / `queryType` 与首轮不一致 | 子问 2 仅触发「公司」子集检索，未继承首轮 `subTasks` |
 | **KM** | 与 §2.3 相同：`MAX_HITS` + 向量 topK → **列举型/多公司**仍只拉回 2 个 experience chunk | 子问形态下 Intake 的 `topics` 可能偏 `project` 而非 `enumeration` |
 | **Analyst** | 当轮 hits 仅含奥卡云、奖多多相关 chunk 时，**正确但保守**地只答 2 家；**未读**本会话首轮 assistant 已 grounded 的 4 家列表 | 与 R6-2 类似：缺「同会话 grounded 不可降级」 |
-| **D5-2 / cache** | 第 3 轮未命中「同 composite 问」cache（问法已变）；仍全量 KM+FC | **同问短路（2026-06-18）** 已覆盖「字面相同综合问重复」；换形子问仍走全链路 |
+| **D5-2 / cache** | 第 3 轮未命中「同 composite 问」cache（问法已变）；仍全量 KM | **同问短路（2026-06-18）** 已覆盖「字面相同综合问重复」；换形子问仍走全链路 |
 | **可观测** | 本轮 `latencyMs≈42600`，非重复问快路径 | 同问短路命中时仅 **`prepare_turn_start`** step、`repeatQuestionHit=true`、~ms 级 |
 
 **链路（通俗）：** 第一轮问得宽，检索凑齐 4 段经历 → 答对 → 用户改成四条小题 → 系统每题重新找书 → 第二题「哪些公司」只找到 2 本书 → 分析师只念 2 家，**忘了第一轮已经列过 4 家**。
@@ -998,130 +998,54 @@ pnpm --filter @fambrain/brain-service run verify:r6-no-cache           # 同会�
 
 `verify:r6-no-cache` 覆盖：综合履历 → 同句再问 → 单问枚举 → **「1. 我在哪几家公司…」** 均 **4 家**。
 
-### 2.2 FactChecker 与跨轮重复检索（2026-06 · D5 联调）
+### 2.2 跨轮重复检索与补救（原 FactChecker 已删除 · 2026-08）
 
-> **背景：** D5 已接入 `Intake → KM → FactChecker → Analyst`。FactChecker 职责是 **检索后、生成前** 审查当轮 `hits`/`coverage`，不是「验完永久放行」；市面同类为 Self-RAG / Corrective RAG 的 **evidence grader**，跨轮去重靠 **cache / Intake**，不靠 FactChecker 记状态。
+> **现状：** 主链 **无 FactChecker 模块**（`fact-checker/` 已删；`StepResult` 不再含 `fc`）。  
+> 流程：`prepareTurnStart` → Intake → **planFanOut（Send 工人）** → `planSlotJoin` → 可选 **全局再规划 B（≤1）** → Organizer → Analyst。  
+> 跨轮去重靠 **同问短路 + L2 检索 cache + L3 facet 答案 cache**；同轮证据补救靠 **全局 B**，不是工人内核查环。
 
-#### 何时会进入 FactChecker（代码：`pipeline/graph/compile.ts`）
+#### 跨轮：何时会「再跑一遍」
 
 | 条件 | 路径 |
 |------|------|
-| `| 闲聊 / clarify / `briefReply` 提前结束 | **不进**（`respondEarly`） |
-| `
-**同轮第二次 FactChecker：** 仅当第一次 `passed=false` 且 `retryCount < 1` → 改写 `searchQuery` 再检索 → **必须再审新一轮 hits**（不是 bug）。
+| 闲聊 / clarify / `briefReply` | **不进**检索（`respondEarly`） |
+| `normalize(userQuestion)` 与本会话 history 某轮 user 相同且其后有 assistant 答 | **同问短路**：只 emit `prepare_turn_start`，复用上轮答案（`repeatQuestionHit`） |
+| 未短路，但 L2 key（`corpusUserId + queryType + normalize(searchQuery)`）命中 | **跳过 KM 向量检索**，仍走后续 Organizer / Analyst（或槽级复用） |
+| L3 session facet 命中 | composite 槽 **instant 回放**该 facet 答案 |
+| 以上皆未命中 | 全量 Intake → fan-out 工人 → Join →（可选全局 B）→ Analyst |
 
-**新一轮用户消息（即使用户字面上重复上一问）：** 默认整图重跑；**同问短路**（LangGraph **`prepareTurnStart` 节点** / `repeat-question-guard.ts`）若 `normalize(userQuestion)` 与本会话 history 中某轮 user 相同且其后有 assistant 答 → **短路**，只 emit **`prepare_turn_start`** step 并流式复用上轮答案（`repeatQuestionHit`）。否则若 Intake 产出相同 `searchQuery` + `queryType` → **检索结果 cache** 跳过 KM 向量检索，仍走 FC / Analyst。
+#### 同轮：全局再规划 B（替代已删 FC 打回）
 
-#### 典型误解 vs 实际
+| 项 | 说明 |
+|----|------|
+| 触发 | Join 后槽 **结构失败**（空 coverage / 超时 stub 等）且 retry 预算未耗尽 |
+| 上限 | **≤1** 轮全局 B；单槽另有 `SLOT_DEADLINE_MS` |
+| 不做 | 工人内 FC LLM；`refinedSearchQuery` 覆盖整轮；`StepResult.fc` |
 
-| 误解 | 实际 |
-|------|------|
-| 第一次 FactChecker 后问题应被「解决」 | 同轮只决定**本轮**证据够不够；打回 = 再检索，不是写入会话记忆 |
-| 同句再问应跳过核查 | **同问短路**直接复用答案；**检索结果 cache** 命中时 FC 规则快检（`cache_hit_skip_llm`） |
-| FactChecker 应避免重复读原文 | 审的是**当轮** `hits`；跨轮重复靠 cache，不靠 FactChecker |
+#### 历史坑（已归档 · 勿按现网排查）
 
-#### 推荐对策组合（后续集中实现 · 优先级）
+| ID | 旧现象（FC 时代） | 现状 |
+|----|-------------------|------|
+| D5-1 | 同轮两次「核查证据…」+ 两次检索 | **不再出现** `fact_checker` step；补救见全局 B |
+| D5-2 / P0-11 | 同句再问仍全链路 | ✅ 同问短路 + L2/L3 cache |
+| D5-3 | 期望 FC 校验终稿 vs hits | ⬜ 仍可选：生成后 groundedness（与 FC 模块无关） |
+| D5-5 / P0-12 | FC force_pass 后空 hits → Analyst 幻觉 | ✅ `shouldSkipAnalystLlm` / `verify:analyst-empty-hits`（与 FC 解耦后仍有效） |
+| D5-6 / P0-17 | FC meta refined 毁掉 KM₁ | ✅ **已归档**（FC 删除后根因面消失） |
 
-| 优先级 | 对策 | 解决哪类「第二次」 | 改动面 |
-|--------|------|-------------------|--------|
-| P0 必留 | 检索后 FactChecker + 最多 1 次打回再检索 | 同轮证据不足 | 已实现 |
-| **+1** | **检索结果缓存** `corpusUserId + queryType + normalizedSearchQuery`，TTL 可配；cache hit 时 FactChecker 规则快检 | 跨轮同义再问（Intake searchQuery 稳定） | `retrievalNode` / `@fambrain/infra` ✅ |
-| **+2** | **同问短路**：`normalize(userQuestion)` 与本会话 history 相同 → 复用上轮 assistant 答；`REPEAT_QUESTION_CACHE_DISABLED=1` 可关 | 跨轮 verbatim 重复 | `prepare-turn-start/repeat-question-guard.ts` + `prepareTurnStart` 节点 ✅ |
-| +3 | 生成后 citation 规则校验（answer vs hits） | 幻觉终稿 | Analyst 后节点 / pitfalls #9 |
-| +4 | 向量 rerank，降低 FactChecker 打回率 | 同轮少出现 2 次 FactChecker | KM |
+**验证脚本（现行）：** `pnpm run verify:analyst-empty-hits`、`pnpm run verify:intake-chitchat`、`pnpm run verify:repeat-question-smoke`、`pnpm run verify:retrieval-cache`、`pnpm run golden:regression`。  
+~~`verify:fact-checker`~~ 已删除。
 
-**不建议：** 仅靠 FactChecker 跨轮记住 `passed` 跳过（语料更新、上下文变化会导致陈旧或漏检索）。
+#### 2.2.1 空 hits 幻觉（P0-12 · ✅ 仍有效）
 
-#### 踩坑表
+空/弱证据时 Analyst **不得**调 LLM 编造：
 
-| ID | 环节 | 现象 | 根因 | 对策（计划） | 状态 |
-|----|------|------|------|--------------|------|
-| D5-1 | FactChecker | 证据无命中时 UI 出现两次「核查证据…」+ 两次检索 | `routeAfterFactChecker` 打回逻辑 | 保留；用 D3-2 提高首轮命中率，减少打回 | 🔄 预期行为 |
-| D5-2 | 编排 / UX | 聊天记录里**同一句再问**，仍走检索+核查 | 每轮 `runPipelineStream` 状态重置；Intake 非确定性改 searchQuery | **同问短路** ✅ + **检索结果 cache** ✅（`@fambrain/infra` + Redis）；dev `.env` 关 cache 时 verify 脚本自行 override | ✅ **已解决**（2026-06-18） |
-| D5-3 | 职责 | 期望 FactChecker 校验**终稿** vs hits | 仅在生成前审证据包 | D6 后或 +3 增加生成后 groundedness | ⬜ 待做 |
-| D5-4 | SSE | 重复问时 step 闪过快，用户只注意到「整理回答」 | `fact_checker` 与 `analyst` 连续 | 可选：重复问跳过 fact_checker step 展示 | ⬜ 低优 |
-| D5-5 | Analyst + FC | **路径 B：** FC 二次 force_pass 后 KM 仍空 hits，Analyst 编造终稿（**P0-12**） | Analyst 无空 hits 硬兜底 | `shouldSkipAnalystLlm` + `verify:analyst-empty-hits` | ✅ **已解决**（2026-06-18） |
-| D5-6 | FC + 编排 | **路径 A：** KM₁ 有 hits，FC meta `refinedSearchQuery` 导致 KM₂ 变差（**P0-17**） | LLM refined + 编排无条件覆盖 searchQuery | 见 §2.2.2：`refined-search-query.ts` + `personal_skip_llm` + `mergeRetrySearchQuery` | ✅ **已解决**（2026-06） |
+- `shouldSkipAnalystLlm`（`hits.length===0` 或 `coverage==="none"`）→ `rules_empty_hits_skip_llm`
+- 验证：`pnpm --filter @fambrain/brain-service run verify:analyst-empty-hits`
 
-**验证脚本：** `pnpm run verify:fact-checker`、`pnpm run verify:analyst-empty-hits`、`pnpm run verify:intake-chitchat`、`pnpm run verify:repeat-question-smoke`、`pnpm run verify:retrieval-cache`、`pnpm run golden:regression`（`apps/brain-service/package.json`）。
+#### 2.2.2 历史：FC meta refined（P0-17 · ✅ 已归档）
 
-#### 2.2.1 路径 B — Analyst 空 hits 幻觉（P0-12 · ✅ 2026-06-18）
-
-> **背景：** Golden / Web 早先联调「我的名字」时，**偶发**答「根据《个人简介》，你的名字全称为**陈明**…」；语料仅有 **潘展飞**。 hypothesized 链路：**两轮 KM 后 hits 仍空** → FC force_pass → Analyst LLM 幻觉。
->
-> **与 P0-17 拆分：** 本节是 **路径 B**（KM 最终空/弱 + force_pass）；**§2.2.2 路径 A** 是 KM₁ 曾有 hits，被 FC 坏 refined 打回后 KM₂ 变差。**两条都要修，但验证与改代码顺序分开。**
-
-**假设链路（待 agent-log 确认）：**
-
-```text
-用户「我的名字」→ Intake → KM₁ hits 空或弱
-  → FC 第 1 次：打回再检索（D5-1）
-  → KM₂ 仍空/弱
-  → FC 第 2 次：retryCount≥1 → passed=true（force_pass_after_retry）
-  → Analyst **skip LLM**（`rules_empty_hits_skip_llm`）→ insufficientEvidence 话术，不编造
-```
-
-**已实现（2026-06-18）：** `shouldSkipAnalystLlm`（`hits.length===0` 或 `coverage==="none"`）→ `buildFallbackAnswer`，日志 `source: "rules_empty_hits_skip_llm"`。
-
-**与相关坑的分工：**
-
-| 层级 | 坑 ID | 角色 |
-|------|-------|------|
-| 上游 | **D3-2** | KM 有 candidates 却 `hits:[]` |
-| 中游 | **D5-1** | 同轮两次 FC 是设计 |
-| 下游 | **P0-12 / D5-5** | Analyst hits 空 skip LLM ✅ |
-| 易混 | **P0-17 / D5-6** | KM₁ 有 hits 却被 FC 打回 — **不是本路径** |
-
-**典型日志（预期，待复现）：**
-
-```text
-📚 [KnowledgeManager] 📤 出去  { hitCount: 0, ... }   // KM₂ 仍空
-🔍 [FactChecker] 📤 出去  { passed: true, source: rules_fallback, retryCount: 1, ... }
-🧠 [InformationAnalyst] 📤 出去  { source: "rules_empty_hits_skip_llm", insufficientEvidence: true, ... }
-```
-
-**验证：** `pnpm --filter @fambrain/brain-service run verify:analyst-empty-hits`；Web 若 KM₂ `hitCount=0` 应见 `rules_empty_hits_skip_llm`，answer 不含语料外姓名。
-
-#### 2.2.2 路径 A — FC meta refined 打回毁掉 KM₁（P0-17 · ✅ 已消坑 2026-06）
-
-> **背景：** 2026-06 Web / agent-log 实测「我的名字」：**KM₁ 正常有 hits**，FC 打回并产出 `refinedSearchQuery: "姓名 全名 完整称呼"`，编排覆盖 `decision.searchQuery` 后 **KM₂ 检索变差** → 乱答。
-
-**链路（改前 · 实测）：**
-
-```text
-Intake searchQuery: "个人简介 简历 姓名"
-  → KM₁：hitCount≥1，path 含 personal/个人简历-潘展飞.md
-  → FC 第 1 次：passed=false，refinedSearchQuery="姓名 全名 完整称呼"
-  → compile 覆盖 decision.searchQuery → KM₂ 用坏 query
-  → hits 变差 / excerpt 仅标题 → Analyst insufficientEvidence 或乱答
-```
-
-**落地改动（文件 → 行为）：**
-
-| 文件 | 函数 / 逻辑 | 行为 |
-|------|-------------|------|
-| `fact-checker/refined-search-query.ts` | `META_REFINED_TOKENS`、`stripMetaFromSearchQuery` | 去掉「全名 / 完整称呼 / 检索词 …」等 meta 词 |
-| 同上 | `hasPersonalCorpusHits` | path/title 匹配 `personal/`、`个人简历` |
-| 同上 | `mergeRetrySearchQuery` | 合并首轮 query + strip 后 refined；**相对首轮无新 token → `shouldRetry: false`**，`skipReason: "refined_merge_no_increment"` |
-| `fact-checker/check-facts.ts` | `personal_skip_llm` 分支 | hits 含 personal 且 userQuestion 为姓名类 → **不调 FC LLM**，直接 `passed: true`，`source: "rules_personal_pass"` |
-| `fact-checker/check-helpers.ts` | `applyFactCheckGuards` | LLM 结果经 guard；无效 refined 不触发 KM 二次检索 |
-| `intake-coordinator/prompt.ts` | identity 示例 | 姓名类 query 应含「个人简介 / 简历」等语料目录词（不写死人名） |
-| `scripts/verify-fact-checker.ts` | 新增用例 | meta refined、personal pass、merge 无增量 |
-
-**改后典型日志（Web 联调通过）：**
-
-```text
-📚 [KnowledgeManager] 📤 出去  { hitCount: ≥1, resultSource: "rule", paths: [".../personal/..."] }
-🔍 [FactChecker] 📤 出去  {
-  passed: true,
-  source: "rules_personal_pass",
-  guardApplied: "personal_skip_llm",
-  willRetryRetrieval: false
-}
-（不应出现第二次 KnowledgeManager 📥 进入）
-```
-
-**验证：** 问「我的名字是什么？」→ FC `passed=true` 且 `willRetryRetrieval=false`；日志中**无**第二次 KM、`refinedSearchQuery` 不含「全名 完整称呼」。
+旧 Corrective RAG：`FactChecker` 产出 meta 式 `refinedSearchQuery`（如「姓名 全名 完整称呼」）覆盖 `searchQuery` → KM₂ 变差。  
+**2026-06** 曾用 personal pass / meta strip 缓解；**2026-08** 删除整个 FC 模块与打回环后，该路径不再存在。排查现网「二次检索」请看 **全局 B** 与 cache，不要再找 `fact-checker/*`。
 
 ### 2.1 D3 / LangChain 联调踩坑（2026-05-22）
 
@@ -1223,8 +1147,7 @@ searchQuery + corpusUserId
 
 ```bash
 pnpm run verify:agent-schemas
-pnpm run verify:fact-checker
-# Web 问「我的名字是什么？」→ KM resultSource=rule，FC personal_skip_llm，无二次 KM
+# Web 问「我的名字是什么？」→ KM resultSource=rule；主链无 fact_checker step
 ```
 
 **仍待完善（KM v3）：** 见 [km-retrieval-design.md](./km-retrieval-design.md) §三；P0-14（corpus/Mem0 矛盾）已由 KM 优化 ✅。
@@ -1240,10 +1163,10 @@ pnpm run verify:fact-checker
 | P0-9 / D3-2 | 检索策略限制 |
 | D3-8 / D3-9 | #16 关键信息遗忘 |
 | P0-10 | #15 信息不对称 |
-| P0-11 / D5-2 | #19 跨轮重复检索 |
-| D5-1 | #6 工具调用死循环（已限 1 次打回，非死循环） |
-| P0-12 / D5-5 | #9 信息捏造（路径 B：force_pass 后 hits 空，Analyst 仍编造 — 待验证） |
-| P0-17 / D5-6 | #4 计划漂移（FC 坏 refined 导致 Corrective RAG 二次检索跑偏） |
+| P0-11 / D5-2 | #19 跨轮重复检索（✅ 同问短路 + cache） |
+| 全局 B | #6 工具调用死循环（补救 ≤1 轮） |
+| P0-12 | #9 信息捏造（空 hits skip LLM ✅） |
+| P0-17（归档） | #4 计划漂移（旧 FC refined；模块已删） |
 | P0-13 | #1 意图误判（chitchat briefReply 风格漂移） | ✅ `verify:intake-chitchat` |
 | **P0-29** | #1 意图误判（纯问候 → retrieve） | ✅ §2.8.1 |
 | **P0-30** | #2 任务拆分不合理（口语二次规划） | ✅ §2.9 |
@@ -1266,8 +1189,9 @@ pnpm run verify:fact-checker
 
 ## 三、调试 checklist（每轮对话）
 
-- [ ] 若出现**两次** `fact_checker` step：查 FactChecker 第一次是否 `passed=false`、是否打回再检索（D5-1，常伴 `retryCount: 1`）← §2.2
-- [ ] 若**新一条消息**与上轮同句仍全链路：查 `repeatQuestionHit` 是否为 false（history 未含上轮 assistant 答，或 normalize 不一致）← §2.2
+- [ ] 若日志仍出现 `fact_checker` step / `FactChecker` agent-log：属**旧会话或过期文档**；现网主链已无该模块 ← §2.2
+- [ ] 若**新一条消息**与上轮同句仍全链路：查 `repeatQuestionHit`、L2/L3 cache 是否未命中 ← §2.2
+- [ ] Join 后是否触发**全局 B**、是否超过 1 轮；槽是否 `slot_deadline_exceeded` ← §2.2 · [控制面](./06-architecture-control-plane.md)
 
 - [ ] Intake 原始 JSON 是否合理（`intent` / `searchQuery` / **`pathPlan.steps`** / **`coreference`**）；若日志有 `JSON格式修复重试` / `指代拼接重试`，先分清是格式问题还是指代未消解 ← **P0-31** §2.10
 - [ ] remember/recall 是否进 **`user_fact`** step（非 respondEarly 空答）← routeMode 优先级
@@ -1279,8 +1203,7 @@ pnpm run verify:fact-checker
 - [ ] 换模型复现：区分 prompt 问题 vs 模型能力（`OLLAMA_MODEL` / `OLLAMA_MODEL_INTAKE_COORDINATOR`）
 - [ ] **Dify / 换模型后（P0-34）：** GMem + 六连问 QQ 不依赖 `km-qq`→mem / 空 plan→remember；通过后按 §2.11 删猜意图兜底
 - [ ] agents 服务 `:3001` 是否唯一实例（无 EADDRINUSE）← D3-12
-- [ ] FactChecker 日志：`passed` / `refinedSearchQuery` / `retryCount` 是否符合 §2.2 判定表
-- [ ] **FC 二次放行 + hitCount=0**：Analyst 应 `rules_empty_hits_skip_llm`（**P0-12** ✅）← §2.2.1
+- [ ] **hitCount=0 / coverage=none**：Analyst 应 `rules_empty_hits_skip_llm`（**P0-12** ✅）← §2.2.1
 - [x] **列举型问题**（「哪几家公司」）：同句再问 answer 仍 **4 家** ← R6-1 ✅ · `verify:r6-no-cache`
 - [x] **综合履历 → 编号子问**（同会话）：编号「1. 我在哪几家公司…」仍 **4 家** ← R6-3 ✅ · `verify:r6-no-cache`
 - [x] **格式化追问**（「用表格列出来」）：表格追问仍保留已确认公司 ← R6-2 ✅ · `verify:r6-no-cache`

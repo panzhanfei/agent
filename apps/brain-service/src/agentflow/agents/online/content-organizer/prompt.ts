@@ -2,7 +2,7 @@ import type { KnowledgeHit, KnowledgeRetrievalResult, } from "@/agentflow/agents
 import type { QueryProfile } from "@/agentflow/agents/online/knowledge-manager";
 import { getProfileRecallParams } from "@/agentflow/agents/online/knowledge-manager";
 /**
- * ContentOrganizer 输入：FactChecker 之后的证据包。
+ * ContentOrganizer 输入：planMerge 之后的证据包。
  * 职责：按 path 去重 hits、合并 excerpt、统一字段；不调用 LLM。
  */
 export type ContentOrganizerInput = {

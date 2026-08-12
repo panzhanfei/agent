@@ -1,21 +1,15 @@
 /**
- * list 单槽工人：fetchListSlot（不经 FactChecker）。
- * list_corpus 为目录扫盘，与纯 listRetriever 一致；FC 仅用于 km 等非确定性检索。
+ * list 单槽工人：fetchListSlot（目录扫盘，无核查环）。
  */
 import type { CompositeSubRetrieval } from "@/agentflow/agents/online/knowledge-manager";
-import { subToStepResult } from "@/agentflow/agents/online/fact-checker";
-import type { StepFactCheck, StepResult } from "@/agentflow/agents/online/intake-coordinator/path-plan/interface";
+import {
+  subToStepResult,
+  type StepResult,
+} from "@/agentflow/agents/online/intake-coordinator/path-plan";
 import { fetchListSlot } from "../fetch-list-slot";
 import { resolveActiveSlot } from "@/agentflow/agents/online/plan-fanout/active-slot";
 import type { PlanSlotWorkerPatch } from "@/agentflow/agents/online/plan-fanout/interface";
 import type { PipelineGraphState } from "@/agentflow/pipeline/graph/state";
-
-const LIST_FC_SKIPPED: StepFactCheck = {
-  passed: true,
-  refinedSearchQuery: null,
-  issues: [],
-  checkerNotes: "list_corpus_skip_fc",
-};
 
 const emptySub = (
   slotId: string,
@@ -45,18 +39,12 @@ const failedStep = (
   confidenceTier: null,
   enumerationMeta: null,
   cacheHit: false,
-  fc: {
-    passed: false,
-    refinedSearchQuery: null,
-    issues: [],
-    checkerNotes: notes,
-  },
 });
 
 const listSubToStepResult = (sub: CompositeSubRetrieval): StepResult =>
-  subToStepResult(sub, LIST_FC_SKIPPED, "list");
+  subToStepResult(sub, "list");
 
-/** list 单槽：fetchListSlot（跳过 FC） */
+/** list 单槽：fetchListSlot */
 export const runListSlotWorker = async (
   state: PipelineGraphState
 ): Promise<PlanSlotWorkerPatch> => {

@@ -38,12 +38,6 @@ const failedStep = (
   confidenceTier: null,
   enumerationMeta: null,
   cacheHit: false,
-  fc: {
-    passed: false,
-    refinedSearchQuery: null,
-    issues: [],
-    checkerNotes: notes,
-  },
 });
 
 export const runCorpusEditSlotWorker = async (

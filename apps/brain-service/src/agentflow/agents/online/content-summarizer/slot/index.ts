@@ -43,12 +43,6 @@ const summarizeStepResult = (
   confidenceTier: null,
   enumerationMeta: null,
   cacheHit: false,
-  fc: {
-    passed: true,
-    refinedSearchQuery: null,
-    issues: [],
-    checkerNotes: "summarize_slot_skip_fc",
-  },
 });
 
 export const runSummarizeSlotWorker = async (

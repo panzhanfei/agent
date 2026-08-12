@@ -45,12 +45,6 @@ export const runVaultWorkspaceSlotWorker = async (
         confidenceTier: null,
         enumerationMeta: null,
         cacheHit: false,
-        fc: {
-          passed: false,
-          refinedSearchQuery: null,
-          issues: [],
-          checkerNotes: "缺少 activeSlotId",
-        },
       },
       error: "缺少 activeSlotId",
     };
@@ -82,12 +76,6 @@ export const runVaultWorkspaceSlotWorker = async (
     confidenceTier: "high",
     enumerationMeta: null,
     cacheHit: false,
-    fc: {
-      passed: result.ok,
-      refinedSearchQuery: null,
-      issues: [],
-      checkerNotes: result.error ?? "vault_workspace_ok",
-    },
   };
 
   return {

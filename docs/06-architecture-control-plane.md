@@ -64,12 +64,13 @@ Understand + Plan（可融合为一次 LLM）
 
 - 废除 Plan 级指代拼接重试；单次 Understand+Plan；消不了 → clarify  
 
-## 6. FactChecker / 动态规划
+## 6. 动态规划（原 FactChecker 闭环已删除）
 
-- **废除**工人内 FC「评估 + `refinedSearchQuery` 再检索」；主路径不再调用该环  
+- **已删除** `fact-checker/` 模块与主链 FC 图节点 / 打回再检索环  
 - 改 query / 外搜再试 **只**发生在 Join 后全局 B（≤1），结构化补丁  
 - Tool：结构失败可 `toolId=search_web` + query；成功不准 → 不验真，回答层标注/降级  
 - **不做**过半失败整句重规划  
+- `StepResult.fc` 仅保留兼容占位（工人写入 skipped）
 
 ## 7. 子图与 DAG
 

@@ -7,7 +7,6 @@ export type AgentLogName =
   | "PreparePipelineMemory"
   | "IntakeCoordinator"
   | "KnowledgeManager"
-  | "FactChecker"
   | "ContentOrganizer"
   | "ContentSummarizer"
   | "InformationAnalyst"
@@ -36,7 +35,6 @@ const AGENT_EMOJI: Record<AgentLogName, string> = {
   PreparePipelineMemory: "💭",
   IntakeCoordinator: "🎫",
   KnowledgeManager: "📚",
-  FactChecker: "🔍",
   ContentOrganizer: "📋",
   ContentSummarizer: "📝",
   InformationAnalyst: "🧠",

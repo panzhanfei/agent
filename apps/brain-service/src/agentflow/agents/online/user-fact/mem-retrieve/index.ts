@@ -91,12 +91,6 @@ const memStepResult = (
   confidenceTier: value ? "high" : "low",
   enumerationMeta: null,
   cacheHit: false,
-  fc: {
-    passed: true,
-    refinedSearchQuery: null,
-    issues: [],
-    checkerNotes: "mem_recall_skip_fc",
-  },
 });
 
 const resolveMemValue = async (

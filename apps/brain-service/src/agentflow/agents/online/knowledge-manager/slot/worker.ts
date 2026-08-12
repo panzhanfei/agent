@@ -1,22 +1,16 @@
 /**
- * km 单槽工人：executeKmSlotSub → 出 hits（无工人内 FC / 无 refinedSearchQuery 重试）。
- * 改 query / 再检只走 Join 后全局 B（阶段 4）。
+ * km 单槽工人：executeKmSlotSub → 出 hits。
+ * 改 query / 再检只走 Join 后全局 B。
  */
-import { subToStepResult } from "@/agentflow/agents/online/fact-checker";
-import type { StepFactCheck, StepResult } from "@/agentflow/agents/online/intake-coordinator/path-plan/interface";
+import {
+  subToStepResult,
+  type StepResult,
+} from "@/agentflow/agents/online/intake-coordinator/path-plan";
 import { resolveActiveSlot } from "@/agentflow/agents/online/plan-fanout/active-slot";
 import type { PlanSlotWorkerPatch } from "@/agentflow/agents/online/plan-fanout/interface";
 import type { PipelineGraphState } from "@/agentflow/pipeline/graph/state";
 import type { CompositeSubRetrieval } from "../composite/interface";
 import { executeKmSlotSub } from "./execute-sub";
-
-/** 主路径跳过 FC；保留 StepResult.fc 形状供下游兼容 */
-const KM_FC_SKIPPED: StepFactCheck = {
-  passed: true,
-  refinedSearchQuery: null,
-  issues: [],
-  checkerNotes: "km_skip_worker_fc_phase4",
-};
 
 const emptySub = (
   slotId: string,
@@ -46,15 +40,9 @@ const failedStep = (
   confidenceTier: null,
   enumerationMeta: null,
   cacheHit: false,
-  fc: {
-    passed: false,
-    refinedSearchQuery: null,
-    issues: [],
-    checkerNotes: notes,
-  },
 });
 
-/** km 单槽工人：仅 retrieve（阶段 4：无 FC 环） */
+/** km 单槽工人：仅 retrieve */
 export const runKmSlotWorker = async (
   state: PipelineGraphState
 ): Promise<PlanSlotWorkerPatch> => {
@@ -76,12 +64,11 @@ export const runKmSlotWorker = async (
       plan: state.compositeIncrementalPlan,
       slot,
     });
-    const step = subToStepResult(sub, KM_FC_SKIPPED, "km");
     return {
       slotId: String(slot.id),
       executor: "km",
       sub,
-      stepResult: step,
+      stepResult: subToStepResult(sub, "km"),
       error: null,
       retried: false,
     };
