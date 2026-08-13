@@ -67,21 +67,3 @@ export const pipelineCancelBodySchema = z.object({
     conversationId: z.string().min(1).optional(),
     reason: z.enum(["cancelled", "superseded"]).default("cancelled"),
 });
-
-export const corpusEditResumeBodySchema = z.object({
-    proposalId: z.string().min(1),
-    action: z.enum(["approve", "reject", "detail"]),
-});
-
-export const corpusEditProposeBodySchema = z.object({
-    targetPath: z.string().min(1),
-    operation: z.enum(["update", "clear", "create"]),
-    afterContent: z.string(),
-    corpusUserId: z.string().min(1).optional(),
-    conversationId: z.string().min(1).optional().nullable(),
-});
-
-export const corpusEditContentQuerySchema = z.object({
-    targetPath: z.string().min(1),
-    corpusUserId: z.string().min(1),
-});

@@ -39,8 +39,6 @@ import {
 } from "../verify-test-env";
 import {
     runVaultWorkspaceProbe,
-    runCorpusEditProbe,
-    type CorpusEditProbeSpec,
     type VaultWorkspaceProbeSpec,
 } from "./vault-workspace-probe";
 import { writeGateReport } from "../_gate-report";
@@ -150,7 +148,6 @@ type GoldenFile = {
         turns: ListPaginationTurn[];
     };
     vaultWorkspaceProbe?: VaultWorkspaceProbeSpec;
-    corpusEditProbe?: CorpusEditProbeSpec;
     matchReportProbe?: {
         id: string;
         label: string;
@@ -216,7 +213,7 @@ type EvalReport = {
     fiveCompositeProbe?: CaseResult[];
     identityCompositeProbe?: CaseResult[];
     familyProbe?: CaseResult[];
-    corpusEditProbe?: CaseResult[];
+    vaultWorkspaceProbe?: CaseResult[];
     matchReportProbe?: CaseResult[];
 };
 
@@ -966,9 +963,9 @@ const formatMarkdown = (report: EvalReport): string => {
             lines.push(probeLine(r, r.pass ? "✅" : "❌"));
         }
     }
-    if (report.corpusEditProbe?.length) {
+    if (report.vaultWorkspaceProbe?.length) {
         lines.push(``, `## vault_workspace 探测`, ``);
-        for (const r of report.corpusEditProbe) {
+        for (const r of report.vaultWorkspaceProbe) {
             lines.push(probeLine(r, r.pass ? "✅" : "❌"));
         }
     }
@@ -988,7 +985,6 @@ const listPaginationOnly = process.argv.includes("--list-pagination-only");
 const identityCompositeOnly = process.argv.includes("--identity-composite-only");
 const familyOnly = process.argv.includes("--family-only");
 const memOnly = process.argv.includes("--mem-only");
-const corpusEditOnly = process.argv.includes("--corpus-edit-only");
 const caseFilter = (() => {
     const idx = process.argv.indexOf("--case");
     if (idx === -1) return null;
@@ -1036,8 +1032,8 @@ const main = async (): Promise<void> => {
         return;
     }
 
-    if (corpusEditOnly || process.argv.includes("--vault-only")) {
-        const vaultSpec = golden.vaultWorkspaceProbe ?? golden.corpusEditProbe;
+    if (process.argv.includes("--vault-only")) {
+        const vaultSpec = golden.vaultWorkspaceProbe;
         if (!vaultSpec) {
             throw new Error("golden.json 缺少 vaultWorkspaceProbe");
         }
@@ -1241,8 +1237,8 @@ const main = async (): Promise<void> => {
                   { logAnswerOnFail: true }
               );
 
-    const vaultSpec = golden.vaultWorkspaceProbe ?? golden.corpusEditProbe;
-    const corpusEditProbe =
+    const vaultSpec = golden.vaultWorkspaceProbe;
+    const vaultWorkspaceProbe =
         caseFilter || !vaultSpec
             ? []
             : await runVaultWorkspaceProbe(vaultSpec, corpusUserId);
@@ -1274,7 +1270,9 @@ const main = async (): Promise<void> => {
             ? identityCompositeProbe
             : undefined,
         familyProbe: familyProbe.length ? familyProbe : undefined,
-        corpusEditProbe: corpusEditProbe.length ? corpusEditProbe : undefined,
+        vaultWorkspaceProbe: vaultWorkspaceProbe.length
+            ? vaultWorkspaceProbe
+            : undefined,
         matchReportProbe: matchReportProbe.length
             ? matchReportProbe
             : undefined,
@@ -1296,7 +1294,7 @@ const main = async (): Promise<void> => {
         (r) => !r.pass
     );
     const familyFailed = (report.familyProbe ?? []).filter((r) => !r.pass);
-    const corpusEditFailed = (report.corpusEditProbe ?? []).filter((r) => !r.pass);
+    const vaultFailed = (report.vaultWorkspaceProbe ?? []).filter((r) => !r.pass);
     const matchReportFailed = (report.matchReportProbe ?? []).filter(
         (r) => !r.pass
     );
@@ -1310,7 +1308,7 @@ const main = async (): Promise<void> => {
         fiveCompositeFailed.length === 0 &&
         identityCompositeFailed.length === 0 &&
         familyFailed.length === 0 &&
-        corpusEditFailed.length === 0 &&
+        vaultFailed.length === 0 &&
         matchReportFailed.length === 0 &&
         !coalesceBad;
 
@@ -1336,7 +1334,7 @@ const main = async (): Promise<void> => {
         ...fiveCompositeFailed,
         ...identityCompositeFailed,
         ...familyFailed,
-        ...corpusEditFailed,
+        ...vaultFailed,
         ...matchReportFailed,
     ].map((r) => `- ${r.id}: ${r.reason}`);
 
@@ -1366,7 +1364,7 @@ const main = async (): Promise<void> => {
                     fiveCompositeFailed: fiveCompositeFailed.length,
                     identityCompositeFailed: identityCompositeFailed.length,
                 familyFailed: familyFailed.length,
-                vaultFailed: corpusEditFailed.length,
+                vaultFailed: vaultFailed.length,
                 matchReportFailed: matchReportFailed.length,
                 coalesceFailures: report.metrics.coalesceFailures,
             },

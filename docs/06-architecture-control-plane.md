@@ -94,19 +94,11 @@ Understand + Plan（可融合为一次 LLM）
 - **翻译**：`toolId=translate_text`；结构化 `text`（searchQuery）+ `targetLang`；供应商有道（`YOUDAO_APP_KEY`/`SECRET`）；无凭证 → disabled；无 Ollama fallback
 - **不做**：口语词表触发；本阶段不大改 golden 全表  
 
-### 阶段 6 定稿（HITL 语料写盘）
+### 阶段 6 定稿（原文库写盘）
 
-| 项 | 定稿 |
-|----|------|
-| **PathKind** | `corpus_edit` → `SlotExecutor=corpus_edit` → Send `corpusEdit` |
-| **结构化入参** | `params.targetPath` / `operation`（update\|clear\|create）/ `afterContent`；path 白名单 `corpus/{personal,experience,projects}/**/*.md` |
-| **子图** | `hitl-write`：propose → `interrupt` →（approve）快照+写盘+**按 path 向量 upsert**；SqliteSaver（`data/memory/langgraph/checkpoints.db`） |
-| **槽状态** | 提案就绪 → `awaiting_human`（Join 终态，本波可合成）；resume **不**走主图任意点恢复 |
-| **Resume** | `POST /pipeline/corpus-edit/resume`（approve\|reject\|detail）；优先 Command 续跑，失败则 DB 直写兜底 |
-| **UI** | `actions` 块 + exact-match prompt（`__FAMBRAIN_CORPUS_EDIT_*__:`）；Intake 旁路同列举按钮 |
-| **禁止** | 口语猜 path/文件；物理删文件；确认前写盘；独立「只重建索引」PathKind |
+HITL 直接改 `corpus/**/*.md` 的 `corpus_edit` 已删除。写盘只走 `vault_workspace`（workspace txt CRUD + materialize/purge）。
 
-Eval：`golden.json` → `corpusEditProbe`；`eval:run -- --corpus-edit-only`。
+Eval：`golden.json` → `vaultWorkspaceProbe`；`eval:run -- --vault-only`。
 
 ### 记忆分层（自学重设计）
 
@@ -115,8 +107,7 @@ Eval：`golden.json` → `corpusEditProbe`；`eval:run -- --corpus-edit-only`。
 | Working | 图 state | 运行时 |
 | LangMem | 会话摘要 → Prisma `Conversation.sessionSummary` | `persistPipelineMemory` |
 | Mem0 | 跨会话结构化用户事实 → Chroma `fambrain_user_memories` + history.db | 显式 remember / 静默 `user-memory-extract` |
-| HITL checkpointer | 子图 interrupt 续跑 → 独立 SQLite | `data/memory/langgraph/checkpoints.db` |
-| Corpus/Chroma | 知识库 | **HITL `corpus_edit`** / 入库脚本（**禁止**静默自学写） |
+| Corpus/Chroma | 知识库 | **vault_workspace** materialize/purge / 入库脚本（**禁止**静默自学写） |
 
 - **废除**：整轮 `addTurnToMem0`；旧 Learning pending / auto corpus / `/learning` HITL  
 - **静默自学**：`USER_MEMORY_AUTO_LEARN_ENABLED` 默认 **false**；独立 LLM（非 Intake）；只信抽取 JSON + Zod；不写 corpus  

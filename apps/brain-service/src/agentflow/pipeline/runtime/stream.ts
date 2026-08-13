@@ -454,14 +454,12 @@ async function* runPipelineStreamInner(
         if (fan.hasKm) yield* startStep("km_retrieve");
         if (fan.hasList) yield* startStep("list_retrieve");
         if (fan.hasVaultWorkspace) yield* startStep("vault_workspace");
-        if (fan.hasCorpusEdit) yield* startStep("corpus_edit");
         if (fan.hasDag) yield* startStep("plan_dag");
         if (fan.hasSideRemember) yield* startStep("user_fact");
         if (
           fan.hasKm ||
           fan.hasList ||
           fan.hasVaultWorkspace ||
-          fan.hasCorpusEdit ||
           fan.hasSideRemember
         ) {
           yield* startStep("plan_slot_join");
@@ -475,14 +473,12 @@ async function* runPipelineStreamInner(
       if (fan.hasKm) yield* startStep("km_retrieve");
       if (fan.hasList) yield* startStep("list_retrieve");
       if (fan.hasVaultWorkspace) yield* startStep("vault_workspace");
-      if (fan.hasCorpusEdit) yield* startStep("corpus_edit");
       if (fan.hasDag) yield* startStep("plan_dag");
       if (fan.hasSideRemember) yield* startStep("user_fact");
       if (
         fan.hasKm ||
         fan.hasList ||
         fan.hasVaultWorkspace ||
-        fan.hasCorpusEdit ||
         fan.hasSideRemember
       ) {
         yield* startStep("plan_slot_join");
@@ -528,9 +524,6 @@ async function* runPipelineStreamInner(
     if (nodeName === "vaultWorkspace") {
       continue;
     }
-    if (nodeName === "corpusEdit") {
-      continue;
-    }
     if (nodeName === "planSlotJoin") {
       if (runningSteps.has("km_retrieve")) {
         yield* finishStep("km_retrieve");
@@ -540,9 +533,6 @@ async function* runPipelineStreamInner(
       }
       if (runningSteps.has("vault_workspace")) {
         yield* finishStep("vault_workspace");
-      }
-      if (runningSteps.has("corpus_edit")) {
-        yield* finishStep("corpus_edit");
       }
       yield* finishStep("plan_slot_join");
       yield* startStep("plan_slot_post");

@@ -30,16 +30,6 @@ export {
     aggregateFeedbackByPath,
 } from "./repos/retrieval-feedback";
 export {
-    createCorpusEditProposal,
-    findCorpusEditProposalForUser,
-    updateCorpusEditProposalStatus,
-    expirePendingCorpusEditProposalsForUser,
-    expireStalePendingCorpusEditProposals,
-    createCorpusFileVersion,
-    latestCorpusFileVersion,
-    type CreateCorpusEditProposalInput,
-} from "./repos/corpus-edit-proposals";
-export {
     upsertTurnTrace,
     listTurnTracesForConversation,
     getTurnTraceByMessage,
@@ -50,6 +40,4 @@ export {
     ChatRole,
     UserRole,
     UserStatus,
-    CorpusEditProposalStatus,
-    CorpusEditOperation,
 } from "./generated/prisma/client";

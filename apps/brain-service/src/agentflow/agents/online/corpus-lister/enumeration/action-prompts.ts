@@ -20,7 +20,7 @@ export type EnumerationControl = {
 
 /**
  * 槽执行器 → planFanOut Send 目标。
- * km_retrieve / list_corpus / mem_recall / tool_run / summarize_slot / vault_workspace / corpus_edit
+ * km_retrieve / list_corpus / mem_recall / tool_run / summarize_slot / vault_workspace
  */
 export type SlotExecutor =
     | "km_retrieve"
@@ -28,8 +28,7 @@ export type SlotExecutor =
     | "mem_recall"
     | "tool_run"
     | "summarize_slot"
-    | "vault_workspace"
-    | "corpus_edit";
+    | "vault_workspace";
 
 export const ENUMERATION_ACTION_PROMPTS = {
     project: {

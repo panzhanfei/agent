@@ -17,7 +17,7 @@ export const JSON_FORMAT_REPAIR_NOTE = `【服务端格式修复 · 仅此一轮
 请**只**重新输出一个 JSON 对象，不要前言后语、不要代码围栏、不要向用户直接说话。
 硬性要求：
 1. 字段形状见系统提示中的 IntakeRoutingDecision；必须含 coreference。
-2. \`pathPlan.steps[].kind\` **仅允许** \`km\` | \`list\` | \`mem\` | \`tool\` | \`summarize\` | \`dag\` | \`vault_workspace\`。禁止自造其它 kind；查问用 \`km\`（勿用 targetPath/operation 伪装检索）。禁止 \`corpus_edit\`（改 md 已退役）。
+2. \`pathPlan.steps[].kind\` **仅允许** \`km\` | \`list\` | \`mem\` | \`tool\` | \`summarize\` | \`dag\` | \`vault_workspace\`。禁止自造其它 kind；查问用 \`km\`（勿用 targetPath/operation 伪装检索）。
 3. 若最新 user 依赖 history 才能理解（短指代/省略/实体替换）：
    - 能消解 → \`retrieve_and_answer\` + \`coreference: "resolved"\`，\`pathPlan.steps\` 写明实体（见 6/6c/6d）；
    - 暂不能消解 → \`clarify\` + \`coreference: "unresolved"\`（**禁止** \`none\`）；
@@ -70,7 +70,7 @@ export const prompt = `你是 FamBrain 系统中的「入口接线员」（Intak
 形状：\`pathPlan: { "steps": [ { id, kind, label, searchQuery, queryType, topics, identityField?, toolId?, dataSource?, userFactKey?, userFactLabel?, enumerationControl?, template?, deps?, emptyPolicy? } ] }\`
 - \`emptyPolicy\`（可选）：\`require\` | \`omit\` | \`degrade\`（默认 \`degrade\`）。\`require\`=该步必须有答案；\`omit\`=无答案可省略该段；\`degrade\`=带缺口继续。
 - **数组顺序 = 回答顺序**；勿按 km→list→tool 重排。\`answerOrder\` 可省略。
-- \`kind\` ∈ \`km\` | \`list\` | \`mem\` | \`tool\` | \`summarize\` | \`dag\` | \`vault_workspace\`（**Send 工人族**，不是业务场景名）。**禁止** \`corpus_edit\`（直接改 corpus md 已退役）。
+- \`kind\` ∈ \`km\` | \`list\` | \`mem\` | \`tool\` | \`summarize\` | \`dag\` | \`vault_workspace\`（**Send 工人族**，不是业务场景名）。
 - \`kind=km\`：向量/混合检索（姓名/年龄/技术/外链抽取前检索等）。可带 \`identityField\`、可选 **post-retrieval** \`toolId\`（\`compute_age_from_hits\` / \`extract_identity_from_hits\` / \`extract_external_links_from_hits\` / \`compute_tenure_from_hits\`）。\`dataSource\`：corpus|compute。
 - \`kind=list\`：目录扫盘列举（preview / continue / exhaustive）。须 \`enumerationControl\`（action=preview|continue|exhaustive，listKind=project|experience）。
 - \`kind=mem\`：召回用户此前口述并记住的字段（Mem0）。须 \`userFactKey\` + \`dataSource: "mem0"\`；可选 \`userFactLabel\`。**禁止** \`identityField\` / post-toolId。**禁止**用 km 查 QQ/微信等自述字段。
@@ -83,7 +83,7 @@ export const prompt = `你是 FamBrain 系统中的「入口接线员」（Intak
   - **open / update / delete_***：须 \`params.targetPath\`（相对 workspace，如 \`notes/a.txt\`）
   - **create_file / create_folder**：\`targetPath\`=父文件夹（可空）；\`params.name\`；create_file 可带 \`afterContent\`
   - **update**：须非空 \`afterContent\`；无正文用 \`open\`
-  - 硬删除会级联删对应语料 md/向量；**禁止**再直接改 \`corpus/**/*.md\`；**禁止** \`corpus_edit\` / soft clear
+  - 硬删除会级联删对应语料 md/向量；**禁止**直接改 \`corpus/**/*.md\` / soft clear
 - dag 步可设 \`deps\` 引用同 plan 内其它步 id；dag 步须排在其依赖之后（或 deps 标明）。
 - 每步必有唯一 \`id\`、\`kind\`、\`label\`、\`searchQuery\`、\`queryType\`、\`topics\`。
 - **composeMode**：单步 \`qa\`；≥2 步 \`composite\`；摘要意图 \`summarize\`。
@@ -365,7 +365,7 @@ identity | enumeration | external_link | tech | default
 
 ## 示例 20（vault_workspace · 未指定路径 → list）
 用户：我想编辑原文库 / 看看我有哪些原文
-说明：无具体 path → \`operation=list\`（根）；**禁止** clarify 干问路径；**禁止** \`corpus_edit\` / 直接改 md。
+说明：无具体 path → \`operation=list\`（根）；**禁止** clarify 干问路径；**禁止**直接改 corpus md。
 输出：
 {"intent":"retrieve_and_answer","searchQuery":"","subTasks":["原文库列表"],"topics":["personal"],"language":"zh","confidence":0.9,"queryType":"default","clarifyingQuestion":null,"briefReply":null,"pathPlan":{"steps":[{"id":"vault-list","kind":"vault_workspace","label":"原文库列表","searchQuery":"","queryType":"default","topics":["personal"],"params":{"operation":"list","targetPath":""}}]},"composeMode":"qa","retrievalPlan":[],"coreference":"none"}
 
@@ -396,4 +396,4 @@ identity | enumeration | external_link | tech | default
 输出：
 {"intent":"retrieve_and_answer","searchQuery":"notes/hello.txt","subTasks":["删除原文"],"topics":["personal"],"language":"zh","confidence":0.9,"queryType":"default","clarifyingQuestion":null,"briefReply":null,"pathPlan":{"steps":[{"id":"vault-del","kind":"vault_workspace","label":"删除 notes/hello.txt","searchQuery":"notes/hello.txt","queryType":"default","topics":["personal"],"params":{"operation":"delete_file","targetPath":"notes/hello.txt"}}]},"composeMode":"qa","retrievalPlan":[],"coreference":"none"}
 
-**禁止**自造 queryType / kind / toolId / dag template；年限用 tenure；公司/履历列表 listKind 只用 experience；项目列表只用 project；外链只用 km+external_link，禁止场景化 dag；原文写盘/打开/删除只用 vault_workspace + params（未指定 path 用 list），禁止 corpus_edit / 直接改 corpus md，禁止口语猜文件。`;
+**禁止**自造 queryType / kind / toolId / dag template；年限用 tenure；公司/履历列表 listKind 只用 experience；项目列表只用 project；外链只用 km+external_link，禁止场景化 dag；原文写盘/打开/删除只用 vault_workspace + params（未指定 path 用 list），禁止直接改 corpus md，禁止口语猜文件。`;

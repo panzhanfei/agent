@@ -1,5 +1,5 @@
 /**
- * Intake 之后：每槽 Send（km/list/mem/tool/summarize）∥ planDag ∥ userFactSide。
+ * Intake 之后：每槽 Send（km/list/mem/tool/summarize/vault_workspace）∥ planDag ∥ userFactSide。
  * 全部 → planSlotJoin →（可选全局 B 再批）→ planSlotPost → planMerge。
  * 工人内无 FC；改 query / 外搜再试只在 Join 全局 B。
  */
@@ -25,8 +25,7 @@ const sendTargetForExecutor = (
   | "memRetrieve"
   | "toolRetrieve"
   | "summarizeSlot"
-  | "vaultWorkspace"
-  | "corpusEdit" => {
+  | "vaultWorkspace" => {
   switch (executor) {
     case "list_corpus":
       return "listRetrieve";
@@ -38,8 +37,6 @@ const sendTargetForExecutor = (
       return "summarizeSlot";
     case "vault_workspace":
       return "vaultWorkspace";
-    case "corpus_edit":
-      return "corpusEdit";
     default:
       return "kmRetrieve";
   }
@@ -82,7 +79,6 @@ export const describeFanOutPlan = (
   hasTool: boolean;
   hasSummarize: boolean;
   hasVaultWorkspace: boolean;
-  hasCorpusEdit: boolean;
   hasDag: boolean;
   hasSideRemember: boolean;
   kmCount: number;
@@ -91,7 +87,6 @@ export const describeFanOutPlan = (
   toolCount: number;
   summarizeCount: number;
   vaultWorkspaceCount: number;
-  corpusEditCount: number;
 } => {
   const decision = state.decision;
   if (!decision) {
@@ -102,7 +97,6 @@ export const describeFanOutPlan = (
       hasTool: false,
       hasSummarize: false,
       hasVaultWorkspace: false,
-      hasCorpusEdit: false,
       hasDag: false,
       hasSideRemember: false,
       kmCount: 0,
@@ -111,7 +105,6 @@ export const describeFanOutPlan = (
       toolCount: 0,
       summarizeCount: 0,
       vaultWorkspaceCount: 0,
-      corpusEditCount: 0,
     };
   }
   const slots = decision.compositeSlots ?? [];
@@ -127,9 +120,6 @@ export const describeFanOutPlan = (
   const vaultWorkspaceCount = slots.filter(
     (s) => s.executor === "vault_workspace"
   ).length;
-  const corpusEditCount = slots.filter(
-    (s) => s.executor === "corpus_edit"
-  ).length;
   return {
     hasKm: kmCount > 0,
     hasList: listCount > 0,
@@ -137,7 +127,6 @@ export const describeFanOutPlan = (
     hasTool: toolCount > 0,
     hasSummarize: summarizeCount > 0,
     hasVaultWorkspace: vaultWorkspaceCount > 0,
-    hasCorpusEdit: corpusEditCount > 0,
     hasDag: pathHasHybridDag(state),
     hasSideRemember: Boolean(routeUserFactSideEffect(decision)),
     kmCount,
@@ -146,6 +135,5 @@ export const describeFanOutPlan = (
     toolCount,
     summarizeCount,
     vaultWorkspaceCount,
-    corpusEditCount,
   };
 };

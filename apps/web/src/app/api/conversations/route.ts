@@ -1,7 +1,6 @@
 import { getAuthSession } from "@fambrain/auth";
 import {
   createConversationSchema,
-  expirePendingCorpusEditProposalsForUser,
   getSidebarConversations,
   prisma,
 } from "@fambrain/db";
@@ -55,8 +54,6 @@ export const POST = async (req: Request) => {
         if (!parsed.success) {
             return NextResponse.json({ error: "参数无效", details: parsed.error.flatten() }, { status: 400 });
         }
-        // 新开会话：作废未处理的 HITL 语料提案（状态机收口）
-        await expirePendingCorpusEditProposalsForUser(session.userId);
         const created = await prisma.conversation.create({
             data: {
                 userId: session.userId,

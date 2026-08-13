@@ -431,4 +431,29 @@ describe("legalizePathPlan + deriveCompositeSlots", () => {
     const slots = deriveCompositeSlotsFromPathPlan(patched);
     expect(slots.some((s) => s.executor === "mem_recall")).toBe(true);
   });
+
+  it("drops unknown kinds (not in PathKind whitelist)", () => {
+    const pathPlan = legalizePathPlan({
+      steps: [
+        {
+          id: "ghost",
+          kind: "corpus_edit",
+          label: "修订 md",
+          searchQuery: "personal/x.md",
+          queryType: "default",
+          topics: ["personal"],
+        },
+        {
+          id: "km-name",
+          kind: "km",
+          label: "姓名",
+          searchQuery: "姓名",
+          queryType: "identity",
+          topics: ["personal"],
+        },
+      ],
+    });
+    expect(pathPlan.steps).toHaveLength(1);
+    expect(pathPlan.steps[0]?.kind).toBe("km");
+  });
 });

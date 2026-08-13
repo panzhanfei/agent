@@ -8,12 +8,10 @@ import type {
   Citation,
 } from "@fambrain/brain-types";
 import { AssistantMessageContent } from "@/components/chat/assistant-message-content";
-import { CorpusEditModal } from "@/components/chat/corpus-edit-modal";
 import { LinkifiedText } from "@/components/chat/linkified-text";
 import { ConversationLogPanel } from "@/components/chat/conversation-log-panel";
 import {
   chatActionStaleGroupKey,
-  corpusEditTargetPathFromOpenPrompt,
   messageActionStaleKey,
   type ChatActionPayload,
 } from "@/lib/chat/action-lifecycle";
@@ -84,7 +82,6 @@ const STEP_TIMING_LABELS: Record<PipelineStepName, string> = {
   retrieval: "检索知识库",
   km_retrieve: "知识检索",
   list_retrieve: "列举检索",
-  corpus_edit: "语料修订",
   vault_workspace: "原文库",
   plan_cache_resolve: "解析缓存",
   plan_slot_join: "槽位汇合",
@@ -111,7 +108,6 @@ const STEP_RUNNING_LABELS: Partial<Record<string, string>> = {
   retrieval: "检索知识库…",
   km_retrieve: "知识检索…",
   list_retrieve: "列举检索…",
-  corpus_edit: "语料修订…",
   vault_workspace: "原文库…",
   plan_cache_resolve: "解析缓存…",
   plan_slot_join: "槽位汇合…",
@@ -598,7 +594,6 @@ export const ChatShell = ({ initialConversations, viewer }: ChatShellProps) => {
   const [staleActionKeys, setStaleActionKeys] = useState<Set<string>>(
     () => new Set()
   );
-  const [corpusEditPath, setCorpusEditPath] = useState<string | null>(null);
   /** 用户气泡原地编辑 */
   const [editingMessageId, setEditingMessageId] = useState<string | null>(null);
   const [editDraft, setEditDraft] = useState("");
@@ -861,7 +856,6 @@ export const ChatShell = ({ initialConversations, viewer }: ChatShellProps) => {
   }, [conversations, preferEmptySession, activeConversationId]);
   useEffect(() => {
     setStaleActionKeys(new Set());
-    setCorpusEditPath(null);
   }, [activeConversationId]);
 
   useEffect(() => {
@@ -998,7 +992,6 @@ export const ChatShell = ({ initialConversations, viewer }: ChatShellProps) => {
     setPendingAttachments([]);
     setUploadNotice(null);
     setStaleActionKeys(new Set());
-    setCorpusEditPath(null);
     setEditingMessageId(null);
     setEditDraft("");
   }, []);
@@ -1725,10 +1718,6 @@ export const ChatShell = ({ initialConversations, viewer }: ChatShellProps) => {
   const handleChatAction = useCallback(
     (action: ChatActionPayload) => {
       if (action.clientHandler === "open_editor") {
-        const path = corpusEditTargetPathFromOpenPrompt(action.prompt);
-        if (!path) return;
-        // 打开编辑器不立即作废「暂不编辑」；提交提案或点暂不编辑后再作废
-        setCorpusEditPath(path);
         return;
       }
       void sendMessageWithContent(action.prompt, {
@@ -2328,7 +2317,6 @@ export const ChatShell = ({ initialConversations, viewer }: ChatShellProps) => {
                           setEditingSidebarId(null);
                           setPreferEmptySession(false);
                           setStaleActionKeys(new Set());
-                          setCorpusEditPath(null);
                           setStreamThinking("");
                           setStreamAnswerPreview("");
                           setStreamBlocks([]);
@@ -2875,26 +2863,6 @@ export const ChatShell = ({ initialConversations, viewer }: ChatShellProps) => {
           </div>
         </div>
       </main>
-      {corpusEditPath ? (
-        <CorpusEditModal
-          targetPath={corpusEditPath}
-          conversationId={activeConversationId}
-          onClose={() => setCorpusEditPath(null)}
-          onProposed={({ answer, blocks, staleGroupKey }) => {
-            markStaleActionKey(staleGroupKey);
-            setMessages((prev) => [
-              ...prev,
-              {
-                id: `temp-assistant:${crypto.randomUUID()}`,
-                role: "assistant",
-                content: answer,
-                createdAt: new Date().toISOString(),
-                blocks,
-              },
-            ]);
-          }}
-        />
-      ) : null}
     </div>
   );
 };

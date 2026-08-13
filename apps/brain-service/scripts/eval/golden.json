@@ -540,7 +540,7 @@
   },
   "vaultWorkspaceProbe": {
     "id": "G-vault-workspace",
-    "label": "vault_workspace：pathPlan · UI · CRUD · nested · pipeline list · corpus_edit 退役",
+    "label": "vault_workspace：pathPlan · UI · CRUD · nested · pipeline list",
     "cases": [
       {
         "id": "V-list-pathplan",
@@ -556,57 +556,6 @@
         "id": "V-ui-crud-prompts",
         "label": "UI exact-match create/delete prompts",
         "mode": "ui_crud_prompts"
-      },
-      {
-        "id": "V-corpus-edit-dropped",
-        "label": "corpus_edit 步 legalize 丢弃",
-        "mode": "corpus_edit_dropped"
-      },
-      {
-        "id": "V-crud-materialize",
-        "label": "create/update/delete + materialize/purge",
-        "mode": "create_update_delete"
-      },
-      {
-        "id": "V-nested-folder",
-        "label": "嵌套目录 materialize/purge",
-        "mode": "nested_folder"
-      },
-      {
-        "id": "V-update-body",
-        "label": "改写 txt 后 rematerialize",
-        "mode": "update_body"
-      },
-      {
-        "id": "V-pipeline-list",
-        "label": "pipeline「我的原文库」旁路 list",
-        "mode": "pipeline_list"
-      }
-    ]
-  },
-  "corpusEditProbe": {
-    "id": "G-vault-workspace-legacy-alias",
-    "label": "（兼容旧 --corpus-edit-only）同 vaultWorkspaceProbe",
-    "cases": [
-      {
-        "id": "V-list-pathplan",
-        "label": "未指定路径 → list pathPlan",
-        "mode": "list_root"
-      },
-      {
-        "id": "V-ui-prompts",
-        "label": "UI exact-match list/open + entry 常量",
-        "mode": "ui_prompts"
-      },
-      {
-        "id": "V-ui-crud-prompts",
-        "label": "UI exact-match create/delete prompts",
-        "mode": "ui_crud_prompts"
-      },
-      {
-        "id": "V-corpus-edit-dropped",
-        "label": "corpus_edit 步 legalize 丢弃",
-        "mode": "corpus_edit_dropped"
       },
       {
         "id": "V-crud-materialize",

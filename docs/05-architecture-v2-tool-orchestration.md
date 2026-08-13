@@ -253,7 +253,7 @@ Intake LLM **直接产出**有序 `pathPlan.steps[]` + `composeMode`；pipeline 
 
 
 ```typescript
-type PathKind = "km" | "list" | "mem" | "tool" | "summarize" | "dag" | "corpus_edit";
+type PathKind = "km" | "list" | "mem" | "tool" | "summarize" | "dag" | "vault_workspace";
 
 type ExecutionStep = {
   id: string;

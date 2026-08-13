@@ -18,7 +18,7 @@ import type {
   ToolRunResult,
 } from "@/agentflow/agents/online/tool-orchestrator";
 
-/** Send 工人族：km | list | mem | tool | summarize | dag | vault_workspace | corpus_edit(退役) */
+/** Send 工人族：km | list | mem | tool | summarize | dag | vault_workspace */
 export type PathKind =
   | "km"
   | "list"
@@ -26,9 +26,7 @@ export type PathKind =
   | "tool"
   | "summarize"
   | "dag"
-  | "vault_workspace"
-  /** @deprecated 直接改 corpus md 已退役；合法化会丢弃 */
-  | "corpus_edit";
+  | "vault_workspace";
 
 export type ComposeMode = "qa" | "summarize" | "composite";
 
@@ -47,7 +45,6 @@ export type EmptyPolicy = "require" | "omit" | "degrade";
  * - summarize：子步总结用户原文（dataSource=user_text）
  * - dag：仅 hybrid_multi_source（语料+外网汇合）
  * - vault_workspace：原文库 txt/文件夹（params.operation=list|open|create_*|update|delete_*；list 可无 path）
- * - corpus_edit：已退役（勿再产出）
  */
 export type ExecutionStep = {
   id: string;
@@ -101,7 +98,6 @@ export type PathPlanCounts = {
   summarize: number;
   dag: number;
   vault_workspace: number;
-  corpus_edit: number;
   total: number;
 };
 

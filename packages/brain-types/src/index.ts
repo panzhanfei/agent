@@ -59,7 +59,6 @@ export type PipelineStepName =
     | "retrieval"
     | "km_retrieve"
     | "list_retrieve"
-    | "corpus_edit"
     | "vault_workspace"
     | "plan_cache_resolve"
     | "plan_slot_join"

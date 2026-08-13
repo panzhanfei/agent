@@ -37,7 +37,7 @@ export type CompositeRetrievalSlot = {
   /** 空证据策略（来自 pathPlan.steps） */
   emptyPolicy?: EmptyPolicy;
   /**
-   * Send 工人：km_retrieve | list_corpus | mem_recall | tool_run | summarize_slot | corpus_edit
+   * Send 工人：km_retrieve | list_corpus | mem_recall | tool_run | summarize_slot | vault_workspace
    */
   executor?: SlotExecutor;
   enumerationControl?: EnumerationControl | null;
@@ -54,7 +54,7 @@ export type CompositeRetrievalSlot = {
   /** mem 步：用户自述字段 slug */
   userFactKey?: string | null;
   userFactLabel?: string | null;
-  /** corpus_edit 等：透传 pathPlan.steps[].params */
+  /** vault_workspace 等：透传 pathPlan.steps[].params */
   params?: Record<string, unknown> | null;
 };
 

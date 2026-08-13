@@ -23,7 +23,6 @@ export const countPathPlan = (
   let summarize = 0;
   let dag = 0;
   let vault_workspace = 0;
-  let corpus_edit = 0;
   for (const s of steps) {
     if (s.kind === "km") km++;
     else if (s.kind === "list") list++;
@@ -32,7 +31,6 @@ export const countPathPlan = (
     else if (s.kind === "summarize") summarize++;
     else if (s.kind === "dag") dag++;
     else if (s.kind === "vault_workspace") vault_workspace++;
-    else if (s.kind === "corpus_edit") corpus_edit++;
   }
   return {
     km,
@@ -42,7 +40,6 @@ export const countPathPlan = (
     summarize,
     dag,
     vault_workspace,
-    corpus_edit,
     total: steps.length,
   };
 };
@@ -64,5 +61,4 @@ export const pathPlanBuckets = (plan: PathPlan | null | undefined) => ({
   summarize: stepsOfKind(plan, "summarize"),
   dag: stepsOfKind(plan, "dag"),
   vault_workspace: stepsOfKind(plan, "vault_workspace"),
-  corpus_edit: stepsOfKind(plan, "corpus_edit"),
 });

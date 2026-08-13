@@ -8,7 +8,6 @@ import {
   matchUiEnumerationPrompt,
   resolveEnumerationPagination,
 } from "@/agentflow/agents/online/corpus-lister/enumeration";
-import { resolveCorpusEditUiBypass } from "@/agentflow/agents/online/hitl-write";
 import { resolveVaultWorkspaceUiBypass } from "@/agentflow/agents/online/vault-write";
 import {
   applyAttachmentAction,
@@ -228,22 +227,6 @@ export const runIntakeNode = async (
         decision: buildEarlyExitRoutedDecision(vaultWsUi.decision),
         answer: vaultWsUi.answer,
         assistantBlocks: vaultWsUi.assistantBlocks,
-      };
-    }
-
-    const corpusEditUi = await resolveCorpusEditUiBypass({
-      userQuestion: rawQuestion,
-      userId: state.context.actorUserId,
-      corpusUserId: state.context.corpusUserId,
-    });
-    if (corpusEditUi) {
-      logAgentOut("IntakeCoordinator", "短路_corpus_edit_ui", {
-        userQuestion: rawQuestion,
-      });
-      return {
-        decision: buildEarlyExitRoutedDecision(corpusEditUi.decision),
-        answer: corpusEditUi.answer,
-        assistantBlocks: corpusEditUi.assistantBlocks,
       };
     }
 

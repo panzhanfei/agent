@@ -1,21 +1,11 @@
 /**
- * 聊天 actions 统一生命周期（与 HITL corpus_edit 对齐）：
+ * 聊天 actions 统一生命周期：
  * - 交互后按 group / message 置灰
  * - pending 超过 CHAT_ACTION_PENDING_TTL_MS（30min）失效
- * - 新开会话清空前端 stale（服务端另作废 HITL pending 提案）
+ * - 新开会话清空前端 stale
  */
 
-/** 与 brain hitl-write/lifecycle CORPUS_EDIT_PENDING_TTL_MS 同一数值 */
 export const CHAT_ACTION_PENDING_TTL_MS = 30 * 60 * 1000;
-
-/** 与 brain hitl-write/actions 前缀对齐（UI 侧，非口语硬编码） */
-export const CORPUS_EDIT_ACTION = {
-  openDetailPrefix: "__FAMBRAIN_CORPUS_EDIT_DETAIL__:",
-  approvePrefix: "__FAMBRAIN_CORPUS_EDIT_APPROVE__:",
-  rejectPrefix: "__FAMBRAIN_CORPUS_EDIT_REJECT__:",
-  openFilePrefix: "__FAMBRAIN_CORPUS_EDIT_OPEN__:",
-  dismissEditPrefix: "__FAMBRAIN_CORPUS_EDIT_DISMISS_EDIT__:",
-} as const;
 
 const VAULT_WS = {
   listPrefix: "__FAMBRAIN_VAULT_WS_LIST__:",
@@ -41,7 +31,7 @@ export type ChatActionPayload = {
   displayText?: string;
   disabled?: boolean;
   clientHandler?: "chat" | "open_editor";
-  /** 所属助手消息（点击后整条 message 作废，对齐 HITL 提案消费） */
+  /** 所属助手消息（点击后整条 message 作废） */
   sourceMessageId?: string;
 };
 
@@ -54,26 +44,10 @@ const parentCwd = (rel: string): string => {
   return t.replace(/\/[^/]+$/, "");
 };
 
-/** 从 prompt 推导 stale 分组（HITL proposal/path、vault cwd、enumeration） */
+/** 从 prompt 推导 stale 分组（vault cwd、enumeration） */
 export const chatActionStaleGroupKey = (prompt: string): string | null => {
   const t = prompt.trim();
   if (!t) return null;
-
-  if (t.startsWith(CORPUS_EDIT_ACTION.openDetailPrefix)) {
-    return `proposal:${t.slice(CORPUS_EDIT_ACTION.openDetailPrefix.length).trim()}`;
-  }
-  if (t.startsWith(CORPUS_EDIT_ACTION.approvePrefix)) {
-    return `proposal:${t.slice(CORPUS_EDIT_ACTION.approvePrefix.length).trim()}`;
-  }
-  if (t.startsWith(CORPUS_EDIT_ACTION.rejectPrefix)) {
-    return `proposal:${t.slice(CORPUS_EDIT_ACTION.rejectPrefix.length).trim()}`;
-  }
-  if (t.startsWith(CORPUS_EDIT_ACTION.openFilePrefix)) {
-    return `path:${t.slice(CORPUS_EDIT_ACTION.openFilePrefix.length).trim()}`;
-  }
-  if (t.startsWith(CORPUS_EDIT_ACTION.dismissEditPrefix)) {
-    return `path:${t.slice(CORPUS_EDIT_ACTION.dismissEditPrefix.length).trim()}`;
-  }
 
   if (t.startsWith(VAULT_WS.listPrefix)) {
     return `vault:cwd:${t.slice(VAULT_WS.listPrefix.length)}`;
@@ -104,9 +78,6 @@ export const chatActionStaleGroupKey = (prompt: string): string | null => {
   return null;
 };
 
-/** @deprecated 使用 chatActionStaleGroupKey */
-export const corpusEditStaleGroupKey = chatActionStaleGroupKey;
-
 export const isChatActionExpired = (
   createdAt: string | number | Date | null | undefined
 ): boolean => {
@@ -135,13 +106,4 @@ export const actionIsStale = (
   if (isChatActionExpired(opts?.messageCreatedAt)) return true;
   const key = chatActionStaleGroupKey(prompt);
   return key != null && staleKeys.has(key);
-};
-
-export const corpusEditTargetPathFromOpenPrompt = (
-  prompt: string
-): string | null => {
-  const t = prompt.trim();
-  if (!t.startsWith(CORPUS_EDIT_ACTION.openFilePrefix)) return null;
-  const path = t.slice(CORPUS_EDIT_ACTION.openFilePrefix.length).trim();
-  return path || null;
 };

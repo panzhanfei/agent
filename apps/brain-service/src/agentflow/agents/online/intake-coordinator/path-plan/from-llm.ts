@@ -57,7 +57,6 @@ const PATH_KINDS = new Set([
   "summarize",
   "dag",
   "vault_workspace",
-  "corpus_edit",
 ]);
 
 const VAULT_WORKSPACE_OPS = new Set([
@@ -193,7 +192,6 @@ const defaultToolIdForStep = (
     kind === "mem" ||
     kind === "summarize" ||
     kind === "dag" ||
-    kind === "corpus_edit" ||
     kind === "vault_workspace"
   ) {
     return null;
@@ -354,12 +352,11 @@ export const normalizePathPlanSteps = (plan: PathPlan): PathPlan => {
       }
     }
 
-    // dag / list / vault_workspace / corpus_edit / km 保持
+    // dag / list / vault_workspace / km 保持
     if (
       s.kind === "dag" ||
       s.kind === "list" ||
-      s.kind === "vault_workspace" ||
-      s.kind === "corpus_edit"
+      s.kind === "vault_workspace"
     ) {
       steps.push(s);
       continue;
@@ -601,11 +598,6 @@ const legalizeStep = (raw: unknown, index: number): ExecutionStep | null => {
           ? o.enumerationPageSize
           : undefined,
     };
-  }
-
-  // 直接改 corpus md 已退役：丢弃（引导走 vault_workspace）
-  if (kind === "corpus_edit") {
-    return null;
   }
 
   if (kind === "vault_workspace") {
@@ -857,8 +849,6 @@ const executorForStep = (step: ExecutionStep): SlotExecutor => {
       return "summarize_slot";
     case "vault_workspace":
       return "vault_workspace";
-    case "corpus_edit":
-      return "corpus_edit";
     default:
       return "km_retrieve";
   }

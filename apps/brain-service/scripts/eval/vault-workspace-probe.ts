@@ -1,5 +1,5 @@
 /**
- * vault_workspace golden probe：pathPlan / UI / 磁盘 CRUD / corpus_edit 退役 / pipeline list。
+ * vault_workspace golden probe：pathPlan / UI / 磁盘 CRUD / pipeline list。
  */
 import { mkdtemp, rm } from "node:fs/promises";
 import os from "node:os";
@@ -38,7 +38,6 @@ export type VaultWorkspaceProbeCase = {
     | "create_update_delete"
     | "ui_prompts"
     | "ui_crud_prompts"
-    | "corpus_edit_dropped"
     | "nested_folder"
     | "update_body"
     | "pipeline_list";
@@ -81,31 +80,6 @@ const pathPlanListOk = (): boolean => {
   );
 };
 
-const corpusEditDroppedOk = (): boolean => {
-  const plan = legalizePathPlan({
-    steps: [
-      {
-        id: "edit-1",
-        kind: "corpus_edit",
-        label: "修订 md",
-        searchQuery: "personal/x.md",
-        queryType: "default",
-        topics: ["personal"],
-        params: {
-          targetPath: "personal/x.md",
-          operation: "update",
-          afterContent: "x",
-        },
-      },
-    ],
-  });
-  return (
-    stepsOfKind(plan, "corpus_edit").length === 0 &&
-    stepsOfKind(plan, "vault_workspace").length === 0 &&
-    plan.steps.length === 0
-  );
-};
-
 export const runVaultWorkspaceProbe = async (
   spec: VaultWorkspaceProbeSpec,
   corpusUserId: string
@@ -122,20 +96,6 @@ export const runVaultWorkspaceProbe = async (
           label: c.label,
           pass: ok,
           reason: ok ? "pathPlan list ok" : "pathPlan list failed",
-          latencyMs: Date.now() - started,
-        });
-        continue;
-      }
-      if (c.mode === "corpus_edit_dropped") {
-        const ok = corpusEditDroppedOk();
-        results.push({
-          id: c.id,
-          tier: "pipeline",
-          label: c.label,
-          pass: ok,
-          reason: ok
-            ? "corpus_edit legalize-dropped"
-            : "corpus_edit step still present",
           latencyMs: Date.now() - started,
         });
         continue;
@@ -363,8 +323,3 @@ export const runVaultWorkspaceProbe = async (
   }
   return results;
 };
-
-/** 兼容旧 import 名 */
-export type CorpusEditProbeSpec = VaultWorkspaceProbeSpec;
-export type CorpusEditProbeResult = VaultWorkspaceProbeResult;
-export const runCorpusEditProbe = runVaultWorkspaceProbe;

@@ -24,7 +24,6 @@ export type AgentLogName =
   | "ToolOrchestrator"
   | "ListRetriever"
   | "DagExecutor"
-  | "HitlWrite"
   | "VaultWrite"
   | "PlanCacheResolve";
 
@@ -55,7 +54,6 @@ const AGENT_EMOJI: Record<AgentLogName, string> = {
   ToolOrchestrator: "🛠️",
   DagExecutor: "🕸️",
   ListRetriever: "🔍",
-  HitlWrite: "✍️",
   VaultWrite: "🗄️",
   PlanCacheResolve: "💾",
 };

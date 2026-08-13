@@ -5,9 +5,6 @@ import {
     handleHealth,
     handleNotFound,
     handlePipelineCancel,
-    handlePipelineCorpusEditContent,
-    handlePipelineCorpusEditPropose,
-    handlePipelineCorpusEditResume,
     handlePipelineStream,
 } from "@/server/routes";
 import {
@@ -30,18 +27,6 @@ const server = createServer((req, res) => {
     }
     if (url === "/pipeline/cancel") {
         handleAsync(handlePipelineCancel)(req, res);
-        return;
-    }
-    if (url === "/pipeline/corpus-edit/resume") {
-        handleAsync(handlePipelineCorpusEditResume)(req, res);
-        return;
-    }
-    if (url === "/pipeline/corpus-edit/propose") {
-        handleAsync(handlePipelineCorpusEditPropose)(req, res);
-        return;
-    }
-    if (url.startsWith("/pipeline/corpus-edit/content")) {
-        handleAsync(handlePipelineCorpusEditContent)(req, res);
         return;
     }
     if (url === "/documents/upload") {

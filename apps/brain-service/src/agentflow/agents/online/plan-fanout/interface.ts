@@ -25,8 +25,7 @@ export type PlanSlotWorkerKind =
   | "mem"
   | "tool"
   | "summarize"
-  | "vault_workspace"
-  | "corpus_edit";
+  | "vault_workspace";
 
 /** 单槽工人产出（append 进 fanOutSlotPatches） */
 export type PlanSlotWorkerPatch = {
