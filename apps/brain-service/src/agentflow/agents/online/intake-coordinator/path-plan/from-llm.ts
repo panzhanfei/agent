@@ -146,18 +146,30 @@ const legalizeEnumerationControl = (
 
 const legalizeIdentityField = (v: unknown): ExecutionStep["identityField"] => {
   if (typeof v !== "string") return null;
+  const t = v.trim();
   const allowed = [
     "name",
     "age",
+    "birthYear",
     "email",
     "phone",
     "education",
     "career",
     "tenure",
   ] as const;
-  return (allowed as readonly string[]).includes(v)
-    ? (v as (typeof allowed)[number])
-    : null;
+  if ((allowed as readonly string[]).includes(t)) {
+    return t as (typeof allowed)[number];
+  }
+  const lower = t.toLowerCase();
+  if (
+    lower === "birth_year" ||
+    lower === "birthyear" ||
+    lower === "year_of_birth" ||
+    lower === "yearofbirth"
+  ) {
+    return "birthYear";
+  }
+  return null;
 };
 
 const legalizeUserFactKey = (v: unknown): string | null => {
@@ -199,7 +211,8 @@ const defaultToolIdForStep = (
       identityField === "email" ||
       identityField === "phone" ||
       identityField === "education" ||
-      identityField === "career")
+      identityField === "career" ||
+      identityField === "birthYear")
   ) {
     return "extract_identity_from_hits";
   }

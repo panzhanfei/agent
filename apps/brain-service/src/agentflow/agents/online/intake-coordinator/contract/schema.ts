@@ -133,6 +133,7 @@ const normalizeIdentityField = (
 ):
   | "name"
   | "age"
+  | "birthYear"
   | "email"
   | "phone"
   | "education"
@@ -145,6 +146,7 @@ const normalizeIdentityField = (
   const allowed = [
     "name",
     "age",
+    "birthYear",
     "email",
     "phone",
     "education",
@@ -155,6 +157,14 @@ const normalizeIdentityField = (
     return t as (typeof allowed)[number];
   }
   const lower = t.toLowerCase();
+  if (
+    lower === "birth_year" ||
+    lower === "birthyear" ||
+    lower === "year_of_birth" ||
+    lower === "yearofbirth"
+  ) {
+    return "birthYear";
+  }
   if (
     lower === "careerduration" ||
     lower === "tenure_years" ||
@@ -171,7 +181,16 @@ export const intakeIdentityFieldSchema = z
   .preprocess(
     normalizeIdentityField,
     z
-      .enum(["name", "age", "email", "phone", "education", "career", "tenure"])
+      .enum([
+        "name",
+        "age",
+        "birthYear",
+        "email",
+        "phone",
+        "education",
+        "career",
+        "tenure",
+      ])
       .nullable()
   )
   .optional()

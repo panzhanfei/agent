@@ -247,12 +247,14 @@ export const invokeComputeTenure = (input: {
     language: "zh" | "en" | "mixed";
     label: string;
     asOfDate: string;
+    searchQuery?: string;
 }): ToolRunResult => {
     const extraction = extractTenureFromHits(input.hits);
     const { answer, insufficientEvidence } = buildTenureAnswer({
         extraction,
         language: input.language,
         asOfDate: input.asOfDate,
+        searchQuery: input.searchQuery,
     });
     const citations =
         extraction?.sourceHit && !insufficientEvidence
@@ -416,6 +418,7 @@ export const runExecutionPlanNode = async (
                 hits: node.hitsOverride ?? state.hits,
                 language,
                 label: node.label,
+                searchQuery: node.searchQuery,
                 asOfDate:
                     state.asOfDate ?? new Date().toISOString().slice(0, 10),
             });
@@ -426,6 +429,7 @@ export const runExecutionPlanNode = async (
                     [
                         "name",
                         "age",
+                        "birthYear",
                         "email",
                         "phone",
                         "education",
@@ -690,6 +694,7 @@ export const resolvePostRetrievalToolRuns = (
                 node: {
                     id: sub.slot,
                     label: sub.label,
+                    searchQuery: slot.searchQuery,
                     dataSource:
                         slot.toolId === "compute_age_from_hits" ||
                         slot.toolId === "compute_tenure_from_hits"

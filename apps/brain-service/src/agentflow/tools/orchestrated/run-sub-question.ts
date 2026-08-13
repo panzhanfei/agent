@@ -95,6 +95,7 @@ const computeTenureFromHits = (
         extraction,
         language: input.language,
         asOfDate: input.asOfDate,
+        searchQuery: input.searchQuery,
     });
     const citations =
         extraction?.sourceHit && !insufficientEvidence
@@ -123,6 +124,7 @@ const extractIdentityFromHits = (
     const resolvedField =
         field === "name" ||
         field === "age" ||
+        field === "birthYear" ||
         field === "email" ||
         field === "phone" ||
         field === "education" ||

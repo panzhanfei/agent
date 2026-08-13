@@ -69,6 +69,7 @@ const buildSubInput = (
         facetKey: plan.facetKey,
         identityField: plan.identityField ?? null,
         parentUserQuestion: input.userQuestion,
+        searchQuery: plan.searchQuery,
         toolResults: input.toolResults,
         dataSource: plan.dataSource ?? sub.dataSource ?? null,
         recalledFact: sub.recalledFact ?? null,

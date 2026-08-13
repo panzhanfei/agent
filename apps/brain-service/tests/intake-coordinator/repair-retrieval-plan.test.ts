@@ -65,6 +65,26 @@ describe("dedupePlanByFacet", () => {
         ]);
         expect(deduped).toHaveLength(2);
     });
+
+    it("keeps career tenure and employer tenure as separate facets", () => {
+        const deduped = dedupePlanByFacet([
+            {
+                label: "从业年限",
+                searchQuery: "个人简介 简历 工作经历 时间线 任职 时间段",
+                queryType: "identity",
+                topics: ["personal", "resume", "experience"],
+                identityField: "tenure",
+            },
+            {
+                label: "西安奥卡云任职年限",
+                searchQuery: "西安奥卡云 任职 年限 时间段",
+                queryType: "identity",
+                topics: ["experience"],
+                identityField: "tenure",
+            },
+        ]);
+        expect(deduped).toHaveLength(2);
+    });
 });
 
 describe("normalizePlanItemFromSchema", () => {

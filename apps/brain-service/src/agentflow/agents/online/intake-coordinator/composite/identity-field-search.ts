@@ -18,6 +18,10 @@ export const IDENTITY_FIELD_SEARCH: Record<
         displayLabel: "年龄",
         searchQuery: "个人简介 简历 年龄 出生年份 出生日期",
     },
+    birthYear: {
+        displayLabel: "出生年份",
+        searchQuery: "个人简介 简历 出生年份 出生日期 出生年月",
+    },
     email: {
         displayLabel: "邮箱",
         searchQuery: "个人简介 简历 邮箱",

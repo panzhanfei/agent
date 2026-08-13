@@ -3,6 +3,7 @@ import {
     buildAgeAnswer,
     computeAgeYears,
     extractBirthOrAgeFromText,
+    extractIdentityFieldFromHits,
     isAgeSubQuestion,
 } from "@/agentflow/tools/identity";
 
@@ -24,6 +25,7 @@ describe("compute-age", () => {
     it("detects age sub-questions", () => {
         expect(isAgeSubQuestion("我今年多大")).toBe(true);
         expect(isAgeSubQuestion("姓名叫什么")).toBe(false);
+        expect(isAgeSubQuestion("出生年份")).toBe(false);
     });
 
     it("builds insufficient answer when no birth field", () => {
@@ -34,5 +36,33 @@ describe("compute-age", () => {
         });
         expect(insufficientEvidence).toBe(true);
         expect(answer).toMatch(/未标注当前年龄/);
+    });
+
+    it("annotates asOf on computed age", () => {
+        const { answer } = buildAgeAnswer({
+            extraction: {
+                birth: { year: 1993, month: 3 },
+                birthLabel: "1993 年 3 月",
+            },
+            language: "zh",
+            asOfDate: "2026-08-13",
+        });
+        expect(answer).toMatch(/33\s*岁/);
+        expect(answer).toMatch(/截至 2026-08-13/);
+    });
+
+    it("extracts birthYear without computing age", () => {
+        const found = extractIdentityFieldFromHits(
+            [
+                {
+                    path: "personal/resume.md",
+                    title: "简历",
+                    excerpt: "| 出生日期 | 1993.03 |",
+                    relevance: 1,
+                },
+            ],
+            "birthYear"
+        );
+        expect(found?.value).toBe("1993");
     });
 });

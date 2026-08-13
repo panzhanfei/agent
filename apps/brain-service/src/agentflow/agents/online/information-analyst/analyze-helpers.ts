@@ -49,6 +49,8 @@ export type SubQuestionAnalyzeInput = {
   listIntent?: import("@/agentflow/agents/online/intake-coordinator").EnumerationListIntent | null;
   /** 年龄等编排工具计算基准日 YYYY-MM-DD，默认当天 */
   asOfDate?: string;
+  /** 槽 searchQuery（tenure 雇主匹配用 Intake 结构化检索词） */
+  searchQuery?: string;
   /** composite 槽位 id（toolResults 键 slot_<id>） */
   slotId?: string;
   /** 槽答案缓存键（如 id:age），供空结果文案分型 */
@@ -448,4 +450,5 @@ export const toSubQuestionInput = (
   listIntent: input.listIntent ?? null,
   asOfDate: input.asOfDate ?? new Date().toISOString().slice(0, 10),
   toolResults: input.toolResults,
+  searchQuery: input.searchQuery,
 });

@@ -416,7 +416,7 @@
   },
   "cacheProbe": {
     "id": "CACHE-G4-repeat",
-    "label": "同问重复（cache 探测；主路径为 planFanOut 真实步骤）",
+    "label": "同问重复（L1 同问短路 / L2 hits cache；主路径仍为 planFanOut 真实步骤）",
     "conversationIdPrefix": "eval-cache",
     "turns": [
       {

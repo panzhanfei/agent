@@ -4,6 +4,7 @@
  *   pnpm --filter @fambrain/brain-service run eval:run
  *   pnpm --filter @fambrain/brain-service run eval:run -- --case L3
  *   pnpm --filter @fambrain/brain-service run eval:run -- --mem-only
+ *   pnpm --filter @fambrain/brain-service run eval:run -- --cache-only
  *   pnpm --filter @fambrain/brain-service run eval:run -- --identity-composite-only
  *   EVAL_WRITE_REPORT=1 pnpm --filter @fambrain/brain-service run eval:run
  *
@@ -32,7 +33,10 @@ import {
     type KmEvalSnapshot,
     type PipelineEvalSnapshot,
 } from "./assert-golden";
-import { enableRepeatGuardForVerify } from "../verify-test-env";
+import {
+    enableMemoryRetrievalCacheForVerify,
+    enableRepeatGuardForVerify,
+} from "../verify-test-env";
 import {
     runVaultWorkspaceProbe,
     runCorpusEditProbe,
@@ -537,33 +541,54 @@ const runCacheProbe = async (
     probe: NonNullable<GoldenFile["cacheProbe"]>,
     corpusUserId: string
 ): Promise<CaseResult[]> => {
+    enableRepeatGuardForVerify();
+    enableMemoryRetrievalCacheForVerify();
     const conversationId = `${probe.conversationIdPrefix}-${Date.now()}`;
     const out: CaseResult[] = [];
+    let priorHistory: DbChatTurn[] = [];
     for (const [i, turn] of probe.turns.entries()) {
         const snap = await runPipelineCase(
             corpusUserId,
             turn.question,
-            conversationId
+            conversationId,
+            priorHistory
         );
         const issues = assertPipeline(snap, turn.assert);
         const cacheHit = snap.cacheHit ?? false;
-        const allIssues = [...issues];
+        const repeatHit = snap.repeatHit ?? false;
+        const skippedLive = cacheHit || repeatHit;
+        if (turn.expectCacheHit && !skippedLive) {
+            issues.push(
+                "期望 L1 同问短路或 L2 hits cache，本轮均未命中（接线已在 pipeline，非「未接入」）"
+            );
+        }
+        const layer = repeatHit ? "L1 同问短路" : cacheHit ? "L2 hits cache" : "miss";
         out.push({
             id: `${probe.id}-t${i + 1}`,
             tier: "pipeline",
             label: `${probe.label} · turn${i + 1}`,
-            pass: allIssues.length === 0,
+            pass: issues.length === 0,
             reason:
-                allIssues.length === 0
+                issues.length === 0
                     ? turn.expectCacheHit
-                        ? `ok（cache 探测：${cacheHit ? "hit" : "miss，cache 未接入"}）`
+                        ? `ok（${layer}）`
                         : "ok"
-                    : allIssues.join("; "),
+                    : issues.join("; "),
             latencyMs: snap.latencyMs,
-            cacheHit,
+            cacheHit: skippedLive,
             cacheExpected: turn.expectCacheHit ?? false,
+            repeatHit,
             ...tokensFromSnap(snap),
         });
+        priorHistory = [
+            ...priorHistory,
+            { role: "user", content: turn.question },
+            {
+                role: "assistant",
+                content: snap.answer,
+                ...(snap.blocks?.length ? { blocks: snap.blocks } : {}),
+            },
+        ];
     }
     return out;
 };
@@ -773,7 +798,9 @@ const buildMetrics = (
     const latencies = results.map((r) => r.latencyMs);
 
     const cacheEligible = cacheProbe.filter((r) => r.cacheExpected);
-    const cacheHits = cacheEligible.filter((r) => r.cacheHit === true).length;
+    const cacheHits = cacheEligible.filter(
+        (r) => r.cacheHit === true || r.repeatHit === true
+    ).length;
 
     const tokenSamples = results.filter(
         (r) => typeof r.totalTokens === "number" && r.totalTokens > 0
@@ -811,8 +838,8 @@ const buildMetrics = (
             cacheEligible.length === 0
                 ? "无 cache 探测用例"
                 : cacheHits === 0
-                  ? "检索 cache 尚未接入 pipeline（指标占位 0/N）"
-                  : "cache 已命中",
+                  ? "探测轮未命中 L1 同问短路 / L2 hits cache（接线已在 pipeline：repeatQuestionGuard + planCacheResolve）"
+                  : "已命中 L1 同问短路或 L2 检索 hits cache",
         latencyMs: {
             avg:
                 latencies.length === 0
@@ -955,6 +982,7 @@ const formatMarkdown = (report: EvalReport): string => {
 };
 
 const jsonOnly = process.argv.includes("--json-only");
+const cacheOnly = process.argv.includes("--cache-only");
 const profileOnly = process.argv.includes("--profile-only");
 const listPaginationOnly = process.argv.includes("--list-pagination-only");
 const identityCompositeOnly = process.argv.includes("--identity-composite-only");
@@ -987,6 +1015,24 @@ const main = async (): Promise<void> => {
         const failed = memProbe.filter((r) => !r.pass);
         if (failed.length > 0) process.exit(1);
         console.log("\nMem probe 通过。");
+        return;
+    }
+
+    if (cacheOnly) {
+        if (!golden.cacheProbe) {
+            throw new Error("golden.json 缺少 cacheProbe");
+        }
+        console.log(`eval:run — cache probe only (${golden.cacheProbe.id})`);
+        console.log(`corpusUserId=${corpusUserId} chroma=${chromaUp ? "up" : "down"}\n`);
+        const cacheProbe = await runCacheProbe(golden.cacheProbe, corpusUserId);
+        for (const r of cacheProbe) {
+            console.log(
+                `  ${r.id}: ${r.pass ? "PASS" : "FAIL"} — ${r.reason} (${r.latencyMs}ms)`
+            );
+        }
+        const failed = cacheProbe.filter((r) => !r.pass);
+        if (failed.length > 0) process.exit(1);
+        console.log("\nCache probe 通过。");
         return;
     }
 

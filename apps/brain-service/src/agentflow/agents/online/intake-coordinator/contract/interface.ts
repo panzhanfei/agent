@@ -12,6 +12,7 @@ export type { EnumerationControl };
 export type IntakeIdentityField =
   | "name"
   | "age"
+  | "birthYear"
   | "email"
   | "phone"
   | "education"
@@ -37,7 +38,7 @@ export type IntakeRetrievalPlanItem = {
   enumerationControl?: EnumerationControl | null;
   /**
    * identity 子字段（仅 queryType=identity 时填写）：
-   * name/age/email/phone/education/career/tenure；供工具与 facetKey；勿用 label 正则猜字段。
+   * name/age/birthYear/email/phone/education/career/tenure；供工具与 facetKey；勿用 label 正则猜字段。
    */
   identityField?: IntakeIdentityField | null;
 };

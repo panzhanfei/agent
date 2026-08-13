@@ -12,6 +12,14 @@ describe("field-catalog", () => {
         expect(field?.toolId).toBe("compute_age_from_hits");
     });
 
+    it("resolves birthYear from identityField", () => {
+        const field = resolveIdentityFieldFromPlan({
+            identityField: "birthYear",
+        });
+        expect(field?.id).toBe("birthYear");
+        expect(field?.toolId).toBe("extract_identity_from_hits");
+    });
+
     it("returns null without identityField", () => {
         expect(resolveIdentityFieldFromPlan({})).toBeNull();
     });

@@ -4,6 +4,7 @@ export type {
   IdentityFieldExtraction,
   TenureExtraction,
   TenureRange,
+  TenureScope,
 } from "./interface";
 
 export {
@@ -18,8 +19,11 @@ export {
 export {
   buildTenureAnswer,
   computeTenureYearsMonths,
+  extractTenureEntityHints,
   extractTenureFromHits,
   parseTenureRangesFromText,
+  selectTenureRanges,
+  tenureEndDate,
 } from "./compute-tenure";
 
 export {

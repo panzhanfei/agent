@@ -109,6 +109,40 @@ console.log("\n— resolveOrchestratedTool —");
 
 {
     const tool = resolveOrchestratedTool({
+        userQuestion: "出生年份",
+        language: "zh",
+        hits: [resumeHit("| 出生日期 | 1993.03 |")],
+        coverage: "sufficient",
+        notes: null,
+        queryType: "identity",
+        identityField: "birthYear",
+    });
+    assert.equal(tool, "extract_identity_from_hits");
+    ok("出生年份 identityField=birthYear → extract_identity_from_hits");
+}
+
+{
+    const tool = resolveOrchestratedTool({
+        userQuestion: "西安奥卡云任职年限",
+        language: "zh",
+        hits: [
+            resumeHit(
+                "| 2021.06 - 2024.09 | 西安奥卡云 |\n| 2016.07 - 2018.04 | 云联 |"
+            ),
+        ],
+        coverage: "sufficient",
+        notes: null,
+        queryType: "identity",
+        identityField: "tenure",
+        searchQuery: "西安奥卡云 任职 年限 时间段",
+        asOfDate: "2026-08-13",
+    });
+    assert.equal(tool, "compute_tenure_from_hits");
+    ok("tenure 槽 → compute_tenure_from_hits");
+}
+
+{
+    const tool = resolveOrchestratedTool({
         userQuestion: "开源链接",
         language: "zh",
         hits: [resumeHit("https://github.com/org/repo")],
@@ -168,6 +202,44 @@ console.log("\n— runOrchestratedSubQuestion —");
     assert.equal(result.answer, "潘展飞");
     assert.equal(result.insufficientEvidence, false);
     ok(`姓名抽取: ${result.answer}`);
+}
+
+{
+    const result = runOrchestratedSubQuestion({
+        userQuestion: "出生年份",
+        language: "zh",
+        hits: [resumeHit("| 出生日期 | 1993.03 |")],
+        coverage: "sufficient",
+        notes: null,
+        queryType: "identity",
+        identityField: "birthYear",
+    });
+    assert.ok(result);
+    assert.match(result.answer, /1993/);
+    assert.doesNotMatch(result.answer, /岁/);
+    ok(`出生年份抽取: ${result.answer}`);
+}
+
+{
+    const result = runOrchestratedSubQuestion({
+        userQuestion: "西安奥卡云任职年限",
+        language: "zh",
+        hits: [
+            resumeHit(
+                "| 2021.06 - 2024.09 | 西安奥卡云 |\n| 2016.07 - 2018.04 | 云联 |"
+            ),
+        ],
+        coverage: "sufficient",
+        notes: null,
+        queryType: "identity",
+        identityField: "tenure",
+        searchQuery: "西安奥卡云 任职 年限 时间段",
+        asOfDate: "2026-08-13",
+    });
+    assert.ok(result);
+    assert.match(result.answer, /3\s*年\s*3\s*个月/);
+    assert.doesNotMatch(result.answer, /最早自/);
+    ok(`雇主年限: ${result.answer}`);
 }
 
 {

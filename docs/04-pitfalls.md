@@ -113,15 +113,29 @@
 | **P0-29** | Intake | `verify:intake-chitchat` 偶发「你好」→ **`retrieve_and_answer`**；脚本断言逻辑反了 | 小模型对极短句非确定性；prompt 检索示例偏多；parse 失败 → `defaultIntakeDecision`；测试在 intent=chitchat 时误 throw | **`isPureSocialUtterance`** 入口跳过 LLM；chitchat briefReply 仍走 P0-13 模板 | ✅ **已解决**（2026-07）← **§2.8.1** · `verify:intake-chitchat` |
 | **P0-30** | Intake / KM / Analyst / Web | 超长复合履历问：重复「工作经历/任职」、表头误「项目名称」、年限只算近段、近两年未过滤；`labels` 口语二次规划 | Intake 过拆 + repair 口语注入；canonicalize 盖掉 tenure 检索词；UI 写死表头；list 无时间窗 | **LLM 主导合并拆分**；schema 合法化 + facet 去重；`tenure` + `timeWindowYears`；职位/链接 UI；单测迁 `tests/` | ✅ **已解决**（2026-07）← **§2.9** · [架构 v2 §12](./05-architecture-v2-tool-orchestration.md#12-intake-llm-主导--schema-兜底2026-07--去问句硬编码) |
 | **P0-31** | Intake | 单字乱敲浪费 token；短续问**盲预合并**误伤换题；散文当指代信号；复盘时「代码像二次 Intake」 | 结构启发当语义；散文兜底驱动重试；规划与纠偏缠在一起 | **档 B 定型**：主路径=LLM 任务规划；旁路=normalize / JSON 修复 / 指代拼接≤1 / guard 纠偏；`coreference` 字段 | ✅ **已解决**（2026-07）← **§2.10** · [架构 v2 §13](./05-architecture-v2-tool-orchestration.md#13-intake-档-b主路径规划--旁路纠偏-2026-07) |
-| **P0-32** | Tool / Analyst | 复合问「奥卡云上班年限」→「5 年 6 个月（最早自 2021）」；单问同槽常只复述 **2021.6–2024.9**；「出生年份」易答成周岁 | `compute_tenure_from_hits` 用 **earliest 总从业→asOf**，非雇主过滤/离职日；与 age 同属 asOf 算术但语义不同；复合挂工具、单问常跳过 | **待做：** 公司年限按雇主区间+结束日；区分出生年 vs 周岁；终稿标注 asOf | ⬜ **待做** ← **§2.5.11** |
+| **P0-32** | Tool / Analyst | 复合问「奥卡云上班年限」→「5 年 6 个月（最早自 2021）」；单问同槽常只复述 **2021.6–2024.9**；「出生年份」易答成周岁 | `compute_tenure_from_hits` 用 **earliest 总从业→asOf**，非雇主过滤/离职日；与 age 同属 asOf 算术但语义不同；复合挂工具、单问常跳过 | 雇主年限按槽 **searchQuery** 实体匹配经历区间，有结束日则止于结束日；`identityField=birthYear` 抽年份；终稿标注 asOf | ✅ **已解决**（2026-08）← **§2.5.11** |
 | P0-20 | Analyst / KM / composite | **综合问**公司段只列 2 家；子问「2～8 句」压缩；Organizer 固定 cap **5** | `MAX_SUB_QUESTION_HITS=4`；子问 prompt 句数限制；CO 未跟 profile | **`maxAnalystHitsForProfile`** + CO **`queryProfile` maxHits**；enumeration 子问 prompt「须列全 hits」 | ✅ **已解决**（2026-06）← §2.5.5 |
 | P0-21 | Intake / KM / Analyst | composite 槽 label「**具体项目名称**」→ 答 **云联智慧/友谊时光** 等公司 | 所有 enumeration 共用 **experience fill**；Intake 误标 `topics:experience` → canonical 到 employers | **`resolveEnumerationTarget`**（label 优先）+ KM **projects/** 专扫 + Analyst project prompt | ✅ **已解决**（2026-06）← §2.5.5 |
 | **P0-33** | HITL / 语料写盘 | 直接改 `corpus/**/*.md` + 软清空 `<!-- fambrain:cleared -->`；用户难记 path | 编辑面与检索产物耦合；软删仍占向量 path | **模型 A**：只 CRUD `vault/originals/workspace/*.txt`；`vault_workspace` list/CRUD；语料化 md+向量；**硬删**级联；`corpus_edit` 退役 | ✅ **已解决**（2026-08）← [流程 · 原文库](./02-agent-flows.md) |
-| **P0-34** | Intake / Tool / Mem0 | 小模型 pathPlan 不稳 → 代码「猜 LLM 本意」抬升/改写（亲友 searchQuery、`km-qq`→mem、空 plan→remember、年龄口语 regex 等） | 本地小模型 JSON 纪律弱；为过 eval 叠加结构兜底，复盘时难分「模型工单错」vs「代码又规划」 | **暂留**；与 **Dify 抽离 + 换更强 Intake 模型** 同批验证；绿后按 §2.11 清单删除 | ⬜ **待清理** ← **§2.11** · [架构 v2 §14](./05-architecture-v2-tool-orchestration.md#14-猜模型意图兜底债--dify换模型后删除-p0-34--2026-08) |
+| **P0-34** | Intake / Tool / Mem0 | 小模型 pathPlan 不稳 → 代码「猜 LLM 本意」抬升/改写（亲友 searchQuery、`km-qq`→mem、空 plan→remember、年龄口语 regex 等） | 本地小模型 JSON 纪律弱；为过 eval 叠加结构兜底，复盘时难分「模型工单错」vs「代码又规划」 | **暂留（现在不删）**；债 **主要在 Intake，工具层次之**；与 **Dify 抽离 + 换更强 Intake 模型** 同批验证；绿后按 §2.11 模块账本删除 | ⬜ **待清理** ← **§2.11** · [架构 v2 §14](./05-architecture-v2-tool-orchestration.md#14-猜模型意图兜底债--dify换模型后删除-p0-34--2026-08) |
 
 ### 2.11 猜模型意图兜底债（⬜ P0-34 · 与 Dify 抽离同批 · 2026-08）
 
 > **背景：** P0-30/31 已禁止「口语二次 Intake」，但本地小模型仍常把 QQ 写成 `kind=km`、漏 `userFactKey`、或把非法 `identityField` 塞进闭集外字段。工程收口期为过 GMem / 六连问等 eval，在 `from-llm.ts` / pipeline / schema / 工具层叠了多层 **「LLM 偶发 → 猜本意」** 兜底。体感仍像硬编码；**正确收敛路径不是继续加词表，而是换模型后删掉这些猜意图代码。**
+>
+> **2026-08 记账：** 猜意图债 **主要集中在 Intake**（小模型 JSON 不稳，没办法，换模型再砍）；**工具层次之**（年龄口语 regex、外链 label 剥词）。KM / Analyst / plan-fanout 几乎没有「按问句词表改路由」。**现在不删**；Dify / 更强 Intake 模型验证绿后再按下方清单删。
+
+#### 模块账本（换模型后再动；现在不删）
+
+| 模块 | 密度 | 为什么还在 | 换模型后 |
+|------|------|------------|----------|
+| **Intake** `path-plan/from-llm.ts` · `pipeline/intake-pipeline.ts` · `contract/schema.ts` | **最密** | 小模型漏 `kind=mem` / 乱填 identityField / 空 plan；为过 eval 猜 LLM 本意 | **先砍这里**：亲友 searchQuery 改写、`km-qq`→mem、空 plan→remember、pathPlan 抬升 userFact |
+| **工具** `tools/identity/compute-age.ts` · `orchestrated/run-sub-question.ts` · `tools/links/extract-external-links.ts` | **次密** | 无 `identityField`/`toolId` 时用问句/label 口语兜底 | **随后砍**：只信 Intake 结构化字段；外链只对 excerpt 抽 URL |
+| **Mem0** `user-fact/mem-retrieve` | 薄 | 无 key 时 `normalizeFactKey(label)` 发明字段名 | 无 key → clarify，禁止发明 key |
+| KM / Analyst / plan-fanout | 几乎无 | — | 不必为「去硬编码」大改 |
+| `tool-orchestrator/catalog`、excerpt 表头、UI exact-match | **不是债** | schema→executor / 语料结构 / 按钮精确匹配 | **保留** |
+
+删的顺序：Intake JSON 稳了 → 砍 `from-llm` / pipeline → 再砍年龄与外链口语 fallback → 最后 mem 发明 key。
 
 #### 处置约定（与 Dify 同批）
 
@@ -706,7 +720,7 @@ pnpm --filter @fambrain/brain-service run verify:langchain-tools
 
 详见 [架构 v2 文档](./05-architecture-v2-tool-orchestration.md)。
 
-#### 2.5.11 公司年限 vs 总从业 / 出生年 vs 周岁（⬜ P0-32 · 2026-07 记坑）
+#### 2.5.11 公司年限 vs 总从业 / 出生年 vs 周岁（✅ P0-32 · 2026-08）
 
 > **严重度：** 中等偏轻（不挡主链路；复合问答非所问会伤信任）。**排期：** 后续 sprint，不与去硬编码同批。
 
@@ -726,7 +740,7 @@ pnpm --filter @fambrain/brain-service run verify:langchain-tools
 
 → **不是**「age 公式坏了所以 tenure 也坏」的同一 bug；是**同一类能力**（asOf + hits 抽日期）下 **tenure 语义未对齐问句**。
 
-**根因链（待消）：**
+**根因链（已消）：**
 
 | 层 | 问题 |
 |----|------|
@@ -735,16 +749,16 @@ pnpm --filter @fambrain/brain-service run verify:langchain-tools
 | **Analyst** | 复合有 `toolResults` 时优先甩工具文案；单问无工具时 LLM 复述区间 → 观感分裂 |
 | **产品** | 用户脑中「今天」若与服务端 `asOfDate` 不一致，周岁/总从业数字也会「看起来错」 |
 
-**对策（待做 · 禁止场景硬编码公司名）：**
+**对策（已做 · 禁止场景硬编码公司名）：**
 
 | 优先级 | 对策 | 说明 |
 |--------|------|------|
-| P0 | tenure 按 **槽 label / searchQuery 实体** 匹配经历区间；有结束日则止于结束日，否则 asOf | `tools/lib/compute-tenure.ts` + tool 入参 |
-| P0 | Intake / schema：总从业 vs 单雇主年限（结构化字段，非口语词表猜公司） | prompt few-shot + 可选字段 |
-| +1 | 出生年问法 → 抽出生年原文；「多大」→ `compute_age_from_hits`；终稿可附 `asOf` | 避免「问年份答周岁」 |
-| +1 | Golden / diagnose：复合「某司年限」断言区间或年数与语料一致 | 消坑后收紧 |
+| P0 | tenure 按 **槽 searchQuery 实体** 匹配经历区间；有结束日则止于结束日，否则 asOf | `compute-tenure.ts`：searchQuery 去掉 tenure 检索模板后与 excerpt 匹配 |
+| P0 | Intake / schema：总从业 vs 单雇主年限（searchQuery 含雇主则分 facet；`birthYear` vs `age`） | prompt few-shot + identityField 枚举 |
+| +1 | 出生年问法 → `identityField=birthYear` 抽年份；「多大」→ `compute_age_from_hits`；终稿附 `asOf` | 避免「问年份答周岁」 |
+| +1 | Golden / diagnose：复合「某司年限」断言区间或年数与语料一致 | 单测 `compute-tenure.test.ts` |
 
-**验证（消坑后）：** Web 复测上表两轮；`verify:orchestrated-identity` / tenure 单测；可选 `diagnose-*`。
+**验证：** `pnpm --filter @fambrain/brain-service exec vitest run tests/tools/compute-tenure.test.ts tests/tools/compute-age.test.ts tests/tool-orchestrator/field-catalog.test.ts tests/intake-coordinator/repair-retrieval-plan.test.ts`；`verify:orchestrated-identity`。
 
 #### 2.5.9 简历 GitHub / 对外链接问法（✅ P0-25 · 2026-07）
 
@@ -1172,7 +1186,7 @@ pnpm run verify:agent-schemas
 | **P0-30** | #2 任务拆分不合理（口语二次规划） | ✅ §2.9 |
 | **P0-31** | #1 意图误判（盲预合并 / 散文当指代）；#17 上下文污染（误并上轮）；复盘黑盒 | ✅ §2.10 |
 | **P0-34** | #1 意图误判 / #2 任务拆分（代码猜 LLM pathPlan/userFact）；与 Dify 抽离同批删兜底 | ⬜ §2.11 |
-| **P0-32** | #5 工具选择/语义错误（公司年限误用总从业工具）；#11 过度自信（复合甩推算文案） | ⬜ §2.5.11 |
+| **P0-32** | #5 工具选择/语义错误（公司年限误用总从业工具）；#11 过度自信（复合甩推算文案） | ✅ §2.5.11 |
 | **P0-28** | #2 任务拆分不合理；#4 计划漂移（多槽互斥） | ✅ §2.8 · 架构 v2 §11 |
 | P0-14 | #9 信息捏造；#16 Mem0 vs corpus 同句矛盾 | ✅ KM 优化 |
 | P0-15 | #9 信息捏造；#15 信息不对称 |

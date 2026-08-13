@@ -20,7 +20,12 @@ export type TenureRange = {
   endYear?: number;
   endMonth?: number;
   ongoing: boolean;
+  /** 同行 excerpt / 路径 / 标题，供雇主匹配（对语料结构，非用户口语词表） */
+  context?: string;
+  sourceHit?: KnowledgeHit;
 };
+
+export type TenureScope = "employer" | "career";
 
 export type TenureExtraction = {
   earliest: TenureRange;

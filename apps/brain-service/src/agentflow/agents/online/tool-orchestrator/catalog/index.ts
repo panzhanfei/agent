@@ -15,6 +15,11 @@ export const IDENTITY_FIELD_BY_ID: Record<IntakeIdentityField, IdentityFieldSpec
             toolId: "compute_age_from_hits",
             requiresCompute: true,
         },
+        birthYear: {
+            id: "birthYear",
+            toolId: "extract_identity_from_hits",
+            requiresCompute: false,
+        },
         name: {
             id: "name",
             toolId: "extract_identity_from_hits",
@@ -54,6 +59,7 @@ export const IDENTITY_CORPUS_FIELD_LABELS: Record<
 > = {
     name: ["姓名", "名字"],
     age: ["出生", "年龄", "出生日期", "出生年月"],
+    birthYear: ["出生年份", "出生日期", "出生年月", "出生"],
     email: ["邮箱", "邮件", "email"],
     phone: ["电话", "手机", "联系方式"],
     education: ["学历", "毕业", "院校"],

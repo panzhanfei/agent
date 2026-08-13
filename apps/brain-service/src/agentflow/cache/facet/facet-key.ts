@@ -60,6 +60,7 @@ export const detectCompositeRefreshIntent = (_userQuestion: string): boolean =>
 const IDENTITY_FACET_KEY: Record<IntakeIdentityField, string> = {
     name: "id:name",
     age: "id:age",
+    birthYear: "id:birthYear",
     email: "id:email",
     phone: "id:phone",
     education: "id:education",
@@ -119,6 +120,10 @@ export const buildFacetKey = (source: FacetSource): string => {
 
     if (canonical.queryType === "identity") {
         const field = canonical.identityField ?? item.identityField ?? null;
+        if (field === "tenure") {
+            const q = labelNorm(item.searchQuery).slice(0, 40);
+            return q ? `id:tenure:${q}` : "id:tenure";
+        }
         if (field && IDENTITY_FACET_KEY[field]) {
             return IDENTITY_FACET_KEY[field];
         }

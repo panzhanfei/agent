@@ -2,6 +2,7 @@ import { describe, expect, it } from "vitest";
 import {
     buildTenureAnswer,
     computeTenureYearsMonths,
+    extractTenureEntityHints,
     extractTenureFromHits,
     parseTenureRangesFromText,
 } from "@/agentflow/tools/identity";
@@ -21,16 +22,18 @@ describe("parseTenureRangesFromText", () => {
 });
 
 describe("extractTenureFromHits + buildTenureAnswer", () => {
-    it("uses earliest start from hits", () => {
-        const extraction = extractTenureFromHits([
-            {
-                path: "personal/resume.md",
-                title: "resume",
-                excerpt:
-                    "| 2021.06 - 2024.09 | 奥卡云 |\n| 2016.07 - 2018.04 | 云联 |",
-                relevance: 1,
-            },
-        ]);
+    const timelineHits = [
+        {
+            path: "personal/resume.md",
+            title: "resume",
+            excerpt:
+                "| 2021.06 - 2024.09 | 西安奥卡云 |\n| 2016.07 - 2018.04 | 云联 |",
+            relevance: 1,
+        },
+    ];
+
+    it("uses earliest start from hits for career total", () => {
+        const extraction = extractTenureFromHits(timelineHits);
         expect(extraction?.earliest.startYear).toBe(2016);
         expect(extraction?.earliest.startMonth).toBe(7);
         const { years } = computeTenureYearsMonths(
@@ -46,6 +49,35 @@ describe("extractTenureFromHits + buildTenureAnswer", () => {
         expect(insufficientEvidence).toBe(false);
         expect(answer).toMatch(/10\s*年/);
         expect(answer).toMatch(/2016/);
+        expect(answer).toMatch(/截至 2026-07-16/);
+    });
+
+    it("matches employer interval and stops at end date", () => {
+        const extraction = extractTenureFromHits(timelineHits);
+        const { answer, insufficientEvidence } = buildTenureAnswer({
+            extraction,
+            language: "zh",
+            asOfDate: "2026-08-13",
+            searchQuery: "西安奥卡云 任职 年限 时间段",
+        });
+        expect(insufficientEvidence).toBe(false);
+        expect(answer).toMatch(/3\s*年\s*3\s*个月/);
+        expect(answer).toMatch(/2021/);
+        expect(answer).toMatch(/2024/);
+        expect(answer).not.toMatch(/最早自/);
+        expect(answer).toMatch(/截至 2026-08-13/);
+    });
+
+    it("takes employer tokens from searchQuery after dropping tenure schema template", () => {
+        expect(
+            extractTenureEntityHints("西安奥卡云 任职 年限 时间段")
+        ).toContain("西安奥卡云");
+        expect(
+            extractTenureEntityHints("西安奥卡云 任职 年限 时间段")
+        ).not.toContain("任职");
+        expect(
+            extractTenureEntityHints("个人简介 简历 工作经历 时间线 任职 时间段")
+        ).toEqual([]);
     });
 
     it("reads start year from experience path convention", () => {

@@ -119,7 +119,7 @@ flowchart TB
 | 层 | 位置 | Key / 条件 | 命中后 | 关闭 |
 |----|------|------------|--------|------|
 | **同问短路** | **`repeatQuestionGuard` 节点**（`repeat-question-guard/nodes/repeat-question-node.ts`） | `normalize(userQuestion)` + history 中已有 assistant 答 | `repeat_respond_early` → 复用答案（`repeatQuestionHit`）→ `persistTurnEnd` | `REPEAT_QUESTION_CACHE_DISABLED=1` |
-| **检索结果 cache** | `agentflow/cache/`：`planCacheResolve` 预查；live miss 后 `writeHitsCache` | `{prefix}:retrieval:v1:…` | 进 KM 前读；retrieve 后写；仍走 FC | `RETRIEVAL_CACHE_DISABLED=1` |
+| **检索结果 cache** | `agentflow/cache/`：`planCacheResolve` 预查；live miss 后 `writeHitsCache` | `{prefix}:retrieval:v1:…` | 进 KM 前读；retrieve 后写；仍走 Organizer / Analyst | `RETRIEVAL_CACHE_DISABLED=1` |
 | **composite 终稿 cache** | `agentflow/cache/resolve-composite-plan.ts` + `packages/infra/.../composite-answer-cache.ts` | 同会话 `conversationId` + `corpusUserId` + **facetKey** | `planCacheResolve` 全量 facet 查表；命中槽跳过 KM | `COMPOSITE_ANSWER_CACHE_DISABLED=1` |
 
 清空 Redis / memory：`pnpm --filter @fambrain/brain-service exec tsx --env-file=../../.env scripts/clear-pipeline-cache.ts`（改 env 后须**重启 agents** 清进程内 memory）。

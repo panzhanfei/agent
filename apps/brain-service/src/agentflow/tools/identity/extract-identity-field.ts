@@ -1,6 +1,7 @@
 import type { IntakeIdentityField } from "@/agentflow/agents/online/intake-coordinator/contract";
 import { IDENTITY_CORPUS_FIELD_LABELS } from "@/agentflow/agents/online/tool-orchestrator/catalog";
 import type { KnowledgeHit } from "@/agentflow/agents/online/knowledge-manager";
+import { extractBirthOrAgeFromHits } from "./compute-age";
 import type { IdentityFieldExtraction } from "./interface";
 
 export type { IdentityFieldExtraction } from "./interface";
@@ -58,6 +59,16 @@ export const extractIdentityFieldFromHits = (
     hits: KnowledgeHit[],
     field: IntakeIdentityField
 ): IdentityFieldExtraction | null => {
+    if (field === "birthYear") {
+        const found = extractBirthOrAgeFromHits(hits);
+        if (found.birth) {
+            return {
+                value: String(found.birth.year),
+                sourceHit: found.sourceHit,
+            };
+        }
+        return null;
+    }
     const sorted = [...hits].sort((a, b) => {
         const score = (p: string) => (/personal|简历|resume/i.test(p) ? 0 : 1);
         return score(a.path) - score(b.path);
@@ -85,6 +96,10 @@ export const buildIdentityFieldAnswer = (input: {
                 zh: "个人知识库中的简历未标注当前年龄或出生日期。",
                 en: "No age or birth date was found in the resume excerpt.",
             },
+            birthYear: {
+                zh: "个人知识库中的简历未标注出生年份。",
+                en: "No birth year was found in the resume excerpt.",
+            },
             email: {
                 zh: "个人知识库中的简历未检索到邮箱。",
                 en: "No email was found in the resume excerpt.",
@@ -110,6 +125,13 @@ export const buildIdentityFieldAnswer = (input: {
         return {
             answer: language === "en" ? msg.en : msg.zh,
             insufficientEvidence: true,
+        };
+    }
+    if (field === "birthYear") {
+        const year = extraction.value.match(/(\d{4})/)?.[1] ?? extraction.value;
+        return {
+            answer: language === "en" ? year : `${year} 年`,
+            insufficientEvidence: false,
         };
     }
     return {

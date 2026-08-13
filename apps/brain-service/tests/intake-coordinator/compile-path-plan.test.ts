@@ -226,6 +226,47 @@ describe("legalizePathPlan + deriveCompositeSlots", () => {
     expect(pathPlan.steps[0]?.kind).toBe("km");
   });
 
+  it("legalizes birthYear and fills extract_identity toolId", () => {
+    const pathPlan = legalizePathPlan({
+      steps: [
+        {
+          id: "km-birth-year",
+          kind: "km",
+          label: "出生年份",
+          searchQuery: "个人简介 简历 出生年份 出生日期",
+          queryType: "identity",
+          topics: ["personal", "resume"],
+          identityField: "birthYear",
+          toolId: null,
+          dataSource: "corpus",
+        },
+      ],
+    });
+    expect(pathPlan.steps[0]?.identityField).toBe("birthYear");
+    expect(pathPlan.steps[0]?.toolId).toBe("extract_identity_from_hits");
+  });
+
+  it("legalizes employer tenure and fills compute_tenure toolId", () => {
+    const pathPlan = legalizePathPlan({
+      steps: [
+        {
+          id: "km-tenure",
+          kind: "km",
+          label: "西安奥卡云任职年限",
+          searchQuery: "西安奥卡云 任职 年限 时间段",
+          queryType: "identity",
+          topics: ["experience"],
+          identityField: "tenure",
+          toolId: null,
+          dataSource: "compute",
+        },
+      ],
+    });
+    expect(pathPlan.steps[0]?.identityField).toBe("tenure");
+    expect(pathPlan.steps[0]?.toolId).toBe("compute_tenure_from_hits");
+    expect(pathPlan.steps[0]?.searchQuery).toMatch(/西安奥卡云/);
+  });
+
   it("remaps lowercase open-fact identityField (qq) to mem", () => {
     const pathPlan = legalizePathPlan({
       steps: [

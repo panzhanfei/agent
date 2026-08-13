@@ -3,8 +3,8 @@ import type { AgeExtraction, BirthDate } from "./interface";
 
 export type { AgeExtraction, BirthDate } from "./interface";
 
-const AGE_QUESTION_RE =
-    /年龄|出生|多大|几岁|周岁|今年|多大了|哪年.*生|birth|how old|age/i;
+/** 周岁问法；不含「出生年份」（那是 identityField=birthYear） */
+const AGE_QUESTION_RE = /年龄|多大|几岁|周岁|how old|\bage\b/i;
 
 const EXPLICIT_AGE_RE =
     /(?:年龄|Age)[：:\s|]*(\d{1,2})\s*(?:岁|years? old)?/i;
@@ -192,18 +192,28 @@ export const buildAgeAnswer = (input: {
         const birthLabel =
             extraction.birthLabel ??
             formatBirthLabel(extraction.birth, language);
+        const asOfNote = input.asOfDate
+            ? language === "en"
+                ? ` as of ${input.asOfDate}`
+                : `；截至 ${input.asOfDate}`
+            : "";
         const answer =
             language === "en"
-                ? `${age} years old (resume records birth ${birthLabel})`
-                : `${age} 岁（简历记载生于 ${birthLabel}）`;
+                ? `${age} years old (resume records birth ${birthLabel}${asOfNote})`
+                : `${age} 岁（简历记载生于 ${birthLabel}${asOfNote}）`;
         return { answer, insufficientEvidence: false };
     }
 
     if (extraction.explicitAge !== undefined) {
+        const asOfNote = input.asOfDate
+            ? language === "en"
+                ? ` as of ${input.asOfDate}`
+                : `；截至 ${input.asOfDate}`
+            : "";
         const answer =
             language === "en"
-                ? `${extraction.explicitAge} years old (as recorded in the resume excerpt)`
-                : `${extraction.explicitAge} 岁（简历原文记载）`;
+                ? `${extraction.explicitAge} years old (as recorded in the resume excerpt${asOfNote})`
+                : `${extraction.explicitAge} 岁（简历原文记载${asOfNote}）`;
         return { answer, insufficientEvidence: false };
     }
 

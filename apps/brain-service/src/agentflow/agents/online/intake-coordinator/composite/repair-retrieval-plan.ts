@@ -35,6 +35,15 @@ export const planFacetKey = (item: IntakeRetrievalPlanItem): string => {
   if (item.queryType === "external_link") {
     return `${base}|${item.label.trim().slice(0, 80)}`;
   }
+  /**
+   * 总从业 vs 单雇主年限同为 tenure，须按 searchQuery 实体并存。
+   * 不把 label 口语当意图，只作结构化去重维度。
+   */
+  if (item.queryType === "identity" && item.identityField === "tenure") {
+    const entity =
+      item.searchQuery.trim().slice(0, 80) || item.label.trim().slice(0, 80);
+    return `${base}|${entity}`;
+  }
   return base;
 };
 
