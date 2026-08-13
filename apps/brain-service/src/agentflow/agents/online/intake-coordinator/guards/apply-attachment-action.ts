@@ -11,14 +11,19 @@ import {
 } from "@/agentflow/agents/offline/doc-parser";
 import { emptyPathPlan } from "@/agentflow/agents/online/intake-coordinator/path-plan";
 
+import type {
+  ApplyAttachmentActionResult,
+  AttachmentAction,
+} from "./interface";
+
+export type { ApplyAttachmentActionResult, AttachmentAction };
+
 export const ATTACHMENT_ACTIONS = [
   "extract",
   "summarize",
   "translate",
   "ingest",
 ] as const;
-
-export type AttachmentAction = (typeof ATTACHMENT_ACTIONS)[number];
 
 export const parseAttachmentAction = (
   raw: unknown
@@ -29,13 +34,6 @@ export const parseAttachmentAction = (
     return v as AttachmentAction;
   }
   return null;
-};
-
-export type ApplyAttachmentActionResult = {
-  decision: IntakeRoutingDecision;
-  /** 直接作答（extract / ingest） */
-  answer?: string;
-  earlyExit: boolean;
 };
 
 const withClarify = (

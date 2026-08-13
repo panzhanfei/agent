@@ -1,16 +1,21 @@
 /** Intake contract 聚合导出 */
+export type {
+  IntakeCoreferenceStatus,
+  IntakeIdentityField,
+  IntakeRetrievalPlanItem,
+  IntakeRoutingDecision,
+} from "./interface";
+export type { EnumerationControl } from "./interface";
+
 export {
-    prompt,
-    COREFERENCE_MERGE_RETRY_NOTE,
-    JSON_FORMAT_REPAIR_NOTE,
-    ATTACHMENT_INTAKE_NOTE,
-    type IntakeCoreferenceStatus,
-    type IntakeIdentityField,
-    type IntakeRetrievalPlanItem,
-    type IntakeRoutingDecision,
+  ATTACHMENT_INTAKE_NOTE,
+  COREFERENCE_MERGE_RETRY_NOTE,
+  JSON_FORMAT_REPAIR_NOTE,
+  prompt,
 } from "./prompt";
+
 export {
-    intakeRetrievalPlanItemSchema,
-    intakeRoutingDecisionSchema,
-    parseIntakeRoutingDecision,
+  intakeRetrievalPlanItemSchema,
+  intakeRoutingDecisionSchema,
+  parseIntakeRoutingDecision,
 } from "./schema";

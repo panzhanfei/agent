@@ -9,12 +9,8 @@ import type {
 import { EXTERNAL_LINK_SLOT } from "@/agentflow/agents/online/intake-coordinator/composite";
 import { decisionRequestsExternalLink } from "../signals";
 
-export type IntakeLinkLookupGuardReason =
-  | "noop"
-  | "single_external_link"
-  | "preserve_mixed_plan"
-  | "harmonize_plan_query_types"
-  | "harmonize_query_type";
+import type { IntakeLinkLookupGuardReason } from "./interface";
+export type { IntakeLinkLookupGuardReason };
 
 const planHasMixedQueryTypes = (plan: IntakeRetrievalPlanItem[]): boolean => {
   const types = new Set(plan.map((p) => p.queryType));

@@ -5,7 +5,7 @@
  */
 import assert from "node:assert/strict";
 import { parseIntakeRoutingDecision } from "../src/agentflow/agents/online/intake-coordinator";
-import { parseKnowledgeRetrievalResult } from "../src/agentflow/agents/online/knowledge-manager/contract/schema";
+import { parseKnowledgeRetrievalResult } from "../src/agentflow/agents/online/knowledge-manager/contract";
 import { parseAnalystResult } from "../src/agentflow/agents/online/information-analyst/schema";
 import { buildFallbackAnswer } from "../src/agentflow/agents/online/information-analyst/analyze-helpers";
 const testIntake = () => {

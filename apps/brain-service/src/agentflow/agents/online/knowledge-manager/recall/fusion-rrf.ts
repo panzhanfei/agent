@@ -2,10 +2,9 @@
  * HY-03：Reciprocal Rank Fusion（RRF）。
  * score(d) = Σ weight / (k + rank(d))
  */
-export type RrfRankedItem = {
-    path: string;
-    fusionScore: number;
-};
+import type { RrfRankedItem } from "./interface";
+
+export type { RrfRankedItem };
 
 export const fuseRrf = (
     lists: { paths: string[]; weight?: number }[],

@@ -9,8 +9,8 @@ import { PROJECTS_SLOT } from "../src/agentflow/agents/online/intake-coordinator
 import { organizeKnowledge } from "../src/agentflow/agents/online/content-organizer/organize-knowledge";
 import { maxAnalystHitsForProfile } from "../src/agentflow/agents/online/information-analyst/complete-analyze";
 import { buildSubQuestionFallbackAnswer } from "../src/agentflow/agents/online/information-analyst/analyze-helpers";
-import { isProjectEntryPath } from "../src/agentflow/agents/online/knowledge-manager/recall/retrieve-helpers";
-import { retrieveKnowledge } from "../src/agentflow/agents/online/knowledge-manager/recall/retrieve";
+import { isProjectEntryPath } from "../src/agentflow/agents/online/knowledge-manager/recall-helpers";
+import { retrieveKnowledge } from "../src/agentflow/agents/online/knowledge-manager/recall";
 import { listCorpusUserIds } from "../src/agentflow/agents/offline/knowledge-indexer/list-corpus-users";
 
 const resolveCorpusUserId = async (): Promise<string> => {

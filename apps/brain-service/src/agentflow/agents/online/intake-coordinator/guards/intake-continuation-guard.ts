@@ -5,7 +5,8 @@
 import type { DbChatTurn } from "@fambrain/brain-types";
 import type { IntakeRoutingDecision } from "@/agentflow/agents/online/intake-coordinator/contract";
 
-export type IntakeContinuationGuardReason = "noop";
+import type { IntakeContinuationGuardReason } from "./interface";
+export type { IntakeContinuationGuardReason };
 
 export const applyIntakeContinuationGuard = (
   decision: IntakeRoutingDecision,

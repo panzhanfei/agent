@@ -1,7 +1,7 @@
 /**
  * 进全局 B 的候选：只信结构信号 + 预算，不猜问句。
  */
-import type { EmptyPolicy } from "@/agentflow/agents/online/intake-coordinator/path-plan/empty-policy";
+import type { EmptyPolicy } from "@/agentflow/agents/online/intake-coordinator/path-plan";
 import type { PlanSlotWorkerPatch } from "../interface";
 import type { ExecutionPlanNode, PipelineToolResults } from "@/agentflow/agents/online/tool-orchestrator/interface";
 import {

@@ -8,17 +8,16 @@ import {
     RRF_VECTOR_WEIGHT,
     VECTOR_FETCH_MULTIPLIER,
 } from "../profile/km-config";
+import type {
+    KnowledgeCandidate,
+    RecallChannel,
+    RecallSource,
+} from "../contract/interface";
 import { fuseRrf } from "./fusion-rrf";
+import type { HybridRecallResult } from "./interface";
 import { dedupeVectorByPath, mergeChunkBodies } from "./retrieve-helpers";
-import type { KnowledgeCandidate, RecallChannel, RecallSource } from "../contract/types";
 
-export type HybridRecallResult = {
-    candidates: KnowledgeCandidate[];
-    recallSource: RecallSource;
-    vectorRawCount: number;
-    sparseRawCount: number;
-    uniquePathCount: number;
-};
+export type { HybridRecallResult };
 
 /** 向量路常见噪声（README/模板），不参与 RRF 排名。 */
 const isVectorNoisePath = (repoPath: string): boolean => {

@@ -1,13 +1,13 @@
 import type {
   KnowledgeHit,
   KnowledgeRetrievalResult,
-  CompositeSlotPlan,
   QueryProfile,
 } from "@/agentflow/agents/online/knowledge-manager";
 import type {
   CompositeSlotId,
   IntakeRouteMode,
 } from "@/agentflow/agents/online/intake-coordinator";
+import type { CompositeSlotPlan } from "@/agentflow/cache";
 import type { CompositeSessionKey } from "@fambrain/infra";
 import type { Citation } from "@fambrain/brain-types";
 

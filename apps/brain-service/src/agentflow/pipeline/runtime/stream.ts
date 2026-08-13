@@ -14,7 +14,7 @@ import {
   isSummarizeComposeDecision,
 } from "@/agentflow/agents/online/content-summarizer/summarize-route";
 import { isPureListDecision } from "@/agentflow/agents/online/corpus-lister";
-import { intakeRequiresKmRetrieval } from "@/agentflow/agents/online/intake-coordinator/pipeline/intake-km-routing";
+import { intakeRequiresKmRetrieval } from "@/agentflow/agents/online/intake-coordinator/pipeline";
 import { describeFanOutPlan } from "@/agentflow/agents/online/plan-fanout";
 import { isUserFactIntent } from "@/agentflow/agents/online/user-fact";
 import { buildLangGraphRunConfig } from "@fambrain/brain-config/langsmith";

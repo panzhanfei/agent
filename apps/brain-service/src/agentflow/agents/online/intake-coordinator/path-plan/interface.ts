@@ -35,7 +35,8 @@ export type ComposeMode = "qa" | "summarize" | "composite";
 /** 仅通用多源汇合；禁止为单业务场景再加 named template */
 export type DagTemplateId = "hybrid_multi_source";
 
-import type { EmptyPolicy } from "./empty-policy";
+/** 空证据策略：require | omit | degrade */
+export type EmptyPolicy = "require" | "omit" | "degrade";
 
 /**
  * 单步执行计划（LLM 终稿字段）。

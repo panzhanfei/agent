@@ -1,11 +1,12 @@
 /** Intake composite（规划侧）聚合导出 */
 export type {
-    CompositeFacetId,
-    CompositeRetrievalSlot,
-    CompositeRoutePlanSource,
-    CompositeSlotId,
-    EnumerationTarget,
-    EnumerationTargetInput,
+  CompositeFacetId,
+  CompositeRetrievalSlot,
+  CompositeRoutePlanSource,
+  CompositeSlotId,
+  EnumerationTarget,
+  EnumerationTargetInput,
+  IdentityFieldSearchSpec,
 } from "./interface";
 
 export {
@@ -23,10 +24,7 @@ export {
     facetTemplateForQueryType,
     planItemToSlot,
 } from "./composite-slot-queries";
-export {
-    IDENTITY_FIELD_SEARCH,
-    type IdentityFieldSearchSpec,
-} from "./identity-field-search";
+export { IDENTITY_FIELD_SEARCH } from "./identity-field-search";
 export {
     dedupePlanByFacet,
     normalizePlanItemFromSchema,

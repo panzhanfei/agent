@@ -55,10 +55,3 @@ export const getCompiledKmSlotGraph = (): KmSlotCompiled => {
   }
   return compiledKmSlot;
 };
-
-/** 兼容直接 invoke；父图优先挂编译子图 */
-export const runKmRetrieveNode = async (
-  state: PipelineGraphState
-): Promise<Partial<PipelineGraphState>> => {
-  return getCompiledKmSlotGraph().invoke(state);
-};

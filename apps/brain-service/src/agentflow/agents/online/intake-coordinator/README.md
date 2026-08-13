@@ -17,7 +17,7 @@ Intake 是 Pipeline 的**第一个 LLM 在线 Agent**（图内位于 **`prepareT
 | 多问并列难检索 | **pathPlan.steps[] → 派生 compositeSlots**，按序独立 KM/list |
 | 用户口述 QQ/微信不在简历里 | **userFact 分支**（routeMode=`userFact`，优先于 respondEarly），走 Mem0，不经 KM |
 | 同句再问浪费算力 | **同问短路** 在 **`prepare-turn-start`** 节点（Intake 不再重复检） |
-| 短续问/单字噪声 | **intake-node**：normalize 后再判单字早短路；**coreference=unresolved** 指代拼接最多 **1** 次；散文只做 JSON 格式修复 |
+| 短续问/单字噪声 | **runIntakeNode**：normalize 后再判单字早短路；**coreference=unresolved** 指代拼接最多 **1** 次；散文只做 JSON 格式修复 |
 
 ### 1.2 核心原则（端到端 PathPlan）
 
@@ -45,48 +45,20 @@ Intake 是 Pipeline 的**第一个 LLM 在线 Agent**（图内位于 **`prepareT
 ```text
 intake-coordinator/
 ├── README.md              ← 本文件
-├── index.ts               ← 对外 API（外部只 import 这里）
+├── index.ts               ← 对外 API + runIntakeNode（底部）；外部只 import 这里
 │
-├── contract/              ← 数据合同
-│   ├── prompt.ts          # IntakeRoutingDecision 类型 + 系统 Prompt（业务规格书）
-│   └── schema.ts          # Zod 校验 LLM JSON（含 snake_case 兼容）
-│
-├── llm/                   ← 调模型
-│   └── ollama-chat.ts     # completeIntakeCoordinator()
-│
-├── pipeline/              ← guard 链编排 + parse + 分步日志
-│   ├── intake-pipeline.ts # runIntakePipeline()
-│   └── parse-intake.ts    # parseIntakeDecision(), defaultIntakeDecision()
-│
-├── signals/               ← 问句结构工具 + 指代重试判定 / 单字短路
-├── enumeration/           ← re-export：`corpus-lister/enumeration`（UI exact-match / 分页）
-│
-├── node/                  ← LangGraph 图节点（仅 intake）
-│   └── intake-node.ts     # 短路 → LLM →（JSON 修复）→（指代拼接≤1）→ pipeline
-│
-├── path-plan/             ← PathPlan 合法化 + 派生 slots（主路径）
-│   ├── from-llm.ts        # legalizePathPlan / deriveCompositeSlotsFromPathPlan
-│   ├── interface.ts       # PathPlan = { steps: ExecutionStep[] }
-│   └── compile-path-plan.ts  # 旧分桶编译（测试 / 兼容；主 pipeline 不再走）
-│
-├── guards/                ← LLM 之后的规则兜底（不口语二次规划）
-│   ├── intake-continuation-guard.ts  # 恒 noop（指代靠 intake-node merge）
-│   ├── intake-link-lookup-guard.ts   # 字段自相矛盾 harmonize
-│   ├── intake-chitchat-guard.ts
-│   ├── intake-retrieval-plan-guard.ts  # 旧 retrievalPlan 合法化（兼容 / 非主路径）
-│   ├── composite-routing.ts            # multipart 结构信号（非 plan 发明）
-│   ├── repair-retrieval-plan.ts        # facet 去重 / schema 合法化（派生辅助）
-│   └── identity-field-search.ts        # identityField → 检索模板（闭集）
-│   # 已删：composite-route-guard / intake-retrieval-plan-guard / resolveCompositeRoute
-│   └── enumeration-list-intent.ts      # UI exact-match → 直接造 list 步
-│
-├── composite/             ← 槽类型 / 模板 / 诊断（执行仍读派生 compositeSlots）
-│   ├── composite-routing.ts
-│   ├── composite-slot-queries.ts
-│   ├── identity-field-search.ts   # displayLabel + searchQuery（无口语 labels）
-│   ├── repair-retrieval-plan.ts   # normalize + dedupeByFacet
-│   └── enumeration-target.ts
+├── contract/              ← 数据合同（index + interface + prompt + schema）
+├── llm/                   ← completeIntakeCoordinator（index + interface）
+├── pipeline/              ← runIntakePipeline / parse / routeMode（index + interface）
+├── signals/               ← 问句结构 + 单字短路（index + interface）
+├── path-plan/             ← PathPlan 合法化 + 派生 slots（index + interface）
+├── guards/                ← LLM 之后规则兜底（index + interface）
+└── composite/             ← 规划侧槽类型与派生辅助（index + interface）
 ```
+
+列举 UI exact-match / 分页：经包根 re-export `corpus-lister/enumeration`。
+**已废弃：** `node/` 子目录（图节点在包根 `index.ts`）。
+
 
 单元测试集中在仓库 `apps/brain-service/tests/intake-coordinator/`（见该目录 README）。
 
@@ -120,7 +92,7 @@ pipeline/graph/compile.ts  →  runPrepareTurnStart()     ../prepare-turn-start/
     │         同问命中 → respondEarly → END
     │
     ▼
-intake-coordinator/node/                   runIntakeNode()
+intake-coordinator/index.ts                 runIntakeNode()
     │
     ├─ completeIntakeCoordinator()          llm/ollama-chat.ts  ← 原文第 1 次
     │       输入: intakeHistory + memoryBlock + contract/prompt
@@ -573,7 +545,7 @@ LLM 返回非 JSON / Zod 校验失败
 | `intake-pipeline.ts` | LLM 之后：parse → guard 链 → `RoutedIntakeDecision`；分步打日志 |
 | `parse-intake.ts` | 解析 LLM JSON；解析失败 → `defaultIntakeDecision`（**clarify**，不发明 retrieve） |
 
-### node/
+### index.ts（图节点）
 
 | 文件 | 职责 |
 |------|------|
@@ -587,7 +559,7 @@ LLM 返回非 JSON / Zod 校验失败
 |------|------|
 | `intake-continuation-guard.ts` | 恒 noop（指代归 LLM + node merge） |
 | `intake-link-lookup-guard.ts` | `external_link` harmonize；不发明 multipart 拆槽 |
-| `intake-chitchat-guard.ts` | chitchat 注入 briefReply；`applyPureSocialUtteranceGuard` 供 node/verify |
+| `intake-chitchat-guard.ts` | chitchat 注入 briefReply；`applyPureSocialUtteranceGuard` 供 runIntakeNode / verify |
 | `intake-retrieval-plan-guard.ts` | schema 合法化 + facet 去重 + canonicalize（保留非空 searchQuery） |
 | `composite-route-guard.ts` | plan → slots；空 plan → clarify |
 | `enumeration-list-intent.ts` | 列举分页 intent（preview / continue / exhaustive） |
@@ -633,7 +605,7 @@ Pipeline 内主要调用点：
 | `pipeline/graph/compile.ts` | `runPrepareTurnStart`（prepare-turn-start）；`runIntakeNode` 等节点委托 |
 | `pipeline/runtime/stream.ts` | SSE 消费；**不**再直接调同问短路/Mem0 |
 | `pipeline/graph/state.ts` | `RoutedIntakeDecision`, `IncrementalCompositePlan` |
-| `user-fact/node/` | userFact 图节点 |
+| `user-fact/` | userFact 图节点（包根 index） |
 | `intake-coordinator/pipeline/parse-intake.ts` | `parseIntakeDecision`, `defaultIntakeDecision` |
 | `knowledge-manager/recall/retrieve.ts` | `resolveEnumerationTarget`（列举扫盘） |
 | `information-analyst/*` | composite 槽类型、enumeration 辅助 |

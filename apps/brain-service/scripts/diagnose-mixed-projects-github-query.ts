@@ -4,7 +4,7 @@
  *   pnpm --filter @fambrain/brain-service exec tsx --env-file=../../.env scripts/diagnose-mixed-projects-github-query.ts
  */
 import assert from "node:assert/strict";
-import { runIntakePipeline } from "../src/agentflow/agents/online/intake-coordinator/pipeline/intake-pipeline";
+import { runIntakePipeline } from "../src/agentflow/agents/online/intake-coordinator/pipeline";
 import {
     composeEnumerationAnswer,
     mergeCompositeWithBlocks,

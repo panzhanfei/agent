@@ -12,6 +12,7 @@ export {
   stripEnumerationPrefix,
 } from "./query-signals";
 export { isPureSocialUtterance } from "./pure-social-utterance";
+export type { CoreferenceMergeRetry } from "./interface";
 export {
   buildMergedCoreferenceQuestion,
   isAckLikeSingleChar,
@@ -23,5 +24,4 @@ export {
   substantiveUtteranceForSingleChar,
   surfaceForSingleCharSignal,
   utteranceCodePointLength,
-  type CoreferenceMergeRetry,
 } from "./effective-intake-question";

@@ -1,5 +1,5 @@
 import type { RoutedIntakeDecision } from "@/agentflow/agents/online/intake-coordinator/guards/interface";
-import { intakeRequiresKmRetrieval } from "@/agentflow/agents/online/intake-coordinator/pipeline/intake-km-routing";
+import { intakeRequiresKmRetrieval } from "@/agentflow/agents/online/intake-coordinator/pipeline";
 
 /** 本轮是否需要 ContentSummarizer 产出（终态摘要或复合链内摘要）。 */
 export const isSummarizeComposeDecision = (

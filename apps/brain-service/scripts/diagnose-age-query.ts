@@ -9,7 +9,7 @@ import {
   deriveCompositeSlotsFromPathPlan,
   legalizePathPlan,
 } from "../src/agentflow/agents/online/intake-coordinator";
-import { retrieveKnowledge } from "../src/agentflow/agents/online/knowledge-manager/recall/retrieve";
+import { retrieveKnowledge } from "../src/agentflow/agents/online/knowledge-manager/recall";
 import { listCorpusUserIds } from "../src/agentflow/agents/offline/knowledge-indexer/list-corpus-users";
 
 const USER_QUESTION = "我今年多大";

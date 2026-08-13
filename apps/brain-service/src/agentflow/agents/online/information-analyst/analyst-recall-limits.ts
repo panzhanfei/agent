@@ -2,15 +2,13 @@ import type { EnumerationListIntent } from "@/agentflow/agents/online/intake-coo
 import type {
     EnumerationMeta,
     KnowledgeHit,
-} from "@/agentflow/agents/online/knowledge-manager/contract/types";
+    QueryProfile,
+} from "@/agentflow/agents/online/knowledge-manager/contract";
 import {
     getProfileRecallParams,
     PROFILE_MAX_HITS,
-} from "@/agentflow/agents/online/knowledge-manager/profile/km-config";
-import {
     resolveQueryProfile,
-    type QueryProfile,
-} from "@/agentflow/agents/online/knowledge-manager/profile/query-profile";
+} from "@/agentflow/agents/online/knowledge-manager/profile";
 
 /** Analyst 子问 / 单问可见 hits 上限（与 KM profile 对齐，非固定 4）。 */
 export const maxAnalystHitsForProfile = (profile: QueryProfile): number =>

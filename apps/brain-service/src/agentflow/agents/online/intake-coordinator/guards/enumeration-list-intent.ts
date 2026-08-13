@@ -30,7 +30,7 @@ import type {
     EnumerationListIntent,
     RoutedIntakeDecision,
 } from "./interface";
-import { resolveIntakeGraphRouteMode } from "@/agentflow/agents/online/intake-coordinator/pipeline/resolve-graph-route-mode";
+import { resolveIntakeGraphRouteMode } from "@/agentflow/agents/online/intake-coordinator/pipeline";
 
 export type { EnumerationListIntent } from "./interface";
 

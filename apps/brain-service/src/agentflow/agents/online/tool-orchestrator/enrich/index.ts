@@ -1,4 +1,4 @@
-import type { IntakeRetrievalPlanItem } from "@/agentflow/agents/online/intake-coordinator/contract/prompt";
+import type { IntakeRetrievalPlanItem } from "@/agentflow/agents/online/intake-coordinator/contract";
 import type { CompositeRetrievalSlot } from "@/agentflow/agents/online/intake-coordinator";
 import type { RoutedIntakeDecision } from "@/agentflow/agents/online/intake-coordinator";
 import type { QueryProfile } from "@/agentflow/agents/online/knowledge-manager";
@@ -9,7 +9,7 @@ import {
     topicsSuggestWebSource,
 } from "../catalog";
 import type { DataSource, EnrichedPlanItem, ExecutionPlanNode, ToolRunId } from "../interface";
-import { resolveIntakeGraphRouteMode } from "@/agentflow/agents/online/intake-coordinator/pipeline/resolve-graph-route-mode";
+import { resolveIntakeGraphRouteMode } from "@/agentflow/agents/online/intake-coordinator/pipeline";
 
 const enrichItem = (
     item: Pick<

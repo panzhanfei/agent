@@ -4,7 +4,7 @@ import {
   nullableTrimmedString,
   unitInterval,
 } from "@/agentflow/utils";
-import type { IntakeRoutingDecision } from "./prompt";
+import type { IntakeRoutingDecision } from "./interface";
 import type { PathPlan } from "@/agentflow/agents/online/intake-coordinator/path-plan/interface";
 const INTAKE_QUERY_TYPES = [
   "identity",

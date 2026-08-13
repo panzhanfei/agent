@@ -44,6 +44,28 @@ export type IntakeRetrievalPlanGuardReason =
   | "repaired_plan"
   | "canonicalized";
 
+export type IntakeContinuationGuardReason = "noop";
+
+export type IntakeLinkLookupGuardReason =
+  | "noop"
+  | "single_external_link"
+  | "preserve_mixed_plan"
+  | "harmonize_plan_query_types"
+  | "harmonize_query_type";
+
+export type AttachmentAction =
+  | "extract"
+  | "summarize"
+  | "translate"
+  | "ingest";
+
+export type ApplyAttachmentActionResult = {
+  decision: IntakeRoutingDecision;
+  /** 直接作答（extract / ingest） */
+  answer?: string;
+  earlyExit: boolean;
+};
+
 /**
  * Intake 编排工单（写入 state.decision）。
  * 主契约：pathPlan.steps[]（有序）+ composeMode；compositeSlots / answerOrder 由 steps 派生。

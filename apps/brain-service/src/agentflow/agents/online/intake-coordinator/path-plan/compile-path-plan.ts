@@ -11,7 +11,7 @@ import {
 import { enrichCompositeSlots } from "@/agentflow/agents/online/tool-orchestrator";
 import { expandHybridMultiSourceTemplate } from "./dag-templates";
 import { emptyPathPlan } from "./defaults";
-import { resolveIntakeGraphRouteMode } from "@/agentflow/agents/online/intake-coordinator/pipeline/resolve-graph-route-mode";
+import { resolveIntakeGraphRouteMode } from "@/agentflow/agents/online/intake-coordinator/pipeline";
 import type {
   ComposeMode,
   ExecutionStep,

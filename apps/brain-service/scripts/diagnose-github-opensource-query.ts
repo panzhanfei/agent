@@ -11,7 +11,7 @@ import {
     runIntakePipeline,
 } from "../src/agentflow/agents/online/intake-coordinator";
 import { listCorpusUserIds } from "../src/agentflow/agents/offline/knowledge-indexer/list-corpus-users";
-import { retrieveKnowledge } from "../src/agentflow/agents/online/knowledge-manager/recall/retrieve";
+import { retrieveKnowledge } from "../src/agentflow/agents/online/knowledge-manager/recall";
 import { bootstrapBrainServiceRuntime } from "../src/config/index";
 
 const GITHUB_RE = /https?:\/\/github\.com\/[^\s)>]+/gi;

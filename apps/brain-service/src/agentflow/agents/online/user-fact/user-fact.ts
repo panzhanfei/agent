@@ -1,5 +1,5 @@
 import type { AssistantMessageBlock, DbChatTurn } from "@fambrain/brain-types";
-import type { IntakeRoutingDecision } from "@/agentflow/agents/online/intake-coordinator/contract/prompt";
+import type { IntakeRoutingDecision } from "@/agentflow/agents/online/intake-coordinator/contract";
 
 /** 编排器 user_fact 分支路由（来自 Intake JSON，非问句 regex） */
 export type UserFactRoute = {

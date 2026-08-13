@@ -41,31 +41,15 @@ KM 是 Pipeline 的**纯规则检索 Agent**（复合路径在 **plan-fanout** �
 ```text
 knowledge-manager/
 ├── README.md              ← 本文件
-├── index.ts               ← 对外 API（外部只 import 这里）
+├── index.ts               ← 对外 API + runKmRetrieveNode（底部）
 │
-├── contract/              ← 数据合同
-│   ├── types.ts           # KnowledgeHit / KnowledgeRetrievalResult / Candidate
-│   └── schema.ts          # Zod 校验 hits / coverage
-│
+├── contract/              ← index + interface + schema
+├── profile/               ← index + interface + km-config / query-profile / score-candidate
+├── recall/                ← index + interface + hybrid / rrf / retrieve / helpers
 ├── composite/             ← 多槽 merge / order（缓存见 agentflow/cache/）
-│   ├── order-sub-results.ts  # orderSubResultsBySlots()（join 用）
-│   ├── merge.ts
-│   └── index.ts
-│
-├── slot/                  ← kmRetrieve Send 工人（retrieve + FC）
-│   └── index.ts
-│
-├── recall/                ← 核心检索（无 LLM）
-│   ├── retrieve.ts        # retrieveKnowledge() 主入口
-│   ├── hybrid-recall.ts   # 向量 ∥ sparse 并行
-│   ├── fusion-rrf.ts      # RRF 融合
-│   └── retrieve-helpers.ts # rank / excerpt / guard / enumeration fill
-│
-└── profile/               ← 配置与分档
-    ├── km-config.ts       # topK、pathBoost、RRF 常量
-    ├── query-profile.ts   # identity / enumeration / tech / default
-    └── score-candidate.ts # confidenceTier 多维评估
+└── slot/                  ← 单槽工人 + 子图壳（图节点出口在包根）
 ```
+
 
 业界对标见 [`docs/km-retrieval-design.md`](../../../../../../docs/km-retrieval-design.md)。
 

@@ -4,7 +4,7 @@ import type {
     ConfidenceTier,
     KnowledgeHit,
     KnowledgeRetrievalResult,
-} from "@/agentflow/agents/online/knowledge-manager/contract/types";
+} from "@/agentflow/agents/online/knowledge-manager/contract";
 import type { CompositeSubRetrieval } from "@/agentflow/agents/online/knowledge-manager/composite/interface";
 
 /** 单槽 plan：facet 会话缓存 + resolve 阶段预拼 sub */

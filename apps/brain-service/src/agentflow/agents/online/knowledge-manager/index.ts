@@ -1,39 +1,59 @@
-export {
-  pickExcerpt,
-  isProjectEntryPath,
-  isExperienceEntryPath,
-} from "./recall/retrieve-helpers";
-export { EXCERPT_MAX } from "./profile/km-config";
-export { retrieveKnowledge } from "./recall/retrieve";
-export {
-  MAX_CANDIDATES,
-  getKmRetrievalConfig,
-  getProfileRecallParams,
-  PROFILE_MAX_HITS,
-} from "./profile/km-config";
-export {
-  inferQueryProfile,
-  resolveQueryProfile,
-} from "./profile/query-profile";
-export { searchCorpusVectors } from "@fambrain/corpus/corpus-vector";
+/**
+ * KnowledgeManager：hybrid 召回 + 单槽 Send 工人。
+ * 图节点 `runKmRetrieveNode` 见文件底部。
+ */
+
+export type {
+  ConfidenceTier,
+  EnumerationMeta,
+  KnowledgeCandidate,
+  KnowledgeHit,
+  KnowledgeManagerInput,
+  KnowledgeRetrievalResult,
+  QueryProfile,
+  RecallChannel,
+  RecallSource,
+} from "./contract";
 export {
   knowledgeHitSchema,
   knowledgeHitsSchema,
   knowledgeRetrievalResultSchema,
   parseKnowledgeHits,
   parseKnowledgeRetrievalResult,
-} from "./contract/schema";
+} from "./contract";
+
+export type {
+  ConfidenceAssessment,
+  ConfidenceInput,
+} from "./profile";
 export {
-  type KnowledgeHit,
-  type KnowledgeManagerInput,
-  type KnowledgeRetrievalResult,
-  type QueryProfile,
-  type ConfidenceTier,
-  type KnowledgeCandidate,
-  type RecallChannel,
-  type RecallSource,
-  type EnumerationMeta,
-} from "./contract/types";
+  assessConfidence,
+  deriveCoverageFromTier,
+  EXCERPT_MAX,
+  getKmRetrievalConfig,
+  getProfileRecallParams,
+  inferQueryProfile,
+  MAX_CANDIDATES,
+  PROFILE_MAX_HITS,
+  resolveQueryProfile,
+  shouldCoalesceEmptyHits,
+} from "./profile";
+
+export type {
+  HybridRecallResult,
+  RankedCandidate,
+  RrfRankedItem,
+  VectorChunkRow,
+} from "./recall";
+export {
+  fuseRrf,
+  hybridRecall,
+  isExperienceEntryPath,
+  isProjectEntryPath,
+  pickExcerpt,
+  retrieveKnowledge,
+} from "./recall";
+
 export {
   mergeCompositeHits,
   mergeCompositeRetrieval,
@@ -41,32 +61,22 @@ export {
   type CompositeRetrievePlan,
   type CompositeSubRetrieval,
 } from "./composite";
-export {
-  assessConfidence,
-  deriveCoverageFromTier,
-  shouldCoalesceEmptyHits,
-} from "./profile/score-candidate";
-export { hybridRecall } from "./recall/hybrid-recall";
-export { fuseRrf } from "./recall/fusion-rrf";
+
 export {
   executeKmSlotSub,
   getCompiledKmSlotGraph,
-  runKmRetrieveNode,
   runKmSlotWorker,
   type ExecuteKmSlotSubInput,
 } from "./slot";
 
-/** @deprecated 请用 @/agentflow/cache */
-export {
-  resolveCompositeCachePlan,
-  resolveIncrementalCompositePlan,
-  cachedFacetToAnalystResult,
-  analystResultToCachedFacet,
-  buildFacetKey,
-  detectCompositeRefreshIntent,
-  attachFacetKey,
-  writeHitsCache,
-  type CompositeCachePlan,
-  type CompositeSlotPlan,
-  type IncrementalCompositePlan,
-} from "@/agentflow/cache";
+export { searchCorpusVectors } from "@fambrain/corpus/corpus-vector";
+
+import type { PipelineGraphState } from "@/agentflow/pipeline/graph/state";
+import { getCompiledKmSlotGraph } from "./slot";
+
+/** LangGraph `kmRetrieve`：兼容直接 invoke；父图优先挂编译子图 */
+export const runKmRetrieveNode = async (
+  state: PipelineGraphState
+): Promise<Partial<PipelineGraphState>> => {
+  return getCompiledKmSlotGraph().invoke(state);
+};

@@ -10,7 +10,7 @@ import {
 } from "@/agentflow/cache";
 import type { CompositeRetrievalSlot } from "@/agentflow/agents/online/intake-coordinator/composite/interface";
 import type { CompositeSubRetrieval } from "../composite/interface";
-import { retrieveKnowledge } from "../recall/retrieve";
+import { retrieveKnowledge } from "@/agentflow/agents/online/knowledge-manager/recall";
 import type { ExecuteKmSlotSubInput } from "./interface";
 
 export type { ExecuteKmSlotSubInput } from "./interface";

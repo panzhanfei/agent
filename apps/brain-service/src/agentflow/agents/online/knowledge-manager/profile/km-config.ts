@@ -2,7 +2,7 @@
  * KnowledgeManager 检索参数（KM-04 集中配置）。
  * 后续 path 加权、queryProfile 分档等亦在此扩展。
  */
-import type { QueryProfile } from "./query-profile";
+import type { QueryProfile } from "./interface";
 
 /** 默认 vector topK / maxHits（profile 未命中时的兜底，等同 default）。 */
 export const MAX_CANDIDATES = 12;

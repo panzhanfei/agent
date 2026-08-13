@@ -19,10 +19,10 @@ import {
     ENUMERATION_EXHAUSTIVE_PAGE_SIZE,
     ENUMERATION_PREVIEW_PAGE_SIZE,
 } from "@/agentflow/agents/online/corpus-lister/list";
-import { hybridRecall } from "@/agentflow/agents/online/knowledge-manager/recall/hybrid-recall";
-import { getProfileRecallParams } from "@/agentflow/agents/online/knowledge-manager/profile/km-config";
-import { resolveQueryProfile } from "@/agentflow/agents/online/knowledge-manager/profile/query-profile";
-import { retrieveKnowledge } from "@/agentflow/agents/online/knowledge-manager/recall/retrieve";
+import { hybridRecall } from "@/agentflow/agents/online/knowledge-manager/recall";
+import { getProfileRecallParams } from "@/agentflow/agents/online/knowledge-manager/profile";
+import { resolveQueryProfile } from "@/agentflow/agents/online/knowledge-manager/profile";
+import { retrieveKnowledge } from "@/agentflow/agents/online/knowledge-manager/recall";
 import { runPipelineStream } from "@/agentflow/index";
 import { bootstrapBrainServiceRuntime } from "@/config";
 import {

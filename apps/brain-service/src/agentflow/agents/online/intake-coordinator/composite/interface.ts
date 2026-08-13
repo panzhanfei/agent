@@ -11,7 +11,14 @@ import type {
   DataSource,
   ToolRunId,
 } from "@/agentflow/agents/online/tool-orchestrator";
-import type { EmptyPolicy } from "@/agentflow/agents/online/intake-coordinator/path-plan/empty-policy";
+import type { EmptyPolicy } from "@/agentflow/agents/online/intake-coordinator/path-plan/interface";
+
+/** identityField → 展示名 + 检索模板 */
+export type IdentityFieldSearchSpec = {
+  /** 无 LLM label 时的展示名（非口语匹配词表） */
+  displayLabel: string;
+  searchQuery: string;
+};
 
 /** 已知 canonical facet（槽 id 前缀；动态槽为 `${facet}-${index}`） */
 export type CompositeFacetId = "identity" | "projects" | "employers";

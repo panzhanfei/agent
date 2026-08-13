@@ -6,37 +6,18 @@ import {
     CONFIDENCE_MID_MIN,
     CONFIDENCE_COALESCE_LOW_MIN,
 } from "./km-config";
-import type { RankedCandidate } from "../recall/retrieve-helpers";
-import { getPathBoost, isPersonalResumePath } from "../recall/retrieve-helpers";
 import type {
     ConfidenceTier,
-    KnowledgeCandidate,
     KnowledgeHit,
-    QueryProfile,
     RecallSource,
-} from "../contract/types";
+} from "../contract/interface";
+import { getPathBoost, isPersonalResumePath } from "../recall/retrieve-helpers";
+import type {
+    ConfidenceAssessment,
+    ConfidenceInput,
+} from "./interface";
 
-export type { ConfidenceTier };
-
-export type ConfidenceInput = {
-    queryProfile: QueryProfile;
-    hits: KnowledgeHit[];
-    ranked: RankedCandidate[];
-    recallSource: RecallSource;
-    topCandidate?: KnowledgeCandidate;
-    guardApplied: boolean;
-    candidateCount: number;
-};
-
-export type ConfidenceAssessment = {
-    tier: ConfidenceTier;
-    score: number;
-    top1Relevance: number;
-    top1Top2Gap: number;
-    fusionSignal: number;
-    pathAuthority: number;
-    reasons: string[];
-};
+export type { ConfidenceAssessment, ConfidenceInput, ConfidenceTier };
 
 const clamp01 = (n: number): number => Math.max(0, Math.min(1, n));
 

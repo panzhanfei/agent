@@ -7,10 +7,10 @@ import type {
   ConfidenceTier,
   CompositeSubRetrieval,
   EnumerationMeta,
-  IncrementalCompositePlan,
   KnowledgeHit,
   KnowledgeRetrievalResult,
 } from "@/agentflow/agents/online/knowledge-manager";
+import type { IncrementalCompositePlan } from "@/agentflow/cache";
 import type { StepResult } from "@/agentflow/agents/online/intake-coordinator/path-plan/interface";
 import type {
   PipelineToolResults,

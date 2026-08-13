@@ -10,7 +10,7 @@ import type {
     EnumerationMeta,
     KnowledgeHit,
     KnowledgeRetrievalResult,
-} from "../contract/types";
+} from "../contract/interface";
 
 /** Mem0 召回结果（mem 槽；非 corpus hits） */
 export type RecalledUserFact = {

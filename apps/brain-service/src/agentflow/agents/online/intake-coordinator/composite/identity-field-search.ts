@@ -2,12 +2,9 @@
  * identityField → 展示名 + 检索模板（schema→执行映射，禁止用 labels 猜用户问句）。
  */
 import type { IntakeIdentityField } from "@/agentflow/agents/online/intake-coordinator/contract";
+import type { IdentityFieldSearchSpec } from "./interface";
 
-export type IdentityFieldSearchSpec = {
-    /** 无 LLM label 时的展示名（非口语匹配词表） */
-    displayLabel: string;
-    searchQuery: string;
-};
+export type { IdentityFieldSearchSpec };
 
 export const IDENTITY_FIELD_SEARCH: Record<
     IntakeIdentityField,

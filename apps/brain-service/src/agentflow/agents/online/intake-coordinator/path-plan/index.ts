@@ -1,6 +1,7 @@
 export type {
   ComposeMode,
   DagTemplateId,
+  EmptyPolicy,
   ExecutionStep,
   PathKind,
   PathPlan,
@@ -8,7 +9,6 @@ export type {
   StepResult,
 } from "./interface";
 
-export type { EmptyPolicy } from "./empty-policy";
 export { DEFAULT_EMPTY_POLICY, legalizeEmptyPolicy } from "./empty-policy";
 
 export { subToStepResult } from "./step-result";

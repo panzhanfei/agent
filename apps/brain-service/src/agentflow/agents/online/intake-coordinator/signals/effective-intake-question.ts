@@ -5,10 +5,13 @@
  */
 import type { DbChatTurn } from "@fambrain/brain-types";
 import type { IntakeRoutingDecision } from "@/agentflow/agents/online/intake-coordinator/contract";
+import type { CoreferenceMergeRetry } from "./interface";
 import {
   historySupportsContinuation,
   lastSubstantiveUserQuestion,
 } from "./query-signals";
+
+export type { CoreferenceMergeRetry };
 
 /** 单码点附和（长度已是 1）；不进检索 */
 const ACK_SINGLE = new Set([
@@ -95,12 +98,6 @@ export const shouldShortCircuitIncompleteUtterance = (
     normalizeIntakeUtterance(userQuestion) || userQuestion
   );
   return !prior;
-};
-
-export type CoreferenceMergeRetry = {
-  retry: boolean;
-  prior: string | null;
-  mergedQuestion: string | null;
 };
 
 /**

@@ -4,12 +4,9 @@
  * Pipeline / guard / composite 主路径须传显式 queryType。
  * 脚本直调 KM 且未传 queryType 时回落 default（不再口语正则推断）。
  */
-export type QueryProfile =
-    | "identity"
-    | "enumeration"
-    | "tech"
-    | "external_link"
-    | "default";
+import type { QueryProfile } from "./interface";
+
+export type { QueryProfile };
 
 /**
  * @deprecated 不再口语推断；恒为 default。保留签名供脚本兼容。

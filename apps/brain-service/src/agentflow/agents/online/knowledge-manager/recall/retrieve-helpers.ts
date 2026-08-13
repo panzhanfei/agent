@@ -9,18 +9,10 @@ import {
     PATH_BOOST_PROJECTS_RESUME,
     FEEDBACK_BOOST_MAX,
 } from "../profile/km-config";
-import type { QueryProfile, KnowledgeHit } from "../contract/types";
+import type { KnowledgeHit, QueryProfile } from "../contract/interface";
+import type { RankedCandidate, VectorChunkRow } from "./interface";
 
-/** 与 retrieve.ts CandidateRow / KnowledgeCandidate 对齐 */
-export type VectorChunkRow = {
-    path: string;
-    title: string;
-    body: string;
-    score?: number;
-    rawScore?: number;
-    recallChannel?: "vector" | "sparse" | "hybrid";
-    fusionScore?: number;
-};
+export type { RankedCandidate, VectorChunkRow };
 
 /** KM-16：同 path 多段 body 合并（去重后拼接，封顶 MERGED_CHUNK_BODY_MAX）。 */
 export const mergeChunkBodies = (bodies: string[]): string => {
@@ -146,14 +138,6 @@ export const computeRelevance = (
     pathBoost: number
 ): number =>
     Math.min(1, keywordRelevance + vectorRelevance + pathBoost);
-
-export type RankedCandidate = VectorChunkRow & {
-    keywordRelevance: number;
-    vectorRelevance: number;
-    pathBoost: number;
-    relevance: number;
-    excerpt: string;
-};
 
 /**
  * 对候选统一打分排序（KM-05 rank + KM-06 兜底共用）。

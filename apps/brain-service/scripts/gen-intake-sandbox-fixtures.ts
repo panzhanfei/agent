@@ -12,7 +12,7 @@ import {
   buildEarlyExitRoutedDecision,
   isClarifyEarlyExit,
   isRespondEarlyIntent,
-} from "@/agentflow/agents/online/intake-coordinator/pipeline/intake-pipeline";
+} from "@/agentflow/agents/online/intake-coordinator/pipeline";
 import {
   deriveCompositeSlotsFromPathPlan,
   deriveRetrievalPlanFromPathPlan,
@@ -25,7 +25,7 @@ import {
   legalizePathPlan,
   pathPlanBuckets,
 } from "@/agentflow/agents/online/intake-coordinator/path-plan";
-import { resolveIntakeGraphRouteMode } from "@/agentflow/agents/online/intake-coordinator/pipeline/resolve-graph-route-mode";
+import { resolveIntakeGraphRouteMode } from "@/agentflow/agents/online/intake-coordinator/pipeline";
 import { isUserFactIntent } from "@/agentflow/agents/online/user-fact";
 import type { IntakeRoutingDecision } from "@/agentflow/agents/online/intake-coordinator/contract";
 import type { DbChatTurn } from "@fambrain/brain-types";

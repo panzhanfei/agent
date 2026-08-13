@@ -13,7 +13,7 @@ import type {
   ExecutionPlanNode,
   PipelineToolResults,
 } from "@/agentflow/agents/online/tool-orchestrator/interface";
-import { DEFAULT_EMPTY_POLICY } from "@/agentflow/agents/online/intake-coordinator/path-plan/empty-policy";
+import { DEFAULT_EMPTY_POLICY } from "@/agentflow/agents/online/intake-coordinator/path-plan";
 
 const policyOf = (raw: EmptyPolicy | undefined): EmptyPolicy =>
   raw ?? DEFAULT_EMPTY_POLICY;

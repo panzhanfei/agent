@@ -1,7 +1,7 @@
 import type { CachedFacetAnswer } from "@fambrain/infra";
 import type { CompositeRetrievalSlot } from "@/agentflow/agents/online/intake-coordinator";
 import type { CompositeSubRetrieval } from "@/agentflow/agents/online/knowledge-manager/composite/interface";
-import type { KnowledgeRetrievalResult } from "@/agentflow/agents/online/knowledge-manager/contract/types";
+import type { KnowledgeRetrievalResult } from "@/agentflow/agents/online/knowledge-manager/contract";
 import type { PreresolvedSlotHits } from "../interface";
 
 /** facet 会话缓存 → CompositeSubRetrieval */

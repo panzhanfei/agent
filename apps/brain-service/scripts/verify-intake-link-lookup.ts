@@ -4,9 +4,9 @@
  *   pnpm --filter @fambrain/brain-service run verify:intake-link-lookup
  */
 import type { DbChatTurn } from "@fambrain/brain-types";
-import { runIntakePipeline } from "../src/agentflow/agents/online/intake-coordinator/pipeline/intake-pipeline";
+import { runIntakePipeline } from "../src/agentflow/agents/online/intake-coordinator/pipeline";
 import { listCorpusUserIds } from "../src/agentflow/agents/offline/knowledge-indexer/list-corpus-users";
-import { retrieveKnowledge } from "../src/agentflow/agents/online/knowledge-manager/recall/retrieve";
+import { retrieveKnowledge } from "../src/agentflow/agents/online/knowledge-manager/recall";
 import { bootstrapBrainServiceRuntime } from "../src/config/index";
 
 const GITHUB_RE = /https?:\/\/github\.com\/[^\s)>]+/gi;

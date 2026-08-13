@@ -26,14 +26,27 @@ import {
     listMarkdownFiles,
     toRepoPath,
 } from "@fambrain/corpus";
-import { hybridRecall } from "./hybrid-recall";
+import type {
+    ConfidenceTier,
+    KnowledgeCandidate,
+    KnowledgeHit,
+    KnowledgeManagerInput,
+    KnowledgeRetrievalResult,
+    QueryProfile,
+    RecallSource,
+} from "@/agentflow/agents/online/knowledge-manager/contract";
 import {
+    assessConfidence,
+    deriveCoverageFromTier,
     getProfileRecallParams,
     LOG_BODY_PREVIEW,
     MAX_CANDIDATES,
+    resolveQueryProfile,
     SCAN_BODY_MAX,
-} from "../profile/km-config";
-import { resolveQueryProfile } from "../profile/query-profile";
+    shouldCoalesceEmptyHits,
+    tierNotes,
+} from "@/agentflow/agents/online/knowledge-manager/profile";
+import { hybridRecall } from "./hybrid-recall";
 import {
     applyIdentityGuard,
     applyExternalLinkGuard,
@@ -44,21 +57,6 @@ import {
     pickExcerpt,
     rankCandidates,
 } from "./retrieve-helpers";
-import {
-    assessConfidence,
-    deriveCoverageFromTier,
-    shouldCoalesceEmptyHits,
-    tierNotes,
-} from "../profile/score-candidate";
-import type {
-    ConfidenceTier,
-    KnowledgeCandidate,
-    KnowledgeHit,
-    KnowledgeManagerInput,
-    KnowledgeRetrievalResult,
-    QueryProfile,
-    RecallSource,
-} from "../contract/types";
 
 type CandidateRow = KnowledgeCandidate;
 

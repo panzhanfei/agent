@@ -2,7 +2,7 @@ import type {
     KnowledgeHit,
     KnowledgeRetrievalResult,
     ConfidenceTier,
-} from "../contract/types";
+} from "../contract/interface";
 import type { CompositeSubRetrieval } from "./interface";
 
 export type {

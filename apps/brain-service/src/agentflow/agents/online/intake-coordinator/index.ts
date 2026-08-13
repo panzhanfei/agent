@@ -29,9 +29,9 @@ import {
 import { logAgentOut } from "@fambrain/brain-shared/agent-log";
 import {
   buildEarlyExitRoutedDecision,
+  parseIntakeDecision,
   runIntakePipeline,
-} from "./pipeline/intake-pipeline";
-import { parseIntakeDecision } from "./pipeline/parse-intake";
+} from "./pipeline";
 import type { PipelineGraphState } from "@/agentflow/pipeline/graph/state";
 
 export {

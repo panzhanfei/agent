@@ -14,12 +14,12 @@ import {
   pickExcerpt,
   pickTableExcerpt,
   rankCandidates,
-} from "../src/agentflow/agents/online/knowledge-manager/recall/retrieve-helpers";
-import { getProfileRecallParams } from "../src/agentflow/agents/online/knowledge-manager/profile/km-config";
+} from "../src/agentflow/agents/online/knowledge-manager/recall";
+import { getProfileRecallParams } from "../src/agentflow/agents/online/knowledge-manager/profile";
 import {
   inferQueryProfile,
   resolveQueryProfile,
-} from "../src/agentflow/agents/online/knowledge-manager/profile/query-profile";
+} from "../src/agentflow/agents/online/knowledge-manager/profile";
 
 const stubExcerpt = (body: string) => body.slice(0, 120);
 

@@ -4,7 +4,9 @@
  * - omit：空则从回答中省略该步
  * - degrade：带着缺口继续（备注/降级）
  */
-export type EmptyPolicy = "require" | "omit" | "degrade";
+import type { EmptyPolicy } from "./interface";
+
+export type { EmptyPolicy };
 
 export const DEFAULT_EMPTY_POLICY: EmptyPolicy = "degrade";
 
