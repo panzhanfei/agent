@@ -33,7 +33,7 @@ export const EXCERPT_MAX = 320;
 /** agent-log 📤 里 body / excerpt 预览长度。用于：summarizeCandidate、summarizeRetrievalOut。 */
 export const LOG_BODY_PREVIEW = 160;
 
-/** 读盘时单文件 body 上限（personal/experience 补注入、sparse 扫盘）。 */
+/** 读盘时单文件 body 上限（历史扫盘补注入用；查询主路径已不扫盘）。 */
 export const SCAN_BODY_MAX = 4000;
 
 /**

@@ -17,15 +17,8 @@
  * KM-16：同 path merge body。
  * EV-01～04：confidenceTier 分档 + coverage 由 tier 推导 + 低置信弱 coalesce。
  */
-import { readFile } from "node:fs/promises";
-import path from "node:path";
 import { logAgentIn, logAgentOut } from "@fambrain/brain-shared/agent-log";
 import { aggregateFeedbackByPath } from "@fambrain/db";
-import {
-    listCorpusScanRoots,
-    listMarkdownFiles,
-    toRepoPath,
-} from "@fambrain/corpus";
 import type {
     ConfidenceTier,
     KnowledgeCandidate,
@@ -42,7 +35,6 @@ import {
     LOG_BODY_PREVIEW,
     MAX_CANDIDATES,
     resolveQueryProfile,
-    SCAN_BODY_MAX,
     shouldCoalesceEmptyHits,
     tierNotes,
 } from "@/agentflow/agents/online/knowledge-manager/profile";
@@ -50,10 +42,7 @@ import { hybridRecall } from "./hybrid-recall";
 import {
     applyIdentityGuard,
     applyExternalLinkGuard,
-    findPersonalResumeCandidate,
-    isPersonalResumePath,
     mergeCandidatesByPath,
-    mergeChunkBodies,
     pickExcerpt,
     rankCandidates,
 } from "./retrieve-helpers";
@@ -114,71 +103,6 @@ const tokenizeForRecall = (
     searchQuery: string,
     subTasks: string[] = []
 ): string[] => tokenize(searchQuery, ...subTasks);
-
-const titleFromMarkdown = (fileName: string, body: string): string => {
-    const line = body.match(/^#\s+(.+)$/m)?.[1]?.trim();
-    return line || fileName.replace(/\.md$/i, "");
-};
-
-/** 合并两路候选（identity / enumeration 补注入用） */
-const mergeCandidates = (
-    primary: CandidateRow[],
-    secondary: CandidateRow[],
-    maxCandidates: number
-): CandidateRow[] => {
-    const byPath = new Map<string, CandidateRow>();
-    for (const c of [...primary, ...secondary]) {
-        const existing = byPath.get(c.path);
-        if (!existing) {
-            byPath.set(c.path, c);
-            continue;
-        }
-        const existingScore = existing.score ?? 0;
-        const nextScore = c.score ?? 0;
-        const mergedBody = mergeChunkBodies([existing.body, c.body]);
-        if (nextScore > existingScore) {
-            byPath.set(c.path, { ...c, body: mergedBody });
-        } else {
-            byPath.set(c.path, { ...existing, body: mergedBody });
-        }
-    }
-    return [...byPath.values()].slice(0, maxCandidates);
-};
-
-/** KM-11：identity 问法时若召回未命中 personal 简历，从 personal/ 目录补注入 */
-const loadPersonalResumeCandidate = async (
-    corpusUserId: string
-): Promise<CandidateRow | null> => {
-    const scanRoots = await listCorpusScanRoots(corpusUserId, listMarkdownFiles);
-    const personalFiles: CandidateRow[] = [];
-    for (const { root: corpusRoot } of scanRoots) {
-        const dir = path.join(corpusRoot, "personal");
-        for (const abs of await listMarkdownFiles(dir)) {
-            const repoPath = toRepoPath(abs);
-            if (!isPersonalResumePath(repoPath)) continue;
-            const body = await readFile(abs, "utf8").catch(() => "");
-            if (!body) continue;
-            personalFiles.push({
-                path: repoPath,
-                title: titleFromMarkdown(path.basename(abs), body),
-                body: body.slice(0, SCAN_BODY_MAX),
-            });
-        }
-    }
-    return findPersonalResumeCandidate(personalFiles);
-};
-
-const ensureIdentityPersonalCandidate = async (
-    corpusUserId: string,
-    queryProfile: QueryProfile,
-    candidates: CandidateRow[]
-): Promise<CandidateRow[]> => {
-    if (queryProfile !== "identity") return candidates;
-    if (findPersonalResumeCandidate(candidates)) return candidates;
-    const loaded = await loadPersonalResumeCandidate(corpusUserId);
-    if (!loaded) return candidates;
-    return mergeCandidates([loaded], candidates, Math.max(candidates.length + 1, MAX_CANDIDATES));
-};
 
 const retrieveByKeywords = (
     input: Pick<KnowledgeManagerInput, "searchQuery" | "subTasks">,
@@ -442,7 +366,7 @@ const loadCandidates = async (
  *
  *   1. 判断问法类型（queryProfile）→ 决定召回要多宽、最终留几条
  *   2. 去 Qdrant hybrid（dense + sparse RRF）捞候选（或直接用上游已算好的 candidates）
- *   3. 同文件多 chunk 合并、身份类问法补个人简历
+ *   3. 同文件多 chunk 合并
  *   4. 规则打分 + guard + 置信度 → 输出 hits / coverage / notes
  *
  * 下游 Analyst 只读 hits，不再二次检索；所以 KM 的职责是「找对、截好、说清够不够」。
@@ -487,18 +411,10 @@ export const retrieveKnowledge = async (
     } = await loadCandidates(input, vectorTopK);
 
     // 同一 markdown 文件可能被切成多个 chunk；按 path 合并 body，避免重复占名额。
-    let candidates = mergeCandidatesByPath(
+    const candidates = mergeCandidatesByPath(
         rawCandidates,
         MAX_CANDIDATES,
         MAX_CANDIDATES
-    );
-
-    // 问姓名/年龄等 identity 类问题时，若召回里还没有「个人简历」，
-    // 主动扫盘补一条 personal/resume 候选，避免向量漏掉主简历。
-    candidates = await ensureIdentityPersonalCandidate(
-        input.corpusUserId,
-        queryProfile,
-        candidates
     );
 
     // ── ③ 空结果早退 ────────────────────────────────────────────────────────

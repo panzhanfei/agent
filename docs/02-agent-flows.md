@@ -308,10 +308,9 @@ flowchart TD
   IN["searchQuery + queryType + topics + subTasks"] --> PROFILE["resolveQueryProfile"]
   PROFILE --> HY["hybridRecall: Qdrant dense+sparse 引擎 RRF"]
   HY --> RAW[candidates + recallChannel]
-  RAW --> IDINJ["identity: 补注入 personal 简历"]
-  IDINJ --> CAND[candidates 就绪]
+  RAW --> CAND[mergeCandidatesByPath]
   CAND --> RULE["rankCandidates: token+vector/sparse+pathBoost"]
-  RULE --> GUARD["identityGuard / enumerationFill"]
+  RULE --> GUARD["identityGuard / externalLinkGuard"]
   GUARD --> TIER["assessConfidence → confidenceTier"]
   TIER --> COV["deriveCoverageFromTier + tierNotes"]
   COV --> OUT["hits / coverage / notes (+ confidenceTier?)"]
@@ -322,7 +321,7 @@ flowchart TD
 | 1 | Hybrid 召回 | Qdrant dense + sparse prefetch；引擎加权 RRF；topK 按 profile | `hybrid-recall.ts`、`packages/corpus` | `hybridRecall()` → `searchCorpusHybrid()` |
 | 2 | 关键词扫盘 | ~~查询时扫盘建内存 BM25~~ **已移除**（sparse 在入库时写入 Qdrant） | — | — |
 | 3 | 规则精排 | **token + vector + pathBoost**；`pickExcerpt`（表格行优先） | `retrieve-helpers.ts` | `rankCandidates()`、`pickTableExcerpt()` |
-| 4 | identity 保底 | identity 补注入 personal + Top1 | `retrieve.ts`、`retrieve-helpers.ts` | `ensureIdentityPersonalCandidate()`、`applyIdentityGuard()` |
+| 4 | identity / 外链纠 Top1 | 只在已召回候选里抬顺序，**不再扫盘补简历** | `retrieve-helpers.ts` | `applyIdentityGuard()`、`applyExternalLinkGuard()` |
 | 5 | 兜底 | **低置信**才 `ensureNonEmptyHits`；高/中置信不硬塞 Top1 | `retrieve.ts`、`score-candidate.ts` | `shouldCoalesceEmptyHits()`、`ensureNonEmptyHits()` |
 | 6 | 置信分档 | 融合分 + gap + path 权威 → `high` / `mid` / `low` | `score-candidate.ts` | `assessConfidence()`、`deriveCoverageFromTier()` |
 | 7 | 输出 | **maxHits 按 profile**；列举型 notes 标明覆盖段数；可选 `confidenceTier` | `types.ts` | `KnowledgeRetrievalResult` |
