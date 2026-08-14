@@ -35,6 +35,7 @@ export {
   inferQueryProfile,
   MAX_CANDIDATES,
   PROFILE_MAX_HITS,
+  recallDocKindsForQuery,
   resolveQueryProfile,
 } from "./profile";
 

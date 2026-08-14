@@ -330,7 +330,7 @@ describe("legalizePathPlan + deriveCompositeSlots", () => {
     });
     expect(pathPlan.steps[0]?.identityField).toBeNull();
     expect(pathPlan.steps[0]?.toolId).toBeNull();
-    expect(pathPlan.steps[0]?.queryType).toBe("default");
+    expect(pathPlan.steps[0]?.queryType).toBe("relations");
     expect(pathPlan.steps[0]?.searchQuery).toBe("亲友关系 哥哥姓名");
   });
 
@@ -352,6 +352,7 @@ describe("legalizePathPlan + deriveCompositeSlots", () => {
     });
     expect(pathPlan.steps[0]?.kind).toBe("km");
     expect(pathPlan.steps[0]?.dataSource).toBe("corpus");
+    expect(pathPlan.steps[0]?.queryType).toBe("relations");
   });
 
   it("routes preview enumeration to list_corpus", () => {

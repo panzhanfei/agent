@@ -43,7 +43,7 @@ package-lock.json
 !/data/eval/reports/.gitkeep
 
 # 门禁运行日志 / Playwright 产物（总报表 GATE-REPORT.md 与 reports/*-report.* 保留）
-/.gate-logs/
+.gate-logs/
 /reports/playwright/
 /reports/vitest-raw.json
 

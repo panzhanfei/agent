@@ -55,7 +55,7 @@ export const assessConfidence = (
     const recallBoost = recallSourceBoost(input.recallSource);
 
     let score =
-        0.42 * top1Relevance +
+        0.42 * clamp01(top1Relevance) +
         0.18 * clamp01(top1Top2Gap * 6) +
         0.15 * fusionSignal +
         0.15 * pathAuthority +

@@ -57,7 +57,7 @@ export const EXTERNAL_LINK_SLOT: CompositeRetrievalSlot = {
 
 /**
  * queryType + topics → 取 canonical 模板。
- * tech / default → null（不强制模板，保留 Intake 原 query）。
+ * tech / relations / default → null（不强制模板，保留 Intake 原 query）。
  * external_link / enumeration / identity → 信 Intake queryType，不在 label 上做意图 regex。
  */
 export const facetTemplateForQueryType = (
@@ -72,7 +72,9 @@ export const facetTemplateForQueryType = (
         | "identityField"
     >
 ): CompositeRetrievalSlot | null => {
-    if (!queryType || queryType === "tech") return null;
+    if (!queryType || queryType === "tech" || queryType === "relations") {
+        return null;
+    }
     if (queryType === "identity") {
         const field = planItem?.identityField ?? null;
         const fieldSpec = field ? IDENTITY_FIELD_SEARCH[field] : null;

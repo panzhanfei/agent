@@ -239,7 +239,7 @@ Intake 产出两层结构：**LLM 层** `IntakeRoutingDecision` → **编排层*
 |------|------|------|--------|
 | `label` | string | 子问题摘要，如「姓名」「项目经历」 | Analyst 分段标题；composite 槽 label |
 | `searchQuery` | string | 该子问题专用检索词（含目录词如「个人简介 简历」） | KM 检索；检索 hits 缓存 key 的一部分 |
-| `queryType` | identity \| enumeration \| tech \| **external_link** \| default | 该子问题的检索 profile | KM `queryProfile` |
+| `queryType` | identity \| enumeration \| tech \| **external_link** \| **relations** \| default | 该子问题的检索 profile | KM `queryProfile`；relations 滤亲友名册 |
 | `topics` | string[] | 语料主题 hint，如 personal / project | KM 过滤 / 精排 |
 
 ### 4.2 `IntakeRoutingDecision`（LLM 工单 — 核心）
@@ -254,7 +254,7 @@ Intake 产出两层结构：**LLM 层** `IntakeRoutingDecision` → **编排层*
 | **topics** | string[] | 语料主题标签 | personal, resume, project, experience, tech-stack… |
 | **language** | zh \| en \| mixed | 用户语言 | Analyst / 短答话术 |
 | **confidence** | 0–1 | 模型对路由的把握 | 日志 / eval 用 |
-| **queryType** | identity \| enumeration \| tech \| **external_link** \| default \| null | 检索问法类型 | 与 KM `queryProfile` 对齐；GitHub/URL 用 **external_link**（**禁止** enumeration）；不检索时为 null |
+| **queryType** | identity \| enumeration \| tech \| **external_link** \| **relations** \| default \| null | 检索问法类型 | 与 KM `queryProfile` 对齐；GitHub/URL 用 **external_link**（**禁止** enumeration）；亲友名册用 **relations**（槽 topics 含 family，**禁止** identityField=name / mem）；不检索时为 null |
 | **clarifyingQuestion** | string \| null | 澄清追问（只问一个） | 仅 intent=clarify 时填 |
 | **briefReply** | string \| null | 极短直接回复（≤80 字） | chitchat / clarify；retrieve / summarize 必须为 null |
 | **retrievalPlan** | IntakeRetrievalPlanItem[] | 兼容/派生：可由 pathPlan.steps 生成；LLM 可不填 | chitchat/clarify/userFact 可为 `[]` |
@@ -283,10 +283,11 @@ Intake 产出两层结构：**LLM 层** `IntakeRoutingDecision` → **编排层*
 
 | queryType | 何时 | searchQuery 示例 |
 |-----------|------|------------------|
-| `identity` | 姓名、年龄、学历、行业 | `个人简介 简历 姓名` |
+| `identity` | 本人姓名、年龄、学历、行业 | `个人简介 简历 姓名` |
 | `enumeration` | 列举公司 / 全部项目 | `哪几家公司 工作经历` |
 | `external_link` | GitHub、仓库、对外 URL（**非**项目名穷举） | `开源项目 GitHub 链接 个人简历` |
 | `tech` | 技术栈、框架 | `城管平台 技术栈 React` |
+| `relations` | 语料亲友称呼姓名（`topics` 须含 `family`；`identityField` 必须 null） | `亲友关系 哥哥 姓名` |
 | `default` | 其他单点事实 | `西安奥卡云 工作职责` |
 
 ### 4.3 `RoutedIntakeDecision`（guard 后的编排工单）

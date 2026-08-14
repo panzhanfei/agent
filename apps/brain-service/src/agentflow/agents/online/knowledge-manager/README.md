@@ -45,7 +45,7 @@ knowledge-manager/
 ├── index.ts               ← 对外 API + runKmRetrieveNode（底部）
 │
 ├── contract/              ← index + interface + schema
-├── profile/               ← index + interface + km-config / query-profile / score-candidate
+├── profile/               ← index + interface + km-config / query-profile / score-candidate / recall-doc-kinds
 ├── recall/                ← index + interface + hybrid / rrf / retrieve / helpers
 ├── composite/             ← 多槽 merge / order（缓存见 agentflow/cache/）
 └── slot/                  ← 单槽工人 + 子图壳（图节点出口在包根）
@@ -57,9 +57,9 @@ knowledge-manager/
 ### 推荐阅读顺序
 
 1. `corpus-lister/` — 列举 preview/continue/exhaustive（目录扫盘分页）
-2. `recall/retrieve.ts` — Hybrid → rank → coverage 主路径（identity/tech/external_link）
+2. `recall/retrieve.ts` — Hybrid → rank → coverage 主路径（identity/tech/external_link/relations）
 3. `agentflow/cache/` — planCacheResolve 全量 facet+hits；Analyst 写 facet 会话缓存
-4. `profile/query-profile.ts` + `profile/km-config.ts` — 分档参数
+4. `profile/query-profile.ts` + `profile/km-config.ts` + `profile/recall-doc-kinds.ts` — 分档参数与 docKind 过滤
 5. `recall/retrieve-helpers.ts` — identityGuard、enumerationFill
 
 ---
@@ -133,7 +133,7 @@ KnowledgeRetrievalResult { hits, coverage, notes, confidenceTier }
 | 字段 | 谁写 | KM 怎么用 |
 |------|------|-----------|
 | `searchQuery` | Intake | 主检索文本；检索 hits 缓存 key 之一 |
-| `queryType` | Intake | 映射 queryProfile；检索 hits 缓存 key 之一 |
+| `queryType` | Intake | 映射 queryProfile；`recallDocKindsForQuery` 收窄 Qdrant `docKind`；facet 分桶 |
 | `routeMode` / `compositeSlots` | Intake | **`plan`（可观测）** + 1～N 槽；执行看 pathPlan |
 | `topics` | Intake | **仅**拼入向量 semantic query（KM-01） |
 | `subTasks` | Intake | sparse token + rank 辅助 |
@@ -146,7 +146,7 @@ KnowledgeRetrievalResult { hits, coverage, notes, confidenceTier }
 
 | 命令 | 测什么 |
 |------|--------|
-| `pnpm --filter @fambrain/brain-service run verify:km-retrieve` | rank / guard / enumeration 单测 |
+| `pnpm --filter @fambrain/brain-service run verify:km-retrieve` | rank / queryProfile / **docKind 映射** |
 | `pnpm --filter @fambrain/brain-service run verify:hybrid-recall` | RRF + hybrid live |
 | `pnpm --filter @fambrain/brain-service run verify:composite-route` | merge composite hits |
 | `pnpm --filter @fambrain/brain-service run verify:agent-schemas` | schema 合同 |

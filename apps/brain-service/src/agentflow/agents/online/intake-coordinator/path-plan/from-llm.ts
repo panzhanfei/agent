@@ -38,6 +38,7 @@ const QUERY_TYPES = new Set([
   "enumeration",
   "tech",
   "external_link",
+  "relations",
   "default",
 ]);
 
@@ -72,6 +73,12 @@ const VAULT_WORKSPACE_OPS = new Set([
 const asQueryType = (v: unknown): ExecutionStep["queryType"] => {
   if (typeof v === "string" && QUERY_TYPES.has(v)) {
     return v as ExecutionStep["queryType"];
+  }
+  if (typeof v === "string") {
+    const lower = v.trim().toLowerCase();
+    if (lower === "family" || lower === "relation" || lower === "kin") {
+      return "relations";
+    }
   }
   return "default";
 };
@@ -453,11 +460,11 @@ const legalizeStep = (raw: unknown, index: number): ExecutionStep | null => {
     typeof userFactLabelRaw === "string"
       ? userFactLabelRaw.trim() || null
       : null;
-  // 结构信号：topics 含 family → 非本人 identity；searchQuery 须落亲友语料
+  // 结构信号：topics 含 family → 亲友名册（relations），不是本人 identity 柜
   const topicFamily = topics.some((t) => t.toLowerCase() === "family");
   if (topicFamily) {
-    if (identityField) identityField = null;
-    if (queryType === "identity") queryType = "default";
+    identityField = null;
+    queryType = "relations";
     if (label && !/亲友/.test(searchQuery)) {
       searchQuery = `亲友关系 ${label}`;
     }

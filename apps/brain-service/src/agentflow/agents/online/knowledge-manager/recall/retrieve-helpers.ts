@@ -127,13 +127,12 @@ const feedbackDelta = (
     );
 };
 
-/** relevance = token + vector + pathBoost，封顶 1.0（KM-05）。 */
+/** relevance = token + vector + pathBoost；排序用未封顶分，写出 hit 时再钳到 0–1。 */
 export const computeRelevance = (
     keywordRelevance: number,
     vectorRelevance: number,
     pathBoost: number
-): number =>
-    Math.min(1, keywordRelevance + vectorRelevance + pathBoost);
+): number => keywordRelevance + vectorRelevance + pathBoost;
 
 /**
  * 对候选统一打分排序（KM-05 rank + KM-06 兜底共用）。
@@ -156,11 +155,9 @@ export const rankCandidates = (
             const keywordRelevance = computeKeywordRelevance(haystack, tokens);
             const vectorRelevance = resolveRecallRelevance(c);
             const pathBoost = getPathBoost(c.path);
-            const relevance = Math.min(
-                1,
+            const relevance =
                 computeRelevance(keywordRelevance, vectorRelevance, pathBoost) +
-                    feedbackDelta(c.path, feedbackByPath)
-            );
+                feedbackDelta(c.path, feedbackByPath);
             const excerpt =
                 pickExcerptFn(c.body, tokens, queryProfile) ||
                 c.body.slice(0, EXCERPT_MAX).trim();

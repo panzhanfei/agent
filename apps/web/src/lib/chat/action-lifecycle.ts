@@ -53,10 +53,10 @@ export const chatActionStaleGroupKey = (prompt: string): string | null => {
     return `vault:cwd:${t.slice(VAULT_WS.listPrefix.length)}`;
   }
   if (t.startsWith(VAULT_WS.createFilePrefix)) {
-    return `vault:cwd:${t.slice(VAULT_WS.createFilePrefix.length)}`;
+    return `vault:create:${t.slice(VAULT_WS.createFilePrefix.length)}`;
   }
   if (t.startsWith(VAULT_WS.createFolderPrefix)) {
-    return `vault:cwd:${t.slice(VAULT_WS.createFolderPrefix.length)}`;
+    return `vault:create:${t.slice(VAULT_WS.createFolderPrefix.length)}`;
   }
   if (t.startsWith(VAULT_WS.openPrefix)) {
     const fileRel = t.slice(VAULT_WS.openPrefix.length);

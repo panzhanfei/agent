@@ -32,6 +32,8 @@ export const executeKmSlotSub = async (
         topics: input.slot.topics,
         subTasks: input.slot.subTasks,
         queryType: input.slot.queryType,
+        identityField: input.slot.identityField,
+        listKind: input.slot.enumerationControl?.listKind ?? null,
         candidates: [],
     });
     await writeHitsCache({

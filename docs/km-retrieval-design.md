@@ -51,6 +51,7 @@ Intake（查询理解）→ KM（混合召回～兜底）→ ContentOrganizer �
 | KM-03～06 | pathBoost、rank、兜底、verify 脚本 |
 | KM-04 | 常量集中到 `km-config.ts` |
 | KM-08～09 | queryProfile + 分档 topK/maxHits |
+| KM-17 | 文件级 `docKind` 入库；按 queryType 滤 Qdrant payload；滤空不回退全库 |
 | KM-10～16 | 表格 excerpt、identity guard、列举 fill、coverage/notes、chunk merge |
 | HY-01～07 | Qdrant sparse（入库 BM25 TF）+ hybrid + 引擎 RRF |
 | QU-01～06 | Intake `queryType` → pipeline → KM |
@@ -71,7 +72,7 @@ Intake（查询理解）→ KM（混合召回～兜底）→ ContentOrganizer �
 | `notes` | KM 给下游的备注 |
 | `confidenceTier`（可选） | high / mid / low |
 
-`KnowledgeManagerInput` 可选：`queryType?: "identity" | "enumeration" | "tech" | "default"`。
+`KnowledgeManagerInput` 可选：`queryType?: "identity" | "enumeration" | "tech" | "external_link" | "relations" | "default"`。
 
 ---
 
@@ -80,7 +81,8 @@ Intake（查询理解）→ KM（混合召回～兜底）→ ContentOrganizer �
 ```mermaid
 flowchart TD
   IN["Intake: searchQuery + topics + subTasks + queryType"] --> PROFILE["queryProfile（Intake 优先 / KM fallback）"]
-  PROFILE --> HY["Hybrid Recall 并行"]
+  PROFILE --> KIND["recallDocKindsForQuery"]
+  KIND --> HY["Hybrid Recall 并行"]
   HY --> VEC["Qdrant dense"]
   HY --> SPARSE["Qdrant sparse（入库 TF+idf）"]
   VEC --> RRF["引擎加权 RRF"]
@@ -97,16 +99,23 @@ flowchart TD
 
 ## 六、queryProfile 参数表
 
-| queryProfile | 典型问法 | vectorTopK | maxHits | 召回 | 专项 guard |
-|--------------|----------|------------|---------|------|------------|
-| identity | 我叫什么、姓名 | 12 | 4 | hybrid（向量 + sparse） | personal 简历 Top1 |
-| enumeration（**experience**） | 哪几家公司 | 24 | 8 | **experience/** 全量 + fill | 每经历文件 ≥1 hit |
-| enumeration（**project**） | 哪些项目、项目名称 | 24 | 8 | **projects/** 全量 + fill | 每项目 md ≥1 hit |
-| **external_link** | GitHub / 仓库 / 对外 URL | 16 | 6 | hybrid | **personal 简历 + 含 URL 行** boost；`pickExcerpt` 优先 URL |
-| tech | 技术栈、框架 | 16 | 6 | hybrid | — |
-| default | 其余 | 12 | 5 | hybrid | — |
+| queryProfile | 典型问法 | vectorTopK | maxHits | 召回 | docKind 过滤 |
+|--------------|----------|------------|---------|------|--------------|
+| identity | 我叫什么、姓名、手机 | 12 | 4 | hybrid | `identity_card`；tenure/career 加 `experience` |
+| enumeration（**experience**） | 哪几家公司 | 24 | 8 | **experience/** 全量 + fill | `experience` |
+| enumeration（**project**） | 哪些项目、项目名称 | 24 | 8 | **projects/** 全量 + fill | `project` |
+| **external_link** | GitHub / 仓库 / 对外 URL | 12 | 6 | hybrid | `project` + `experience` + `identity_card` |
+| tech | 技术栈、框架 | 16 | 6 | hybrid | `project` + `experience` |
+| **relations** | 亲友名册（槽 `topics` 含 family） | 12 | 5 | hybrid | **`relations` only** |
+| default | 其余 | 12 | 5 | hybrid | **不过滤（全库）** |
 
-Intake `queryType` 与上表 **同名枚举**。
+Intake `queryType` 与上表 **同名枚举**。`recallDocKindsForQuery` 是 schema→executor：过滤命中为空时 **不得** 回退无过滤。`identity`+`name` **不**并进 `relations`（无 family 标仍只搜档案）。
+
+文件级 `docKind`（入库时按 path + 全文打标，整文件同一种）：`identity_card` | `relations` | `experience` | `project` | `uncategorized`。`/personal/` 多名册 → `relations`，否则 `identity_card`；`/experience/` → experience；`/projects/`（含 `resume.md`）→ project；imports/learned → uncategorized。
+
+精排：`rankCandidates` **按未封顶综合分排序**；`KnowledgeHit.relevance` 与 `assessConfidence` 的 top1 项再 clamp 0–1。
+
+槽答案 facet：`rel:` 与 `id:` 分桶，identity 与 relations 不共用缓存。
 
 ---
 
@@ -138,9 +147,10 @@ Intake `queryType` 与上表 **同名枚举**。
 
 **全链路 spot check：**
 
-- 「我的名字是什么？」→ Top1 `personal/个人简历-潘展飞.md`，excerpt 含姓名表格行
+- 「我的名字是什么？」→ Top1 `personal/个人简历-潘展飞.md`，excerpt 含姓名表格行；`docKind=identity_card`
 - 「我在哪几家公司上过班？」→ hits 均为 `experience/*.md`，notes 含列举覆盖段数
 - 「开源项目的 GitHub 链接有哪些？」→ `queryType=external_link`；hits 含 `github.com/panzhanfei/sentinel-monorepo` 与 `release-bot`（**非** aky offline 路径）
+- 亲友步（槽已标 `topics: family`）→ `queryType=relations`，只进 `docKind=relations`（如 `personal/亲友关系.md`）。单问「我哥叫什么」若 Intake 未标 family，仍走 identity → 换模型再测 **E2E-brother**（[坑点 §2.11](./04-pitfalls.md#211-猜模型意图兜底债-p0-34--与-dify-抽离同批--2026-08)）
 
 ---
 
@@ -153,3 +163,4 @@ Intake `queryType` 与上表 **同名枚举**。
 | 2026-07 | 文档精简：移除排期表，保留设计与验收 |
 | 2026-07 | **`external_link` queryProfile**（P0-25）；Intake link lookup + continuation guard |
 | 2026-08 | **语料 + Mem0 迁 Qdrant**：dense+sparse 入库；查询走引擎加权 RRF；不再用 Chroma / 查询时内存 BM25 |
+| 2026-08 | **文件级 `docKind`** + `queryType=relations`：按 Intake 类型滤 Qdrant；亲友不再靠 `default` 全库；rank 排序不解封顶 |

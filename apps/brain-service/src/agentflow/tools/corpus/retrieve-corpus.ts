@@ -7,6 +7,8 @@ const queryTypeSchema = z.enum([
     "identity",
     "enumeration",
     "tech",
+    "external_link",
+    "relations",
     "default",
 ]);
 
@@ -45,7 +47,9 @@ export const retrieveCorpusTool = tool(
                 .describe("检索关键词句（Intake 改写后的 searchQuery）"),
             queryType: queryTypeSchema
                 .optional()
-                .describe("查询类型：identity / enumeration / tech / default"),
+                .describe(
+                    "查询类型：identity / enumeration / tech / external_link / relations / default"
+                ),
             topics: z
                 .array(z.string())
                 .optional()

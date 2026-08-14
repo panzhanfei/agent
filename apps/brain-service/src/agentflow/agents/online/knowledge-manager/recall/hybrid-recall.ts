@@ -1,7 +1,7 @@
 /**
  * Hybrid 召回：Qdrant dense + sparse prefetch，引擎内 RRF。
  */
-import { isCorpusNoisePath, searchCorpusHybrid } from "@fambrain/corpus";
+import { isCorpusNoisePath, searchCorpusHybrid, type CorpusDocKind } from "@fambrain/corpus";
 import {
     RRF_K,
     RRF_SPARSE_WEIGHT,
@@ -17,7 +17,8 @@ export const hybridRecall = async (
     corpusUserId: string,
     vectorQuery: string,
     sparseQuery: string,
-    vectorTopK: number
+    vectorTopK: number,
+    docKinds?: CorpusDocKind[] | null
 ): Promise<HybridRecallResult> => {
     const prefetchK = Math.ceil(vectorTopK * VECTOR_FETCH_MULTIPLIER);
     const empty: HybridRecallResult = {
@@ -37,6 +38,7 @@ export const hybridRecall = async (
             prefetchK,
             rrfK: RRF_K,
             rrfWeights: [RRF_VECTOR_WEIGHT, RRF_SPARSE_WEIGHT],
+            docKinds,
         });
         const candidates: KnowledgeCandidate[] = result.hits
             .filter((h) => !isCorpusNoisePath(h.path))

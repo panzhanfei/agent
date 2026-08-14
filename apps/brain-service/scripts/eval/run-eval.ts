@@ -22,7 +22,7 @@ import {
     ENUMERATION_PREVIEW_PAGE_SIZE,
 } from "@/agentflow/agents/online/corpus-lister/list";
 import { hybridRecall } from "@/agentflow/agents/online/knowledge-manager/recall";
-import { getProfileRecallParams } from "@/agentflow/agents/online/knowledge-manager/profile";
+import { getProfileRecallParams, recallDocKindsForQuery } from "@/agentflow/agents/online/knowledge-manager/profile";
 import { resolveQueryProfile } from "@/agentflow/agents/online/knowledge-manager/profile";
 import { retrieveKnowledge } from "@/agentflow/agents/online/knowledge-manager/recall";
 import { runPipelineStream } from "@/agentflow/index";
@@ -64,9 +64,11 @@ type GoldenCase = {
     };
     km?: {
         searchQuery: string;
-        queryType: "identity" | "enumeration" | "tech" | "default";
+        queryType: "identity" | "enumeration" | "tech" | "default" | "external_link" | "relations";
         topics: string[];
         subTasks: string[];
+        identityField?: "name" | "age" | "birthYear" | "email" | "phone" | "education" | "career" | "tenure";
+        listKind?: "project" | "experience";
     };
     assert: JsonAssert;
 };
@@ -319,6 +321,11 @@ const runKmCase = async (
         " "
     );
     const sparseQuery = [km.searchQuery, ...km.subTasks].join(" ");
+    const docKinds = recallDocKindsForQuery(
+        km.queryType,
+        km.identityField,
+        km.listKind
+    );
 
     const [result, hybrid] = await Promise.all([
         retrieveKnowledge({
@@ -327,9 +334,11 @@ const runKmCase = async (
             topics: km.topics,
             subTasks: km.subTasks,
             queryType: km.queryType,
+            identityField: km.identityField,
+            listKind: km.listKind,
             candidates: [],
         }),
-        hybridRecall(corpusUserId, vectorQuery, sparseQuery, vectorTopK),
+        hybridRecall(corpusUserId, vectorQuery, sparseQuery, vectorTopK, docKinds),
     ]);
 
     return {

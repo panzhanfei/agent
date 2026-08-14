@@ -16,6 +16,13 @@ export {
     upsertCorpusDocumentsByPath,
 } from "./corpus-vector-path";
 export { getEmbedIndexOptions, mapEmbedBatches } from "./embed-batches";
+export {
+    CORPUS_DOC_KINDS,
+    inferCorpusDocKind,
+    isRelationsRosterBody,
+    parseCorpusDocKind,
+    type CorpusDocKind,
+} from "./doc-kind";
 export type {
     Bm25Index,
     ChunkMetadata,

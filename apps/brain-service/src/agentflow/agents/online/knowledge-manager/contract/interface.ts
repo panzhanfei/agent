@@ -1,3 +1,4 @@
+import type { IntakeIdentityField } from "@/agentflow/agents/online/intake-coordinator/contract";
 import type { QueryProfile } from "../profile/interface";
 
 export type { QueryProfile };
@@ -71,5 +72,9 @@ export type KnowledgeManagerInput = {
   subTasks: string[];
   /** Intake queryType；缺失时 KM 规则推断（KM-08） */
   queryType?: QueryProfile | null;
+  /** Intake identityField；仅 queryType=identity 时参与 docKind 过滤 */
+  identityField?: IntakeIdentityField | null;
+  /** Intake enumerationControl.listKind；仅 queryType=enumeration 时收窄类型 */
+  listKind?: "project" | "experience" | null;
   candidates: KnowledgeCandidate[];
 };

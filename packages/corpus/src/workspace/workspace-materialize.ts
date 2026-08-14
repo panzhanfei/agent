@@ -8,6 +8,7 @@ import { Document } from "@langchain/core/documents";
 import type { Logger } from "pino";
 import {
   deleteCorpusVectorsByPath,
+  inferCorpusDocKind,
   upsertCorpusDocumentsByPath,
 } from "../vector";
 import type { MaterializeResult, PurgeResult } from "./interface";
@@ -80,6 +81,7 @@ export const materializeWorkspaceTxt = async (input: {
             path: mapped.repoPath,
             sourcePath: `vault/originals/workspace/${workspaceRel}`,
             title: txtBasenameTitle(workspaceRel),
+            docKind: inferCorpusDocKind(mapped.repoPath, md),
           },
         }),
       ],

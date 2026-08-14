@@ -120,14 +120,19 @@ export const normalizePlanItemFromSchema = (
   // 结构化字段回填 queryType（LLM 常写出 identityField 却标成 default）
   let queryType = item.queryType;
   let identityField = item.identityField ?? null;
-  // timeline→identity 且无 field 时：从业年限类 label 由 LLM 应填 tenure；此处不口语猜，仅保留 identity 检索
-  if (item.identityField && queryType !== "identity") {
+  // 只信槽上 topics=family，不扫问句口语；亲友步必须清 identityField，否则会被抬回 identity
+  const topicFamily = item.topics.some((t) => t.toLowerCase() === "family");
+  if (topicFamily || queryType === "relations") {
+    identityField = null;
+    queryType = "relations";
+  } else if (item.identityField && queryType !== "identity") {
     queryType = "identity";
   } else if (
     item.enumerationControl?.listKind &&
     queryType !== "enumeration" &&
     queryType !== "external_link" &&
-    queryType !== "tech"
+    queryType !== "tech" &&
+    queryType !== "relations"
   ) {
     queryType = "enumeration";
   }
@@ -214,10 +219,19 @@ export const normalizePlanItemFromSchema = (
     };
   }
 
+  if (queryType === "relations") {
+    return {
+      ...item,
+      queryType: "relations",
+      identityField: null,
+      enumerationControl: null,
+    };
+  }
+
   return {
     ...item,
     queryType,
-    identityField: item.identityField ?? null,
+    identityField: identityField ?? null,
     enumerationControl: item.enumerationControl ?? null,
   };
 };

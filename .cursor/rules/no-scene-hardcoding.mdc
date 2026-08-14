@@ -27,7 +27,7 @@ alwaysApply: true
 | A. 问句/问候口语词表 | `isPureSocialUtterance("你好")`、`/开源\|GitHub/.test(q)`、labels 猜意图 | **禁止** |
 | A2. 用户事实字段名表 | `if (factKey==="qq")`、`extractByFactKey` 按 qq/wechat 分支 | **禁止** |
 | B. 场景/人名/项目名分支 | `if (sentinel)` / named DAG `opensource_links` | **禁止** |
-| C. Schema → 执行映射 | `identityField: age` → `compute_age_from_hits`；`listKind: experience` → 扫 `experience/` | **允许** |
+| C. Schema → 执行映射 | `identityField: age` → `compute_age_from_hits`；`listKind: experience` → 扫 `experience/`；`queryType: relations` → Qdrant `docKind=relations`；槽 `topics` 含 `family`（不扫问句）→ `queryType=relations` | **允许** |
 | D. 语料结构抽取 | 表头 `\| 姓名 \|`、日期区间、URL（对 **excerpt**，不对用户口语） | **允许** |
 | E. 结构信号（非语义） | 多问号/顿号 multipart、超短无问号≤2 码点→chitchat、UI 按钮 exact-match | **允许**（见下） |
 
@@ -68,6 +68,8 @@ if (prev === ch) continue; // 对 a-zA-Z0-9 也 dedupe
 // ✅ schema → executor / 检索模板（类型系统，不是猜问句）
 IDENTITY_FIELD_BY_ID.age.toolId = "compute_age_from_hits";
 POST_RETRIEVAL_TOOL_IDS + isPostRetrievalToolId(toolId);
+queryType === "relations" → recallDocKindsForQuery = ["relations"];
+topics.some(t => t.toLowerCase() === "family") → queryType = "relations"; // 只信槽，不扫「哥哥」
 
 // ✅ pathPlan 结构归一（无字段名表）
 dataSource === "mem0" || kind === "mem" → mem 步;

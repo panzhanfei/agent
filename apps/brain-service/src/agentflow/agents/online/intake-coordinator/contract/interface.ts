@@ -28,7 +28,7 @@ export type IntakeRetrievalPlanItem = {
   label: string;
   /** 该子问题专用检索词（须含实体/字段词，勿复制用户口语整句） */
   searchQuery: string;
-  queryType: "identity" | "enumeration" | "tech" | "external_link" | "default";
+  queryType: "identity" | "enumeration" | "tech" | "external_link" | "relations" | "default";
   topics: string[];
   /**
    * 列举控制（仅 kind=list / queryType=enumeration 需要）：
@@ -91,6 +91,7 @@ export type IntakeRoutingDecision = {
     | "enumeration"
     | "tech"
     | "external_link"
+    | "relations"
     | "default"
     | null;
   /**

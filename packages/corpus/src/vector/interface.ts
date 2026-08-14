@@ -1,8 +1,13 @@
+import type { CorpusDocKind } from "./doc-kind";
+
+export type { CorpusDocKind };
+
 export type CorpusVectorHit = {
     path: string;
     title: string;
     body: string;
     score: number;
+    docKind?: CorpusDocKind;
 };
 
 export type CorpusHybridHit = CorpusVectorHit & {
@@ -31,6 +36,7 @@ export type ChunkMetadata = {
     path: string;
     title: string;
     chunkIndex: number;
+    docKind?: CorpusDocKind;
 };
 
 export type RecallKeywordHit = {

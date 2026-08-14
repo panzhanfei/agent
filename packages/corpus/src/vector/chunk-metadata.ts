@@ -1,5 +1,6 @@
 import { z } from "zod";
 import type { ChunkMetadata } from "./interface";
+import { CORPUS_DOC_KINDS } from "./doc-kind";
 
 export type { ChunkMetadata };
 
@@ -9,4 +10,5 @@ export const chunkMetadataSchema = z.object({
     path: z.string().min(1),
     title: z.string().min(1),
     chunkIndex: z.number().int().min(0),
+    docKind: z.enum(CORPUS_DOC_KINDS).optional(),
 });

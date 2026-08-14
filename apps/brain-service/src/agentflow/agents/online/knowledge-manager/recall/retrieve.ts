@@ -10,7 +10,7 @@
  * 打分与摘录：内存关键词打分 + pickExcerpt（唯一输出路径）
  *
  * KM-01 topics 分流：topics 仅拼入向量 query；sparse 用 searchQuery + subTasks。
- * KM-05 rank：relevance = token + vector/sparse + pathBoost（封顶 1.0）。
+ * KM-05 rank：relevance = token + vector/sparse + pathBoost（排序不解封顶；写出 hit 时钳 0–1）。
  * KM-06：hits 只来自 rank（relevance>0）；空 hits 不再硬补 Top1。
  * KM-08/09：queryProfile 分档 vectorTopK / maxHits；Intake queryType 优先。
  * KM-10：表格 excerpt。
@@ -34,6 +34,7 @@ import {
     getProfileRecallParams,
     LOG_BODY_PREVIEW,
     MAX_CANDIDATES,
+    recallDocKindsForQuery,
     resolveQueryProfile,
     tierNotes,
 } from "@/agentflow/agents/online/knowledge-manager/profile";
@@ -45,6 +46,8 @@ import {
 } from "./retrieve-helpers";
 
 type CandidateRow = KnowledgeCandidate;
+
+const clampUnit = (n: number): number => Math.max(0, Math.min(1, n));
 
 const summarizeCandidate = (c: CandidateRow, index: number) => ({
     rank: index + 1,
@@ -129,7 +132,7 @@ const retrieveByKeywords = (
             path: p,
             title,
             excerpt,
-            relevance,
+            relevance: clampUnit(relevance),
         })
     );
 
@@ -228,12 +231,18 @@ const loadCandidates = async (
         ...input.subTasks,
     ].join(" ");
     const sparseQuery = [input.searchQuery, ...input.subTasks].join(" ");
+    const docKinds = recallDocKindsForQuery(
+        input.queryType,
+        input.identityField,
+        input.listKind
+    );
 
     const hybrid = await hybridRecall(
         input.corpusUserId,
         vectorQuery,
         sparseQuery,
-        vectorTopK
+        vectorTopK,
+        docKinds
     );
 
     return {
@@ -271,6 +280,11 @@ export const retrieveKnowledge = async (
         input.queryType
     );
     const { vectorTopK, maxHits } = getProfileRecallParams(queryProfile);
+    const docKinds = recallDocKindsForQuery(
+        input.queryType,
+        input.identityField,
+        input.listKind
+    );
 
     logAgentIn("KnowledgeManager", "进入", {
         corpusUserId: input.corpusUserId,
@@ -278,6 +292,9 @@ export const retrieveKnowledge = async (
         topics: input.topics,
         subTasks: input.subTasks,
         queryType: input.queryType ?? null,
+        identityField: input.identityField ?? null,
+        listKind: input.listKind ?? null,
+        docKinds,
         queryProfile,
         vectorTopK,
         maxHits,
@@ -322,6 +339,11 @@ export const retrieveKnowledge = async (
             uniquePathCount,
             fusionTopPath,
             queryProfile,
+            docKinds: recallDocKindsForQuery(
+                input.queryType,
+                input.identityField,
+                input.listKind
+            ),
             vectorTopK,
             maxHits,
             confidenceTier: "low",
@@ -368,6 +390,11 @@ export const retrieveKnowledge = async (
         uniquePathCount,
         fusionTopPath,
         queryProfile,
+        docKinds: recallDocKindsForQuery(
+            input.queryType,
+            input.identityField,
+            input.listKind
+        ),
         vectorTopK,
         maxHits,
         confidenceTier,

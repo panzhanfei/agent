@@ -66,6 +66,11 @@ export {
     type CorpusVectorIndexResult,
     type EmbedIndexOptions,
     type RecallKeywordHit,
+    CORPUS_DOC_KINDS,
+    inferCorpusDocKind,
+    isRelationsRosterBody,
+    parseCorpusDocKind,
+    type CorpusDocKind,
 } from "./vector";
 export {
     CORPUS_WORKSPACE_IMPORTS_REL,

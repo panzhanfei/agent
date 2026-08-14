@@ -121,6 +121,28 @@ describe("normalizePlanItemFromSchema", () => {
         expect(item.identityField).toBe("age");
     });
 
+    it("keeps family + identityField as relations (does not promote back to identity)", () => {
+        const fromIdentity = normalizePlanItemFromSchema({
+            label: "哥哥姓名",
+            searchQuery: "亲友关系 哥哥 姓名",
+            queryType: "identity",
+            topics: ["personal", "family"],
+            identityField: "name",
+        });
+        expect(fromIdentity.queryType).toBe("relations");
+        expect(fromIdentity.identityField).toBeNull();
+
+        const alreadyRelations = normalizePlanItemFromSchema({
+            label: "哥哥姓名",
+            searchQuery: "亲友关系 哥哥 姓名",
+            queryType: "relations",
+            topics: ["personal", "family"],
+            identityField: "name",
+        });
+        expect(alreadyRelations.queryType).toBe("relations");
+        expect(alreadyRelations.identityField).toBeNull();
+    });
+
     it("infers experience listKind from career topics when control incomplete", () => {
         const item = normalizePlanItemFromSchema({
             label: "公司与职位",

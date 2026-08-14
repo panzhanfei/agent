@@ -23,6 +23,11 @@ import type {
     CorpusVectorIndexResult,
     EmbedIndexOptions,
 } from "./interface";
+import {
+    inferCorpusDocKind,
+    parseCorpusDocKind,
+    type CorpusDocKind,
+} from "./doc-kind";
 
 export type {
     CorpusHybridHit,
@@ -53,7 +58,15 @@ const payloadToHit = (
     title: String(payload?.title ?? ""),
     body: String(payload?.body ?? ""),
     score,
+    docKind: parseCorpusDocKind(payload?.docKind),
 });
+
+const docKindFilter = (docKinds: CorpusDocKind[] | undefined) => {
+    if (!docKinds || docKinds.length === 0) return undefined;
+    return {
+        must: [{ key: "docKind", match: { any: docKinds } }],
+    };
+};
 
 const collectionExists = async (collectionName: string): Promise<boolean> => {
     const client = getQdrantClient();
@@ -86,6 +99,11 @@ export const ensureCorpusCollection = async (
     });
     await client.createPayloadIndex(collectionName, {
         field_name: "path",
+        field_schema: "keyword",
+        wait: true,
+    });
+    await client.createPayloadIndex(collectionName, {
+        field_name: "docKind",
         field_schema: "keyword",
         wait: true,
     });
@@ -123,6 +141,9 @@ export const upsertCorpusDocumentBatch = async (
             const dense = vectors[i] ?? [];
             // 同一 point 写两套：dense 管近义，sparse 管字面。查询时 searchCorpusHybrid 对这两套 prefetch。
             const sparse = textToSparseVector(path, title, doc.pageContent);
+            const docKind =
+                parseCorpusDocKind(doc.metadata.docKind) ??
+                inferCorpusDocKind(path, doc.pageContent);
             return {
                 id: pointIdFromKey(`${corpusUserId}:${path}:${chunkIndex}`),
                 vector: {
@@ -135,6 +156,7 @@ export const upsertCorpusDocumentBatch = async (
                     body: doc.pageContent,
                     corpusUserId,
                     chunkIndex,
+                    docKind,
                 },
             };
         }),
@@ -144,7 +166,8 @@ export const upsertCorpusDocumentBatch = async (
 export const searchCorpusVectors = async (
     corpusUserId: string,
     searchQuery: string,
-    topK = 12
+    topK = 12,
+    docKinds?: CorpusDocKind[] | null
 ): Promise<CorpusVectorHit[]> => {
     const q = searchQuery.trim();
     if (!q) return [];
@@ -152,11 +175,13 @@ export const searchCorpusVectors = async (
     if (!(await collectionExists(collectionName))) return [];
     const dense = await createOllamaEmbeddings().embedQuery(q);
     const client = getQdrantClient();
+    const filter = docKindFilter(docKinds ?? undefined);
     const res = await client.query(collectionName, {
         query: dense,
         using: DENSE_VECTOR_NAME,
         limit: topK,
         with_payload: true,
+        ...(filter ? { filter } : {}),
     });
     return (res.points ?? [])
         .map((p) => payloadToHit(p.score ?? 0, p.payload as Record<string, unknown>))
@@ -166,18 +191,21 @@ export const searchCorpusVectors = async (
 export const searchCorpusSparse = async (
     corpusUserId: string,
     searchQuery: string,
-    topK = 12
+    topK = 12,
+    docKinds?: CorpusDocKind[] | null
 ): Promise<CorpusVectorHit[]> => {
     const sparse = textToSparseVector(searchQuery);
     if (sparse.indices.length === 0) return [];
     const collectionName = corpusCollectionName(corpusUserId);
     if (!(await collectionExists(collectionName))) return [];
     const client = getQdrantClient();
+    const filter = docKindFilter(docKinds ?? undefined);
     const res = await client.query(collectionName, {
         query: sparse,
         using: SPARSE_VECTOR_NAME,
         limit: topK,
         with_payload: true,
+        ...(filter ? { filter } : {}),
     });
     return (res.points ?? [])
         .map((p) => payloadToHit(p.score ?? 0, p.payload as Record<string, unknown>))
@@ -211,6 +239,8 @@ export const searchCorpusHybrid = async (input: {
     rrfK?: number;
     /** 与 prefetch 顺序一致：[dense 权重, sparse 权重]；KM 默认 0.85 / 1.2，偏字面 */
     rrfWeights?: [number, number];
+    /** 闭集文档类型过滤；空/省略 = 不按类型收窄。命中为空时调用方不得回退无过滤。 */
+    docKinds?: CorpusDocKind[] | null;
 }): Promise<CorpusHybridSearchResult> => {
     const topK = input.topK ?? 12;
     const prefetchK = input.prefetchK ?? Math.max(topK * 2, topK);
@@ -245,6 +275,7 @@ export const searchCorpusHybrid = async (input: {
     const client = getQdrantClient();
     const channel: CorpusHybridHit["recallChannel"] =
         denseOk && sparseOk ? "hybrid" : denseOk ? "vector" : "sparse";
+    const filter = docKindFilter(input.docKinds ?? undefined);
 
     // ── ② 两路都通：prefetch + 引擎 RRF（一次 HTTP，不是本地 fuse）──────────
     // prefetch = 各路先各自捞一池候选人（比最终 topK 宽，默认 ×2）。
@@ -257,11 +288,13 @@ export const searchCorpusHybrid = async (input: {
                 query: dense!,
                 using: DENSE_VECTOR_NAME,
                 limit: prefetchK,
+                ...(filter ? { filter } : {}),
             },
             {
                 query: sparse,
                 using: SPARSE_VECTOR_NAME,
                 limit: prefetchK,
+                ...(filter ? { filter } : {}),
             },
         ];
         const weighted = {
@@ -274,6 +307,7 @@ export const searchCorpusHybrid = async (input: {
             },
             limit: topK,
             with_payload: true as const,
+            ...(filter ? { filter } : {}),
         };
         try {
             return await client.query(collectionName, weighted);
@@ -283,6 +317,7 @@ export const searchCorpusHybrid = async (input: {
                 query: { fusion: "rrf" },
                 limit: topK,
                 with_payload: true,
+                ...(filter ? { filter } : {}),
             });
         }
     };
@@ -297,12 +332,14 @@ export const searchCorpusHybrid = async (input: {
                     using: DENSE_VECTOR_NAME,
                     limit: topK,
                     with_payload: true,
+                    ...(filter ? { filter } : {}),
                 })
               : await client.query(collectionName, {
                     query: sparse,
                     using: SPARSE_VECTOR_NAME,
                     limit: topK,
                     with_payload: true,
+                    ...(filter ? { filter } : {}),
                 });
 
     // ── ④ 拆 payload、丢掉 README / _template ─────────────────────────────

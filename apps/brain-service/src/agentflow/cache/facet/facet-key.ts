@@ -1,7 +1,7 @@
 /**
  * facetKey：会话内「同一语义槽」的稳定键。
  *
- * 键按 queryType 分桶：enum:* / id:* / tech:* / link:* / default:*
+ * 键按 queryType 分桶：enum:* / id:* / tech:* / link:* / rel:* / default:*
  * 槽位模板来自 Intake；本文件只负责算 key。
  */
 import { normalizeSearchQuery } from "@fambrain/infra";
@@ -136,6 +136,10 @@ export const buildFacetKey = (source: FacetSource): string => {
 
     if (canonical.queryType === "tech") {
         return `tech:${ln.slice(0, 32) || "general"}`;
+    }
+
+    if (canonical.queryType === "relations") {
+        return `rel:${ln.slice(0, 32) || "family"}`;
     }
 
     return `default:${ln.slice(0, 32) || canonical.queryType}`;

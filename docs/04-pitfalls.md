@@ -143,17 +143,28 @@
 |------|------|
 | **现在** | 清单入库；**暂不删**（eval / 现网仍依赖） |
 | **Dify 抽离** | Intake（及必要 Agent）迁 Dify / 更强模型；只信结构化 JSON |
-| **换模型后验证** | 全量 `eval:run` + GMem / 六连问 / 亲友 / G5b；`test:unit` |
+| **换模型后验证** | 全量 `eval:run` + GMem / 六连问 / **E2E-brother** / **G5b**（下表已知红）；`test:unit` |
 | **验证通过** | 按下方清单 **删除或收窄** 猜意图代码；只留 Zod 合法化、空 plan→clarify、UI exact-match、schema→executor |
 
 **复盘口诀：** 先看 Intake JSON 对不对 → 再决定是否还需要某条 `guard_*` / `legalize*` 抬升。模型工单稳了，抬升就该删。
+
+#### 已知红 · 换模型后再测（2026-08 · 不改代码）
+
+代码路径已齐（`queryType=relations` 只信槽上 `topics=family`；指代只信 LLM `coreference` + 拼接≤1）。下面两条 eval 仍红，是 **Intake 小模型没按 few-shot 出槽**，不是 KM/`docKind` 映射错。**禁止**为过 eval 扫问句「哥哥」或用口语猜指代。
+
+| 用例 | 问句 | 现网 | 判定 | 换模型后 |
+|------|------|------|------|----------|
+| **E2E-brother** | 「我哥叫什么」 | Intake 打成 `identity`+`name`、`topics` 无 family → 只搜 `identity_card` → 答潘展飞 | prompt 示例 4c 已要求 `queryType=relations` + `topics: family` + `identityField: null`。三连问 **E2E-family-tri**、单问 **E2E-sister-in-law** 能过；单问哥哥被类比成「我叫什么」 | `eval:run -- --case E2E-brother` 须含 **潘小强** |
+| **G5b** | 上轮「城管平台用了什么技术」→「那个项目呢？」 | 终稿未钉死城管实体，answer 未匹配城管/React 等 | prompt 已要求有 history 须 `resolved` 且 searchQuery 写明实体；**G5c** 实体替换续问已过。代词续问仍漂移 | `eval:run -- --case G5b` 须含 **城管\|城市管理\|React\|UniApp\|TypeScript\|Vite** |
+
+对照：`E2E-family-tri` / `E2E-sister-in-law` / `G5c` 过 ≠ 这两条可标绿；换 Intake 模型后必须重跑上表。
 
 #### 待删 / 待收窄清单（生产 `src/`）
 
 | 优先级 | 位置 | 行为（猜意图气味） | 换模型后建议 |
 |--------|------|-------------------|--------------|
 | **P0** | `path-plan/from-llm.ts` | 非法 `identityField`：开集 ascii→`userFactKey`；否则改写 ``searchQuery=`亲友关系 ${label}```（含 `/亲友/`） | **删**亲友改写；开集→mem 抬升在强模型下应可删 |
-| **P0** | 同上 | `topics` 含 `family` → 剥 identity + 亲友 searchQuery 改写 | **删**改写；仅保留剥非法 identity + strip toolId |
+| **P0** | 同上 | 槽 `topics` 含 `family` → `queryType=relations` + 清 `identityField` + 亲友 searchQuery 改写 | **删** searchQuery 改写；**保留** relations 落点（schema→executor，与 `listKind` 同类）。禁止扫问句「哥哥」 |
 | **P0** | 同上 | `step.id` 如 `km-qq` + identity/`extract_identity` 等 hint → 发明 `userFactKey`→mem | **删**；要求 LLM 直接写 `kind=mem` + `userFactKey` |
 | **P0** | `pipeline/intake-pipeline.ts` | 空 plan + 顶层 `userFactKey`+`Value` → `retrieve` 改 `remember_user_fact` | **删**；要求 intent 直接 remember |
 | **P0** | 同上 | 单步 `mem` → early `recall`；缺 key 时 `normalizeFactKey(label\|searchQuery)` / `"user_fact"` | **收窄**：无 key 则 clarify，禁止发明 key |
@@ -170,7 +181,7 @@
 
 | 类型 | 例子 |
 |------|------|
-| **C schema→executor** | `identityField: age` → `compute_age_from_hits`；`defaultToolIdForStep` |
+| **C schema→executor** | `identityField: age` → `compute_age_from_hits`；`queryType: relations` → `docKind=relations`；`defaultToolIdForStep` |
 | **D 语料抽取** | 对 **excerpt** 抽出生日期 / URL（不对用户口语猜意图） |
 | **E 结构信号** | 空 plan→clarify；UI exact-match；JSON 格式修复 1×；multipart 结构 |
 
@@ -180,6 +191,8 @@
 pnpm test:unit
 pnpm --filter @fambrain/brain-service run eval:run -- --mem-only
 pnpm --filter @fambrain/brain-service run eval:run -- --case E2E-six-composite-qq-phone
+pnpm --filter @fambrain/brain-service run eval:run -- --case E2E-brother
+pnpm --filter @fambrain/brain-service run eval:run -- --case G5b
 pnpm --filter @fambrain/brain-service run eval:run   # 全量
 ```
 
@@ -882,7 +895,7 @@ GOLDEN_RUNS=3 pnpm run golden:regression
 | 坑 | 现象 | 根因 | 对策 |
 |----|------|------|------|
 | **G1** | 「你好」→ 走 retrieval，答「知识库未覆盖」 | P0-16 后 schema 要求 `userFactKey` 等；LLM 未输出 → **Zod parse 失败** → `defaultIntakeDecision("你好")` | `schema.ts`：`userFact*` 缺省 `preprocess → null`；`verify:agent-schemas` chitchat 无 userFact 字段用例 |
-| **G5b** | 上文城管平台，「那个项目呢？」答 E-HR 等无关项目 | Intake searchQuery 未补全上文实体 | **`prompt.ts` coreference + 语义终稿**；首轮 unresolved 时 **拼接上轮再调 Intake 1 次**；Golden 断言须含城管/React 等；eval **`answerMustNotRe`** 在 **`answerRe` 已匹配**时不误杀含「指的是」的合理解析答（`assert-golden.ts`） |
+| **G5b** | 上文城管平台，「那个项目呢？」答偏 / 未匹配城管·React | Intake 未把代词钉到上文实体（小模型工单） | 对策已在：**`prompt.ts` coreference** + unresolved 拼接≤1。**2026-08 eval 仍红** → 换模型再测，见 **§2.11 已知红**；禁止代码猜「那个项目」 |
 | **G5c** | 「奥卡云入职年份」后「友谊时光呢」→ 整表列举经历 | LLM 只换实体、未继承属性问框架，误 `enumeration` | **prompt 示例 6c + 实体替换续问规则**（**禁止**代码 guard 改 plan）；Golden G5c · `verify:intake-coreference` |
 | **GMem** | — | — | **`golden:regression`** `runCrossSessionMemCase` + **`eval:run`** `memProbe`（conv A remember → conv B recall） |
 
@@ -1233,7 +1246,7 @@ pnpm run verify:agent-schemas
 - [ ] Analyst 输入里 `hits` / `coverage` 是否与 KM 一致 ← P0-6
 - [ ] 终稿是否出现候选中不存在的公司、项目、日期（幻觉）
 - [ ] 换模型复现：区分 prompt 问题 vs 模型能力（`OLLAMA_MODEL` / `OLLAMA_MODEL_INTAKE_COORDINATOR`）
-- [ ] **Dify / 换模型后（P0-34）：** GMem + 六连问 QQ 不依赖 `km-qq`→mem / 空 plan→remember；通过后按 §2.11 删猜意图兜底
+- [ ] **Dify / 换模型后（P0-34）：** GMem + 六连问 QQ 不依赖 `km-qq`→mem / 空 plan→remember；**E2E-brother**（潘小强）+ **G5b**（城管指代）须绿（§2.11 已知红）；通过后按 §2.11 删猜意图兜底
 - [ ] agents 服务 `:3001` 是否唯一实例（无 EADDRINUSE）← D3-12
 - [ ] **hitCount=0 / coverage=none**：Analyst 应 `rules_empty_hits_skip_llm`（**P0-12** ✅）← §2.2.1
 - [x] **列举型问题**（「哪几家公司」）：同句再问 answer 仍 **4 家** ← R6-1 ✅ · `verify:r6-no-cache`

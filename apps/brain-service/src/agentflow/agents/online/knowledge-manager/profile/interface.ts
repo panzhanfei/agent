@@ -13,6 +13,7 @@ export type QueryProfile =
   | "enumeration"
   | "tech"
   | "external_link"
+  | "relations"
   | "default";
 
 export type ConfidenceInput = {

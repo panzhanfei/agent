@@ -13,9 +13,10 @@ import {
   pickTableExcerpt,
   rankCandidates,
 } from "../src/agentflow/agents/online/knowledge-manager/recall";
-import { getProfileRecallParams } from "../src/agentflow/agents/online/knowledge-manager/profile";
 import {
+  getProfileRecallParams,
   inferQueryProfile,
+  recallDocKindsForQuery,
   resolveQueryProfile,
 } from "../src/agentflow/agents/online/knowledge-manager/profile";
 
@@ -49,9 +50,10 @@ assert("projects/resume.md 减分", () => {
   }
 });
 
-assert("relevance 封顶 1.0", () => {
-  if (computeRelevance(0.8, 0.5, 0.25) !== 1) {
-    throw new Error("应封顶 1.0");
+assert("relevance 排序不解封顶", () => {
+  const r = computeRelevance(0.8, 0.5, 0.25);
+  if (r !== 1.55) {
+    throw new Error(`排序分应为 1.55，实际 ${r}`);
   }
 });
 
@@ -117,6 +119,38 @@ assert("token 全未命中时 pathBoost 仍可排前（兜底场景）", () => {
   }
 });
 
+assert("fusion 同为 1 时 experience pathBoost 胜过 project", () => {
+  const ranked = rankCandidates(
+    [
+      {
+        path: "data/doc/u/corpus/projects/西安奥卡云.md",
+        title: "project",
+        body: "西安奥卡云",
+        score: 1,
+        fusionScore: 1,
+        recallChannel: "hybrid",
+      },
+      {
+        path: "data/doc/u/corpus/experience/2021-西安奥卡云.md",
+        title: "experience",
+        body: "西安奥卡云",
+        score: 1,
+        fusionScore: 1,
+        recallChannel: "hybrid",
+      },
+    ],
+    tokenize("西安奥卡云"),
+    pickExcerpt,
+    "default"
+  );
+  if (!ranked[0]?.path.includes("/experience/")) {
+    throw new Error(`Top1 应为 experience，实际 ${ranked[0]?.path}`);
+  }
+  if (!(ranked[0]!.relevance > ranked[1]!.relevance)) {
+    throw new Error("解封顶后 experience 分应高于 project");
+  }
+});
+
 console.log("\n— queryProfile（无口语推断；信 Intake queryType）—");
 
 assert("inferQueryProfile 恒 default（口语表已删）", () => {
@@ -163,6 +197,44 @@ assert("QU-06：queryType 未传时亦 default（无口语 infer）", () => {
   const p = resolveQueryProfile("我的名字是什么？", []);
   if (p !== "default") {
     throw new Error(`未传 queryType 应为 default，实际 ${p}`);
+  }
+});
+
+console.log("\n— recallDocKindsForQuery（各 queryType 类型过滤）—");
+
+assert("identity / tech / enumeration / external_link / relations / default 映射", () => {
+  const identity = recallDocKindsForQuery("identity", "name");
+  if (JSON.stringify(identity) !== JSON.stringify(["identity_card"])) {
+    throw new Error(`identity name 应为 identity_card，实际 ${identity}`);
+  }
+  const tenure = recallDocKindsForQuery("identity", "tenure");
+  if (
+    JSON.stringify(tenure) !==
+    JSON.stringify(["identity_card", "experience"])
+  ) {
+    throw new Error(`tenure 应含 experience，实际 ${tenure}`);
+  }
+  const tech = recallDocKindsForQuery("tech");
+  if (JSON.stringify(tech) !== JSON.stringify(["project", "experience"])) {
+    throw new Error(`tech 映射错误 ${tech}`);
+  }
+  const enumExp = recallDocKindsForQuery("enumeration", null, "experience");
+  if (JSON.stringify(enumExp) !== JSON.stringify(["experience"])) {
+    throw new Error(`enumeration experience 映射错误 ${enumExp}`);
+  }
+  const links = recallDocKindsForQuery("external_link");
+  if (
+    JSON.stringify(links) !==
+    JSON.stringify(["project", "experience", "identity_card"])
+  ) {
+    throw new Error(`external_link 映射错误 ${links}`);
+  }
+  const relations = recallDocKindsForQuery("relations");
+  if (JSON.stringify(relations) !== JSON.stringify(["relations"])) {
+    throw new Error(`relations 应为 ["relations"]，实际 ${relations}`);
+  }
+  if (recallDocKindsForQuery("default") !== null) {
+    throw new Error("default 应不过滤");
   }
 });
 

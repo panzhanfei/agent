@@ -18,6 +18,9 @@ export {
 
 export { inferQueryProfile, resolveQueryProfile } from "./query-profile";
 
+export { recallDocKindsForQuery } from "./recall-doc-kinds";
+export type { RecallListKind } from "./recall-doc-kinds";
+
 export {
   assessConfidence,
   deriveCoverageFromTier,

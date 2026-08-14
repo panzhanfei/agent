@@ -262,7 +262,7 @@ type ExecutionStep = {
   kind: PathKind;
   label: string;
   searchQuery: string;
-  queryType: "identity" | "enumeration" | "tech" | "external_link" | "default";
+  queryType: "identity" | "enumeration" | "tech" | "external_link" | "relations" | "default";
   topics: string[];
   identityField?: string | null;
   toolId?: string | null;
@@ -446,4 +446,4 @@ pnpm --filter @fambrain/brain-service run verify:intake-coreference
 | 暂留 Intake `from-llm` / `intake-pipeline` / schema lift；随后才动工具口语 fallback | 只留 Zod 合法化、空 plan→clarify、UI exact-match、schema→executor |
 | 复盘先怀疑兜底是否掩盖了坏 JSON | 复盘先看 Dify/模型工单；兜底应接近零 |
 
-**验证：** `eval:run -- --mem-only` · `--case E2E-six-composite-qq-phone` · 全量 `eval:run` · `test:unit`。
+**验证：** `eval:run -- --mem-only` · `--case E2E-six-composite-qq-phone` · **`--case E2E-brother`** · **`--case G5b`**（[坑点 §2.11 已知红](./04-pitfalls.md#211-猜模型意图兜底债-p0-34--与-dify-抽离同批--2026-08)） · 全量 `eval:run` · `test:unit`。

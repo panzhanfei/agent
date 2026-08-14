@@ -61,7 +61,7 @@ export type ExecutionStep = {
    * vault_workspace：可作 targetPath 回退（优先 params.targetPath；list 根用 ""）
    */
   searchQuery: string;
-  queryType: "identity" | "enumeration" | "tech" | "external_link" | "default";
+  queryType: "identity" | "enumeration" | "tech" | "external_link" | "relations" | "default";
   topics: string[];
   identityField?: IntakeIdentityField | null;
   /** 检索后或独立工具（白名单 ToolRunId） */

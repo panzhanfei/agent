@@ -11,6 +11,7 @@ const INTAKE_QUERY_TYPES = [
   "enumeration",
   "tech",
   "external_link",
+  "relations",
   "default",
 ] as const;
 
@@ -36,6 +37,9 @@ export const intakeQueryTypeSchema = z.preprocess((v) => {
     return "external_link";
   }
   if (lower === "tech_stack" || lower === "stack") return "tech";
+  if (lower === "family" || lower === "relation" || lower === "kin") {
+    return "relations";
+  }
   if (
     lower === "timeline" ||
     lower === "history" ||
@@ -234,7 +238,12 @@ export const intakeRoutingDecisionSchema = z.object({
     .preprocess((v) => {
       if (v === null || v === undefined) return null;
       if (typeof v !== "string") return null;
-      return (INTAKE_QUERY_TYPES as readonly string[]).includes(v) ? v : null;
+      if ((INTAKE_QUERY_TYPES as readonly string[]).includes(v)) return v;
+      const lower = v.trim().toLowerCase();
+      if (lower === "family" || lower === "relation" || lower === "kin") {
+        return "relations";
+      }
+      return null;
     }, z.enum(INTAKE_QUERY_TYPES).nullable())
     .catch(null),
   clarifyingQuestion: nullableTrimmedString,

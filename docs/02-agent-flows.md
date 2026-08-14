@@ -35,6 +35,7 @@
 - **未指定 path**：`operation=list`（或 UI exact-match「我的原文库」/ `__FAMBRAIN_VAULT_WS_*__`）→ 两层 list + 新建 CTA。
 - **队列（可选）**：`CORPUS_QUEUE_ENABLED=1` 时 `corpus.materialize` / `corpus.purge` 入 BullMQ；worker：`pnpm --filter @fambrain/brain-service run corpus-worker`。未开队列则聊天路径同步语料化。
 - **写路径**：`kind=vault_workspace` CRUD `vault/originals/workspace/*.txt`；语料化 md+向量；硬删级联。不再直接改 corpus md。
+- **UI stale：** 列表/打开/删除按 `vault:cwd:<folder>` 分组；**新建 txt/文件夹**走 `vault:create:<cwd>`，避免点「新建」把同目录新列表的删除按钮一出生就置灰（`apps/web/src/lib/chat/action-lifecycle.ts`）。
 
 **PathPlan 有序 steps（2026-07 · 端到端）：** Intake LLM 直接产出 `pathPlan.steps[]` + `composeMode`（数组顺序 = 回答/执行顺序；`answerOrder` 可选）；pipeline **合法化 + 结构归一**（`dataSource`/`userFactKey`/`identityField`/`toolId` 族修正 kind）并派生 `compositeSlots`。LangGraph：**纯 list** → `listRetriever` → `contentOrganizer` → `analyst`；**纯总结（无查库）** → `contentSummarizer`；**复合** → `planCacheResolve` → `planFanOut`（每槽 `Send`→`kmRetrieve`/`listRetrieve`/… ∥`planDag`→Join 可选全局 B→`planMerge`）→ `contentOrganizer` → `analyst`。步可带 `emptyPolicy`（require/omit/degrade）。SSE 按真实图节点报步骤。
 
@@ -249,7 +250,10 @@ flowchart TD
 
 **P0-30 补充字段：** `identityField` 含 **`tenure`**（从业年限 → `compute_tenure_from_hits`）；`enumerationControl.timeWindowYears`（近 N 年列举过滤）。合并/拆分以 Intake LLM 为准；规则见 `.cursor/rules/no-scene-hardcoding.mdc`。
 
-**queryType 扩展：** 除 identity / enumeration / tech / default 外，Intake 产出 **`external_link`**（GitHub、仓库、对外 URL）；与 KM `queryProfile` 同名，**不走** enumeration projects fill。外链抽取工具 `extract_external_links_from_hits` 在 **tools 层**（`tools/lib/extract-external-links.ts`）；Intake 只声明 `queryType=external_link` + `toolId`。见 [km-retrieval-design §六](./km-retrieval-design.md#六queryprofile-参数表)。
+**queryType 扩展：** 除 identity / enumeration / tech / default 外：
+
+- **`external_link`**：GitHub、仓库、对外 URL；与 KM `queryProfile` 同名，**不走** enumeration projects fill。外链抽取工具 `extract_external_links_from_hits` 在 **tools 层**；Intake 只声明 `queryType=external_link` + `toolId`。
+- **`relations`**：语料亲友名册。槽 `topics` 含 `"family"` 时 `from-llm` 落 `queryType=relations` 并清 `identityField`（**只信槽字段，不扫问句「哥哥」**）；KM 只滤 `docKind=relations`。**不是** `identityField=name`、**不是** mem。`identity`+`name` 且无 family → 仍只搜档案。详见 [km-retrieval-design §六](./km-retrieval-design.md#六queryprofile-参数表)。
 
 **单问 / 多问统一路由：** Intake 出口 `resolveIntakeGraphRouteMode` 写入 **`routeMode`（与图节点 1:1）**；`routes.ts` 只读分发。优先级：**userFact → respondEarly → …**（remember/recall 进 **userFact**；**仅一步 mem** 结构折叠为 recall 早退）。km/list/mem/tool/summarize/**vault_workspace**/dag 并存 → `planFanOut`。空 pathPlan → `respondEarly`（clarify）。dag **仅** `hybrid_multi_source`。独立工具（如 `search_web`）→ `toolRetrieve`；扩展天气等同族只需加 `TOOL_RUN_IDS` + execute，无需新 PathKind。原文库 CRUD → Send `vaultWorkspace`。
 
@@ -306,7 +310,8 @@ flowchart TD
 ```mermaid
 flowchart TD
   IN["searchQuery + queryType + topics + subTasks"] --> PROFILE["resolveQueryProfile"]
-  PROFILE --> HY["hybridRecall: Qdrant dense+sparse 引擎 RRF"]
+  PROFILE --> KIND["recallDocKindsForQuery → Qdrant payload docKind"]
+  KIND --> HY["hybridRecall: Qdrant dense+sparse 引擎 RRF"]
   HY --> RAW[candidates + recallChannel]
   RAW --> CAND[mergeCandidatesByPath]
   CAND --> RULE["rankCandidates: token+vector/sparse+pathBoost"]
@@ -317,9 +322,9 @@ flowchart TD
 
 | 步骤 | 做什么 | 规则 | 文件 | 方法 |
 |------|--------|------|------|------|
-| 1 | Hybrid 召回 | Qdrant dense + sparse prefetch；引擎加权 RRF；topK 按 profile | `hybrid-recall.ts`、`packages/corpus` | `hybridRecall()` → `searchCorpusHybrid()` |
+| 1 | Hybrid 召回 | Qdrant dense + sparse prefetch；引擎加权 RRF；topK 按 profile；**按 queryType 滤 `docKind`**（空过滤不回退全库） | `hybrid-recall.ts`、`profile/recall-doc-kinds.ts`、`packages/corpus` | `hybridRecall()` → `searchCorpusHybrid()` |
 | 2 | 关键词扫盘 | ~~查询时扫盘建内存 BM25~~ **已移除**（sparse 在入库时写入 Qdrant） | — | — |
-| 3 | 规则精排 | **token + vector + pathBoost**；`pickExcerpt`（表格行优先） | `retrieve-helpers.ts` | `rankCandidates()`、`pickTableExcerpt()` |
+| 3 | 规则精排 | **token + vector + pathBoost**（排序用未封顶分；`KnowledgeHit.relevance` 再 clamp 0–1）；`pickExcerpt`（表格行优先） | `retrieve-helpers.ts` | `rankCandidates()`、`pickTableExcerpt()` |
 | 4 | 置信分档 | 融合分 + gap + path 权威 → `high` / `mid` / `low` | `score-candidate.ts` | `assessConfidence()`、`deriveCoverageFromTier()` |
 | 5 | 输出 | **maxHits 按 profile**；可选 `confidenceTier` | `types.ts` | `KnowledgeRetrievalResult` |
 
@@ -599,7 +604,7 @@ pnpm --filter @fambrain/brain-service run experiment:bind-tools -- "我的名字
 |----------|--------|------|----------|
 | `intent` | 意图类型 | 查库回答 / 直接答 / 澄清 / 闲聊 / 拒答 | 编排器分支 |
 | `searchQuery` | 检索查询句 | 去掉寒暄后的检索关键词句 | → KnowledgeManager 入参 |
-| `queryType` | 检索问法 | identity / enumeration / tech / **external_link** / default | → KM `queryProfile` |
+| `queryType` | 检索问法 | identity / enumeration / tech / **external_link** / **relations** / default | → KM `queryProfile`；relations 滤亲友名册 |
 | `subTasks` | 子任务列表 | 复杂问题拆成多句 | → KM / Analyst |
 | `topics` | 主题标签 | 如 `resume`、`aky` | → KnowledgeManager 入参 |
 | `language` | 回复语言 | `zh` / `en` / `mixed` | → InformationAnalyst 入参 |
