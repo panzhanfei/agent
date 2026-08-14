@@ -56,7 +56,7 @@ Intake（查询理解）→ KM（混合召回～兜底）→ ContentOrganizer �
 | QU-01～06 | Intake `queryType` → pipeline → KM |
 | EV-01～07 | confidenceTier 分档、FC 高置信快检 |
 
-**v1 长期保留：** 向量召回、规则精排（无 Chat LLM）、`ensureNonEmptyHits`。FactChecker `refinedSearchQuery` 二次检索 **已随 FC 主链删除**。
+**v1 长期保留：** 向量召回、规则精排（无 Chat LLM）。空 hits 不硬补 Top1。FactChecker `refinedSearchQuery` 二次检索 **已随 FC 主链删除**。
 
 **待做（可选）：** FAQ 短路（RC-01）、Cross-Encoder rerank（PR-01）、structuredFields（PR-02～03）、KM 内 query 放宽重查（FB-01）、外部搜索兜底（FB-03）。
 

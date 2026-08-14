@@ -4,14 +4,13 @@
 import {
     CONFIDENCE_HIGH_MIN,
     CONFIDENCE_MID_MIN,
-    CONFIDENCE_COALESCE_LOW_MIN,
 } from "./km-config";
 import type {
     ConfidenceTier,
     KnowledgeHit,
     RecallSource,
 } from "../contract/interface";
-import { getPathBoost, isPersonalResumePath } from "../recall/retrieve-helpers";
+import { getPathBoost } from "../recall/retrieve-helpers";
 import type {
     ConfidenceAssessment,
     ConfidenceInput,
@@ -74,19 +73,6 @@ export const assessConfidence = (
         };
     }
 
-    if (
-        input.queryProfile === "identity" &&
-        input.hits.some((h) => isPersonalResumePath(h.path))
-    ) {
-        score = Math.max(score, CONFIDENCE_HIGH_MIN);
-        reasons.push("identity+personal");
-    }
-
-    if (input.guardApplied) {
-        score = Math.max(score, CONFIDENCE_HIGH_MIN - 0.05);
-        reasons.push("identityGuard");
-    }
-
     if (top1Top2Gap >= 0.12) reasons.push("top1-top2 gap 大");
     if (fusionSignal >= 0.5) reasons.push("RRF 融合分高");
     if (input.recallSource === "hybrid") reasons.push("hybrid 双路");
@@ -115,15 +101,6 @@ export const deriveCoverageFromTier = (
         return topRelevance >= 0.72 ? "sufficient" : "partial";
     }
     return topRelevance >= 0.45 ? "partial" : "none";
-};
-
-/** EV-03：低置信且 top 极弱时不硬塞 Top1（D3-2 与中置信仍 coalesce）。 */
-export const shouldCoalesceEmptyHits = (
-    tier: ConfidenceTier,
-    topRelevance: number
-): boolean => {
-    if (tier === "high" || tier === "mid") return true;
-    return topRelevance >= CONFIDENCE_COALESCE_LOW_MIN;
 };
 
 export const tierNotes = (

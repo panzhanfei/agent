@@ -9,7 +9,7 @@ import {
     PATH_BOOST_PROJECTS_RESUME,
     FEEDBACK_BOOST_MAX,
 } from "../profile/km-config";
-import type { KnowledgeHit, QueryProfile } from "../contract/interface";
+import type { QueryProfile } from "../contract/interface";
 import type { RankedCandidate, VectorChunkRow } from "./interface";
 
 export type { RankedCandidate, VectorChunkRow };
@@ -349,36 +349,6 @@ export const pickExcerpt = (
     return pickLinearExcerpt(body, tokens, EXCERPT_MAX);
 };
 
-/**
- * identity 主简历 path：personal/ 下且文件名含简历/resume。
- * 其它 personal 文档（如亲友关系）不参与 identity Top1 强制，避免抢占本人姓名。
- */
-export const isPersonalResumePath = (repoPath: string): boolean => {
-    const p = repoPath.replace(/\\/g, "/").toLowerCase();
-    if (!p.includes("/personal/")) return false;
-    if (p.includes("readme")) return false;
-    if (!/\.md$/i.test(p)) return false;
-    return p.includes("简历") || p.includes("resume");
-};
-
-const personalResumeRank = (repoPath: string): number => {
-    const p = repoPath.toLowerCase();
-    if (p.includes("个人简历")) return 3;
-    if (p.includes("简历")) return 2;
-    return 1;
-};
-
-/** KM-11：personal/ 下个人简历候选（优先「个人简历」文件名） */
-export const findPersonalResumeCandidate = (
-    candidates: VectorChunkRow[]
-): VectorChunkRow | null => {
-    const personal = candidates.filter((c) => isPersonalResumePath(c.path));
-    if (personal.length === 0) return null;
-    return [...personal].sort(
-        (a, b) => personalResumeRank(b.path) - personalResumeRank(a.path)
-    )[0]!;
-};
-
 /** KM-13：experience/ 下任职 md（不含 README）。 */
 export const isExperienceEntryPath = (repoPath: string): boolean => {
     const p = repoPath.replace(/\\/g, "/").toLowerCase();
@@ -394,96 +364,4 @@ export const isProjectEntryPath = (repoPath: string): boolean => {
     if (p.includes("readme") || p.includes("_template")) return false;
     if (p.endsWith("/projects/resume.md")) return false;
     return /\.md$/i.test(p);
-};
-
-/** KM-11：identity 问法强制 personal 简历 Top1，同 path 去重 */
-export const applyIdentityGuard = (
-    hits: KnowledgeHit[],
-    candidates: VectorChunkRow[],
-    ranked: RankedCandidate[],
-    queryProfile: QueryProfile,
-    maxHits: number,
-    tokens: string[]
-): { hits: KnowledgeHit[]; guardApplied: boolean } => {
-    if (queryProfile !== "identity") {
-        return { hits, guardApplied: false };
-    }
-
-    const personal = findPersonalResumeCandidate(candidates);
-    if (!personal) return { hits, guardApplied: false };
-
-    if (hits[0]?.path === personal.path) {
-        return { hits, guardApplied: false };
-    }
-
-    const rankedPersonal = ranked.find((r) => r.path === personal.path);
-    const excerpt =
-        rankedPersonal?.excerpt ??
-        pickExcerpt(personal.body, tokens, "identity");
-    const relevance = Math.max(
-        rankedPersonal?.relevance ?? 0,
-        hits[0]?.relevance ?? 0,
-        0.35
-    );
-
-    const topHit: KnowledgeHit = {
-        path: personal.path,
-        title: personal.title,
-        excerpt,
-        relevance,
-    };
-
-    const rest = hits.filter((h) => h.path !== personal.path);
-    return {
-        hits: [topHit, ...rest].slice(0, maxHits),
-        guardApplied: true,
-    };
-};
-
-const bodyHasPublicUrl = (body: string): boolean =>
-    /https?:\/\/[^\s)>]+/i.test(body);
-
-/** KM-11b：external_link 优先 personal 简历 + 含 URL 的 project 文档 */
-export const applyExternalLinkGuard = (
-    hits: KnowledgeHit[],
-    candidates: VectorChunkRow[],
-    ranked: RankedCandidate[],
-    queryProfile: QueryProfile,
-    maxHits: number,
-    tokens: string[]
-): { hits: KnowledgeHit[]; guardApplied: boolean } => {
-    if (queryProfile !== "external_link") {
-        return { hits, guardApplied: false };
-    }
-
-    const personal = findPersonalResumeCandidate(candidates);
-    const withUrl = candidates.filter((c) => bodyHasPublicUrl(c.body));
-    const priorityPaths = new Set<string>();
-    if (personal) priorityPaths.add(personal.path);
-    for (const c of withUrl) priorityPaths.add(c.path);
-
-    if (priorityPaths.size === 0) {
-        return { hits, guardApplied: false };
-    }
-
-    const boosted: KnowledgeHit[] = [];
-    for (const path of priorityPaths) {
-        const cand = candidates.find((c) => c.path === path);
-        if (!cand) continue;
-        const rankedRow = ranked.find((r) => r.path === path);
-        boosted.push({
-            path: cand.path,
-            title: cand.title,
-            excerpt:
-                rankedRow?.excerpt ??
-                pickExcerpt(cand.body, tokens, "external_link"),
-            relevance: Math.max(rankedRow?.relevance ?? 0, hits[0]?.relevance ?? 0, 0.4),
-        });
-    }
-
-    const rest = hits.filter((h) => !priorityPaths.has(h.path));
-    return {
-        hits: [...boosted, ...rest].slice(0, maxHits),
-        guardApplied: true,
-    };
 };

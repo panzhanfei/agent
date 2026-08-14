@@ -1133,7 +1133,6 @@ searchQuery + corpusUserId
   → mergeCandidatesByPath()
   → rankCandidates + pickExcerpt
   → assessConfidence / deriveCoverageFromTier
-  → ensureNonEmptyHits（仅低置信 coalesce）
 ```
 
 - 语料 collection：`fambrain_corpus_<userId>`（named `dense` + `sparse`）
@@ -1149,7 +1148,7 @@ searchQuery + corpusUserId
 | 分词 | `tokenize()` | 英文/数字 ≥2 字；中文长串二元切分 |
 | 摘录 | `pickExcerpt(body, tokens)` | 最早 token 命中 ±60 字，`EXCERPT_MAX=320` |
 | 相关度 | keyword ∪ `vectorScoreToRelevance` | top≥0.6 → sufficient；>0 → partial |
-| 兜底 | `ensureNonEmptyHits` | token 未命中时取向量/扫盘 Top1，`relevance≥0.35` |
+| 兜底 | ~~`ensureNonEmptyHits`~~ **已移除** | 空 hits 不再硬补 Top1；coverage=none 交给 Analyst / 全局 B |
 
 **删除 / 精简：**
 

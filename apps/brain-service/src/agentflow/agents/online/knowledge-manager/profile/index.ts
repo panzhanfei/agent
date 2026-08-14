@@ -21,6 +21,5 @@ export { inferQueryProfile, resolveQueryProfile } from "./query-profile";
 export {
   assessConfidence,
   deriveCoverageFromTier,
-  shouldCoalesceEmptyHits,
   tierNotes,
 } from "./score-candidate";

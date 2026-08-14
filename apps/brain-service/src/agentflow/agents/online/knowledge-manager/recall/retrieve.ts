@@ -11,9 +11,9 @@
  *
  * KM-01 topics 分流：topics 仅拼入向量 query；sparse 用 searchQuery + subTasks。
  * KM-05 rank：relevance = token + vector/sparse + pathBoost（封顶 1.0）。
- * KM-06 兜底：ensureNonEmptyHits 与 rank 共用 rankCandidates。
+ * KM-06：hits 只来自 rank（relevance>0）；空 hits 不再硬补 Top1。
  * KM-08/09：queryProfile 分档 vectorTopK / maxHits；Intake queryType 优先。
- * KM-10：表格 excerpt；KM-11：identityGuard。
+ * KM-10：表格 excerpt。
  * KM-16：同 path merge body。
  * EV-01～04：confidenceTier 分档 + coverage 由 tier 推导 + 低置信弱 coalesce。
  */
@@ -35,13 +35,10 @@ import {
     LOG_BODY_PREVIEW,
     MAX_CANDIDATES,
     resolveQueryProfile,
-    shouldCoalesceEmptyHits,
     tierNotes,
 } from "@/agentflow/agents/online/knowledge-manager/profile";
 import { hybridRecall } from "./hybrid-recall";
 import {
-    applyIdentityGuard,
-    applyExternalLinkGuard,
     mergeCandidatesByPath,
     pickExcerpt,
     rankCandidates,
@@ -139,57 +136,6 @@ const retrieveByKeywords = (
     return { hits, notes: null };
 };
 
-/** EV-03：低置信不硬塞 Top1；high/mid 仍 coalesce（D3-2）。 */
-const ensureNonEmptyHits = (
-    input: Pick<KnowledgeManagerInput, "searchQuery" | "subTasks">,
-    candidates: CandidateRow[],
-    result: KnowledgeRetrievalResult,
-    queryProfile: QueryProfile,
-    tier: ConfidenceTier,
-    topRelevance: number,
-    feedbackByPath?: Map<string, number>
-): KnowledgeRetrievalResult => {
-    if (result.hits.length > 0 || candidates.length === 0) return result;
-    if (!shouldCoalesceEmptyHits(tier, topRelevance)) {
-        return {
-            ...result,
-            coverage: "none",
-            notes: tierNotes(
-                tier,
-                "候选非空但置信过低，未强制补选 Top1。"
-            ),
-        };
-    }
-
-    const tokens = tokenizeForRecall(input.searchQuery, input.subTasks);
-    const ranked = rankCandidates(
-        candidates,
-        tokens,
-        pickExcerpt,
-        queryProfile,
-        feedbackByPath
-    );
-    const top = ranked[0];
-    if (!top) return result;
-
-    return {
-        ...result,
-        hits: [
-            {
-                path: top.path,
-                title: top.title,
-                excerpt: top.excerpt,
-                relevance: Math.max(0.35, top.relevance),
-            },
-        ],
-        coverage: "partial",
-        notes: tierNotes(
-            tier,
-            "候选非空但 token 未命中，按 token+vector+pathBoost 加权补选。"
-        ),
-    };
-};
-
 const finalizeHits = (
     input: KnowledgeManagerInput,
     candidates: CandidateRow[],
@@ -203,14 +149,12 @@ const finalizeHits = (
 ): {
     result: KnowledgeRetrievalResult;
     ranked: ReturnType<typeof rankCandidates>;
-    guardApplied: boolean;
     confidenceTier: ConfidenceTier;
     confidenceScore: number;
 } => {
-    const tokens = tokenizeForRecall(input.searchQuery, input.subTasks);
     const ranked = rankCandidates(
         candidates,
-        tokens,
+        tokenizeForRecall(input.searchQuery, input.subTasks),
         pickExcerpt,
         queryProfile,
         feedbackByPath
@@ -227,68 +171,12 @@ const finalizeHits = (
         coverage: "none",
     };
 
-    const provisional = assessConfidence({
-        queryProfile,
-        hits: result.hits,
-        ranked,
-        recallSource: recallMeta.recallSource,
-        topCandidate: recallMeta.topCandidate ?? candidates[0],
-        guardApplied: false,
-        candidateCount: candidates.length,
-    });
-
-    result = ensureNonEmptyHits(
-        input,
-        candidates,
-        result,
-        queryProfile,
-        provisional.tier,
-        provisional.top1Relevance,
-        feedbackByPath
-    );
-
-    const guarded = applyIdentityGuard(
-        result.hits,
-        candidates,
-        ranked,
-        queryProfile,
-        maxHits,
-        tokens
-    );
-    result = { ...result, hits: guarded.hits };
-
-    if (guarded.guardApplied && result.hits[0]) {
-        const top = ranked.find((r) => r.path === result.hits[0]!.path);
-        if (top) {
-            result.hits[0] = {
-                ...result.hits[0]!,
-                excerpt: pickExcerpt(
-                    candidates.find((c) => c.path === top.path)?.body ??
-                        top.body,
-                    tokens,
-                    queryProfile
-                ),
-            };
-        }
-    }
-
-    const linkGuarded = applyExternalLinkGuard(
-        result.hits,
-        candidates,
-        ranked,
-        queryProfile,
-        maxHits,
-        tokens
-    );
-    result = { ...result, hits: linkGuarded.hits };
-
     const assessment = assessConfidence({
         queryProfile,
         hits: result.hits,
         ranked,
         recallSource: recallMeta.recallSource,
         topCandidate: recallMeta.topCandidate ?? candidates[0],
-        guardApplied: guarded.guardApplied,
         candidateCount: candidates.length,
     });
     result = {
@@ -306,7 +194,6 @@ const finalizeHits = (
     return {
         result,
         ranked,
-        guardApplied: guarded.guardApplied,
         confidenceTier: result.confidenceTier ?? "low",
         confidenceScore: result.confidenceScore ?? 0,
     };
@@ -367,7 +254,7 @@ const loadCandidates = async (
  *   1. 判断问法类型（queryProfile）→ 决定召回要多宽、最终留几条
  *   2. 去 Qdrant hybrid（dense + sparse RRF）捞候选（或直接用上游已算好的 candidates）
  *   3. 同文件多 chunk 合并
- *   4. 规则打分 + guard + 置信度 → 输出 hits / coverage / notes
+ *   4. 规则打分 + 置信度 → 输出 hits / coverage / notes
  *
  * 下游 Analyst 只读 hits，不再二次检索；所以 KM 的职责是「找对、截好、说清够不够」。
  */
@@ -450,17 +337,12 @@ export const retrieveKnowledge = async (
         () => new Map<string, number>()
     );
 
-    // ── ⑤ 规则精排 + guard + 置信度 ─────────────────────────────────────────
-    // finalizeHits 内部依次做：
-    //   rankCandidates（关键词 + 向量/sparse 分 + pathBoost）
-    //   → pickExcerpt 截摘录
-    //   → identityGuard / externalLinkGuard 等场景 guard
-    //   → assessConfidence 算 tier（high/medium/low）和 coverage
-    // 列举类（enumeration）已迁到 corpus-lister，KM 不再在此补全列表。
+    // ── ⑤ 规则精排 + 置信度 ────────────────────────────────────────────────
+    // finalizeHits：rank + pickExcerpt → assessConfidence → coverage。
+    // 不按场景改 Top1、不硬补空 hits。列举已迁 corpus-lister。
     const {
         result: ruleResult,
         ranked: topRankedList,
-        guardApplied,
         confidenceTier,
         confidenceScore,
     } = finalizeHits(
@@ -488,7 +370,6 @@ export const retrieveKnowledge = async (
         queryProfile,
         vectorTopK,
         maxHits,
-        guardApplied,
         confidenceTier,
         confidenceScore,
         fusionScore: rawCandidates[0]?.fusionScore ?? null,

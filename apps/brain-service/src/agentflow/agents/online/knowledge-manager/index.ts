@@ -36,7 +36,6 @@ export {
   MAX_CANDIDATES,
   PROFILE_MAX_HITS,
   resolveQueryProfile,
-  shouldCoalesceEmptyHits,
 } from "./profile";
 
 export type {

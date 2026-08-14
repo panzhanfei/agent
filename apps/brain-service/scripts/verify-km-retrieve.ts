@@ -4,9 +4,7 @@
  *   pnpm --filter @fambrain/brain-service run verify:km-retrieve
  */
 import {
-  applyIdentityGuard,
   computeRelevance,
-  findPersonalResumeCandidate,
   getPathBoost,
   isExperienceEntryPath,
   mergeChunkBodies,
@@ -187,80 +185,6 @@ assert("pickTableExcerpt 匹配 token 字段", () => {
   const ex = pickTableExcerpt(body, tokenize("奥卡云"), 120);
   if (!ex?.includes("奥卡云")) {
     throw new Error(`应摘公司行，实际 ${ex}`);
-  }
-});
-
-console.log("\n— KM-11 identityGuard —");
-
-assert("identity + 有 personal 简历时强制 Top1", () => {
-  const personalBody = "| 姓名 | 潘展飞 |";
-  const candidates = [
-    {
-      path: "data/doc/users/u/corpus/projects/_TEMPLATE.md",
-      title: "template",
-      body: "姓名 简历 模板",
-      score: 0.95,
-    },
-    {
-      path: personalPath,
-      title: "个人简历",
-      body: personalBody,
-      score: 0.1,
-    },
-  ];
-  const tokens = tokenize("我的名字是什么");
-  const ranked = rankCandidates(candidates, tokens, pickExcerpt, "identity");
-  const hitsBefore: {
-    path: string;
-    title: string;
-    excerpt: string;
-    relevance: number;
-  }[] = [
-    {
-      path: candidates[0]!.path,
-      title: candidates[0]!.title,
-      excerpt: "wrong top from rank",
-      relevance: 0.9,
-    },
-  ];
-
-  const { hits, guardApplied } = applyIdentityGuard(
-    hitsBefore,
-    candidates,
-    ranked,
-    "identity",
-    4,
-    tokens
-  );
-  if (!guardApplied) throw new Error("guardApplied 应为 true");
-  if (!hits[0]?.path.includes("/personal/")) {
-    throw new Error(`Top1 应为 personal，实际 ${hits[0]?.path}`);
-  }
-  if (!hits[0]!.excerpt.includes("潘展飞")) {
-    throw new Error(`guard 后 excerpt 应含姓名，实际 ${hits[0]!.excerpt}`);
-  }
-  if (hits.filter((h) => h.path === personalPath).length !== 1) {
-    throw new Error("同 path 应 dedupe");
-  }
-});
-
-assert("findPersonalResumeCandidate 优先「个人简历」文件名", () => {
-  const c = findPersonalResumeCandidate([
-    {
-      path: "data/doc/users/u/corpus/personal/notes.md",
-      title: "notes",
-      body: "",
-      score: 0,
-    },
-    {
-      path: "data/doc/users/u/corpus/personal/个人简历-潘展飞.md",
-      title: "个人简历",
-      body: "",
-      score: 0,
-    },
-  ]);
-  if (!c?.path.includes("个人简历")) {
-    throw new Error(`应选个人简历文件，实际 ${c?.path}`);
   }
 });
 

@@ -27,7 +27,7 @@ export const PROFILE_MAX_HITS = {
     default: 5,
 } as const;
 
-/** 单条 hit 的 excerpt 最大字符数。用于：pickExcerpt、ensureNonEmptyHits 截断。 */
+/** 单条 hit 的 excerpt 最大字符数。用于：pickExcerpt。 */
 export const EXCERPT_MAX = 320;
 
 /** agent-log 📤 里 body / excerpt 预览长度。用于：summarizeCandidate、summarizeRetrievalOut。 */
@@ -59,9 +59,6 @@ export const CONFIDENCE_HIGH_MIN = 0.72;
 
 /** EV-01：综合分 ≥ 此值为 mid（否则 low）。 */
 export const CONFIDENCE_MID_MIN = 0.42;
-
-/** EV-03：low 档 coalesce 最低 top relevance。 */
-export const CONFIDENCE_COALESCE_LOW_MIN = 0.32;
 
 /** HY-03：RRF 通道权重（sparse 字面匹配略加权）。 */
 export const RRF_VECTOR_WEIGHT = 0.85;
@@ -108,7 +105,6 @@ export const getKmRetrievalConfig = () => ({
     rrfSparseWeight: RRF_SPARSE_WEIGHT,
     confidenceHighMin: CONFIDENCE_HIGH_MIN,
     confidenceMidMin: CONFIDENCE_MID_MIN,
-    confidenceCoalesceLowMin: CONFIDENCE_COALESCE_LOW_MIN,
     pathBoostPersonal: PATH_BOOST_PERSONAL,
     pathBoostExperience: PATH_BOOST_EXPERIENCE,
     pathBoostProjects: PATH_BOOST_PROJECTS,

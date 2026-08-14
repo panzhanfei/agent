@@ -7,7 +7,6 @@ import { listCorpusUserIds } from "../src/agentflow/agents/offline/knowledge-ind
 import {
     assessConfidence,
     deriveCoverageFromTier,
-    shouldCoalesceEmptyHits,
 } from "../src/agentflow/agents/online/knowledge-manager/profile";
 import { retrieveKnowledge } from "../src/agentflow/agents/online/knowledge-manager/recall";
 
@@ -55,7 +54,6 @@ assert("identity + personal → high", () => {
             fusionScore: 0.03,
             recallChannel: "hybrid",
         },
-        guardApplied: true,
         candidateCount: 5,
     });
     if (a.tier !== "high") throw new Error(`expected high, got ${a.tier}`);
@@ -67,7 +65,6 @@ assert("无 hits → low", () => {
         hits: [],
         ranked: [],
         recallSource: "empty",
-        guardApplied: false,
         candidateCount: 0,
     });
     if (a.tier !== "low") throw new Error(`expected low, got ${a.tier}`);
@@ -76,15 +73,6 @@ assert("无 hits → low", () => {
 assert("deriveCoverageFromTier high → sufficient", () => {
     if (deriveCoverageFromTier("high", [{ path: "a", title: "t", excerpt: "x", relevance: 0.5 }], 0.5) !== "sufficient") {
         throw new Error("high 应为 sufficient");
-    }
-});
-
-assert("shouldCoalesceEmptyHits low 弱 top 不 coalesce", () => {
-    if (shouldCoalesceEmptyHits("low", 0.1)) {
-        throw new Error("low+弱 top 不应 coalesce");
-    }
-    if (!shouldCoalesceEmptyHits("high", 0.1)) {
-        throw new Error("high 应 coalesce");
     }
 });
 

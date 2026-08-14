@@ -21,7 +21,6 @@ export type ConfidenceInput = {
   ranked: RankedCandidate[];
   recallSource: RecallSource;
   topCandidate?: KnowledgeCandidate;
-  guardApplied: boolean;
   candidateCount: number;
 };
 

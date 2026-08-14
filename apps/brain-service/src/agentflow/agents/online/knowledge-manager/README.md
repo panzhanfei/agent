@@ -124,7 +124,7 @@ KnowledgeRetrievalResult { hits, coverage, notes, confidenceTier }
 |-------|----------|
 | `进入` | searchQuery、queryProfile、vectorTopK |
 | `Hybrid` | vector/sparse 路数、RRF Top 路径 |
-| `出去` | hitCount、coverage、confidenceTier、guardApplied |
+| `出去` | hitCount、coverage、confidenceTier |
 
 ---
 
