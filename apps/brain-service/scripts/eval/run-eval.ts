@@ -8,12 +8,13 @@
  *   pnpm --filter @fambrain/brain-service run eval:run -- --identity-composite-only
  *   EVAL_WRITE_REPORT=1 pnpm --filter @fambrain/brain-service run eval:run
  *
- * 需 Ollama + 语料；KM hybrid 指标建议 Chroma 在线。
+ * 需 Ollama + 语料；KM hybrid / Mem0 指标建议 Qdrant 在线。
  */
 import { readFile, mkdir, writeFile } from "node:fs/promises";
 import path from "node:path";
 import { fileURLToPath } from "node:url";
 import type { AgentPipelineContext, DbChatTurn } from "@fambrain/brain-types";
+import { qdrantReady } from "@fambrain/corpus";
 import { listCorpusUserIds } from "@/agentflow/agents/offline/knowledge-indexer/list-corpus-users";
 import {
     retrieveEnumerationPage,
@@ -202,7 +203,7 @@ type EvalMetrics = {
 type EvalReport = {
     generatedAt: string;
     corpusUserId: string;
-    chromaUp: boolean;
+    qdrantUp: boolean;
     metrics: EvalMetrics;
     results: CaseResult[];
     memProbe?: CaseResult[];
@@ -215,24 +216,6 @@ type EvalReport = {
     familyProbe?: CaseResult[];
     vaultWorkspaceProbe?: CaseResult[];
     matchReportProbe?: CaseResult[];
-};
-
-const chromaUrl = (): string => {
-    const base =
-        process.env.CHROMA_SERVER_URL?.trim() ||
-        `http://${process.env.CHROMA_HOST ?? "127.0.0.1"}:${process.env.CHROMA_PORT ?? "8030"}`;
-    return base.replace(/\/$/, "");
-};
-
-const chromaReady = async (): Promise<boolean> => {
-    try {
-        const res = await fetch(`${chromaUrl()}/api/v2/heartbeat`, {
-            signal: AbortSignal.timeout(3000),
-        });
-        return res.ok;
-    } catch {
-        return false;
-    }
 };
 
 const resolveCorpusUserId = async (): Promise<string> => {
@@ -867,7 +850,7 @@ const formatMarkdown = (report: EvalReport): string => {
         ``,
         `- 时间：${report.generatedAt}`,
         `- corpusUserId：${report.corpusUserId}`,
-        `- Chroma：${report.chromaUp ? "在线" : "离线"}`,
+        `- Qdrant：${report.qdrantUp ? "在线" : "离线"}`,
         ``,
         `## 指标（4 项 MVP）`,
         ``,
@@ -996,14 +979,14 @@ const main = async (): Promise<void> => {
     const raw = await readFile(GOLDEN_PATH, "utf8");
     const golden = JSON.parse(raw) as GoldenFile;
     const corpusUserId = await resolveCorpusUserId();
-    const chromaUp = await chromaReady();
+    const qdrantUp = await qdrantReady();
 
     if (memOnly) {
         if (!golden.memProbe) {
             throw new Error("golden.json 缺少 memProbe");
         }
         console.log(`eval:run — mem probe only (${golden.memProbe.id})`);
-        console.log(`corpusUserId=${corpusUserId} chroma=${chromaUp ? "up" : "down"}\n`);
+        console.log(`corpusUserId=${corpusUserId} qdrant=${qdrantUp ? "up" : "down"}\n`);
         const memProbe = await runMemProbe(golden.memProbe, corpusUserId);
         for (const r of memProbe) {
             console.log(`  ${r.id}: ${r.pass ? "PASS" : "FAIL"} — ${r.reason} (${r.latencyMs}ms)`);
@@ -1019,7 +1002,7 @@ const main = async (): Promise<void> => {
             throw new Error("golden.json 缺少 cacheProbe");
         }
         console.log(`eval:run — cache probe only (${golden.cacheProbe.id})`);
-        console.log(`corpusUserId=${corpusUserId} chroma=${chromaUp ? "up" : "down"}\n`);
+        console.log(`corpusUserId=${corpusUserId} qdrant=${qdrantUp ? "up" : "down"}\n`);
         const cacheProbe = await runCacheProbe(golden.cacheProbe, corpusUserId);
         for (const r of cacheProbe) {
             console.log(
@@ -1038,7 +1021,7 @@ const main = async (): Promise<void> => {
             throw new Error("golden.json 缺少 vaultWorkspaceProbe");
         }
         console.log(`eval:run — vault workspace probe only (${vaultSpec.id})`);
-        console.log(`corpusUserId=${corpusUserId} chroma=${chromaUp ? "up" : "down"}\n`);
+        console.log(`corpusUserId=${corpusUserId} qdrant=${qdrantUp ? "up" : "down"}\n`);
         const vaultProbe = await runVaultWorkspaceProbe(vaultSpec, corpusUserId);
         for (const r of vaultProbe) {
             console.log(
@@ -1056,7 +1039,7 @@ const main = async (): Promise<void> => {
             throw new Error("golden.json 缺少 profileProbe");
         }
         console.log(`eval:run — profile probe only (${golden.profileProbe.id})`);
-        console.log(`corpusUserId=${corpusUserId} chroma=${chromaUp ? "up" : "down"}\n`);
+        console.log(`corpusUserId=${corpusUserId} qdrant=${qdrantUp ? "up" : "down"}\n`);
         const profileProbe = await runProfileProbe(
             golden.profileProbe,
             corpusUserId
@@ -1077,7 +1060,7 @@ const main = async (): Promise<void> => {
         console.log(
             `eval:run — identity composite probe only (${golden.identityCompositeProbe.id})`
         );
-        console.log(`corpusUserId=${corpusUserId} chroma=${chromaUp ? "up" : "down"}\n`);
+        console.log(`corpusUserId=${corpusUserId} qdrant=${qdrantUp ? "up" : "down"}\n`);
         const results = await runListPaginationProbe(
             golden.identityCompositeProbe,
             corpusUserId,
@@ -1097,7 +1080,7 @@ const main = async (): Promise<void> => {
             throw new Error("golden.json 缺少 familyProbe");
         }
         console.log(`eval:run — family probe only (${golden.familyProbe.id})`);
-        console.log(`corpusUserId=${corpusUserId} chroma=${chromaUp ? "up" : "down"}\n`);
+        console.log(`corpusUserId=${corpusUserId} qdrant=${qdrantUp ? "up" : "down"}\n`);
         const familyCases = [
             "G2b",
             "G2c",
@@ -1137,7 +1120,7 @@ const main = async (): Promise<void> => {
         console.log(
             `eval:run — list pagination probe only (${golden.listPaginationProbe.id})`
         );
-        console.log(`corpusUserId=${corpusUserId} chroma=${chromaUp ? "up" : "down"}\n`);
+        console.log(`corpusUserId=${corpusUserId} qdrant=${qdrantUp ? "up" : "down"}\n`);
         const probes = [
             ...(golden.listPaginationProbe
                 ? [golden.listPaginationProbe]
@@ -1171,7 +1154,7 @@ const main = async (): Promise<void> => {
             ? `eval:run — case ${caseFilter}`
             : `eval:run — ${golden.cases.length} cases + probes`
     );
-    console.log(`corpusUserId=${corpusUserId} chroma=${chromaUp ? "up" : "down"}\n`);
+    console.log(`corpusUserId=${corpusUserId} qdrant=${qdrantUp ? "up" : "down"}\n`);
 
     const results: CaseResult[] = [];
     for (const [i, spec] of cases.entries()) {
@@ -1251,7 +1234,7 @@ const main = async (): Promise<void> => {
     const report: EvalReport = {
         generatedAt: new Date().toISOString(),
         corpusUserId,
-        chromaUp,
+        qdrantUp,
         metrics: buildMetrics(results, cacheProbe),
         results,
         memProbe: memProbe.length ? memProbe : undefined,
@@ -1352,7 +1335,7 @@ const main = async (): Promise<void> => {
             summary: {
                 scope: "full",
                 corpusUserId,
-                chromaUp,
+                qdrantUp,
                 metrics: report.metrics,
                 totals: {
                     cases: results.length,

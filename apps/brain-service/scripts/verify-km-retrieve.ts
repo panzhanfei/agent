@@ -1,5 +1,5 @@
 /**
- * KnowledgeManager 检索规则验证（KM-07）：不测全链路 / Chroma，只测 rank + pathBoost。
+ * KnowledgeManager 检索规则验证（KM-07）：不测全链路 / Qdrant，只测 rank + pathBoost。
  *
  *   pnpm --filter @fambrain/brain-service run verify:km-retrieve
  */

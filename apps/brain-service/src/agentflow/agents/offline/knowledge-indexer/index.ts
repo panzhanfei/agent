@@ -1,15 +1,15 @@
 /**
  * 知识入库师（KnowledgeIndexer）
- * 离线 CLI：扫描 data/doc/users/corpus → 分块 → LangChain embed → Chroma。
+ * 离线 CLI：扫描 data/doc/users/corpus → 分块 → LangChain embed → Qdrant（dense + sparse）。
  */
 import pino from "pino";
-import { getChromaServerUrl } from "./constants";
+import { getQdrantUrl } from "./constants";
 import { indexOneCorpusUser } from "./index-one-user";
 import { logIndexerIn, logIndexerOut, logIndexerStep } from "./indexer-log";
 import { listCorpusUserIds } from "./list-corpus-users";
 import { getEmbedIndexOptions } from "./embed-batches";
-export { corpusCollectionName, getChromaServerUrl } from "./constants";
-export { addDocumentsWithEmbedLimit, getEmbedIndexOptions, type EmbedIndexOptions, } from "./embed-batches";
+export { corpusCollectionName, getQdrantUrl } from "./constants";
+export { getEmbedIndexOptions, mapEmbedBatches, type EmbedIndexOptions, } from "./embed-batches";
 export { indexOneCorpusUser, type IndexOneUserResult } from "./index-one-user";
 export { listCorpusUserIds } from "./list-corpus-users";
 export { listMarkdownFiles, toRepoPath } from "@fambrain/corpus";
@@ -22,7 +22,7 @@ export const indexAllCorpora = async (): Promise<void> => {
     const tAll = Date.now();
     const embedOptions = getEmbedIndexOptions();
     logIndexerIn("全量入库开始", {
-        chromaUrl: getChromaServerUrl(),
+        qdrantUrl: getQdrantUrl(),
         embedOptions,
         logLevel: process.env.LOG_LEVEL ?? "info",
         hint: "每 Agent 仅 📥进入 / 📤出去；结构化 JSON 来自 pino（fambrain-indexer）",

@@ -1,5 +1,5 @@
 #!/usr/bin/env bash
-# 一键本地开发：Chroma + Redis（可选）+ Agent [+ Worker] + Web
+# 一键本地开发：Qdrant + Redis（可选）+ Agent [+ Worker] + Web
 # Ollama 走 .env 的 OLLAMA_HOST / OLLAMA_BASE_URL（可指向局域网台式机）
 set -euo pipefail
 
@@ -16,12 +16,11 @@ fi
 
 PORT="${PORT:-3000}"
 BRAIN_SERVICE_PORT="${BRAIN_SERVICE_PORT:-3001}"
-CHROMA_HOST="${CHROMA_HOST:-127.0.0.1}"
-CHROMA_PORT="${CHROMA_PORT:-8030}"
-CHROMA_URL="${CHROMA_SERVER_URL:-http://${CHROMA_HOST}:${CHROMA_PORT}}"
-CHROMA_URL="${CHROMA_URL%/}"
-CHROMA_WAIT_SEC="${CHROMA_WAIT_SEC:-120}"
-CHROMA_FIRST_INSTALL_WAIT_SEC="${CHROMA_FIRST_INSTALL_WAIT_SEC:-180}"
+QDRANT_HOST="${QDRANT_HOST:-127.0.0.1}"
+QDRANT_PORT="${QDRANT_PORT:-6333}"
+QDRANT_URL="${QDRANT_URL:-http://${QDRANT_HOST}:${QDRANT_PORT}}"
+QDRANT_URL="${QDRANT_URL%/}"
+QDRANT_WAIT_SEC="${QDRANT_WAIT_SEC:-60}"
 REDIS_HOST="${REDIS_HOST:-127.0.0.1}"
 REDIS_PORT="${REDIS_PORT:-6379}"
 REDIS_WAIT_SEC="${REDIS_WAIT_SEC:-30}"
@@ -34,24 +33,15 @@ truthy() {
   case "${1:-}" in 1|true|yes|TRUE|YES) return 0 ;; *) return 1 ;; esac
 }
 
-chroma_ready() {
-  curl -sf "${CHROMA_URL}/api/v2/heartbeat" >/dev/null 2>&1
+qdrant_ready() {
+  curl -sf "${QDRANT_URL}/readyz" >/dev/null 2>&1
 }
 
-wait_for_chroma() {
-  local pid="$1"
-  local max_wait="$2"
+wait_for_qdrant() {
   local i
-  for i in $(seq 1 "$max_wait"); do
-    if chroma_ready; then
+  for i in $(seq 1 "$QDRANT_WAIT_SEC"); do
+    if qdrant_ready; then
       return 0
-    fi
-    if [[ -n "$pid" ]] && ! kill -0 "$pid" 2>/dev/null; then
-      echo "[dev] Chroma 进程已退出（${i}s）" >&2
-      return 1
-    fi
-    if (( i % 15 == 0 )); then
-      echo "[dev] 仍在等待 Chroma 就绪（${i}/${max_wait}s）..."
     fi
     sleep 1
   done
@@ -88,37 +78,21 @@ if [[ ! -f "$ROOT/packages/db/src/generated/prisma/index.js" ]]; then
   pnpm run db:generate
 fi
 
-# --- Chroma ---
-CHROMA_PID=""
-if chroma_ready; then
-  echo "[dev] 复用已在运行的 Chroma (${CHROMA_URL})"
+# --- Qdrant（语料 dense+sparse + Mem0 dense）---
+if qdrant_ready; then
+  echo "[dev] 复用已在运行的 Qdrant (${QDRANT_URL})"
 else
-  if [[ -x "$ROOT/tools/chroma-server/.venv/bin/chroma" ]]; then
-    echo "[dev] 正在启动 Chroma (${CHROMA_URL})..."
-  else
-    echo "[dev] 正在启动 Chroma (${CHROMA_URL})，首次会 uv sync 一次（tools/chroma-server/.venv），请稍候..."
+  if ! command -v docker >/dev/null 2>&1; then
+    echo "[dev] Qdrant 未就绪且未安装 Docker (${QDRANT_URL})" >&2
+    exit 1
   fi
-  bash "$ROOT/scripts/chroma-server.sh" &
-  CHROMA_PID=$!
-  CHROMA_WAIT="$CHROMA_WAIT_SEC"
-  if [[ ! -x "$ROOT/tools/chroma-server/.venv/bin/chroma" ]]; then
-    CHROMA_WAIT="$CHROMA_FIRST_INSTALL_WAIT_SEC"
+  echo "[dev] 正在通过 Docker 启动 Qdrant (${QDRANT_URL})..."
+  docker compose up -d qdrant
+  if ! wait_for_qdrant; then
+    echo "[dev] Qdrant 在 ${QDRANT_WAIT_SEC}s 内未就绪" >&2
+    exit 1
   fi
-  if ! wait_for_chroma "$CHROMA_PID" "$CHROMA_WAIT"; then
-    if chroma_ready; then
-      echo "[dev] Chroma 已就绪（等待超时后 heartbeat 成功）"
-    else
-      kill "$CHROMA_PID" 2>/dev/null || true
-      if ! command -v uv >/dev/null 2>&1; then
-        echo "[dev] 未找到 uv，请先安装：https://docs.astral.sh/uv/" >&2
-      else
-        echo "[dev] Chroma 在 ${CHROMA_WAIT}s 内未就绪，可单独运行 pnpm run chroma:server 查看日志" >&2
-      fi
-      exit 1
-    fi
-  else
-    echo "[dev] Chroma 已就绪 (pid=${CHROMA_PID})"
-  fi
+  echo "[dev] Qdrant 已就绪 (docker compose)"
 fi
 
 # --- Redis（REDIS_URL 或 REDIS_ENABLED=1 时启用；否则 memory fallback）---
@@ -181,21 +155,18 @@ echo ""
 echo "[dev] ── FamBrain 本地开发 ──"
 echo "  Web:    http://127.0.0.1:${PORT}"
 echo "  Brain:  http://127.0.0.1:${BRAIN_SERVICE_PORT}"
-echo "  Chroma: ${CHROMA_URL}"
+echo "  Qdrant: ${QDRANT_URL}"
 if [[ "$REDIS_STATUS" -ne 2 ]]; then
   echo "  Redis:  ${REDIS_HOST}:${REDIS_PORT} (db=${REDIS_DB:-0})"
 fi
 echo "  Ollama: ${OLLAMA_URL}"
-echo "[dev] Ctrl+C 停止 Web / Brain${WORKER_PID:+ / Worker}${CHROMA_PID:+ / Chroma}"
+echo "[dev] Ctrl+C 停止 Web / Brain${WORKER_PID:+ / Worker}"
 echo ""
 
 cleanup() {
   kill "$BRAIN_SERVICE_PID" "$WEB_PID" 2>/dev/null || true
   if [[ -n "$WORKER_PID" ]]; then
     kill "$WORKER_PID" 2>/dev/null || true
-  fi
-  if [[ -n "$CHROMA_PID" ]]; then
-    kill "$CHROMA_PID" 2>/dev/null || true
   fi
   if [[ "$REDIS_STARTED_BY_DEV" -eq 1 ]]; then
     docker compose stop redis >/dev/null 2>&1 || true

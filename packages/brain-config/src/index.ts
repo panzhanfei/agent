@@ -95,5 +95,5 @@ export const getBrainServiceConfig = (): BrainServiceConfig => {
     cached = buildConfig(parsed);
     return cached;
 };
-export { resolveOllamaBaseUrl, resolveChromaServerUrl, resolveBrainServicePort, resolveBrainServiceUrl, } from "./service-url";
+export { resolveOllamaBaseUrl, resolveQdrantUrl, resolveBrainServicePort, resolveBrainServiceUrl, } from "./service-url";
 export { buildLangGraphRunConfig, configureLangSmithTracing, formatLangSmithStartupLine, getLangSmithStatus, type LangGraphRunConfig, type LangSmithStatus, } from "./langsmith";

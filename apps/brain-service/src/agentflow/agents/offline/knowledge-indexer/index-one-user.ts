@@ -4,10 +4,11 @@ import type { Logger } from "pino";
 import {
   getUserCorpusRoot,
   indexCorpusDocuments,
+  isCorpusNoisePath,
   listMarkdownFiles,
   toRepoPath,
 } from "@fambrain/corpus";
-import { corpusCollectionName, getChromaServerUrl } from "./constants";
+import { corpusCollectionName, getQdrantUrl } from "./constants";
 import { getEmbedIndexOptions } from "./embed-batches";
 import { logIndexerIn, logIndexerOut, logIndexerStep } from "./indexer-log";
 import { splitMarkdownToDocuments } from "./split-markdown";
@@ -21,10 +22,12 @@ export const indexOneCorpusUser = async (corpusUserId: string, logger: Logger): 
     logIndexerIn(`单用户入库 corpusUserId=${corpusUserId}`, {
         corpusRoot,
         collectionName,
-        chromaUrl: getChromaServerUrl(),
+        qdrantUrl: getQdrantUrl(),
     });
     logIndexerStep("3a 递归扫描 .md", { corpusRoot });
-    const mdFiles = await listMarkdownFiles(corpusRoot);
+    const mdFiles = (await listMarkdownFiles(corpusRoot)).filter(
+        (abs) => !isCorpusNoisePath(toRepoPath(abs))
+    );
     logIndexerStep("3b 扫描结果", {
         mdFileCount: mdFiles.length,
         paths: mdFiles.map((f) => toRepoPath(f)),
@@ -76,7 +79,7 @@ export const indexOneCorpusUser = async (corpusUserId: string, logger: Logger): 
         return { fileCount: 0, chunkCount: 0 };
     }
     const embedOptions = getEmbedIndexOptions();
-    logIndexerStep("3d 准备 embed + 写 Chroma", {
+    logIndexerStep("3d 准备 embed + 写 Qdrant", {
         corpusUserId,
         collectionName,
         fileCount: mdFiles.length,

@@ -1,12 +1,15 @@
 export {
-  chromaLibArgs,
   corpusCollectionName,
   createOllamaEmbeddings,
-  deleteChromaCollection,
-  getChromaServerUrl,
+  deleteCorpusCollection,
+  ensureCorpusCollection,
+  getQdrantUrl,
   indexCorpusDocuments,
-  openCorpusVectorStore,
+  searchCorpusHybrid,
+  searchCorpusSparse,
   searchCorpusVectors,
+  type CorpusHybridHit,
+  type CorpusHybridSearchResult,
   type CorpusVectorHit,
   type CorpusVectorIndexResult,
 } from "./corpus-vector";
@@ -14,11 +17,13 @@ export {
   deleteCorpusVectorsByPath,
   upsertCorpusDocumentsByPath,
 } from "./corpus-vector-path";
+export { isCorpusNoisePath } from "./corpus-noise";
 export {
-  addDocumentsWithEmbedLimit,
   getEmbedIndexOptions,
+  mapEmbedBatches,
   type EmbedIndexOptions,
 } from "./embed-batches";
+export { getQdrantClient, qdrantReady } from "./qdrant-client";
 export { chunkMetadataSchema, type ChunkMetadata } from "./chunk-metadata";
 export {
   DOC_ROOT,
@@ -81,7 +86,6 @@ export { listVaultFiles, type VaultFileEntry } from "./list-vault-files";
 export {
   recallKeywordRetrieve,
   recallSparseRetrieve,
-  SPARSE_BODY_MAX,
   SPARSE_EXCERPT_MAX,
   type RecallKeywordHit,
 } from "./recall-keyword-retrieve";

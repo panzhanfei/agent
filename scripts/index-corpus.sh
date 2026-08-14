@@ -1,5 +1,5 @@
 #!/usr/bin/env bash
-# 语料入库：若 Chroma 未运行则后台启动，就绪后执行全量 index
+# 语料入库：若 Qdrant 未运行则 docker compose up，就绪后执行全量 index
 set -euo pipefail
 
 ROOT="$(cd "$(dirname "$0")/.." && pwd)"
@@ -12,45 +12,41 @@ if [[ -f "$ENV_FILE" ]]; then
   set +a
 fi
 
-CHROMA_HOST="${CHROMA_HOST:-127.0.0.1}"
-CHROMA_PORT="${CHROMA_PORT:-8030}"
-CHROMA_URL="${CHROMA_SERVER_URL:-http://${CHROMA_HOST}:${CHROMA_PORT}}"
-CHROMA_URL="${CHROMA_URL%/}"
+QDRANT_HOST="${QDRANT_HOST:-127.0.0.1}"
+QDRANT_PORT="${QDRANT_PORT:-6333}"
+QDRANT_URL="${QDRANT_URL:-http://${QDRANT_HOST}:${QDRANT_PORT}}"
+QDRANT_URL="${QDRANT_URL%/}"
 
-chroma_ready() {
-  curl -sf "${CHROMA_URL}/api/v2/heartbeat" >/dev/null 2>&1
+qdrant_ready() {
+  curl -sf "${QDRANT_URL}/readyz" >/dev/null 2>&1
 }
 
-wait_for_chroma() {
-  local pid="${1:-}"
-  local wait_sec="${CHROMA_WAIT_SEC:-90}"
+wait_for_qdrant() {
+  local wait_sec="${QDRANT_WAIT_SEC:-60}"
   local i
   for i in $(seq 1 "$wait_sec"); do
-    if chroma_ready; then
+    if qdrant_ready; then
       return 0
-    fi
-    if [[ -n "$pid" ]] && ! kill -0 "$pid" 2>/dev/null; then
-      return 1
     fi
     sleep 1
   done
   return 1
 }
 
-if chroma_ready; then
-  echo "[index:corpus] 复用已在运行的 Chroma (${CHROMA_URL})"
+if qdrant_ready; then
+  echo "[index:corpus] 复用已在运行的 Qdrant (${QDRANT_URL})"
 else
-  echo "[index:corpus] Chroma 未就绪，正在启动..."
-  bash "$ROOT/scripts/chroma-server.sh" &
-  chroma_pid=$!
-
-  if ! wait_for_chroma "$chroma_pid"; then
-    kill "$chroma_pid" 2>/dev/null || true
-    echo "[index:corpus] Chroma 启动超时 (${CHROMA_URL})" >&2
+  if ! command -v docker >/dev/null 2>&1; then
+    echo "[index:corpus] Qdrant 未就绪且未安装 Docker (${QDRANT_URL})" >&2
     exit 1
   fi
-
-  echo "[index:corpus] Chroma 已就绪 (pid=${chroma_pid})，入库结束后仍保持运行"
+  echo "[index:corpus] Qdrant 未就绪，正在 docker compose up qdrant..."
+  (cd "$ROOT" && docker compose up -d qdrant)
+  if ! wait_for_qdrant; then
+    echo "[index:corpus] Qdrant 启动超时 (${QDRANT_URL})" >&2
+    exit 1
+  fi
+  echo "[index:corpus] Qdrant 已就绪 (${QDRANT_URL})"
 fi
 
 cd "$ROOT"

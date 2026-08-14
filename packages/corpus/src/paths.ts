@@ -1,4 +1,4 @@
-/** 路径与文件列举（无 Chroma / 向量依赖，供 Web 等轻量场景使用） */
+/** 路径与文件列举（无 Qdrant / 向量依赖，供 Web 等轻量场景使用） */
 export {
   DOC_ROOT,
   getDocRoot,

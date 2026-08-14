@@ -24,10 +24,10 @@ export FAMBRAIN_CORPUS_USER_ID="${FAMBRAIN_CORPUS_USER_ID:-cmp9ihokn00000mbmhwh6
 
 PORT="${PORT:-3000}"
 BRAIN_SERVICE_PORT="${BRAIN_SERVICE_PORT:-3001}"
-CHROMA_HOST="${CHROMA_HOST:-127.0.0.1}"
-CHROMA_PORT="${CHROMA_PORT:-8030}"
-CHROMA_URL="${CHROMA_SERVER_URL:-http://${CHROMA_HOST}:${CHROMA_PORT}}"
-CHROMA_URL="${CHROMA_URL%/}"
+QDRANT_HOST="${QDRANT_HOST:-127.0.0.1}"
+QDRANT_PORT="${QDRANT_PORT:-6333}"
+QDRANT_URL="${QDRANT_URL:-http://${QDRANT_HOST}:${QDRANT_PORT}}"
+QDRANT_URL="${QDRANT_URL%/}"
 OLLAMA_URL="${OLLAMA_BASE_URL:-http://${OLLAMA_HOST:-127.0.0.1}:${OLLAMA_PORT:-11434}}"
 OLLAMA_URL="${OLLAMA_URL%/}"
 
@@ -52,16 +52,16 @@ start_bg() {
 }
 
 ensure_infra() {
-  if ! http_ok "${CHROMA_URL}/api/v2/heartbeat"; then
-    log "启动 Chroma (${CHROMA_URL})"
-    start_bg chroma bash "$ROOT/scripts/chroma-server.sh"
-    for i in $(seq 1 90); do
-      http_ok "${CHROMA_URL}/api/v2/heartbeat" && break
+  if ! http_ok "${QDRANT_URL}/readyz"; then
+    log "启动 Qdrant (${QDRANT_URL})"
+    docker compose up -d qdrant
+    for i in $(seq 1 60); do
+      http_ok "${QDRANT_URL}/readyz" && break
       sleep 1
     done
-    http_ok "${CHROMA_URL}/api/v2/heartbeat" || { log "Chroma 未就绪"; exit 1; }
+    http_ok "${QDRANT_URL}/readyz" || { log "Qdrant 未就绪"; exit 1; }
   else
-    log "Chroma 已就绪"
+    log "Qdrant 已就绪"
   fi
 
   if ! pnpm exec tsx --env-file="$ENV_FILE" "$ROOT/scripts/redis-ping.ts" >/dev/null 2>&1; then

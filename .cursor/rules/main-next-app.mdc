@@ -16,7 +16,7 @@ alwaysApply: false
 
 **环境变量**：仅仓库根目录 `.env`；`apps/web/next.config.ts` 与 `packages/db/prisma.config.ts` 会加载它。
 
-**数据目录**：语料 `data/doc/users/<userId>/corpus/` · SQLite `packages/db/prisma/dev.db` · Chroma `data/chroma/`
+**数据目录**：语料 `data/doc/users/<userId>/corpus/` · SQLite `packages/db/prisma/dev.db` · Qdrant（语料 + Mem0）
 
 ## `apps/web/src` 分层
 

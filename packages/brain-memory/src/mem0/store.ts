@@ -3,7 +3,7 @@ import path from "node:path";
 import { logAgentIn, logAgentOut } from "@fambrain/brain-shared/agent-log";
 import { Memory } from "mem0ai/oss";
 import { getMemoryConfig } from "../config";
-import { ChromaMem0VectorStore } from "./chroma-vector-store";
+import { QdrantMem0VectorStore } from "./qdrant-vector-store";
 
 type Mem0SearchHit = {
     memory?: string;
@@ -12,7 +12,7 @@ type Mem0SearchHit = {
 
 /** Mem0 类内 vectorStore 为 private，不能与公开字段做交叉类型（会缩成 never） */
 type MemoryInternals = {
-    vectorStore: ChromaMem0VectorStore;
+    vectorStore: QdrantMem0VectorStore;
     _ensureInitialized?: () => Promise<void>;
 };
 
@@ -31,7 +31,7 @@ const ensureClient = async (): Promise<Memory | null> => {
     if (!cfg.mem0Enabled) return null;
     if (!client) {
         await mkdir(path.dirname(cfg.mem0HistoryDbPath), { recursive: true });
-        // 先用内存 SQLite 占位完成 Mem0 初始化，再换成 Chroma 适配器（需完整 get/list/delete）
+        // 先用内存 SQLite 占位完成 Mem0 初始化，再换成 Qdrant 适配器（需完整 get/list/delete）
         const memory = new Memory({
             llm: {
                 provider: "ollama",
@@ -51,7 +51,7 @@ const ensureClient = async (): Promise<Memory | null> => {
             vectorStore: {
                 provider: "memory",
                 config: {
-                    collectionName: cfg.mem0ChromaCollection,
+                    collectionName: cfg.mem0Collection,
                     dimension: 768,
                     dbPath: ":memory:",
                 },
@@ -62,17 +62,17 @@ const ensureClient = async (): Promise<Memory | null> => {
         if (typeof internals._ensureInitialized === "function") {
             await internals._ensureInitialized();
         }
-        const chromaStore = new ChromaMem0VectorStore({
-            collectionName: cfg.mem0ChromaCollection,
+        const qdrantStore = new QdrantMem0VectorStore({
+            collectionName: cfg.mem0Collection,
             dimension: 768,
         });
-        await chromaStore.initialize();
-        internals.vectorStore = chromaStore;
+        await qdrantStore.initialize();
+        internals.vectorStore = qdrantStore;
         client = memory;
         logAgentOut("Mem0", "出去", {
             action: "client_ready",
-            vectorStore: "chroma",
-            collection: cfg.mem0ChromaCollection,
+            vectorStore: "qdrant",
+            collection: cfg.mem0Collection,
             historyDbPath: cfg.mem0HistoryDbPath,
         });
     }

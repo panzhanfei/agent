@@ -3,7 +3,7 @@
  *
  *   pnpm --filter @fambrain/brain-service run verify:r6-no-cache
  *
- * 需 Ollama + Chroma + 语料（潘展飞 4 段经历）。
+ * 需 Ollama + Qdrant + 语料（潘展飞 4 段经历）。
  */
 process.env.REPEAT_QUESTION_CACHE_DISABLED = "1";
 process.env.RETRIEVAL_CACHE_DISABLED = "1";

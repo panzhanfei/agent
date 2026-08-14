@@ -3,9 +3,9 @@
  *
  *   pnpm --filter @fambrain/brain-service run verify:recall-compare
  *
- * Chroma + Ollama 在线时要求 recallSource=hybrid；未起时 sparse 段仍跑，hybrid 段 skip 并 exit 1。
+ * 需 Qdrant + Ollama embed 已入库；期望 recallSource=hybrid。
  */
-import { recallSparseRetrieve, searchCorpusVectors } from "@fambrain/corpus";
+import { qdrantReady, recallSparseRetrieve, searchCorpusVectors } from "@fambrain/corpus";
 import { listCorpusUserIds } from "../src/agentflow/agents/offline/knowledge-indexer/list-corpus-users";
 import { hybridRecall } from "../src/agentflow/agents/online/knowledge-manager/recall";
 import { getKmRetrievalConfig } from "../src/agentflow/agents/online/knowledge-manager/profile";
@@ -39,24 +39,6 @@ const cases: Case[] = [
         topPathRe: /urban|城管|platform|project|experience|city|management|aky/i,
     },
 ];
-
-const chromaUrl = (): string => {
-    const base =
-        process.env.CHROMA_SERVER_URL?.trim() ||
-        `http://${process.env.CHROMA_HOST ?? "127.0.0.1"}:${process.env.CHROMA_PORT ?? "8030"}`;
-    return base.replace(/\/$/, "");
-};
-
-const chromaReady = async (): Promise<boolean> => {
-    try {
-        const res = await fetch(`${chromaUrl()}/api/v2/heartbeat`, {
-            signal: AbortSignal.timeout(3000),
-        });
-        return res.ok;
-    } catch {
-        return false;
-    }
-};
 
 const resolveCorpusUserId = async (): Promise<string> => {
     const fromEnv = process.env.FAMBRAIN_CORPUS_USER_ID?.trim();
@@ -92,17 +74,21 @@ const unionCovers = (hybridTop: string[], singles: string[]): boolean => {
 const main = async () => {
     const cfg = getKmRetrievalConfig();
     const corpusUserId = await resolveCorpusUserId();
-    const chromaUp = await chromaReady();
+    const qdrantUp = await qdrantReady();
 
     console.log("verify-recall-compare (HY-07)");
     console.log(`corpusUserId=${corpusUserId}`);
-    console.log(`chroma=${chromaUp ? chromaUrl() : "DOWN"}`);
+    console.log(`qdrant=${qdrantUp ? "up" : "DOWN"}`);
     console.log(
         `km: fetchMultiplier=${cfg.vectorFetchMultiplier} rrfK=${cfg.rrfK} weights=v${cfg.rrfVectorWeight}/s${cfg.rrfSparseWeight}\n`
     );
 
+    if (!qdrantUp) {
+        console.log("⚠️  Qdrant 未起：请 docker compose up -d qdrant 后 bash scripts/index-corpus.sh");
+        process.exit(1);
+    }
+
     let failed = 0;
-    let hybridCases = 0;
 
     for (const c of cases) {
         console.log("─".repeat(60));
@@ -110,18 +96,15 @@ const main = async () => {
 
         let vectorPaths: string[] = [];
         let vectorError: string | null = null;
-        if (chromaUp) {
-            try {
-                const vectorHits = await searchCorpusVectors(
-                    corpusUserId,
-                    c.vectorQuery,
-                    TOP_K
-                );
-                vectorPaths = vectorHits.map((h) => h.path);
-            } catch (e) {
-                vectorError =
-                    e instanceof Error ? e.message : String(e);
-            }
+        try {
+            const vectorHits = await searchCorpusVectors(
+                corpusUserId,
+                c.vectorQuery,
+                TOP_K
+            );
+            vectorPaths = vectorHits.map((h) => h.path);
+        } catch (e) {
+            vectorError = e instanceof Error ? e.message : String(e);
         }
 
         const sparseHits = await recallSparseRetrieve(
@@ -142,11 +125,9 @@ const main = async () => {
         printRow(
             "vector",
             vectorPaths,
-            chromaUp
-                ? vectorError
-                    ? `err: ${vectorError.slice(0, 40)}`
-                    : `${vectorPaths.length} hits`
-                : "skip"
+            vectorError
+                ? `err: ${vectorError.slice(0, 40)}`
+                : `${vectorPaths.length} hits`
         );
         printRow("sparse", sparsePaths, `${sparsePaths.length} hits`);
         printRow(
@@ -163,32 +144,26 @@ const main = async () => {
             issues.push(`sparse Top1 未匹配 ${c.topPathRe}`);
         }
 
-        if (chromaUp) {
-            hybridCases++;
-            if (vectorPaths.length === 0 && !vectorError) {
-                issues.push("vector 无命中（Chroma 已起）");
+        if (vectorPaths.length === 0 && !vectorError) {
+            issues.push("vector 无命中（Qdrant 已起）");
+        }
+        if (hybrid.recallSource !== "hybrid") {
+            issues.push(`期望 recallSource=hybrid，实际 ${hybrid.recallSource}`);
+        }
+        if (hybridPaths.length === 0) {
+            issues.push("RRF 无候选");
+        } else {
+            const singles = [vectorPaths[0], sparsePaths[0]].filter(
+                Boolean
+            ) as string[];
+            if (
+                singles.length > 0 &&
+                !unionCovers(topPaths(hybridPaths, 3), singles)
+            ) {
+                issues.push("RRF Top3 未覆盖 vector/sparse 任一 Top1");
             }
-            if (hybrid.recallSource !== "hybrid") {
-                issues.push(
-                    `期望 recallSource=hybrid，实际 ${hybrid.recallSource}`
-                );
-            }
-            if (hybridPaths.length === 0) {
-                issues.push("RRF 无候选");
-            } else {
-                const singles = [
-                    vectorPaths[0],
-                    sparsePaths[0],
-                ].filter(Boolean) as string[];
-                if (
-                    singles.length > 0 &&
-                    !unionCovers(topPaths(hybridPaths, 3), singles)
-                ) {
-                    issues.push("RRF Top3 未覆盖 vector/sparse 任一 Top1");
-                }
-                if (!c.topPathRe.test(hybridPaths[0]!)) {
-                    issues.push(`RRF Top1 未匹配 ${c.topPathRe}`);
-                }
+            if (!c.topPathRe.test(hybridPaths[0]!)) {
+                issues.push(`RRF Top1 未匹配 ${c.topPathRe}`);
             }
         }
 
@@ -201,16 +176,6 @@ const main = async () => {
     }
 
     console.log("\n" + "─".repeat(60));
-    if (!chromaUp) {
-        console.log(
-            "⚠️  Chroma 未起：仅验证 sparse + RRF(sparse-only)；请 bash scripts/index-corpus.sh 后重跑"
-        );
-        process.exit(1);
-    }
-    if (hybridCases < cases.length) {
-        console.log("⚠️  hybrid 用例未全部执行");
-        process.exit(1);
-    }
     if (failed) {
         console.log(`FAILED ${failed}/${cases.length}`);
         process.exit(1);

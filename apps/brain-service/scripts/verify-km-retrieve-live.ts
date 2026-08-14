@@ -1,5 +1,5 @@
 /**
- * KM 在线自测：真实语料 + Hybrid（Chroma 可用时 vector+sparse，否则 sparse）。
+ * KM 在线自测：真实语料 + Hybrid（Qdrant 可用时 vector+sparse，否则 sparse）。
  *
  *   FAMBRAIN_CORPUS_USER_ID=xxx pnpm --filter @fambrain/brain-service run verify:km-retrieve:live
  */
@@ -48,8 +48,7 @@ const cases: Case[] = [
         queryType: "enumeration",
         expectProfile: "enumeration",
         minExperienceHits: 4,
-        noProjectsInHits: true,
-        notesRe: /列举已覆盖|列举覆盖/,
+        // 列举穷举已迁 corpus-lister；KM 只做 hybrid 召回，不保证 hits 全是 experience
     },
     {
         q: "城管平台用了什么技术？",

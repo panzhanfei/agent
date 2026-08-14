@@ -30,7 +30,7 @@
 |----|------|------|
 | 可编辑源 | `data/doc/users/<corpusUserId>/vault/originals/workspace/` | 仅 `.txt` + 用户文件夹 |
 | 语料产物 | `corpus/personal/imports/workspace/**/*.md` | txt→简单 md 包装后写入；HITL **只读** |
-| 向量 | Chroma `metadata.path` = md repo path；`sourcePath` = vault 相对 | create/update → materialize；delete → purge |
+| 向量 | Qdrant payload `path` = md repo path；`sourcePath` = vault 相对 | create/update → materialize；delete → purge |
 
 - **未指定 path**：`operation=list`（或 UI exact-match「我的原文库」/ `__FAMBRAIN_VAULT_WS_*__`）→ 两层 list + 新建 CTA。
 - **队列（可选）**：`CORPUS_QUEUE_ENABLED=1` 时 `corpus.materialize` / `corpus.purge` 入 BullMQ；worker：`pnpm --filter @fambrain/brain-service run corpus-worker`。未开队列则聊天路径同步语料化。
@@ -56,8 +56,8 @@ flowchart TB
   subgraph offline ["离线：知识入库师（手动 pnpm run index:corpus）"]
     MD["data/doc/users/*/corpus/*.md"]
     KI["KnowledgeIndexer"]
-    CH[("Chroma<br/>fambrain_corpus_&lt;userId&gt;")]
-    MD --> KI --> CH
+    QD[("Qdrant<br/>fambrain_corpus_&lt;userId&gt;<br/>dense + sparse")]
+    MD --> KI --> QD
   end
 
   subgraph ingest ["离线：文档解析师（批量上传 / parse:documents）"]
@@ -91,8 +91,7 @@ flowchart TB
     SUM --> OUT
   end
 
-  CH -.->|向量 hits| PE
-  MD -.->|关键词 fallback| PE
+  QD -.->|hybrid hits| PE
 ```
 
 ## 在线编排流程
@@ -185,7 +184,7 @@ flowchart TD
 
 **触发：** 手动 `pnpm run index:corpus`（语料 md 变更、换 embed 模型、改分块规则后重跑）。**不参与**用户聊天实时链路。
 
-**技术：** LangChain Chroma + Ollama Embed（`@fambrain/corpus`）、Zod（metadata）、Pino；单文件更新另见 HITL `upsertCorpusDocumentsByPath`。
+**技术：** Qdrant（`@qdrant/js-client-rest`）+ Ollama Embed（`@fambrain/corpus`）、Zod（payload metadata）、Pino；单文件更新另见 HITL `upsertCorpusDocumentsByPath`。入库跳过 `readme.md` / `_template.md`。
 
 ```mermaid
 flowchart TD
@@ -197,24 +196,24 @@ flowchart TD
   SCAN --> READ["readFile 每篇 md"]
   READ --> SPLIT["splitMarkdownToDocuments()"]
   SPLIT --> META["chunkMetadataSchema 校验"]
-  META --> EMBED["addDocumentsWithEmbedLimit<br/>p-limit 分批 embed"]
-  EMBED --> CHROMA[("Chroma collection<br/>全量 delete + 重建")]
+  META --> EMBED["mapEmbedBatches<br/>p-limit 分批 embed"]
+  EMBED --> QDRANT[("Qdrant collection<br/>dense + sparse upsert")]
 ```
 
 | 步骤 | 做什么 | 规则 | 文件 | 方法 |
 |------|--------|------|------|------|
 | 0 | CLI 入口 | 加载 `.env`；失败 exit 1 | `apps/brain-service/scripts/index-all-corpus.ts` | — |
 | 1 | 找用户 | `data/doc/users/*` 下 corpus 至少有 1 个 `.md` | `list-corpus-users.ts` | `listCorpusUserIds()` |
-| 2 | 路径约定 | 语料根 `users/<id>/corpus/` | `apps/brain-service/src/knowledge/doc-paths.ts` | `getUserCorpusRoot()` |
-| 3 | 扫 md | 递归 `.md`；跳过 `vault/originals/images/...` | `list-markdown-files.ts` | `listMarkdownFiles()`, `toRepoPath()` |
+| 2 | 路径约定 | 语料根 `users/<id>/corpus/` | `packages/corpus` | `getUserCorpusRoot()` |
+| 3 | 扫 md | 递归 `.md`；跳过噪声路径（README / `_template.md`）与 `vault/originals/images/...` | `packages/corpus` | `listMarkdownFiles()`, `toRepoPath()`, `isCorpusNoisePath()` |
 | 4 | 读正文 | UTF-8 读全文 | `index-one-user.ts` | `readFile()` |
 | 5 | 分块 | 按 `##` 切；无 `##` 整篇 1 块；`id_`=user:path:index | `split-markdown.ts` | `splitMarkdownToDocuments()` |
 | 6 | metadata | path / title / chunkIndex / corpusUserId | `chunk-metadata.ts` | `chunkMetadataSchema.parse()` |
-| 7 | embed | `OLLAMA_MODEL_EMBED`（默认 nomic-embed-text）；**p-limit** 限制并发批次数 | `embed-batches.ts`, `index-one-user.ts` | `addDocumentsWithEmbedLimit()`, `getEmbedIndexOptions()` |
-| 8 | 存 Chroma | collection=`fambrain_corpus_<userId>`；**先删后建**（全量幂等） | `index-one-user.ts`, `constants.ts` | `ChromaVectorStore`, `getChromaServerUrl()` |
+| 7 | embed | `OLLAMA_MODEL_EMBED`（默认 nomic-embed-text）；**p-limit** 限制并发批次数 | `embed-batches.ts`, `index-one-user.ts` | `mapEmbedBatches()`, `getEmbedIndexOptions()` |
+| 8 | 存 Qdrant | collection=`fambrain_corpus_<userId>`；named vectors `dense`+`sparse`；跳过 README/模板 | `index-one-user.ts`、`packages/corpus` | `indexCorpusDocuments()` |
 | 9 | 日志 | JSON 结构化 | `index.ts` | `indexerLogger`（pino） |
 
-**前置：** 终端 1 `pnpm run chroma:server`；Ollama 可访问且已 pull embed 模型。
+**前置：** Qdrant 可访问（`pnpm run qdrant:server` 或 `pnpm dev`）；Ollama 可访问且已 pull embed 模型。
 
 ### 2. IntakeCoordinator — 入口接线员 ✅
 
@@ -262,7 +261,7 @@ flowchart TD
 
 ### 2.5 跨会话用户事实 userFact — P0-16 ✅
 
-**职责：** 用户自述联系方式/账号（QQ、手机、邮箱、微信等）的 **记住** 与 **跨 conversationId 召回**；不经 KM / FactChecker / Analyst，直接读写 Mem0。
+**职责：** 用户自述联系方式/账号（QQ、手机、邮箱、微信等）的 **记住** 与 **跨 conversationId 召回**；不经 KM / Analyst，直接读写 Mem0（Qdrant）。
 
 **设计要点：**
 
@@ -300,22 +299,17 @@ flowchart TD
 
 **职责：** 产出 `hits[]`（path / excerpt / relevance），不对用户说话。
 
-**技术：** **纯规则精排**（无 LLM）。**Hybrid 并行召回**（Chroma 向量 ∥ corpus BM25）→ RRF 融合 → `tokenize` + `pickExcerpt` 确定性输出。与业界「检索层不用 Chat LLM、生成留给 Analyst」一致；避免小模型在精排阶段改写 excerpt、编造 `notes`（见 [坑点 P0-4 / D3-3](./04-pitfalls.md)）。
+**技术：** **纯规则精排**（无 LLM）。**Hybrid 召回**（Qdrant dense + sparse prefetch，**引擎内加权 RRF**）→ `tokenize` + `pickExcerpt` 确定性输出。与业界「检索层不用 Chat LLM、生成留给 Analyst」一致；避免小模型在精排阶段改写 excerpt、编造 `notes`（见 [坑点 P0-4 / D3-3](./04-pitfalls.md)）。
 
-> **v3 设计：** Hybrid（向量 + BM25）+ RRF 已接入；Intake `queryType`、confidenceTier、列举分流见 [km-retrieval-design.md](./km-retrieval-design.md)。
+> **v3 设计：** Hybrid + RRF 已接入；Intake `queryType`、confidenceTier、列举分流见 [km-retrieval-design.md](./km-retrieval-design.md)。列举分页走 **CorpusLister**（目录扫盘），不经 KM hybrid。
 
 ```mermaid
 flowchart TD
   IN["searchQuery + queryType + topics + subTasks"] --> PROFILE["resolveQueryProfile"]
-  PROFILE --> HY["hybridRecall: vector ∥ BM25 sparse"]
-  HY --> RRF["fuseRrf + merge by path"]
-  RRF --> RAW[candidates + recallChannel]
+  PROFILE --> HY["hybridRecall: Qdrant dense+sparse 引擎 RRF"]
+  HY --> RAW[candidates + recallChannel]
   RAW --> IDINJ["identity: 补注入 personal 简历"]
-  IDINJ --> ENUMINJ{"enumeration target?"}
-  ENUMINJ -->|experience| EXINJ["注入 experience/ 全量 + fill"]
-  ENUMINJ -->|project| PRINJ["注入 projects/ 全量 + fill"]
-  EXINJ --> CAND[candidates 就绪]
-  PRINJ --> CAND
+  IDINJ --> CAND[candidates 就绪]
   CAND --> RULE["rankCandidates: token+vector/sparse+pathBoost"]
   RULE --> GUARD["identityGuard / enumerationFill"]
   GUARD --> TIER["assessConfidence → confidenceTier"]
@@ -325,8 +319,8 @@ flowchart TD
 
 | 步骤 | 做什么 | 规则 | 文件 | 方法 |
 |------|--------|------|------|------|
-| 1 | Hybrid 召回 | 向量 + BM25 **并行**；RRF 融合；topK 按 profile | `hybrid-recall.ts`、`fusion-rrf.ts` | `hybridRecall()` |
-| 2 | 关键词扫盘 | ~~向量空或低置信时扫三目录~~ **已移除**（由 BM25 sparse 替代） | — | — |
+| 1 | Hybrid 召回 | Qdrant dense + sparse prefetch；引擎加权 RRF；topK 按 profile | `hybrid-recall.ts`、`packages/corpus` | `hybridRecall()` → `searchCorpusHybrid()` |
+| 2 | 关键词扫盘 | ~~查询时扫盘建内存 BM25~~ **已移除**（sparse 在入库时写入 Qdrant） | — | — |
 | 3 | 规则精排 | **token + vector + pathBoost**；`pickExcerpt`（表格行优先） | `retrieve-helpers.ts` | `rankCandidates()`、`pickTableExcerpt()` |
 | 4 | identity 保底 | identity 补注入 personal + Top1 | `retrieve.ts`、`retrieve-helpers.ts` | `ensureIdentityPersonalCandidate()`、`applyIdentityGuard()` |
 | 5 | 兜底 | **低置信**才 `ensureNonEmptyHits`；高/中置信不硬塞 Top1 | `retrieve.ts`、`score-candidate.ts` | `shouldCoalesceEmptyHits()`、`ensureNonEmptyHits()` |
@@ -390,7 +384,7 @@ flowchart TD
 
 ### 6. ContentOrganizer — 内容整理师（D6）✅
 
-**职责：** 在 FactChecker 放行后、Analyst 生成前，对 `hits` 做 **Zod 规范化**、**同 path 去重**、excerpt 合并；空 hits 时将 `coverage` 降为 `none`。**不调 LLM**。
+**职责：** 在 planMerge（或纯 list）之后、Analyst 生成前，对 `hits` 做 **Zod 规范化**、**同 path 去重**、excerpt 合并；空 hits 时将 `coverage` 降为 `none`。**不调 LLM**。
 
 **技术：** Zod（`knowledgeHitsSchema`）；规则合并（`organizeHits` / `dedupeCitations`）；**maxHits 随 queryProfile**（enumeration **8**，default **5**）；**列举分页**时 `listIntent=exhaustive|continue` → `maxHitsOverride=enumerationPageSize`（通常 20）。
 
@@ -407,11 +401,11 @@ flowchart TD
 
 | 步骤 | 做什么 | 规则 | 文件 | 方法 |
 |------|--------|------|------|------|
-| 1 | 输入 | 上游 KM + FactChecker 的 `hits` / `coverage` / `notes` | `content-organizer/prompt.ts` | `ContentOrganizerInput` |
+| 1 | 输入 | 上游 KM / list 的 `hits` / `coverage` / `notes` | `content-organizer/prompt.ts` | `ContentOrganizerInput` |
 | 2 | Zod 校验 | 丢弃非法 hit 字段 | `content-organizer/schema.ts` | `parseKnowledgeHits()` |
 | 3 | path 去重 | 同 path 保留最高 relevance；excerpt 合并（≤320 字） | `organize-hits.ts` | `organizeHits()`, `normalizeDocPath()` |
 | 4 | coverage | hits 为空 → `none` | `organize-knowledge.ts` | `organizeKnowledge()` |
-| 5 | 编排 | FactChecker 后固定进入 | `content-organizer/content-organizer-node.ts` | `runContentOrganizerNode()` |
+| 5 | 编排 | planMerge / listRetriever 后进入 | `content-organizer/content-organizer-node.ts` | `runContentOrganizerNode()` |
 
 **验证：** `pnpm run verify:content-organizer`；全 Agent schema：`pnpm run verify:agent-schemas`。
 
@@ -422,7 +416,7 @@ flowchart TD
 - **Web**：`/corpus` 语料导入页（拖放 / 选文件 / 选文件夹）或对话输入框 **+** 附件；`POST /api/documents/upload` → Agents `POST /documents/upload`
 - **CLI**：`pnpm run parse:documents -- <path...>`（**无需 userId**；语料归属见 `.env` `FAMBRAIN_CORPUS_USER_ID` 或 `data/doc/users/`）
 
-**不参与**在线聊天问答实时链路（上传后可选重建 Chroma，再被 KM 检索）。
+**不参与**在线聊天问答实时链路（上传后可选重建 Qdrant 索引，再被 KM 检索）。
 
 **职责：** 批量接收 PDF / Word / PPT / 图片 → 解析为 Markdown → 原件存 `vault/originals/uploads` → **按文件自动分类**写入 `corpus/<personal|projects|experience>/imports/` → 可选 `indexOneCorpusUser()`。用户只见摘要：「已导入 N 个文件：个人 X · 项目 Y · 经历 Z，向量库已更新」。
 
@@ -469,7 +463,7 @@ flowchart TD
 
 | 层 | 落点 |
 |----|------|
-| Mem0 向量 | Chroma collection `fambrain_user_memories`（`MEM0_CHROMA_COLLECTION`） |
+| Mem0 向量 | Qdrant collection `fambrain_user_memories`（`MEM0_QDRANT_COLLECTION`） |
 | Mem0 流水 | `data/memory/mem0/history.db` |
 | LangMem | Prisma `Conversation.sessionSummary` / `sessionSummaryAt` |
 | HITL checkpointer | `data/memory/langgraph/checkpoints.db`（仅 HITL 子图） |
@@ -500,7 +494,7 @@ flowchart LR
 **验证：**
 
 - `pnpm run verify:memory`（需 Ollama；`MEM0_ENABLED=false` 时测 LangMem→Prisma）
-- `pnpm run verify:user-fact`（需 Ollama + Chroma；Mem0→Chroma）
+- `pnpm run verify:user-fact`（需 Ollama + Qdrant；Mem0→Qdrant）
 
 ### 9. ContentSummarizer — 内容摘要师（D9）✅
 
@@ -539,7 +533,7 @@ flowchart TD
 | 实验 | 命令 | 作用 |
 |------|------|------|
 | MCP 列 vault | `pnpm run experiment:mcp-vault` | stdio MCP 工具 `list_vault_files` |
-| Recall 对比 | `pnpm run experiment:recall-compare -- <userId> "query"` | BM25 sparse vs `searchCorpusVectors` |
+| Recall 对比 | `pnpm run experiment:recall-compare -- <userId> "query"` | Qdrant sparse vs `searchCorpusVectors` |
 | Sparse / Hybrid 自测 | `pnpm run verify:sparse-recall` / `verify:hybrid-recall` / `verify:recall-compare` | HY-01～07 |
 | Vercel AI SDK | `pnpm run experiment:vercel-ai -- "prompt"` | `streamText` + Ollama（主链仍自研 SSE） |
 | LangChain bindTools | `pnpm run experiment:bind-tools -- "问法"` | ReAct 选 StructuredTool；`--schema-only` 不测 Ollama |
@@ -629,8 +623,8 @@ pnpm --filter @fambrain/brain-service run experiment:bind-tools -- "我的名字
 | `intent === "summarize_content"` 且需查库（`searchQuery` 非空） | `retrieval` → **contentSummarizer** | 摘要终稿 |
 | `intent === "summarize_content"` 且无需查库 | **contentSummarizer** | 摘要终稿 |
 | `intent` 为 `remember_user_fact` / `recall_user_fact` 且 Intake 填齐 schema | **userFact** → 终稿 | SSE：`user_fact`；**不经 KM / FC / Analyst** |
-| `retrieve_and_answer` / composite 等需 KM | `retrieval` → **FactChecker** → … → **Analyst** | 检索 + 分析终稿 |
-| FactChecker `passed=false` 且 `retryCount<1` | 再 `retrieval` → 再 **FactChecker** | 同轮可能见两次「核查证据…」 |
+| `retrieve_and_answer` / composite 等需检索 | `planCacheResolve` → **planFanOut**（km/list/mem/tool/…）→ **contentOrganizer** → **Analyst** | 检索 + 分析终稿 |
+| Join 后结构失败槽 | **全局再规划 B**（≤1） | 改 query / 外搜补救；不再打回 FactChecker |
 | 其余 | `respondEarly` | 简短说明或请用户补充 |
 
 ## 流式 SSE 事件（`POST .../messages`）
@@ -638,7 +632,7 @@ pnpm --filter @fambrain/brain-service run experiment:bind-tools -- "我的名字
 | `event` | 含义 |
 |---------|------|
 | `meta` | 用户消息已落库（含真实 `id`） |
-| `step` | 编排进度：**`prepare_turn_start`** / `intake` / **`user_fact`** / `retrieval` / `fact_checker` / **`content_summarizer`** / **`content_organizer`** / `analyst` / **`persist_turn_end`**，`status` 为 `running` \| `done`；`done` 时可带 `durationMs` |
+| `step` | 编排进度：**`prepare_turn_start`** / `intake` / **`user_fact`** / `plan_fan_out` / `list_retrieve` / `km_retrieve` / **`content_summarizer`** / **`content_organizer`** / `analyst` / **`persist_turn_end`**，`status` 为 `running` \| `done`；`done` 时可带 `durationMs`（无 `fact_checker`） |
 | `pipeline_timing` | SLO：本轮 `totalMs`、`ttftMs`、各节点 `nodes`（Agents → BFF 转发） |
 | `ready` | Pipeline 已出终稿、即将落库（BFF）；前端可提前解锁输入 |
 | `thinking` | 信息分析师推理流（若模型/Ollama 支持） |

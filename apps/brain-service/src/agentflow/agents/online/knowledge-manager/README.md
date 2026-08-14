@@ -13,7 +13,7 @@ KM 是 Pipeline 的**纯规则检索 Agent**（复合路径在 **plan-fanout** �
 | 问题 | KM 的解法 |
 |------|-----------|
 | 检索与生成混在一起会编造 excerpt | **检索层零 LLM**：规则 rank + pickExcerpt |
-| 向量 alone 漏关键词 / 路径权威 | **Hybrid 并行召回**（向量 ∥ BM25）→ RRF 融合 |
+| 向量 alone 漏关键词 / 路径权威 | **Hybrid 召回**（Qdrant dense + sparse，引擎 RRF） |
 | identity / 列举 / tech 问法差异大 | **queryProfile 分档** topK、maxHits、guard |
 | 多问 composite 重复算力 | **检索 hits 缓存** + **槽答案增量**（命中槽跳过 KM） |
 
@@ -28,9 +28,10 @@ KM 是 Pipeline 的**纯规则检索 Agent**（复合路径在 **plan-fanout** �
 
 | 技术 | 文件 | 用途 |
 |------|------|------|
-| Chroma 向量 | `@fambrain/corpus` | 向量语义召回 |
-| BM25 sparse | `@fambrain/corpus` | 关键词召回 |
-| RRF | `recall/fusion-rrf.ts` | RRF 融合排序 |
+| Qdrant dense | `@fambrain/corpus` `searchCorpusVectors` | 向量语义召回 |
+| Qdrant sparse | `@fambrain/corpus` `searchCorpusSparse` | 关键词召回（入库 TF + idf） |
+| 引擎 RRF | `recall/hybrid-recall.ts` → `searchCorpusHybrid` | Qdrant prefetch + weighted RRF（需镜像 ≥1.15） |
+| 进程内 RRF | `recall/fusion-rrf.ts` | 单测 / 对比脚本；主链不再调用 |
 | Redis / memory | `@fambrain/infra` | 检索 hits 缓存 |
 | Zod | `contract/schema.ts` | hits 结构校验 |
 
@@ -103,7 +104,7 @@ resolveQueryProfile(queryType, searchQuery, subTasks)
     │
     ▼
 hybridRecall()              recall/hybrid-recall.ts
-    vector ∥ sparse → fuseRrf()
+    searchCorpusHybrid（Qdrant 引擎 RRF）
     │
     ▼
 rankCandidates + pickExcerpt    recall/retrieve-helpers.ts

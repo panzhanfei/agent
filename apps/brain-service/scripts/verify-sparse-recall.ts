@@ -1,10 +1,9 @@
 /**
- * HY-01 BM25 sparse 检索验证（不依赖 Chroma）。
+ * HY-01 BM25 分词单测 + Qdrant sparse 检索验证。
  *
  *   pnpm --filter @fambrain/brain-service run verify:sparse-recall
  */
-import { buildBm25Index } from "@fambrain/corpus";
-import { recallSparseRetrieve } from "@fambrain/corpus";
+import { buildBm25Index, qdrantReady, recallSparseRetrieve } from "@fambrain/corpus";
 import { listCorpusUserIds } from "../src/agentflow/agents/offline/knowledge-indexer/list-corpus-users";
 
 const assert = (name: string, fn: () => void) => {
@@ -73,8 +72,12 @@ const liveCases: LiveCase[] = [
 
 const main = async () => {
     const corpusUserId = await resolveCorpusUserId();
+    if (!(await qdrantReady())) {
+        console.error("Qdrant 未就绪，请 docker compose up -d qdrant 后 index:corpus");
+        process.exit(1);
+    }
     let failed = 0;
-    console.log(`\n— BM25 live corpusUserId=${corpusUserId} —`);
+    console.log(`\n— Qdrant sparse live corpusUserId=${corpusUserId} —`);
 
     for (const c of liveCases) {
         const hits = await recallSparseRetrieve(corpusUserId, c.q, 8);

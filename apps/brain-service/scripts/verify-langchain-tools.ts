@@ -8,17 +8,6 @@ import { mkdtemp, mkdir, writeFile, rm } from "node:fs/promises";
 import os from "node:os";
 import path from "node:path";
 
-const chromaReady = async (url: string): Promise<boolean> => {
-    try {
-        const res = await fetch(`${url}/api/v2/heartbeat`, {
-            signal: AbortSignal.timeout(3000),
-        });
-        return res.ok;
-    } catch {
-        return false;
-    }
-};
-
 const ok = (msg: string) => console.log(`  ✓ ${msg}`);
 
 const main = async (): Promise<void> => {
@@ -43,7 +32,7 @@ const main = async (): Promise<void> => {
     assert.equal(webParsed.status, "disabled");
     ok("search_web 默认 disabled");
 
-    console.log("\n— retrieve_corpus (live, 需 Chroma) —");
+    console.log("\n— retrieve_corpus (live, 需 Qdrant) —");
 
     const { bootstrapBrainServiceRuntime } = await import("@/config");
     bootstrapBrainServiceRuntime();
@@ -51,7 +40,7 @@ const main = async (): Promise<void> => {
     const { listCorpusUserIds } = await import(
         "@/agentflow/agents/offline/knowledge-indexer/list-corpus-users"
     );
-    const { getChromaServerUrl } = await import("@fambrain/corpus");
+    const { qdrantReady } = await import("@fambrain/corpus");
     const { retrieveCorpusTool, runWithToolContext } = await import(
         "@/agentflow/tools"
     );
@@ -62,8 +51,8 @@ const main = async (): Promise<void> => {
 
     if (!corpusUserId) {
         console.log("  (skip) 无 corpus 用户");
-    } else if (!(await chromaReady(getChromaServerUrl()))) {
-        console.log("  (skip) Chroma 未启动");
+    } else if (!(await qdrantReady())) {
+        console.log("  (skip) Qdrant 未启动");
     } else {
         const raw = await runWithToolContext(
             { corpusUserId, actorUserId: corpusUserId },

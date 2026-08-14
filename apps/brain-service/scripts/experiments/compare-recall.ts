@@ -3,7 +3,7 @@
  *
  *   pnpm run experiment:recall-compare -- <corpusUserId> "<query>"
  *
- * 需 Ollama embed + Chroma 已入库。
+ * 需 Ollama embed + Qdrant 已入库。
  */
 import { recallSparseRetrieve, searchCorpusVectors } from "@fambrain/corpus";
 import { hybridRecall } from "../src/agentflow/agents/online/knowledge-manager/recall";
@@ -42,7 +42,7 @@ const main = async () => {
         vectorHits = await searchCorpusVectors(corpusUserId, query, 8);
     } catch (e) {
         console.error(
-            "vector 失败（Chroma/Ollama 未就绪？）:",
+            "vector 失败（Qdrant/Ollama 未就绪？）:",
             e instanceof Error ? e.message : e
         );
     }
@@ -51,7 +51,7 @@ const main = async () => {
     const hybrid = await hybridRecall(corpusUserId, query, query, 8);
 
     printHits(
-        "Chroma vector",
+        "Qdrant vector",
         vectorHits.map((h) => ({ path: h.path, title: h.title, score: h.score }))
     );
     printHits(

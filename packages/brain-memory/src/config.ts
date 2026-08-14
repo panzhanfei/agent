@@ -26,8 +26,8 @@ export type MemoryConfig = {
     mem0Enabled: boolean;
     langMemEnabled: boolean;
     mem0HistoryDbPath: string;
-    /** Mem0 用户记忆 Chroma collection（与语料 fambrain_corpus_* 隔离） */
-    mem0ChromaCollection: string;
+    /** Mem0 用户记忆 Qdrant collection（与语料 fambrain_corpus_* 隔离，dense-only） */
+    mem0Collection: string;
     langMemSummarizeAfterTurns: number;
     langMemKeepRecentTurns: number;
     mem0SearchLimit: number;
@@ -52,8 +52,8 @@ export const getMemoryConfig = (): MemoryConfig => {
         mem0HistoryDbPath:
             process.env.MEM0_HISTORY_DB_PATH?.trim() ||
             path.join(root, "data/memory/mem0/history.db"),
-        mem0ChromaCollection:
-            process.env.MEM0_CHROMA_COLLECTION?.trim() ||
+        mem0Collection:
+            process.env.MEM0_QDRANT_COLLECTION?.trim() ||
             "fambrain_user_memories",
         langMemSummarizeAfterTurns: clampInt(
             process.env.LANGMEM_SUMMARIZE_AFTER_TURNS,

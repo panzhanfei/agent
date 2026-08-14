@@ -1,7 +1,7 @@
 #!/usr/bin/env node
 /**
  * 进程内 E2E：runPipelineStream + UI exact-match「我的原文库」。
- * 不依赖 Web；需 chroma/ollama 视主链路而定（vault list 旁路不经 LLM）。
+ * 不依赖 Web；需 qdrant/ollama 视主链路而定（vault list 旁路不经 LLM）。
  */
 import { bootstrapBrainServiceRuntime } from "@/config/index";
 import { runPipelineStream } from "@/agentflow/pipeline";

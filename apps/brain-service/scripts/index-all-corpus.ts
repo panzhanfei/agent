@@ -1,6 +1,6 @@
 #!/usr/bin/env node
 /**
- * 全量语料入库 CLI：扫描 data/doc/users/ 下所有用户的 corpus，写入 Chroma。
+ * 全量语料入库 CLI：扫描 data/doc/users/ 下所有用户的 corpus，写入 Qdrant。
  *
  * 用法：
  *   pnpm run index:corpus

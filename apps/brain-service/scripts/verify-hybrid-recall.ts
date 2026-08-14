@@ -60,16 +60,16 @@ assert("BM25 > 0 映射到 (0,1)", () => {
 
 console.log("\n— hybridRecall live —");
 
-const chromaUrl = (): string => {
+const qdrantUrl = (): string => {
     const base =
-        process.env.CHROMA_SERVER_URL?.trim() ||
-        `http://${process.env.CHROMA_HOST ?? "127.0.0.1"}:${process.env.CHROMA_PORT ?? "8030"}`;
+        process.env.QDRANT_URL?.trim() ||
+        `http://${process.env.QDRANT_HOST ?? "127.0.0.1"}:${process.env.QDRANT_PORT ?? "6333"}`;
     return base.replace(/\/$/, "");
 };
 
-const chromaReady = async (): Promise<boolean> => {
+const qdrantReady = async (): Promise<boolean> => {
     try {
-        const res = await fetch(`${chromaUrl()}/api/v2/heartbeat`, {
+        const res = await fetch(`${qdrantUrl()}/readyz`, {
             signal: AbortSignal.timeout(3000),
         });
         return res.ok;
@@ -86,7 +86,10 @@ const runLive = async () => {
         return;
     }
     const corpusUserId = ids[0]!;
-    const chromaUp = await chromaReady();
+    const qdrantUp = await qdrantReady();
+    if (!qdrantUp) {
+        throw new Error(`Qdrant 未就绪 (${qdrantUrl()})，请 docker compose up -d qdrant 后 index:corpus`);
+    }
     const r = await hybridRecall(
         corpusUserId,
         "我的名字是什么",
@@ -94,7 +97,7 @@ const runLive = async () => {
         12
     );
     if (r.sparseRawCount === 0) {
-        throw new Error("sparse 路应至少 1 条");
+        throw new Error("sparse 路应至少 1 条（请 pnpm index:corpus）");
     }
     if (r.candidates.length === 0) {
         throw new Error("融合后 candidates 不应为空");
@@ -103,26 +106,17 @@ const runLive = async () => {
     if (!top.recallChannel) {
         throw new Error("candidate 应有 recallChannel");
     }
-    if (chromaUp) {
-        if (r.recallSource !== "hybrid") {
-            throw new Error(
-                `Chroma 在线时期望 hybrid，实际 ${r.recallSource} (vector=${r.vectorRawCount})`
-            );
-        }
-        if (r.vectorRawCount === 0) {
-            throw new Error("Chroma 在线但 vectorRawCount=0，请 index:corpus");
-        }
-        console.log(
-            `  ✓ hybrid mode corpus=${corpusUserId} source=${r.recallSource} vector=${r.vectorRawCount} sparse=${r.sparseRawCount} top=${top.path}`
-        );
-    } else {
-        if (r.recallSource !== "sparse") {
-            throw new Error(`Chroma 未起时期望 sparse，实际 ${r.recallSource}`);
-        }
-        console.log(
-            `  ✓ sparse-only corpus=${corpusUserId} (Chroma DOWN) sparse=${r.sparseRawCount} top=${top.path}`
+    if (r.recallSource !== "hybrid") {
+        throw new Error(
+            `期望 hybrid，实际 ${r.recallSource} (vector=${r.vectorRawCount} sparse=${r.sparseRawCount})`
         );
     }
+    if (r.vectorRawCount === 0) {
+        throw new Error("Qdrant 在线但 vectorRawCount=0，请 index:corpus");
+    }
+    console.log(
+        `  ✓ hybrid mode corpus=${corpusUserId} source=${r.recallSource} vector=${r.vectorRawCount} sparse=${r.sparseRawCount} top=${top.path}`
+    );
 };
 
 await runLive().catch((e) => {

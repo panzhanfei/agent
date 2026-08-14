@@ -85,7 +85,7 @@
 | P0-1 | Intake | 「我的名字」→ `clarify` | 小模型过度套用澄清示例 | prompt 收紧 clarify + 姓名→检索示例 | ✅ 已缓解 |
 | P0-2 | Intake | `confidence` 高但路由错 | 模型过度自信 | 代码规则 + `defaultIntakeDecision` | ✅ 已缓解 |
 | P0-3 | KM | 预扫有候选，最终 `hits:[]` | P0 关键词路径：token 不一致；中文匹配 | 统一 token；二元切分；`ensureNonEmptyHits` | ✅ 已缓解（2026-06 规则精排） |
-| P0-4 | KM | LLM 精排整批不选 / 改写 excerpt、编造 notes | 小模型精排不稳定；prompt 鼓励空数组 | **移除 KM 在线 LLM**；向量高置信 → 规则输出；低置信 → 关键词扫盘 + 规则；candidates 非空至少 1 hit | ✅ **已解决**（2026-06） |
+| P0-4 | KM | LLM 精排整批不选 / 改写 excerpt、编造 notes | 小模型精排不稳定；prompt 鼓励空数组 | **移除 KM 在线 LLM**；Qdrant hybrid + 规则精排；candidates 非空至少 1 hit | ✅ **已解决**（2026-06；2026-08 迁 Qdrant） |
 | P0-5 | 编排 | 以为模型指定下游 Agent | 误解职责 | 路由表在 `pipeline/graph/compile.ts` | ✅ 已解决 |
 | P0-6 | Analyst | 有 hits 仍说未检索到 | `hits` 未传入或上游已空 | 对齐 `agent-log` 链与 `analystInput.hits` | ⬜ 待回归 |
 | P0-7 | Prompt | few-shot 带偏 | 示例与口语问法不一致 | 补正向示例；负例写清边界 | 🔄 进行中 |
@@ -373,7 +373,7 @@ pnpm --filter @fambrain/brain-service run verify:intake-chitchat   # CHITCHAT_RU
 | **精排 / 合并** | ~~LLM 精排~~ → **规则 excerpt** | 2026-06 起 KM 不再调 Chat LLM；`pickExcerpt` 按 token 对齐 chunk 原文；同一 path 多 chunk 仍可能只交一条 excerpt |
 | **跨轮不一致** | 每轮新 pipeline 全量重跑（§2.2 D5-2） | 同句再问时 Intake 的 `searchQuery` / `topics` 可能略变；向量召回有波动；KM 现为确定性规则路径（`resultSource: "rule"`）→ **hits 数量波动应下降**，但 chunk 边界问题仍在 |
 | **Analyst 保守** | `coverage=partial` 时禁止推断未出现在 hits 中的履历 | hits 不全时 Analyst 正确表现为「只确认知识库有的」——**上游漏召回会被当成「库里没有」** |
-| **语料 / 索引** | 4 家可能分布在 `experience/` 多文件，未全部入 Chroma 或关键词未命中 | 需核对 `data/doc/users/<corpusUserId>/corpus/experience/` 文件数与 `index-all-corpus` 日志；与 D3-6（同 path 多 chunk）、D3-10（向量偏 projects 模板）叠加 |
+| **语料 / 索引** | 4 家可能分布在 `experience/` 多文件，未全部入 Qdrant 或关键词未命中 | 需核对 `data/doc/users/<corpusUserId>/corpus/experience/` 文件数与 `index-all-corpus` 日志；与 D3-6（同 path 多 chunk）、D3-10（向量偏 projects 模板）叠加 |
 
 **链路（通俗）：** 用户要「完整名单」→ 检索按「最像的几段」找书 → 管理员最多交 5 张摘抄 → 分析师只能念摘抄上的公司 → 再问一遍又重新找书，摘抄张数还不稳定。
 
@@ -1063,11 +1063,12 @@ pnpm --filter @fambrain/brain-service run verify:r6-no-cache           # 同会�
 
 ### 2.1 D3 / LangChain 联调踩坑（2026-05-22）
 
-> **背景：** 入库 + 在线检索由 LlamaIndex 迁至 **LangChain**（`@langchain/community` Chroma + `@langchain/ollama` Embeddings）；向量预扫已通，Golden G4 仍偶发 `hits:[]`。
+> **背景（2026-05）：** 入库 + 在线检索由 LlamaIndex 迁至 **LangChain**（当时 `@langchain/community` Chroma + `@langchain/ollama` Embeddings）。  
+> **现状（2026-08）：** 语料与 Mem0 均已迁 **Qdrant**；Chroma / `chroma-rag.ts` / `tools/chroma-server` 运行时已拆除。下表保留当时踩坑，对策列若写 Chroma 视为历史。
 
 | ID | 环节 | 现象 | 根因 | 对策（计划） | 状态 |
 |----|------|------|------|--------------|------|
-| D3-1 | 架构 | 入库 LlamaIndex、检索 LangChain 双栈 | 历史选型 + 渐进迁移 | 已统一 LangChain；`knowledge/chroma-rag.ts` 共享配置 | ✅ 已解决 |
+| D3-1 | 架构 | 入库 LlamaIndex、检索 LangChain 双栈 | 历史选型 + 渐进迁移 | 已统一 `@fambrain/corpus`；Chroma 适配已删 | ✅ 已解决 |
 | D3-2 | KM | **`candidateCount:12` 但 `hits:[]`**（P0-3 复发） | 向量语义召回 OK；~~LLM 精排空~~；关键词 fallback 按字面 token，与向量候选不匹配 | **`ensureNonEmptyHits`**：candidates 非空时禁止最终 hits 为空；保留向量 score | ✅ **已解决**（2026-06） |
 | D3-3 | KM | 日志常见 `notes: 仅关键词匹配…` / `resultSource: "llm"` | ~~LLM 精排 JSON 不稳定~~ | **移除 KM 在线 LLM**；统一 `resultSource: "rule"`；excerpt 由 `pickExcerpt` 截原文 | ✅ **已解决**（2026-06） |
 | D3-4 | KM | Intake 扩写含 `urban-governance` / `tech-stack` 等英文 tag | topics 拼进 tokenize，中文语料无字面命中 | topics 参与向量 query；规则 fallback 仍 tokenize topics — 英文 tag 字面未命中时靠向量 score / Top1 兜底 | 🔄 部分缓解 |
@@ -1077,9 +1078,10 @@ pnpm --filter @fambrain/brain-service run verify:r6-no-cache           # 同会�
 | D3-8 | Intake | 仅 `history.slice(-40)` 有上下文 | 控 Ollama context；Web 传全量 DB 历史 | 40 可配置；pipeline 注入「上一轮检索主题」摘要 | ⬜ sprint D3 |
 | D3-9 | Analyst | 追问「那个项目呢」易 clarify 或答偏 | Analyst **不读**全量 DB 历史，仅 `userQuestion` + hits + **memoryBlock** | **Intake** `coreference` + JSON 指代拼接（P0-31）+ Golden **G5b** | ✅ **已缓解**（2026-06；入口定型 **2026-07 §2.10**） |
 | D3-10 | RAG | G3「项目+技术」hits 有但偏 `aky-*` 模板 | 向量未优先 `experience/` / `personal/` | 路径加权或 Intake topics 引导；Golden G3 断言 path 分布 | ⬜ sprint D2 |
-| D3-11 | 文档 | 流程图/roadmap 仍写 LlamaIndex retriever、D3 未接 | 迁移后未同步 docs | 已统一写 LangChain / `@fambrain/corpus`（overview、flows、experiments） | ✅ 已解决 |
-| D3-12 | 开发 | `pnpm dev` agents `EADDRINUSE :3001`；需多终端起 Chroma/Redis | 旧进程占端口；依赖分散 | `scripts/dev-all.sh` 一键起 Chroma + Redis + Web + Agents；端口冲突仍需手动 kill | 🔄 **部分缓解**（2026-06-18） |
-| D3-13 | 开发 | 每次 `pnpm dev` 都 `uv` 下载包；或 Chroma 未就绪导致 **Web/Brain 未启动** | 旧脚本 `uv run --with chromadb` 临时环境；heartbeat 等待过短 | `tools/chroma-server/.venv` + `pnpm run chroma:install`；`chroma-server.sh` 直调 `.venv/bin/chroma`；`CHROMA_WAIT_SEC` / 首次 180s | ✅ **已解决**（2026-07-19） |
+| D3-11 | 文档 | 流程图仍写 LlamaIndex / Chroma | 迁移后未同步 docs | 2026-08 已统一写 Qdrant / `@fambrain/corpus` | ✅ 已解决 |
+| D3-12 | 开发 | `pnpm dev` agents `EADDRINUSE :3001`；依赖分散 | 旧进程占端口 | `scripts/dev-all.sh` 一键起 **Qdrant** + Redis + Web + Brain；端口冲突仍需手动 kill | 🔄 **部分缓解** |
+| D3-13 | 开发 | 每次 `pnpm dev` 都 `uv` 下载 Chroma；heartbeat 过短卡住启动 | 旧 `uv run --with chromadb` | 曾用 `tools/chroma-server/.venv`；**2026-08 已拆除 Chroma**，不再需要 uv/chroma | ✅ **已过时**（2026-08 迁 Qdrant） |
+| D3-14 | 向量库 | Chroma L2 + 查询时内存 BM25 与 Mem0 共用一套 HTTP | 语料要 sparse+RRF；Mem0 要 get/list/delete | **自托管 Qdrant v1.15.5**：语料 named `dense`+`sparse` 引擎 RRF；Mem0 独立 unnamed dense collection | ✅ **已解决**（2026-08） |
 
 **典型日志（D3-2）：**
 
@@ -1109,19 +1111,37 @@ pnpm --filter @fambrain/brain-service run verify:r6-no-cache           # 同会�
 
 **架构决策：** 检索层只做 **recall + 结构化 evidence**；开放式生成仅保留在 **Analyst**。与 Self-RAG / Corrective RAG 分工一致（grader ≠ generator；retriever 不用 Chat LLM）。
 
-**落地实现（`knowledge-manager/recall/retrieve.ts`）：**
+**落地实现（当时 2026-06，`knowledge-manager/recall/retrieve.ts`）：**
 
 ```text
 searchQuery + corpusUserId
-  → 向量召回: searchCorpusVectors()              // @fambrain/corpus，Chroma
-  → isVectorConfident(top1, gap)?           // top1 ≤ 1.25 且 top1-top2 ≥ 0.12
+  → 向量召回: searchCorpusVectors()              // 当时 @fambrain/corpus → Chroma
+  → isVectorConfident(top1, gap)?           // Chroma L2
       ├─ 是 → 向量 candidates
-      └─ 否 / 空 → 扫盘兜底: scanDocCandidates() // 扫 experience|projects|personal
-  → mergeCandidates()（低置信时合并向量 + 扫盘，按 path 去重）
-  → retrieveByKeywords()                    // token 命中 + vectorScoreToRelevance
-  → ensureNonEmptyHits()                    // D3-2：candidates>0 则 hits 必 ≥1
+      └─ 否 / 空 → 扫盘兜底: scanDocCandidates()
+  → mergeCandidates()
+  → retrieveByKeywords()
+  → ensureNonEmptyHits()
   → logAgentOut resultSource: "rule"
 ```
+
+**现状（2026-08）：**
+
+```text
+searchQuery + corpusUserId
+  → hybridRecall() → searchCorpusHybrid()   // Qdrant dense + sparse prefetch，引擎加权 RRF
+  → mergeCandidatesByPath()
+  → identity：必要时扫盘补 personal 简历
+  → rankCandidates + pickExcerpt
+  → assessConfidence / deriveCoverageFromTier
+  → ensureNonEmptyHits（仅低置信 coalesce）
+```
+
+- 语料 collection：`fambrain_corpus_<userId>`（named `dense` + `sparse`）
+- Mem0 collection：`fambrain_user_memories`（unnamed dense，与语料隔离）
+- 查询时 **不再** 扫盘建内存 BM25；sparse 在入库写入
+- 列举分页走 CorpusLister，不经 KM hybrid
+- Chroma L2 阈值 `VECTOR_CONFIDENT_*` 已删除（Qdrant cosine 越高越好）
 
 | 模块 | 常量 / 函数 | 说明 |
 |------|-------------|------|

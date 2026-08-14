@@ -1,6 +1,6 @@
 /**
  * 文档解析师（DocParser）
- * 批量上传 PDF / Word / PPT / 图片 → 解析为 Markdown → 可选 Chroma 入库。
+ * 批量上传 PDF / Word / PPT / 图片 → 解析为 Markdown → 可选 Qdrant 入库。
  */
 export { docParserLogger } from "./logger";
 export {

@@ -22,7 +22,7 @@
 
 | 类别 | 示例 | 路径 | LangGraph |
 |------|------|------|-----------|
-| ① 静态知识 | 文档里写了什么政策 | 本地向量库（Chroma + BM25） | `retrieval` → KM |
+| ① 静态知识 | 文档里写了什么政策 | 本地向量库（Qdrant dense + sparse） | `retrieval` → KM |
 | ② 个人信息 / 计算 | 我今年多大 | 语料检索 + **计算工具** | KM → `toolOrchestrator` → `compute_age_from_hits` |
 | ③ 实时动态 | xxx 公司最近怎么样 | **联网搜索**（corpus-first） | KM 弱命中 → `search_web` |
 | ④ 混合 | 根据简历 + 行情评估去某公司机会 | **DAG 编排** | `dagExecutor` 并行语料+联网 → `synthesize_merge`（**MatchReport 四栏**）→ Analyst 只渲染 |
@@ -46,19 +46,21 @@
 
 ## 3. 新 Pipeline 拓扑
 
+> **2026-08：** 主链 **FactChecker 已删**；失败槽补救走 `planSlotJoin` 后全局再规划 B。向量库为 **Qdrant**（语料 dense+sparse 引擎 RRF；Mem0 独立 dense collection）。
+
 ```mermaid
 flowchart TD
-  IC[IntakeCoordinator<br/>guard ⑧ applyToolPlanGuard] --> R{routeAfterIntake}
+  IC[IntakeCoordinator] --> R{routeAfterIntake}
 
-  R -->|pathPlan.dag hybrid| DAG[planExecutor 内 DagExecutor<br/>可与 slots 并存]
-  R -->|pathPlan km/list/tool| PE[planExecutor 槽检索 + FC + tools]
-  R -->|retrieve_and_answer| KM[KnowledgeManager retrieval]
+  R -->|pathPlan.dag hybrid| DAG[planFanOut 内 DagExecutor<br/>可与 slots 并存]
+  R -->|pathPlan km/list/tool| PE[planFanOut 槽检索 + tools]
+  R -->|纯 list| LIST[listRetriever]
   R -->|其它| EARLY[respondEarly / userFact / summarizer]
 
-  DAG --> FC[FactChecker]
-  KM --> FC
-  FC --> CO[ContentOrganizer]
-  CO --> TO[ToolOrchestrator<br/>age / enumeration / web]
+  DAG --> CO[ContentOrganizer]
+  PE --> CO
+  LIST --> CO
+  CO --> TO[ToolOrchestrator / planSlotPost<br/>age / enumeration / web]
   TO --> IA[InformationAnalyst<br/>消费 toolResults]
 ```
 
@@ -240,7 +242,7 @@ flowchart LR
 | `routeMode` | ~~整句互斥 / 可观测 skip\|plan~~ → **与图节点 1:1** | Intake 出口写入；`routes.ts` 只读分发；执行在节点内 |
 | `compositeSlots` | KM / list 并行槽 | dag 步不进槽；顺序跟 `pathPlan.steps` |
 | `executionPlan` | 混合 DAG | 与槽并存于 planExecutor |
-| FactChecker | 整轮一次；composite≥2 **跳过** | → **km 槽**工人内 per-step FC；list_corpus 不经 FC |
+| 全局再规划 B | Join 后结构失败槽补救（≤1） | **已替代**整轮 FactChecker 打回 |
 
 ### 11.2 PathPlan 有序 steps[] + Compose 一层
 

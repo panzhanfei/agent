@@ -22,13 +22,13 @@ export const resolveOllamaBaseUrl = (): string => {
         defaultPort: "11434",
     });
 };
-export const resolveChromaServerUrl = (): string => {
+export const resolveQdrantUrl = (): string => {
     return resolveHttpServiceUrl({
-        urlVar: "CHROMA_SERVER_URL",
-        hostVar: "CHROMA_HOST",
-        portVar: "CHROMA_PORT",
+        urlVar: "QDRANT_URL",
+        hostVar: "QDRANT_HOST",
+        portVar: "QDRANT_PORT",
         defaultHost: "127.0.0.1",
-        defaultPort: "8030",
+        defaultPort: "6333",
     });
 };
 export const resolveBrainServicePort = (): number => {

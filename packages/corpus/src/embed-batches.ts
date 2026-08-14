@@ -1,7 +1,7 @@
 import type { Document } from "@langchain/core/documents";
-import { Chroma } from "@langchain/community/vectorstores/chroma";
 import pLimit from "p-limit";
 import type { Logger } from "pino";
+
 const clampInt = (raw: string | undefined, fallback: number, max: number): number => {
     if (raw === undefined || raw.trim() === "")
         return fallback;
@@ -10,16 +10,19 @@ const clampInt = (raw: string | undefined, fallback: number, max: number): numbe
         return fallback;
     return Math.min(max, Math.max(1, Math.round(n)));
 };
+
 export type EmbedIndexOptions = {
     concurrency: number;
     batchSize: number;
 };
+
 export const getEmbedIndexOptions = (): EmbedIndexOptions => {
     return {
         concurrency: clampInt(process.env.INDEX_EMBED_CONCURRENCY, 3, 16),
         batchSize: clampInt(process.env.INDEX_EMBED_BATCH_SIZE, 8, 64),
     };
 };
+
 const chunkDocuments = <T>(items: T[], size: number): T[][] => {
     const batches: T[][] = [];
     for (let i = 0; i < items.length; i += size) {
@@ -27,7 +30,14 @@ const chunkDocuments = <T>(items: T[], size: number): T[][] => {
     }
     return batches;
 };
-export const addDocumentsWithEmbedLimit = async (vectorStore: Chroma, docs: Document[], logger: Logger, options: EmbedIndexOptions = getEmbedIndexOptions()): Promise<void> => {
+
+/** 分批并发跑 embed/upsert；fn 内自己 embed + 写库。 */
+export const mapEmbedBatches = async (
+    docs: Document[],
+    logger: Logger,
+    fn: (batch: Document[], batchIndex: number) => Promise<void>,
+    options: EmbedIndexOptions = getEmbedIndexOptions()
+): Promise<void> => {
     if (docs.length === 0)
         return;
     const { concurrency, batchSize } = options;
@@ -47,9 +57,7 @@ export const addDocumentsWithEmbedLimit = async (vectorStore: Chroma, docs: Docu
             docIds: batchIds,
             paths: batchPaths,
         }, "embed batch started");
-        await vectorStore.addDocuments(batch, {
-            ids: batchIds,
-        });
+        await fn(batch, batchIndex);
         indexed += batch.length;
         logger.info({
             step: "4c-embed-done",

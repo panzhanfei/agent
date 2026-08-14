@@ -67,18 +67,6 @@ export const CONFIDENCE_COALESCE_LOW_MIN = 0.32;
 export const RRF_VECTOR_WEIGHT = 0.85;
 export const RRF_SPARSE_WEIGHT = 1.2;
 
-/**
- * Chroma 欧氏距离：越小越相似。
- * HY-04 前用于 isVectorConfident；Hybrid 主路径不再串行 gating。
- */
-export const VECTOR_CONFIDENT_TOP1_MAX = 1.25;
-
-/**
- * top1 与 top2 的欧氏距离差 ≥ 此值视为「无歧义」。
- * 与 TOP1_MAX 一起决定是否仅走向量候选。用于：isVectorConfident。
- */
-export const VECTOR_CONFIDENT_GAP_MIN = 0.12;
-
 /** path 位于 corpus/personal/ 时的信誉加分（KM-03）。用于：getPathBoost、computeRelevance。 */
 export const PATH_BOOST_PERSONAL = 0.25;
 
@@ -114,8 +102,6 @@ export const getKmRetrievalConfig = () => ({
     scanBodyMax: SCAN_BODY_MAX,
     maxChunksPerPath: MAX_CHUNKS_PER_PATH,
     mergedChunkBodyMax: MERGED_CHUNK_BODY_MAX,
-    vectorConfidentTop1Max: VECTOR_CONFIDENT_TOP1_MAX,
-    vectorConfidentGapMin: VECTOR_CONFIDENT_GAP_MIN,
     vectorFetchMultiplier: VECTOR_FETCH_MULTIPLIER,
     rrfK: RRF_K,
     rrfVectorWeight: RRF_VECTOR_WEIGHT,

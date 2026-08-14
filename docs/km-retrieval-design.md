@@ -11,7 +11,7 @@
 | 业界层 | 标准能力 | 现状 | v3 目标 |
 |--------|----------|------|---------|
 | **查询理解** | 意图分类、指代补全、query 改写 | Intake 出 `searchQuery/topics/subTasks` | Intake 增 `queryType`；KM 内规则 profile 作 fallback |
-| **混合召回** | 向量 ∥ BM25/sparse → RRF | 串行：向量 → 低置信才扫盘 | **并行 Hybrid + RRF** |
+| **混合召回** | 向量 ∥ sparse → RRF | **Qdrant 引擎加权 RRF**（dense+sparse prefetch） | 保持引擎 RRF；可选 Cross-Encoder |
 | **置信评估** | 融合分 + 分档路由 | 向量距离阈值 + `coverage` 规则 | 多维置信 + 可选 `confidenceTier` |
 | **结果加工** | dedupe、excerpt、Cross-Encoder | 规则 rank + pickExcerpt | pathBoost、guard、表格 excerpt、可选 rerank |
 | **多级兜底** | 改写重查 → FAQ → 无知识标识 | scan + ensureNonEmptyHits | 分级兜底；FC retry 保留 |
@@ -19,8 +19,9 @@
 **Pipeline 分工：**
 
 ```text
-Intake（查询理解）→ KM（混合召回～兜底）→ FactChecker → ContentOrganizer → Analyst
+Intake（查询理解）→ KM（混合召回～兜底）→ ContentOrganizer → Analyst
                   ↑ 主战场
+（FactChecker 主链已删；失败槽补救走 planSlotJoin 全局 B）
 ```
 
 ---
@@ -51,11 +52,11 @@ Intake（查询理解）→ KM（混合召回～兜底）→ FactChecker → Con
 | KM-04 | 常量集中到 `km-config.ts` |
 | KM-08～09 | queryProfile + 分档 topK/maxHits |
 | KM-10～16 | 表格 excerpt、identity guard、列举 fill、coverage/notes、chunk merge |
-| HY-01～07 | BM25 sparse、并行 Hybrid、RRF 融合 |
+| HY-01～07 | Qdrant sparse（入库 BM25 TF）+ hybrid + 引擎 RRF |
 | QU-01～06 | Intake `queryType` → pipeline → KM |
 | EV-01～07 | confidenceTier 分档、FC 高置信快检 |
 
-**v1 长期保留：** 向量召回（Chroma）、规则精排（无 Chat LLM）、`ensureNonEmptyHits`、FC `refinedSearchQuery` 二次检索。
+**v1 长期保留：** 向量召回、规则精排（无 Chat LLM）、`ensureNonEmptyHits`。FactChecker `refinedSearchQuery` 二次检索 **已随 FC 主链删除**。
 
 **待做（可选）：** FAQ 短路（RC-01）、Cross-Encoder rerank（PR-01）、structuredFields（PR-02～03）、KM 内 query 放宽重查（FB-01）、外部搜索兜底（FB-03）。
 
@@ -80,9 +81,9 @@ Intake（查询理解）→ KM（混合召回～兜底）→ FactChecker → Con
 flowchart TD
   IN["Intake: searchQuery + topics + subTasks + queryType"] --> PROFILE["queryProfile（Intake 优先 / KM fallback）"]
   PROFILE --> HY["Hybrid Recall 并行"]
-  HY --> VEC["向量 Chroma"]
-  HY --> SPARSE["sparse / BM25"]
-  VEC --> RRF["RRF 融合"]
+  HY --> VEC["Qdrant dense"]
+  HY --> SPARSE["Qdrant sparse（入库 TF+idf）"]
+  VEC --> RRF["引擎加权 RRF"]
   SPARSE --> RRF
   RRF --> DEDUP["dedupeByPath + merge chunk"]
   DEDUP --> RANK["Rank: token + fusion + pathBoost"]
@@ -90,7 +91,6 @@ flowchart TD
   TIER --> EXC["Excerpt: 表格行优先"]
   EXC --> GUARD["identity / enumeration / 分级兜底"]
   GUARD --> OUT["hits / coverage / notes (+ tier?)"]
-  OUT --> FC["FactChecker（高置信规则快检）"]
 ```
 
 ---
@@ -115,10 +115,10 @@ Intake `queryType` 与上表 **同名枚举**。
 | 项 | 原因 |
 |----|------|
 | KM 内 **Chat LLM** 精排 | v1 已证伪；精排用 RRF + Cross-Encoder |
-| 改 Chroma **Indexer 切块** | 离线范围；Hybrid 稳定后再评估 |
+| 改 **Indexer 切块** | 离线范围；Hybrid 稳定后再评估 |
 | Mem0 优先级 | Analyst 域（P0-14） |
 | 跨轮检索 **cache** | 编排层（D5-2） |
-| ES 集群 | MVP 用 corpus 内 BM25；规模上来再换 |
+| ES 集群 | MVP 用 Qdrant sparse；规模上来再评估 |
 
 ---
 
@@ -126,9 +126,9 @@ Intake `queryType` 与上表 **同名枚举**。
 
 | 命令 | 说明 |
 |------|------|
-| `pnpm --filter @fambrain/brain-service run verify:sparse-recall` | BM25 sparse 三问 |
-| `pnpm --filter @fambrain/brain-service run verify:hybrid-recall` | RRF 单测 + hybridRecall live |
-| `pnpm --filter @fambrain/brain-service run verify:recall-compare` | 三问 vector/sparse/RRF（需 Chroma） |
+| `pnpm --filter @fambrain/brain-service run verify:sparse-recall` | Qdrant sparse 三问 |
+| `pnpm --filter @fambrain/brain-service run verify:hybrid-recall` | hybridRecall live（引擎 RRF） |
+| `pnpm --filter @fambrain/brain-service run verify:recall-compare` | 三问 vector/sparse/RRF（需 Qdrant） |
 | `pnpm --filter @fambrain/brain-service run verify:km-retrieve` | 规则单测：pathBoost、rank、queryProfile |
 | `pnpm --filter @fambrain/brain-service run verify:km-retrieve:live` | 真实语料 KM 五问 |
 | `pnpm --filter @fambrain/brain-service run verify:confidence-tier` | 置信分档单测 + KM live |
@@ -152,4 +152,4 @@ Intake `queryType` 与上表 **同名枚举**。
 | 2026-06 | Intake `queryType`、confidenceTier、列举 project/experience 分流 |
 | 2026-07 | 文档精简：移除排期表，保留设计与验收 |
 | 2026-07 | **`external_link` queryProfile**（P0-25）；Intake link lookup + continuation guard |
-| 2026-07 | **单问/多问 routeMode 合并为 `slots`（1～N 槽）**；`query-signals` 结构对齐 stale multipart |
+| 2026-08 | **语料 + Mem0 迁 Qdrant**：dense+sparse 入库；查询走引擎加权 RRF；不再用 Chroma / 查询时内存 BM25 |

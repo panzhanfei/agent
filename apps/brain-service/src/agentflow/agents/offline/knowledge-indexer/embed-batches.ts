@@ -1,1 +1,1 @@
-export { addDocumentsWithEmbedLimit, getEmbedIndexOptions, type EmbedIndexOptions, } from "@fambrain/corpus";
+export { getEmbedIndexOptions, mapEmbedBatches, type EmbedIndexOptions, } from "@fambrain/corpus";

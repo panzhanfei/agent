@@ -1,6 +1,6 @@
 # UserFact（用户自述记忆）
 
-跨会话 **remember / recall** 用户联系方式等结构化事实（QQ、微信、手机…），经 Mem0 持久化。
+跨会话 **remember / recall** 用户联系方式等结构化事实，经 Mem0 持久化（向量落 **Qdrant** `fambrain_user_memories`，history 在 SQLite）。
 
 Mem0 / LangMem 在 **`preparePipelineMemory`** 加载；本模块负责 Intake JSON 解析、图节点读写 Mem0。
 

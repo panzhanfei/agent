@@ -1,5 +1,5 @@
 import { z } from "zod";
-/** 写入 Chroma 的 chunk metadata（入库前须通过校验） */
+/** 写入 Qdrant payload 的 chunk metadata（入库前须通过校验） */
 export const chunkMetadataSchema = z.object({
     corpusUserId: z.string().min(1),
     path: z.string().min(1),

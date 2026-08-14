@@ -188,7 +188,7 @@ const main = async () => {
   const tmp = await mkdtemp(path.join(os.tmpdir(), "fambrain-uf-"));
   const collection = `fambrain_uf_verify_${Date.now()}`;
   process.env.MEM0_HISTORY_DB_PATH = path.join(tmp, "history.db");
-  process.env.MEM0_CHROMA_COLLECTION = collection;
+  process.env.MEM0_QDRANT_COLLECTION = collection;
   process.env.LANGMEM_ENABLED = "false";
   const {
     resetMemoryConfigCache,
@@ -250,19 +250,16 @@ const main = async () => {
       `remember 确认应答含 QQ: ${rememberOut.answer}`
     );
 
-    console.log("✓ Mem0 remember → Chroma → 新 conversation recall");
+    console.log("✓ Mem0 remember → Qdrant → 新 conversation recall");
   } finally {
     try {
-      const { ChromaClient } = await import("chromadb");
-      const { resolveChromaServerUrl } =
-        await import("@fambrain/brain-config/service-url");
-      const client = new ChromaClient({ path: resolveChromaServerUrl() });
-      await client.deleteCollection({ name: collection });
+      const { getQdrantClient } = await import("@fambrain/corpus");
+      await getQdrantClient().deleteCollection(collection);
     } catch {
       /* 清理失败不挡断言结果 */
     }
     resetMem0Client();
-    delete process.env.MEM0_CHROMA_COLLECTION;
+    delete process.env.MEM0_QDRANT_COLLECTION;
     await rm(tmp, { recursive: true, force: true });
   }
   console.log("\nverify-user-fact OK");

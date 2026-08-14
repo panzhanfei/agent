@@ -21,7 +21,6 @@ cp -R "$WEB/.next/static/." "$OUT/standalone/apps/web/.next/static/"
 cp -R "$WEB/public/." "$OUT/standalone/apps/web/public/"
 
 mkdir -p "$OUT/data" "$OUT/packages/db/prisma"
-cp -R "$ROOT/data/chroma" "$OUT/data/" 2>/dev/null || mkdir -p "$OUT/data/chroma"
 cp -R "$ROOT/data/doc" "$OUT/data/" 2>/dev/null || mkdir -p "$OUT/data/doc"
 cp "$ROOT/packages/db/prisma/dev.db" "$OUT/packages/db/prisma/" 2>/dev/null || true
 

@@ -8,7 +8,7 @@
  *   GOLDEN_RUNS=3 pnpm run golden:regression
  *   pnpm run golden:regression -- 3
  *
- * 需 Ollama + Chroma + 已入库语料；corpusUserId 见 FAMBRAIN_CORPUS_USER_ID
+ * 需 Ollama + Qdrant + 已入库语料；corpusUserId 见 FAMBRAIN_CORPUS_USER_ID
  * 或 data/doc/users/ 下首个有 corpus 的用户。
  */
 import type { AgentPipelineContext, DbChatTurn } from "@fambrain/brain-types";

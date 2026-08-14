@@ -1,12 +1,12 @@
 /**
- * KnowledgeManager 检索：Hybrid 并行召回（向量 ∥ BM25）→ RRF 融合 → 规则精排输出。
+ * KnowledgeManager 检索：Qdrant hybrid（dense + sparse 引擎 RRF）→ 规则精排输出。
  *
  * 不做 LLM 精排：excerpt / coverage 由确定性规则生成，避免小模型改写 excerpt、
  * 编造 notes，并与业界「检索层不用 Chat LLM、生成留给 Analyst」一致。
  *
- * 向量召回：Chroma 向量语义召回（与 sparse 并行）
- * sparse 召回：corpus BM25 sparse 召回（与向量并行）
- * RRF 融合：RRF 融合候选（HY-02～03）
+ * 向量召回：Qdrant named vector `dense`（nomic-embed-text / cosine）
+ * sparse 召回：Qdrant named vector `sparse`（入库 BM25 TF + idf modifier）
+ * RRF 融合：Qdrant 引擎加权 RRF（HY-02～03；进程内 fuseRrf 仅单测）
  * 打分与摘录：内存关键词打分 + pickExcerpt（唯一输出路径）
  *
  * KM-01 topics 分流：topics 仅拼入向量 query；sparse 用 searchQuery + subTasks。
@@ -133,10 +133,10 @@ const mergeCandidates = (
             byPath.set(c.path, c);
             continue;
         }
-        const existingScore = existing.score ?? Number.POSITIVE_INFINITY;
-        const nextScore = c.score ?? Number.POSITIVE_INFINITY;
+        const existingScore = existing.score ?? 0;
+        const nextScore = c.score ?? 0;
         const mergedBody = mergeChunkBodies([existing.body, c.body]);
-        if (nextScore < existingScore) {
+        if (nextScore > existingScore) {
             byPath.set(c.path, { ...c, body: mergedBody });
         } else {
             byPath.set(c.path, { ...existing, body: mergedBody });
@@ -441,7 +441,7 @@ const loadCandidates = async (
  * 整体像一条流水线，没有 LLM 参与排序或改写摘录：
  *
  *   1. 判断问法类型（queryProfile）→ 决定召回要多宽、最终留几条
- *   2. 去向量库 + BM25 捞候选（或直接用上游已算好的 candidates）
+ *   2. 去 Qdrant hybrid（dense + sparse RRF）捞候选（或直接用上游已算好的 candidates）
  *   3. 同文件多 chunk 合并、身份类问法补个人简历
  *   4. 规则打分 + guard + 置信度 → 输出 hits / coverage / notes
  *
@@ -476,7 +476,7 @@ export const retrieveKnowledge = async (
     // ── ② 召回候选 ──────────────────────────────────────────────────────────
     // loadCandidates 两条路：
     //   - input.candidates 非空 → 复用（例如 facet 缓存 / 上游已 hybrid）
-    //   - 否则 → Chroma 向量 + 语料 BM25 并行，RRF 融合成候选列表
+    //   - 否则 → Qdrant dense + sparse hybrid（引擎 RRF）成候选列表
     const {
         candidates: rawCandidates,
         recallSource,

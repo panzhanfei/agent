@@ -1,22 +1,22 @@
 /**
- * 按 path 增量维护 Chroma：删旧 chunk →（可选）写入新 chunk。
+ * 按 path 增量维护 Qdrant：删旧 chunk →（可选）写入新 chunk。
  * 相对 indexCorpusDocuments 的整库 delete+重建，供单文件 HITL / 局部更新。
  */
 import { Document } from "@langchain/core/documents";
-import { Chroma } from "@langchain/community/vectorstores/chroma";
-import { ChromaClient, DefaultEmbeddingFunction } from "chromadb";
 import type { Logger } from "pino";
+import { isCorpusNoisePath } from "./corpus-noise";
 import {
-  addDocumentsWithEmbedLimit,
-  getEmbedIndexOptions,
-  type EmbedIndexOptions,
-} from "./embed-batches";
-import {
-  chromaLibArgs,
   corpusCollectionName,
   createOllamaEmbeddings,
-  getChromaServerUrl,
+  ensureCorpusCollection,
+  upsertCorpusDocumentBatch,
 } from "./corpus-vector";
+import {
+  getEmbedIndexOptions,
+  mapEmbedBatches,
+  type EmbedIndexOptions,
+} from "./embed-batches";
+import { CORPUS_DENSE_VECTOR_SIZE, getQdrantClient } from "./qdrant-client";
 
 const normalizeRepoPath = (repoPath: string): string =>
   repoPath.replace(/\\/g, "/").replace(/^\.\//, "").trim();
@@ -29,23 +29,23 @@ export const deleteCorpusVectorsByPath = async (
   const pathKey = normalizeRepoPath(repoPath);
   if (!pathKey) return { deleted: false, collectionName };
 
-  const client = new ChromaClient({ path: getChromaServerUrl() });
+  const client = getQdrantClient();
   try {
-    const collection = await client.getCollection({
-      name: collectionName,
-      embeddingFunction: new DefaultEmbeddingFunction(),
+    await client.delete(collectionName, {
+      wait: true,
+      filter: {
+        must: [{ key: "path", match: { value: pathKey } }],
+      },
     });
-    await collection.delete({ where: { path: pathKey } });
     return { deleted: true, collectionName };
   } catch {
-    // collection 不存在或 where 无匹配
     return { deleted: false, collectionName };
   }
 };
 
 /**
  * 按 path 更新向量：先删该 path 全部 chunk；docs 非空则 embed 写入。
- * docs 为空（清空文件）→ 只删不写。
+ * docs 为空（清空文件）或噪声路径 → 只删不写。
  */
 export const upsertCorpusDocumentsByPath = async (
   corpusUserId: string,
@@ -73,7 +73,7 @@ export const upsertCorpusDocumentsByPath = async (
     "corpus path index: deleted prior chunks"
   );
 
-  if (docs.length === 0) {
+  if (docs.length === 0 || isCorpusNoisePath(pathKey)) {
     return { collectionName, chunkCount: 0, deleted };
   }
 
@@ -92,14 +92,15 @@ export const upsertCorpusDocumentsByPath = async (
     });
   });
 
-  const vectorStore = await Chroma.fromExistingCollection(
-    createOllamaEmbeddings(),
-    chromaLibArgs(collectionName)
-  ).catch(async () => {
-    return new Chroma(createOllamaEmbeddings(), chromaLibArgs(collectionName));
-  });
-
-  await addDocumentsWithEmbedLimit(vectorStore, withPath, logger, options);
+  await ensureCorpusCollection(collectionName, CORPUS_DENSE_VECTOR_SIZE);
+  const embeddings = createOllamaEmbeddings();
+  await mapEmbedBatches(
+    withPath,
+    logger,
+    (batch) =>
+      upsertCorpusDocumentBatch(collectionName, corpusUserId, batch, embeddings),
+    options
+  );
   logger.info(
     {
       step: "path_upsert_add",

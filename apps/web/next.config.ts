@@ -40,7 +40,6 @@ const nextConfig: NextConfig = {
     serverExternalPackages: [
         "@prisma/client",
         "better-sqlite3",
-        "chromadb",
         "@langchain/community",
     ],
     poweredByHeader: false,

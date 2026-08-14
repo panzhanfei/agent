@@ -106,8 +106,8 @@ Eval：`golden.json` → `vaultWorkspaceProbe`；`eval:run -- --vault-only`。
 |----|------|--------|
 | Working | 图 state | 运行时 |
 | LangMem | 会话摘要 → Prisma `Conversation.sessionSummary` | `persistPipelineMemory` |
-| Mem0 | 跨会话结构化用户事实 → Chroma `fambrain_user_memories` + history.db | 显式 remember / 静默 `user-memory-extract` |
-| Corpus/Chroma | 知识库 | **vault_workspace** materialize/purge / 入库脚本（**禁止**静默自学写） |
+| Mem0 | 跨会话结构化用户事实 → Qdrant `fambrain_user_memories` + history.db | 显式 remember / 静默 `user-memory-extract` |
+| Corpus/Qdrant | 知识库 | **vault_workspace** materialize/purge / 入库脚本（**禁止**静默自学写） |
 
 - **废除**：整轮 `addTurnToMem0`；旧 Learning pending / auto corpus / `/learning` HITL  
 - **静默自学**：`USER_MEMORY_AUTO_LEARN_ENABLED` 默认 **false**；独立 LLM（非 Intake）；只信抽取 JSON + Zod；不写 corpus  

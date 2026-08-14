@@ -39,9 +39,7 @@ export const mergeCandidatesByPath = (
     const merged: VectorChunkRow[] = [];
     for (const group of byPath.values()) {
         const sorted = [...group].sort(
-            (a, b) =>
-                (a.score ?? Number.POSITIVE_INFINITY) -
-                (b.score ?? Number.POSITIVE_INFINITY)
+            (a, b) => (b.score ?? 0) - (a.score ?? 0)
         );
         const kept = sorted.slice(0, maxPerPath);
         const best = kept[0]!;
@@ -57,11 +55,7 @@ export const mergeCandidatesByPath = (
     }
 
     return merged
-        .sort(
-            (a, b) =>
-                (a.score ?? Number.POSITIVE_INFINITY) -
-                (b.score ?? Number.POSITIVE_INFINITY)
-        )
+        .sort((a, b) => (b.score ?? 0) - (a.score ?? 0))
         .slice(0, maxCandidates);
 };
 
@@ -72,10 +66,10 @@ export const dedupeVectorByPath = (
     maxCandidates = MAX_CANDIDATES
 ): VectorChunkRow[] => mergeCandidatesByPath(chunks, maxPerPath, maxCandidates);
 
-/** Chroma 欧氏距离 → 0–1 语义相关度（越小越相似）。用于：computeRelevance（KM-05）。 */
+/** Qdrant Cosine / 引擎 RRF：越大越相似，钳到 0–1。用于：computeRelevance（KM-05）。 */
 export const vectorScoreToRelevance = (score: number | undefined): number => {
-    if (typeof score !== "number") return 0;
-    return Math.max(0, Math.min(1, 1 - score / 2));
+    if (typeof score !== "number" || !Number.isFinite(score)) return 0;
+    return Math.max(0, Math.min(1, score));
 };
 
 /** BM25 raw score → 0–1（HY-05 sparse 通道 rank 用）。 */
@@ -88,7 +82,9 @@ const resolveRecallRelevance = (c: VectorChunkRow): number => {
     const vectorRel = vectorScoreToRelevance(c.score);
     const sparseRel = sparseScoreToRelevance(c.rawScore);
     if (c.recallChannel === "sparse") return sparseRel;
-    if (c.recallChannel === "hybrid") return Math.max(vectorRel, sparseRel);
+    if (c.recallChannel === "hybrid") {
+        return vectorScoreToRelevance(c.fusionScore ?? c.score);
+    }
     return vectorRel;
 };
 

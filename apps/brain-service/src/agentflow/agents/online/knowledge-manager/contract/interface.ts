@@ -26,12 +26,12 @@ export type EnumerationMeta = {
   hasMore?: boolean;
 };
 
-/** HY-05：统一候选（向量欧氏距离 / BM25 rawScore + 可选 fusionScore） */
+/** HY-05：统一候选（Qdrant Cosine / 引擎 RRF / sparse rawScore + 可选 fusionScore） */
 export type KnowledgeCandidate = {
   path: string;
   title: string;
   body: string;
-  /** Chroma 欧氏距离（越小越好）；sparse-only 无此项 */
+  /** Qdrant Cosine 或 RRF（越大越好） */
   score?: number;
   rawScore?: number;
   recallChannel?: RecallChannel;

@@ -25,17 +25,17 @@
 | 技术 | 当前用途 |
 |------|----------|
 | Ollama | 本地 chat + embed（`ChatOllama`、流式 thinking） |
-| LangChain | Intake / Analyst / Organizer 等模型调用；**StructuredTool**（`agentflow/tools/`）；离线入库 + 在线检索经 `@langchain/community` Chroma + `@langchain/ollama` Embeddings（`@fambrain/corpus`） |
-| LangSmith | LangGraph run trace + 节点 metadata | 配 `LANGSMITH_API_KEY` 后自动上报 [smith.langchain.com](https://smith.langchain.com)；`/health` 可见状态 |
-| ChromaDB | 按 `corpusUserId` 分 collection；离线入库 + **在线检索**；单文件 HITL 按 path 增量 upsert |
+| LangChain | Intake / Analyst / Organizer 等模型调用；**StructuredTool**（`agentflow/tools/`）；embed 经 `@langchain/ollama`（`@fambrain/corpus`） |
+| LangSmith | 配 `LANGSMITH_API_KEY` 后自动上报 [smith.langchain.com](https://smith.langchain.com)；`/health` 可见状态 |
+| Qdrant | 语料按 `corpusUserId` 分 collection（named vectors `dense`+`sparse`，引擎 RRF）；Mem0 独立 unnamed dense collection；单文件 HITL 按 path 增量 upsert |
 | Zod | 注册/会话 + 入库 metadata；**在线 Agent JSON schema**（Intake / KM / Analyst / Organizer） |
 | Pino | 知识入库师结构化日志 |
 | p-limit | 入库 embed 并发控制；**DocParser** 批量解析并发（`DOC_PARSE_CONCURRENCY`） |
 | Redis + BullMQ | `@fambrain/infra`：检索 hits 缓存（D5-2）、pipeline 异步队列（可选 `PIPELINE_QUEUE_ENABLED`） |
-| Mem0 | 跨会话语义记忆；向量落 **Chroma** 独立 collection（`fambrain_user_memories`），history 在 SQLite；**P0-16** 结构化 remember/recall 经 **userFact** |
+| Mem0 | 跨会话语义记忆；向量落 **Qdrant** 独立 collection（`fambrain_user_memories`，dense-only），history 在 SQLite；**P0-16** 结构化 remember/recall 经 **userFact** |
 | LangMem | 单会话摘要压缩，落 **Prisma `Conversation.sessionSummary`**，配合 Message 历史裁剪 Intake 上下文 |
 | MCP SDK | 实验：`experiment:mcp-vault` 只读列 vault |
-| Recall（BM25 sparse） | `recallSparseRetrieve` / `recallKeywordRetrieve`；`verify:sparse-recall`；对比 `experiment:recall-compare` |
+| Recall（Qdrant sparse） | 入库时写 BM25-style TF + `idf` modifier；在线 `searchCorpusSparse` / `recallKeywordRetrieve`（**不再**查询时扫盘建内存 BM25）；对比 `experiment:recall-compare` |
 | Vercel AI SDK | 实验：`experiment:vercel-ai`（主链仍自研 SSE） |
 
 编排与流程详见 [Agent 流程图](./02-agent-flows.md)。
@@ -52,15 +52,14 @@ pnpm run db:migrate
 pnpm run db:generate
 # 本地对话依赖 Ollama，请先安装并拉取模型，例如：
 #   ollama pull qwen2.5:14b
-# 本地 Chroma 为 Python HTTP 服务（非 npm 包），需安装 uv：https://docs.astral.sh/uv/
-#   pnpm run chroma:install   # 首次：写入 tools/chroma-server/.venv（类似 node_modules）
-# pnpm dev 会自动启动/等待 Chroma、Redis（可 Docker 拉起），并起 Web + Brain Service
+# 本地 Qdrant：pnpm run qdrant:server，或让 pnpm dev 自动 docker compose up qdrant
+# pnpm dev 会自动启动/等待 Qdrant、Redis（可 Docker 拉起），并起 Web + Brain Service
 pnpm run dev
 ```
 
-浏览器访问 `http://localhost:${PORT}`（默认 3000，见 `.env` 的 `PORT`）。聊天需 **[Ollama](https://ollama.com/)** 可访问（`.env` 中 `OLLAMA_HOST`/`OLLAMA_PORT` 或 `OLLAMA_BASE_URL`），`OLLAMA_MODEL` 与本地已 pull 模型一致。**Chroma / Redis 无需另开终端**（`scripts/dev-all.sh` 会检测就绪或自动启动；Redis 不可达且 `DEV_REDIS_AUTO_START=1` 时用 `docker compose up redis`）。
+浏览器访问 `http://localhost:${PORT}`（默认 3000，见 `.env` 的 `PORT`）。聊天需 **[Ollama](https://ollama.com/)** 可访问（`.env` 中 `OLLAMA_HOST`/`OLLAMA_PORT` 或 `OLLAMA_BASE_URL`），`OLLAMA_MODEL` 与本地已 pull 模型一致。**Qdrant / Redis 无需另开终端**（`scripts/dev-all.sh` 会检测就绪或自动启动；Redis 不可达且 `DEV_REDIS_AUTO_START=1` 时用 `docker compose up redis`）。
 
-**Chroma 本地服务：** Brain 侧 npm 包 `chromadb` 仅为 HTTP 客户端；向量库进程由 `tools/chroma-server/` 提供（PyPI `chromadb`，与 JS client 版本号不同，经 HTTP 互通）。依赖装在 `tools/chroma-server/.venv/`（已 gitignore），首次 clone 后执行 `pnpm run chroma:install`，或让 `pnpm dev` / `chroma:server` 在缺失时自动 `uv sync`。不想装 Python 时可改用 `pnpm run docker:up`（Chroma 走 Docker 镜像）。
+**向量库：** 语料（dense + sparse）与 Mem0（dense-only）都走本机 Qdrant（`QDRANT_HOST`/`QDRANT_PORT` 或 `QDRANT_URL`）。Collection 隔离：语料 `fambrain_corpus_<userId>`，Mem0 `fambrain_user_memories`。
 
 **pnpm 10+** 若安装后提示需批准依赖的构建脚本（如 `prisma`、`better-sqlite3`），在本仓库根目录执行一次 `pnpm approve-builds` 并按提示勾选即可；`package.json` 里已配置 `pnpm.onlyBuiltDependencies` 作为允许构建的名单，新开环境仍可能需要你本地确认一次。
 
@@ -69,30 +68,29 @@ pnpm run dev
 ### 首次使用说明
 
 - **首个注册用户**会成为 `ADMIN`；其余成员默认 `PENDING`，需具备「成员审核」权限的账号在 `/admin/users` 通过后变为 `ACTIVE` 才可进入主界面。
-- **聊天区**：侧栏会话与历史来自数据库；发送消息走 `POST /api/conversations/:id/messages`（**SSE 流式**），经 **Orchestrator → Pipeline → 五个 Worker Agent** 生成回复，**仅将最终 assistant 正文落库**（中间路由/检索结果在内存传递，不写 `messages` 表）。
+- **聊天区**：侧栏会话与历史来自数据库；发送消息走 `POST /api/conversations/:id/messages`（**SSE 流式**），经 **Brain Pipeline**（TurnStart → Intake → PathPlan fan-out / userFact → Analyst → TurnEnd）生成回复，**仅将最终 assistant 正文落库**（中间路由/检索结果在内存传递，不写 `messages` 表）。
 - **登录/注册表单**使用 `apps/web/src/actions/auth.ts`（Server Actions）；业务逻辑在 `packages/auth/`，与 REST API 共用。
 
 ## 脚本（pnpm）
 
 | 命令 | 说明 |
 |------|------|
-| `pnpm run dev` | **一键本地开发**：Chroma + Redis（可选 Docker 自动起）+ Web + Brain Service；`PIPELINE_QUEUE_ENABLED=1` 时另起 worker |
+| `pnpm run dev` | **一键本地开发**：Qdrant + Redis（可选 Docker 自动起）+ Web + Brain Service；`PIPELINE_QUEUE_ENABLED=1` 时另起 worker |
 | `pnpm run dev:web` | 仅 Web BFF |
 | `pnpm run dev:brain-service` | 仅 Brain HTTP（默认 `:3001`） |
 | `pnpm run dev:brain-worker` | 仅 BullMQ pipeline worker |
 | `pnpm run build` / `pnpm run start` | 构建 standalone / 生产启动（`apps/web`） |
 | `pnpm run pack:deploy` | 本地构建并打 tar 部署包 |
-| `pnpm run docker:up` | Docker 一键启动 web + brain-service + chroma + redis |
+| `pnpm run docker:up` | Docker 一键启动 web + brain-service + qdrant + redis |
 | `pnpm run lint` | ESLint |
 | `pnpm run db:generate` | 生成 Prisma Client |
 | `pnpm run db:migrate` | 开发环境迁移 |
 | `pnpm run db:push` | 无迁移文件时推送 schema（慎用） |
 | `pnpm run db:studio` | Prisma Studio |
 | `pnpm run rebuild:native` | 重新编译 `better-sqlite3`（解决缺少 `.node` 绑定） |
-| `pnpm run chroma:install` | **首次**安装 Chroma Python 依赖（`uv sync` → `tools/chroma-server/.venv`） |
-| `pnpm run chroma:server` | 单独启动 Chroma HTTP 服务（需 [uv](https://docs.astral.sh/uv/)，数据目录 `data/chroma/`） |
+| `pnpm run qdrant:server` | 单独 `docker compose up -d qdrant` |
 | `pnpm run redis:server` | 单独 `docker compose up -d redis` |
-| `pnpm run index:corpus` | **知识入库师**：全量扫描 `corpus/*.md` → embed → 写入 Chroma（语料变更后手动重跑） |
+| `pnpm run index:corpus` | **知识入库师**：全量扫描 `corpus/*.md` → embed → 写入 Qdrant（语料变更后手动重跑） |
 | `cd apps/brain-service && pnpm run corpus-worker` | 原文库语料队列 worker（需 `CORPUS_QUEUE_ENABLED` + Redis） |
 | `pnpm gate:engineering` | **分层门禁合一**：unit → eval（全量）→ load → e2e；报表落 `reports/`（分项覆盖，GATE 按段合并） |
 | `cd apps/brain-service && pnpm run e2e:inprocess:vault` | 进程内「我的原文库」list 旁路 E2E |
@@ -107,7 +105,7 @@ pnpm run dev
 | `cd apps/brain-service && pnpm run verify:memory` | LangMem→Prisma + prompt block（可 `MEM0_ENABLED=false`） |
 | `cd apps/brain-service && pnpm run verify:user-memory-extract` | 静默用户记忆 schema 合法化（无 Ollama） |
 | `cd apps/brain-service && pnpm run verify:langchain-tools` | LangChain StructuredTool 注册 + invoke 冒烟 |
-| `cd apps/brain-service && pnpm run verify:user-fact` | P0-16：remember/recall + Mem0→Chroma（需 Ollama+Chroma） |
+| `cd apps/brain-service && pnpm run verify:user-fact` | P0-16：remember/recall + Mem0→Qdrant（需 Ollama+Qdrant） |
 | `cd apps/brain-service && pnpm run verify:doc-parser` | DocParser 格式与路径单测 |
 | `pnpm run summarize:document -- <file.md>` | 内容摘要师（需 Ollama） |
 | `pnpm run experiment:mcp-vault` | MCP stdio 服务（列 vault） |
@@ -132,9 +130,7 @@ pnpm run dev
 | `BRAIN_SERVICE_HOST` / `BRAIN_SERVICE_PORT` | 建议 | Brain HTTP 服务，默认 `127.0.0.1:3001`；Web BFF 通过此地址调用 pipeline |
 | `BRAIN_SERVICE_URL` | 否 | 完整 Brain 服务 URL；Docker 内通常为 `http://brain-service:3001` |
 | `OLLAMA_HOST` / `OLLAMA_PORT` | 建议 | Ollama 地址；或用 `OLLAMA_BASE_URL` 直接覆盖 |
-| `CHROMA_HOST` / `CHROMA_PORT` | 否 | 本地 Chroma；`pnpm dev` 会自动启动/等待；或用 `CHROMA_SERVER_URL` 覆盖 |
-| `CHROMA_WAIT_SEC` | 否 | `pnpm dev` 等待 Chroma heartbeat 秒数，默认 `120` |
-| `CHROMA_FIRST_INSTALL_WAIT_SEC` | 否 | 首次 `uv sync` 后冷启动等待上限，默认 `180` |
+| `QDRANT_HOST` / `QDRANT_PORT` | 否 | 本地 Qdrant；`pnpm dev` 会自动启动/等待；或用 `QDRANT_URL` 覆盖 |
 | `DATABASE_URL` | 建议 | 默认 `file:./packages/db/prisma/dev.db`（相对仓库根目录 `.env`） |
 | `JWT_SECRET` | 生产必填 | 长度 ≥ 24；开发未设置时会使用占位密钥（控制台告警） |
 | `JWT_RENEW_BEFORE_EXPIRY_SEC` | 否 | 中间件刷新 Cookie 的提前量（秒），默认约 4 天 |
@@ -150,7 +146,7 @@ pnpm run dev
 | `OLLAMA_MODEL_EMBED` | 否 | 嵌入模型；不配则 `nomic-embed-text`（知识入库师 embed 用） |
 | `INDEX_EMBED_CONCURRENCY` | 否 | 入库 embed 同时进行的批次数，默认 `3`（上限 16） |
 | `INDEX_EMBED_BATCH_SIZE` | 否 | 每批 chunk 数，默认 `8`（上限 64） |
-| `CHROMA_SERVER_URL` | 否 | Chroma HTTP 客户端地址；不设则由 `CHROMA_HOST` + `CHROMA_PORT` 拼接 |
+| `QDRANT_URL` | 否 | Qdrant HTTP 地址；不设则由 `QDRANT_HOST` + `QDRANT_PORT` 拼接 |
 | `REDIS_ENABLED` / `REDIS_HOST` / `REDIS_PORT` | 否 | 启用 Redis；未设 `REDIS_URL` 且 `REDIS_ENABLED≠1` 时检索 cache 用进程内 memory |
 | `REDIS_URL` | 否 | 完整 Redis URL（优先于 HOST+PORT）；路径 `/N` 指定库号，如 `redis://127.0.0.1:6379/2` |
 | `REDIS_DB` | 否 | 逻辑库号，默认 `0`（URL 无 `/N` 时生效） |
@@ -166,7 +162,7 @@ pnpm run dev
 | `OLLAMA_MODEL_VISION` | 否 | 图片 OCR 视觉模型，默认沿用 `OLLAMA_MODEL`（建议 `llava` 等） |
 | `MEM0_ENABLED` / `LANGMEM_ENABLED` | 否 | 记忆层开关，默认 `true` |
 | `MEM0_HISTORY_DB_PATH` | 否 | Mem0 操作流水 SQLite，默认 `data/memory/mem0/history.db` |
-| `MEM0_CHROMA_COLLECTION` | 否 | Mem0 向量 collection，默认 `fambrain_user_memories`（与语料 collection 隔离） |
+| `MEM0_QDRANT_COLLECTION` | 否 | Mem0 向量 collection，默认 `fambrain_user_memories`（与语料 collection 隔离） |
 | `LANGMEM_SUMMARIZE_AFTER_TURNS` | 否 | 满 N 轮后触发会话摘要，默认 `8` |
 | `LANGMEM_KEEP_RECENT_TURNS` | 否 | 摘要后保留最近轮数，默认 `4` |
 | `LANGSMITH_API_KEY` | 否 | 配置后启用 LangSmith tracing（亦支持 `LANGCHAIN_API_KEY`） |
@@ -192,8 +188,8 @@ pnpm run dev
 | `apps/brain-service/src/agentflow/utils/` | 跨 Agent 通用工具（JSON 解析、Zod 辅助） |
 | `packages/auth/` | JWT、登录注册、会话 |
 | `packages/brain-types/` | `DbChatTurn`、`AgentPipelineContext` 等共享类型 |
-| `packages/brain-config/` | Ollama / Chroma 环境配置 |
-| `tools/chroma-server/` | 本地 Chroma Python 项目（`pyproject.toml` + `.venv`；`scripts/chroma-*.sh` 启动） |
+| `packages/brain-config/` | Ollama / Qdrant 环境配置 |
+| `packages/corpus/` | 语料路径、Qdrant 入库/检索（dense+sparse hybrid）、vault workspace |
 | `packages/brain-shared/` | agent-log、ollama-native-stream |
 | `apps/web/src/server/chat/handle-post-message.ts` | 存用户消息 → 调 Orchestrator → SSE → 存 assistant |
 | `apps/web/src/app/api/conversations/[id]/messages/route.ts` | GET 历史；POST 鉴权后委托 BFF |
@@ -222,7 +218,7 @@ pnpm run dev
 | `isPureListDecision` | `corpus-lister/route/` | routeAfterIntake → listRetriever 判定 |
 | `addStructuredUserFact` / `searchUserFactMemories` | `packages/brain-memory/src/mem0/store.ts` | Mem0 结构化写入 + 按 factKey 语义检索 |
 | `completeIntakeCoordinator` | `agentflow/agents/online/intake-coordinator/` | 一次 `invoke` → 路由 JSON |
-| `retrieveKnowledge` | `agentflow/agents/online/knowledge-manager/` | 向量 + 关键词扫盘 + **规则精排**（无 LLM）；v3 业界对标见 [km-retrieval-design.md](./km-retrieval-design.md) |
+| `retrieveKnowledge` | `agentflow/agents/online/knowledge-manager/` | Qdrant hybrid（dense+sparse 引擎 RRF）+ **规则精排**（无 LLM）；见 [km-retrieval-design.md](./km-retrieval-design.md) |
 | 全局再规划 B | `agentflow/agents/online/plan-fanout/global-rebatch/` | Join 后结构失败槽补救（替代已删 FactChecker 闭环） |
 | `organizeKnowledge` | `agentflow/agents/online/content-organizer/` | hits Zod 规范化 + path 去重 |
 | `streamAnalyzeInformation` | `agentflow/agents/online/information-analyst/` | 流式 thinking + assistant |
@@ -235,12 +231,13 @@ pnpm run dev
 | `ingestDocumentBatch` | `agentflow/agents/offline/doc-parser/` | 批量上传解析 → corpus + 可选入库 |
 | `summarizeContent` | `agentflow/agents/online/content-summarizer/` | 在线摘要分支 + CLI（D9） |
 | `listVaultFiles` | `agentflow/knowledge/list-vault-files.ts` | vault 只读列举（MCP 共用） |
-| `recallSparseRetrieve` | `packages/corpus/src/recall-keyword-retrieve.ts` | BM25 sparse 检索（HY-01） |
-| `hybridRecall` / `fuseRrf` | `knowledge-manager/recall/hybrid-recall.ts`、`fusion-rrf.ts` | 并行 Hybrid + RRF（HY-02～03） |
+| `recallSparseRetrieve` | `packages/corpus/src/recall-keyword-retrieve.ts` | Qdrant sparse 检索（入库 BM25 TF；HY-01） |
+| `hybridRecall` | `knowledge-manager/recall/hybrid-recall.ts` | 一次 `searchCorpusHybrid`（Qdrant 引擎加权 RRF；HY-02～03） |
+| `fuseRrf` | `knowledge-manager/recall/fusion-rrf.ts` | 进程内 RRF（单测 / 对比脚本；主链已改引擎 RRF） |
 | `@fambrain/infra` | `packages/infra/` | Redis 连接、检索 hits 缓存与槽答案缓存、BullMQ 队列、限流；相对 import **不带 `.ts` 后缀**（`packages/infra/tsconfig.json`） |
 | `verify:retrieval-cache` | `apps/brain-service/scripts/` | D5-2 检索 hits 缓存 normalize + memory/Redis |
 | `verify:repeat-question-smoke` | `apps/brain-service/scripts/` | D5-2 同问短路冒烟（无 Ollama） |
-| `verify:recall-compare` | `apps/brain-service/scripts/` | HY-07 三问 vector/sparse/RRF（需 Chroma） |
+| `verify:recall-compare` | `apps/brain-service/scripts/` | HY-07 三问 vector/sparse/RRF（需 Qdrant） |
 | `verify:confidence-tier` | `apps/brain-service/scripts/` | 置信分档单测 + KM live tier |
 | `verify:analyst-empty-hits` | `apps/brain-service/scripts/` | P0-12 / D5-5：空 hits skip LLM + insufficientEvidence |
 | `verify:intake-coreference` | `apps/brain-service/scripts/` | Intake 多轮指代（JSON peek + 拼接≤1）/ 单字 normalize / repeat · **P0-31** |
@@ -257,7 +254,7 @@ pnpm run dev
 | `harmonizeRetrievalPlanQueryTypes` | `intake-coordinator/guards/intake-link-lookup-guard.ts` | 混合问 enum+link 纠偏（P0-27） |
 | `maxAnalystHitsForProfile` | `information-analyst/analyst-recall-limits.ts` | Analyst hits 上限与 KM profile 对齐（P0-20） |
 | `clear-pipeline-cache.ts` | `apps/brain-service/scripts/` | 清空 检索 hits 缓存 / 槽答案缓存 Redis + 进程 memory；见 `.env.example` 三层 cache 开关 |
-| `diagnose-age-query.ts` | `apps/brain-service/scripts/` | 年龄单问：路由 + KM 检索 + 语料字段诊断（需 Chroma） |
+| `diagnose-age-query.ts` | `apps/brain-service/scripts/` | 年龄单问：路由 + KM 检索 + 语料字段诊断（需 Qdrant） |
 | `eval:run` | `apps/brain-service/scripts/eval/` | Eval MVP：G1～G5c + KM + E2E（**E2E-five-composite**）+ **memProbe/cacheProbe/profileProbe/fiveCompositeProbe**；`--mem-only` → **GMem**；`--profile-only` → **G-履历综合** |
 | `verify:user-memory-extract` | `apps/brain-service/scripts/` | 静默用户记忆 schema 合法化 |
 | `verify-test-env.ts` | `apps/brain-service/scripts/` | verify 脚本内覆盖 `.env` cache 开关；**勿**在生产入口引用 |
@@ -279,5 +276,5 @@ pnpm run dev
 | `verify:langchain-tools` | `apps/brain-service/scripts/` | Tool 注册 + retrieve / Mem0 / vault invoke 冒烟 |
 | `persistUserMemoryAutoLearnAfterTurn` | `agentflow/agents/online/user-memory-extract/` | 轮次后独立 LLM 抽结构化事实 → Mem0（默认关） |
 | `golden:regression` | `apps/brain-service/scripts/` | **G1～G5c + GMem** 全链路回归（`GOLDEN_RUNS=3` 稳定性） |
-| `indexAllCorpora` | `agentflow/agents/offline/knowledge-indexer/` | 离线 corpus → Chroma |
-| `logAgentIn` / `logAgentOut` | `packages/brain-shared/src/agent-log.ts` | 调试：含 FactChecker 🔍、ContentOrganizer 📋 |
+| `indexAllCorpora` | `agentflow/agents/offline/knowledge-indexer/` | 离线 corpus → Qdrant（跳过 README / `_template.md`） |
+| `logAgentIn` / `logAgentOut` | `packages/brain-shared/src/agent-log.ts` | 调试：各 Agent 进出日志（含 KnowledgeManager、ContentOrganizer） |

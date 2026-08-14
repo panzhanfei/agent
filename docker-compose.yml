@@ -1,7 +1,7 @@
-# FamBrain Docker 编排（web + brain-service + chroma）
+# FamBrain Docker 编排（web + brain-service + qdrant + redis）
 # Ollama 不在此编排内，请在 .env 配置外部地址（如局域网台式机）
 # 用法：pnpm docker:up
-# 端口从仓库根 .env 读取：PORT / BRAIN_SERVICE_PORT / CHROMA_PORT
+# 端口从仓库根 .env 读取：PORT / BRAIN_SERVICE_PORT / QDRANT_PORT
 
 services:
   web:
@@ -33,27 +33,22 @@ services:
     environment:
       BRAIN_SERVICE_PORT: ${BRAIN_SERVICE_PORT:-3001}
       JWT_SECRET: ${JWT_SECRET:-fambrain-docker-dev-secret-change-me!!}
-      CHROMA_SERVER_URL: http://chroma:8000
+      QDRANT_URL: http://qdrant:6333
       REDIS_URL: redis://redis:6379
       REDIS_ENABLED: "1"
     volumes:
       - fambrain-doc:/app/data/doc
-      - fambrain-chroma:/app/data/chroma
     depends_on:
-      - chroma
+      - qdrant
       - redis
     restart: unless-stopped
 
-  chroma:
-    image: chromadb/chroma:latest
-    env_file: .env
+  qdrant:
+    image: qdrant/qdrant:v1.15.5
     ports:
-      - "${CHROMA_PORT:-8030}:8000"
-    environment:
-      IS_PERSISTENT: "TRUE"
-      PERSIST_DIRECTORY: /chroma/chroma
+      - "${QDRANT_PORT:-6333}:6333"
     volumes:
-      - fambrain-chroma:/chroma/chroma
+      - fambrain-qdrant:/qdrant/storage
     restart: unless-stopped
 
   redis:
@@ -67,4 +62,4 @@ services:
 volumes:
   fambrain-db:
   fambrain-doc:
-  fambrain-chroma:
+  fambrain-qdrant:

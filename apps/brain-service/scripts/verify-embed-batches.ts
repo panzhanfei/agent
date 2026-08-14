@@ -1,5 +1,5 @@
 /**
- * embed 分批 + p-limit 逻辑单测（不依赖 Ollama / Chroma）。
+ * embed 分批 + p-limit 逻辑单测（不依赖 Ollama / Qdrant）。
  *
  *   pnpm run verify:embed-batches
  */
