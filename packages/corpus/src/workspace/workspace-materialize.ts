@@ -9,12 +9,15 @@ import type { Logger } from "pino";
 import {
   deleteCorpusVectorsByPath,
   upsertCorpusDocumentsByPath,
-} from "./corpus-vector-path";
+} from "../vector";
+import type { MaterializeResult, PurgeResult } from "./interface";
 import { readVaultWorkspaceTxt } from "./workspace-fs";
 import {
   normalizeWorkspaceRel,
   workspaceTxtToCorpusMdAbsPath,
 } from "./workspace-paths";
+
+export type { MaterializeResult, PurgeResult };
 
 const noopLogger = {
   info: () => undefined,
@@ -38,15 +41,6 @@ export const materializeWorkspaceTxtToMarkdown = (
   const title = txtBasenameTitle(workspaceRel);
   const body = txtBody.replace(/\r\n/g, "\n");
   return `# ${title}\n\n${body.trimEnd()}\n`;
-};
-
-export type MaterializeResult = {
-  workspaceRel: string;
-  mdRepoPath: string;
-  mdAbsPath: string;
-  indexed: boolean;
-  deletedVectors: number;
-  upserted: number;
 };
 
 /** 同步语料化并更新向量 */
@@ -104,13 +98,6 @@ export const materializeWorkspaceTxt = async (input: {
     deletedVectors,
     upserted,
   };
-};
-
-export type PurgeResult = {
-  workspaceRel: string;
-  mdRepoPath: string | null;
-  mdDeleted: boolean;
-  vectorsDeleted: number;
 };
 
 /** 硬删对应 md + 向量（源 txt 由调用方已删或另行删除） */

@@ -2,12 +2,7 @@ import type { Document } from "@langchain/core/documents";
 import { OllamaEmbeddings } from "@langchain/ollama";
 import type { Logger } from "pino";
 import { getBrainServiceConfig } from "@fambrain/brain-config";
-import { isCorpusNoisePath } from "./corpus-noise";
-import {
-    getEmbedIndexOptions,
-    mapEmbedBatches,
-    type EmbedIndexOptions,
-} from "./embed-batches";
+import { isCorpusNoisePath } from "../paths";
 import {
     CORPUS_DENSE_VECTOR_SIZE,
     DENSE_VECTOR_NAME,
@@ -15,38 +10,32 @@ import {
     getQdrantUrl,
     pointIdFromKey,
     SPARSE_VECTOR_NAME,
-} from "./qdrant-client";
-import { textToSparseVector } from "./qdrant-sparse";
+    textToSparseVector,
+} from "../qdrant";
+import {
+    getEmbedIndexOptions,
+    mapEmbedBatches,
+} from "./embed-batches";
+import type {
+    CorpusHybridHit,
+    CorpusHybridSearchResult,
+    CorpusVectorHit,
+    CorpusVectorIndexResult,
+    EmbedIndexOptions,
+} from "./interface";
 
-/** 在线向量召回单条结果（与 KnowledgeManager candidates 对齐） */
-export type CorpusVectorHit = {
-    path: string;
-    title: string;
-    body: string;
-    score: number;
-};
-
-export type CorpusHybridHit = CorpusVectorHit & {
-    recallChannel: "vector" | "sparse" | "hybrid";
-};
-
-export type CorpusHybridSearchResult = {
-    hits: CorpusHybridHit[];
-    recallSource: "hybrid" | "vector" | "sparse" | "empty";
-    vectorRawCount: number;
-    sparseRawCount: number;
-};
-
-export type CorpusVectorIndexResult = {
-    collectionName: string;
-    chunkCount: number;
+export type {
+    CorpusHybridHit,
+    CorpusHybridSearchResult,
+    CorpusVectorHit,
+    CorpusVectorIndexResult,
 };
 
 export const corpusCollectionName = (corpusUserId: string): string => {
     return `fambrain_corpus_${corpusUserId}`;
 };
 
-export { getQdrantUrl } from "./qdrant-client";
+export { getQdrantUrl };
 
 export const createOllamaEmbeddings = (): OllamaEmbeddings => {
     const { ollama } = getBrainServiceConfig();
@@ -132,6 +121,7 @@ export const upsertCorpusDocumentBatch = async (
                     ? doc.metadata.chunkIndex
                     : i;
             const dense = vectors[i] ?? [];
+            // 同一 point 写两套：dense 管近义，sparse 管字面。查询时 searchCorpusHybrid 对这两套 prefetch。
             const sparse = textToSparseVector(path, title, doc.pageContent);
             return {
                 id: pointIdFromKey(`${corpusUserId}:${path}:${chunkIndex}`),
@@ -194,6 +184,24 @@ export const searchCorpusSparse = async (
         .filter((h) => h.path && !isCorpusNoisePath(h.path));
 };
 
+/**
+ * 语料 hybrid 检索：一次请求里把「近义」和「字面」都搜完，再在 Qdrant 里按名次融合。
+ *
+ * 入库时每个 chunk 已经同时写了两套向量（见 upsertCorpusDocumentBatch）：
+ *   - dense：Ollama nomic-embed-text，768 维，cosine（懂近义词）
+ *   - sparse：token → 哈希下标 + 词频 TF，collection 开了 idf（懂「就这几个字」）
+ *
+ * 查询不再扫盘建内存 BM25。这边只把问句做成同一套 token / embedding 去搜。
+ *
+ * KM 调用约定（hybridRecall）：
+ *   vectorQuery = searchQuery + topics + subTasks
+ *   sparseQuery = searchQuery + subTasks（topics 不进字面通道）
+ *
+ * 三岔：
+ *   1. dense、sparse 都能做 → prefetch 两路各 prefetchK 条，引擎加权 RRF，截到 topK
+ *   2. 只有 dense（embed 挂了或问句空）→ 单路向量搜
+ *   3. 只有 sparse（embed 失败）→ 单路稀疏搜
+ */
 export const searchCorpusHybrid = async (input: {
     corpusUserId: string;
     vectorQuery: string;
@@ -201,7 +209,7 @@ export const searchCorpusHybrid = async (input: {
     topK?: number;
     prefetchK?: number;
     rrfK?: number;
-    /** 与 prefetch 顺序一致：dense, sparse */
+    /** 与 prefetch 顺序一致：[dense 权重, sparse 权重]；KM 默认 0.85 / 1.2，偏字面 */
     rrfWeights?: [number, number];
 }): Promise<CorpusHybridSearchResult> => {
     const topK = input.topK ?? 12;
@@ -215,6 +223,9 @@ export const searchCorpusHybrid = async (input: {
     };
     if (!(await collectionExists(collectionName))) return empty;
 
+    // ── ① 把问句做成两路查询向量 ───────────────────────────────────────────
+    // sparse：本地分词 + 哈希成 (indices, values=TF)，不打 Ollama。
+    // dense：打 Ollama embed；挂了就 denseOk=false，后面改走单路 sparse。
     const sparse = textToSparseVector(input.sparseQuery);
     const sparseOk = sparse.indices.length > 0;
     let dense: number[] | null = null;
@@ -235,6 +246,11 @@ export const searchCorpusHybrid = async (input: {
     const channel: CorpusHybridHit["recallChannel"] =
         denseOk && sparseOk ? "hybrid" : denseOk ? "vector" : "sparse";
 
+    // ── ② 两路都通：prefetch + 引擎 RRF（一次 HTTP，不是本地 fuse）──────────
+    // prefetch = 各路先各自捞一池候选人（比最终 topK 宽，默认 ×2）。
+    // query.rrf = Qdrant 按「名次」融合，不直接比 cosine 分和 BM25 分（量纲不同）。
+    // 公式直觉：1/(k+rank)；k 越大越平滑。weights 里 sparse 更大 = 字面命中更吃香。
+    // 镜像 <1.15 或不认 weighted rrf 时，退回无权重 fusion:"rrf"。
     const queryHybrid = async () => {
         const prefetch = [
             {
@@ -271,6 +287,7 @@ export const searchCorpusHybrid = async (input: {
         }
     };
 
+    // ── ③ 发查询：双通走 ②；只通一路就普通 query，不再融 ─────────────────
     const res =
         denseOk && sparseOk
             ? await queryHybrid()
@@ -288,6 +305,7 @@ export const searchCorpusHybrid = async (input: {
                     with_payload: true,
                 });
 
+    // ── ④ 拆 payload、丢掉 README / _template ─────────────────────────────
     const hits: CorpusHybridHit[] = (res.points ?? [])
         .map((p) => ({
             ...payloadToHit(p.score ?? 0, p.payload as Record<string, unknown>),
@@ -295,6 +313,8 @@ export const searchCorpusHybrid = async (input: {
         }))
         .filter((h) => h.path && !isCorpusNoisePath(h.path));
 
+    // RRF 原始分是「名次和」，绝对值不好读；hybrid 时除以本批 max，压到 0～1。
+    // 单路不归一：那边已经是 cosine / sparse 相关度。
     if (channel === "hybrid" && hits.length > 0) {
         const max = Math.max(...hits.map((h) => h.score));
         if (max > 0) {

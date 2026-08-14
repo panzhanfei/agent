@@ -1,10 +1,8 @@
 import { createHash } from "node:crypto";
+import type { QdrantSparseVector } from "./interface";
 import { tokenizeForRecall } from "./recall-tokenize";
 
-export type QdrantSparseVector = {
-  indices: number[];
-  values: number[];
-};
+export type { QdrantSparseVector };
 
 /** token → uint32；冲突时合并 TF。 */
 export const tokenToSparseIndex = (token: string): number => {

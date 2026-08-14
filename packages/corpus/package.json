@@ -5,8 +5,8 @@
   "type": "module",
   "exports": {
     ".": "./src/index.ts",
-    "./corpus-vector": "./src/corpus-vector.ts",
-    "./paths": "./src/paths.ts"
+    "./corpus-vector": "./src/vector/corpus-vector.ts",
+    "./paths": "./src/paths/index.ts"
   },
   "dependencies": {
     "@fambrain/brain-config": "workspace:*",

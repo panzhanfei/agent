@@ -7,7 +7,10 @@ import {
   CORPUS_IMPORTS_DIR,
   getUserCorpusRoot,
   getUserVaultRoot,
-} from "./doc-paths";
+} from "../paths";
+import type { VaultWorkspaceEntry, VaultWorkspaceEntryKind } from "./interface";
+
+export type { VaultWorkspaceEntry, VaultWorkspaceEntryKind };
 
 /** vault/originals/workspace — 用户 CRUD 根 */
 export const VAULT_WORKSPACE_DIR = "originals/workspace";
@@ -18,17 +21,6 @@ export const CORPUS_WORKSPACE_IMPORTS_REL = path.posix.join(
   CORPUS_IMPORTS_DIR,
   "workspace"
 );
-
-export type VaultWorkspaceEntryKind = "file" | "folder";
-
-export type VaultWorkspaceEntry = {
-  kind: VaultWorkspaceEntryKind;
-  /** 相对 workspace 根，如 `notes` 或 `notes/a.txt`；根级用 "" */
-  relativePath: string;
-  name: string;
-  sizeBytes?: number;
-  modifiedAt?: string;
-};
 
 export const normalizeWorkspaceRel = (raw: string): string =>
   raw

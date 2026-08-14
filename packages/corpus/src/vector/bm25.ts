@@ -1,9 +1,10 @@
 /**
  * Okapi BM25（HY-01）：语料规模较小时内存索引即可，无需 ES。
+ * 在线召回已走 Qdrant sparse；本文件留给单测 / 对照实验。
  */
-export type Bm25Index = {
-    score: (queryTokens: string[]) => number[];
-};
+import type { Bm25Index } from "./interface";
+
+export type { Bm25Index };
 
 const DEFAULT_K1 = 1.5;
 const DEFAULT_B = 0.75;

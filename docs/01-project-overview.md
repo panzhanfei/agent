@@ -231,7 +231,7 @@ pnpm run dev
 | `ingestDocumentBatch` | `agentflow/agents/offline/doc-parser/` | 批量上传解析 → corpus + 可选入库 |
 | `summarizeContent` | `agentflow/agents/online/content-summarizer/` | 在线摘要分支 + CLI（D9） |
 | `listVaultFiles` | `agentflow/knowledge/list-vault-files.ts` | vault 只读列举（MCP 共用） |
-| `recallSparseRetrieve` | `packages/corpus/src/recall-keyword-retrieve.ts` | Qdrant sparse 检索（入库 BM25 TF；HY-01） |
+| `recallSparseRetrieve` | `packages/corpus/src/vector/recall-keyword-retrieve.ts` | Qdrant sparse 检索（入库 BM25 TF；HY-01） |
 | `hybridRecall` | `knowledge-manager/recall/hybrid-recall.ts` | 一次 `searchCorpusHybrid`（Qdrant 引擎加权 RRF；HY-02～03） |
 | `fuseRrf` | `knowledge-manager/recall/fusion-rrf.ts` | 进程内 RRF（单测 / 对比脚本；主链已改引擎 RRF） |
 | `@fambrain/infra` | `packages/infra/` | Redis 连接、检索 hits 缓存与槽答案缓存、BullMQ 队列、限流；相对 import **不带 `.ts` 后缀**（`packages/infra/tsconfig.json`） |

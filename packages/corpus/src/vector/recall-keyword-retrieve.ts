@@ -1,15 +1,9 @@
 import { searchCorpusSparse } from "./corpus-vector";
+import type { RecallKeywordHit } from "./interface";
+
+export type { RecallKeywordHit };
 
 export const SPARSE_EXCERPT_MAX = 320;
-
-export type RecallKeywordHit = {
-    path: string;
-    title: string;
-    body: string;
-    excerpt: string;
-    score: number;
-    recallChannel: "sparse";
-};
 
 const pickExcerpt = (body: string, query: string): string => {
     const text = body.replace(/\s+/g, " ").trim();

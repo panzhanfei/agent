@@ -4,7 +4,8 @@
  */
 import { Document } from "@langchain/core/documents";
 import type { Logger } from "pino";
-import { isCorpusNoisePath } from "./corpus-noise";
+import { isCorpusNoisePath } from "../paths";
+import { CORPUS_DENSE_VECTOR_SIZE, getQdrantClient } from "../qdrant";
 import {
   corpusCollectionName,
   createOllamaEmbeddings,
@@ -14,9 +15,8 @@ import {
 import {
   getEmbedIndexOptions,
   mapEmbedBatches,
-  type EmbedIndexOptions,
 } from "./embed-batches";
-import { CORPUS_DENSE_VECTOR_SIZE, getQdrantClient } from "./qdrant-client";
+import type { EmbedIndexOptions } from "./interface";
 
 const normalizeRepoPath = (repoPath: string): string =>
   repoPath.replace(/\\/g, "/").replace(/^\.\//, "").trim();

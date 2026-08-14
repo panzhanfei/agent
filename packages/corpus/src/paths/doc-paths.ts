@@ -1,5 +1,8 @@
 import path from "node:path";
 import { findMonorepoRoot } from "./repo-root";
+import type { CorpusCategory, CorpusScanRoot } from "./interface";
+
+export type { CorpusCategory, CorpusScanRoot };
 
 /** 知识库根目录（monorepo 内 `data/doc`；测试可设 `FAMBRAIN_DOC_ROOT_OVERRIDE`） */
 export const getDocRoot = (): string => {
@@ -23,12 +26,6 @@ export const SCAN_FOLDERS = ["experience", "projects", "personal"] as const;
 export const LEARNED_DIR = "learned";
 /** BM25 / KM 扫盘时额外包含遗留 learned/ */
 export const CORPUS_SCAN_FOLDERS = [...SCAN_FOLDERS, LEARNED_DIR] as const;
-export type CorpusCategory = (typeof SCAN_FOLDERS)[number];
-export type CorpusScanRoot = {
-    /** 其下直接包含 experience / projects / personal */
-    root: string;
-    layout: "corpus" | "user-flat" | "legacy-flat";
-};
 export const getUserHome = (userId: string): string => {
     return path.join(getDocRoot(), DOC_USERS_DIR, userId);
 };

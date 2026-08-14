@@ -1,6 +1,9 @@
 import type { Document } from "@langchain/core/documents";
 import pLimit from "p-limit";
 import type { Logger } from "pino";
+import type { EmbedIndexOptions } from "./interface";
+
+export type { EmbedIndexOptions };
 
 const clampInt = (raw: string | undefined, fallback: number, max: number): number => {
     if (raw === undefined || raw.trim() === "")
@@ -9,11 +12,6 @@ const clampInt = (raw: string | undefined, fallback: number, max: number): numbe
     if (!Number.isFinite(n))
         return fallback;
     return Math.min(max, Math.max(1, Math.round(n)));
-};
-
-export type EmbedIndexOptions = {
-    concurrency: number;
-    batchSize: number;
 };
 
 export const getEmbedIndexOptions = (): EmbedIndexOptions => {

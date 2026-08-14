@@ -1,13 +1,9 @@
 import { readdir, stat } from "node:fs/promises";
 import path from "node:path";
 import { getUserVaultRoot } from "./doc-paths";
-export type VaultFileEntry = {
-    /** 相对 vault 根目录，如 `originals/uploads/report.pdf` */
-    relativePath: string;
-    name: string;
-    sizeBytes: number;
-    modifiedAt: string;
-};
+import type { VaultFileEntry } from "./interface";
+
+export type { VaultFileEntry };
 const walkVaultDir = async (dir: string, vaultRoot: string, out: VaultFileEntry[]): Promise<void> => {
     let entries;
     try {
