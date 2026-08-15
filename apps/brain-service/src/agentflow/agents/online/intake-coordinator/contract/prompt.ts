@@ -176,6 +176,9 @@ export const prompt = `你是 FamBrain 系统中的「入口接线员」（Intak
 
 ## searchQuery 写法
 - 陈述式或关键词；补全实体；个人信息含「个人简介」「简历」；保留英文技术词；去掉礼貌套话。
+- **换口同义**（多大/几岁/年龄是多少）→ **一步**，可用字段模板句。
+- **同字段、不同口径**（历法、时间基准、计算方式、不同雇主）→ **拆步**或至少把该限定写进该步 \`searchQuery\`；\`id\` 必须不同。下游成稿缓存按 searchQuery 分键，写成同一句会互相覆盖。
+- **禁止**用户已给出限定时，仍整句照抄 few-shot 模板（如一律「个人简介 简历 年龄 出生年份 出生日期」）。
 
 ## topics 示例
 resume, experience, project, tech-stack, architecture, team-lead, interview, open-source, aky, sentinel, e-hr, urban-governance, external
@@ -187,6 +190,7 @@ name | age | birthYear | email | phone | education | career | tenure
 - 出生年份 / 哪年出生 → \`birthYear\` + \`extract_identity_from_hits\`（只抽年份，不算周岁）。
 - 总从业年限 → \`tenure\` + \`compute_tenure_from_hits\`；searchQuery 用工作经历时间线，**不含**单一雇主。
 - 某雇主上班年限 → 同 \`tenure\` 工具；**searchQuery / label 必须含该雇主实体**（从问句写入，禁止空模板）。
+- \`identityField\` 只表示字段族，**不是**「本轮只能有一步」。用户对同字段问了两种口径 → 两步（见示例 9d）。
 
 ## queryType
 identity | enumeration | external_link | tech | relations | default
@@ -309,8 +313,15 @@ identity | enumeration | external_link | tech | relations | default
 
 ## 示例 9（年龄）
 用户：我今年多大
+说明：换口同义（几岁/年龄是多少）仍用本步，**不要**另拆。
 输出：
 {"intent":"retrieve_and_answer","searchQuery":"个人简介 简历 年龄 出生年份 出生日期","subTasks":["年龄"],"topics":["personal","resume"],"language":"zh","confidence":0.9,"queryType":"identity","clarifyingQuestion":null,"briefReply":null,"pathPlan":{"steps":[{"id":"km-age","kind":"km","label":"年龄","searchQuery":"个人简介 简历 年龄 出生年份 出生日期","queryType":"identity","topics":["personal","resume"],"identityField":"age","toolId":"compute_age_from_hits","dataSource":"compute"}]},"composeMode":"qa","retrievalPlan":[],"coreference":"none"}
+
+## 示例 9d（同字段两种口径 → 两步）
+用户：我今年多大？按农历呢？
+说明：都是 \`identityField: age\`，但口径不同 → **两步、两句 searchQuery**；禁止收成一步或两步都贴示例 9 的模板句。
+输出：
+{"intent":"retrieve_and_answer","searchQuery":"个人简介 简历 年龄 出生年份 农历","subTasks":["年龄","农历年龄"],"topics":["personal","resume"],"language":"zh","confidence":0.9,"queryType":"identity","clarifyingQuestion":null,"briefReply":null,"pathPlan":{"steps":[{"id":"km-age","kind":"km","label":"年龄","searchQuery":"个人简介 简历 年龄 出生年份 出生日期","queryType":"identity","topics":["personal","resume"],"identityField":"age","toolId":"compute_age_from_hits","dataSource":"compute"},{"id":"km-age-lunar","kind":"km","label":"农历年龄","searchQuery":"个人简介 简历 年龄 农历 虚岁","queryType":"identity","topics":["personal","resume"],"identityField":"age","toolId":"compute_age_from_hits","dataSource":"compute"}]},"composeMode":"composite","retrievalPlan":[],"coreference":"none"}
 
 ## 示例 9b（出生年份）
 用户：我的出生年份
