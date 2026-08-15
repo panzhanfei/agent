@@ -2,6 +2,7 @@ export {
     buildFacetKey,
     attachFacetKey,
     facetAnswerMatchesSlot,
+    facetKeyMatchesIdentity,
     isPaginatedListCorpusSlot,
     detectCompositeRefreshIntent,
 } from "./facet-key";

@@ -558,7 +558,7 @@ pnpm --filter @fambrain/brain-service run verify:r6-no-cache   # R6-1：同句�
 |------|------|------|
 | **同问短路** | `prepare-turn-start/repeat-question-guard.ts` | 同会话**字面相同**问 → 复用 history 整答；`REPEAT_QUESTION_CACHE_DISABLED=1` 关闭 |
 | **检索结果 cache** | `retrieval-cache.ts` | 单槽 KM 结果 cache（`searchQuery+queryType`）；`RETRIEVAL_CACHE_DISABLED=1` 关闭 |
-| **composite 终稿 cache** | `composite-answer-cache.ts` + `stream-composite.ts` / `runtime/stream.ts` | 同 `conversationId` + `corpusUserId` 下按 **facetKey** 缓存子问终稿；slot 单槽命中时 `knowledge-manager/nodes/`、`knowledge-manager/pipeline/` 从 citations 还原 hits |
+| **composite 终稿 cache** | `composite-answer-cache.ts` + `stream-composite.ts` / `runtime/stream.ts` | 同 `conversationId` + `corpusUserId` 下按 **facetKey**（`{桶}:{字段或列举类}:{归一化 searchQuery}[:p页]`）缓存子问终稿；slot 单槽命中时从 citations 还原 hits |
 | **增量 composite** | `agentflow/cache/resolve-composite-plan.ts` | Q2 = Q1 + 邮箱/电话：**planCacheResolve 终稿 cache 命中槽跳过真检索**，仅对新 facet 检索/流式 |
 
 **环境变量：** 见 `.env.example` 中 **Pipeline cache 开关**；未配 Redis 时检索/composite cache 用 memory fallback（清 cache 须重启 agents）。
@@ -674,7 +674,7 @@ pnpm --filter @fambrain/brain-service run verify:enumeration-compose  # P0-22 �
 | `enumeration-action-prompts.ts` | UI 按钮 **精确 prompt** → Intake 短路，不依赖 regex |
 | `resolve-enumeration-pagination.ts` | 续页从 conversation **blocks** 读 page/pageSize（无 Redis session） |
 | `sliceHitsForAnalystStream` | 列举分页 Analyst 信 `enumerationMeta.pageSize`，不单槽 plain stream 截 8 条 |
-| `facet-key.ts` | `list_corpus` 分页槽 facetKey `enum:projects:p{N}`；`facetAnswerMatchesSlot` 校验页码 |
+| `facet-key.ts` | 成稿键 `{桶}:{字段或列举类}:{归一化 searchQuery}[:p{N}]`（如 `enum:projects:项目经历 全部项目:p2`）；`facetAnswerMatchesSlot` 校验页码 |
 | `flatten/` | 纯 list 摊平；混槽 merge 在 plan-fanout `planSlotJoin` |
 | `composite-answer-cache` | 槽答案缓存 **存 blocks**，命中恢复表格 UI |
 | `packages/brain-types` | `AssistantMessageBlock` + `paginationHint` / `startIndex` |
@@ -875,7 +875,7 @@ pnpm --filter @fambrain/brain-service run verify:composite-incremental
 pnpm --filter @fambrain/brain-service run eval:run -- --list-pagination-only   # E2E 续页 + 双槽续页
 ```
 
-**续页坑（P0-31 · 2026-07）：** 双槽首问走 composite（整页 20 条）→ UI「更多项目」走单槽 `streamSinglePlainAnalyze` 时，若仍用 profile `maxHits=8` 截断，第 2 页只显示 8 条（如 21–28/36）；facetKey 若不按 `enumerationPage` 分桶，continue 会命中上一页终稿 cache。**对策：** `sliceHitsForAnalystStream` + `enum:projects:p{N}` + `facetAnswerMatchesSlot`。
+**续页坑（P0-31 · 2026-07）：** 双槽首问走 composite（整页 20 条）→ UI「更多项目」走单槽 `streamSinglePlainAnalyze` 时，若仍用 profile `maxHits=8` 截断，第 2 页只显示 8 条（如 21–28/36）；facetKey 若不按 `enumerationPage` 分桶，continue 会命中上一页终稿 cache。**对策：** `sliceHitsForAnalystStream` + `enum:projects:{searchQuery}:p{N}` + `facetAnswerMatchesSlot`。
 
 详见 [架构 v2 §10](./05-architecture-v2-tool-orchestration.md#10-列举执行-per-slot-演进-2026-07)。
 

@@ -1,8 +1,9 @@
 /**
- * facetKey：会话内「同一语义槽」的稳定键。
+ * facetKey：会话内成稿缓存键。
  *
- * 键按 queryType 分桶：enum:* / id:* / tech:* / link:* / rel:* / default:*
- * 槽位模板来自 Intake；本文件只负责算 key。
+ * `{queryType桶}:{字段或列举类}:{归一化 searchQuery}[:p{页码}]`
+ * 只信 Intake 结构化字段；searchQuery 进键，避免同字段不同问法互相覆盖。
+ * 换口命中靠 Intake 写出同一 searchQuery，不靠收成 `id:age` 单坑。
  */
 import { normalizeSearchQuery } from "@fambrain/infra";
 import type { CachedFacetAnswer } from "@fambrain/infra";
@@ -28,8 +29,16 @@ type FacetSource =
       >
     | CompositeRetrievalSlot;
 
-const labelNorm = (label: string): string =>
-    normalizeSearchQuery(label).replace(/\s+/g, " ");
+const IDENTITY_FIELDS = new Set<string>([
+    "name",
+    "age",
+    "birthYear",
+    "email",
+    "phone",
+    "education",
+    "career",
+    "tenure",
+]);
 
 const isListCorpusEnumerationSlot = (
     slot: Pick<CompositeRetrievalSlot, "executor" | "enumerationControl">
@@ -57,15 +66,43 @@ export const facetAnswerMatchesSlot = (
 export const detectCompositeRefreshIntent = (_userQuestion: string): boolean =>
     false;
 
-const IDENTITY_FACET_KEY: Record<IntakeIdentityField, string> = {
-    name: "id:name",
-    age: "id:age",
-    birthYear: "id:birthYear",
-    email: "id:email",
-    phone: "id:phone",
-    education: "id:education",
-    career: "id:career",
-    tenure: "id:tenure",
+const querySeg = (searchQuery: string): string => {
+    const q = normalizeSearchQuery(searchQuery).slice(0, 40);
+    return q || "general";
+};
+
+const topicClass = (
+    topics: readonly string[] | undefined,
+    fallback: string
+): string => {
+    const raw = topics?.[0]?.trim().toLowerCase() ?? "";
+    const cleaned = raw.replace(/[:\s]+/g, "-").slice(0, 24);
+    return cleaned || fallback;
+};
+
+const withPage = (base: string, source: FacetSource, item: FacetSource): string => {
+    const executor = "executor" in source ? source.executor : undefined;
+    if (executor !== "list_corpus" || !("enumerationControl" in item) || !item.enumerationControl) {
+        return base;
+    }
+    const page =
+        "enumerationPage" in source && typeof source.enumerationPage === "number"
+            ? Math.max(1, source.enumerationPage)
+            : 1;
+    return `${base}:p${page}`;
+};
+
+/**
+ * 兼容旧键 `id:age` 与新键 `id:age:{query}`。
+ * 业务分型优先信 identityField；此函数只作 facetKey 兜底。
+ */
+export const facetKeyMatchesIdentity = (
+    facetKey: string | undefined,
+    field: IntakeIdentityField
+): boolean => {
+    if (!facetKey) return false;
+    const prefix = `id:${field}`;
+    return facetKey === prefix || facetKey.startsWith(`${prefix}:`);
 };
 
 export const buildFacetKey = (source: FacetSource): string => {
@@ -95,7 +132,7 @@ export const buildFacetKey = (source: FacetSource): string => {
         enumerationControl: item.enumerationControl ?? null,
         identityField: item.identityField ?? null,
     });
-    const ln = labelNorm(item.label);
+    const q = querySeg(item.searchQuery);
 
     if (canonical.queryType === "enumeration") {
         const target = resolveEnumerationTarget({
@@ -104,45 +141,30 @@ export const buildFacetKey = (source: FacetSource): string => {
             topics: canonical.topics,
             listKind: item.enumerationControl?.listKind ?? null,
         });
-        const base = target === "project" ? "enum:projects" : "enum:employers";
-        const executor =
-            "executor" in source ? source.executor : undefined;
-        if (executor === "list_corpus" && item.enumerationControl) {
-            const page =
-                "enumerationPage" in source &&
-                typeof source.enumerationPage === "number"
-                    ? Math.max(1, source.enumerationPage)
-                    : 1;
-            return `${base}:p${page}`;
-        }
-        return base;
+        const cls = target === "project" ? "projects" : "employers";
+        return withPage(`enum:${cls}:${q}`, source, item);
     }
 
     if (canonical.queryType === "identity") {
         const field = canonical.identityField ?? item.identityField ?? null;
-        if (field === "tenure") {
-            const q = labelNorm(item.searchQuery).slice(0, 40);
-            return q ? `id:tenure:${q}` : "id:tenure";
-        }
-        if (field && IDENTITY_FACET_KEY[field]) {
-            return IDENTITY_FACET_KEY[field];
-        }
-        return `id:profile:${ln.slice(0, 24) || "general"}`;
+        const cls =
+            field && IDENTITY_FIELDS.has(field) ? field : "profile";
+        return `id:${cls}:${q}`;
     }
 
     if (canonical.queryType === "external_link") {
-        return `link:${ln.slice(0, 32) || "external"}`;
+        return `link:${topicClass(item.topics, "external")}:${q}`;
     }
 
     if (canonical.queryType === "tech") {
-        return `tech:${ln.slice(0, 32) || "general"}`;
+        return `tech:${topicClass(item.topics, "general")}:${q}`;
     }
 
     if (canonical.queryType === "relations") {
-        return `rel:${ln.slice(0, 32) || "family"}`;
+        return `rel:${topicClass(item.topics, "family")}:${q}`;
     }
 
-    return `default:${ln.slice(0, 32) || canonical.queryType}`;
+    return `default:${topicClass(item.topics, canonical.queryType)}:${q}`;
 };
 
 export const attachFacetKey = (

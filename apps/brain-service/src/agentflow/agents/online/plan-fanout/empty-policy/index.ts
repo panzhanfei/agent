@@ -1,23 +1,28 @@
 /**
- * planMerge 空证据策略：require / omit / degrade。
+ * 执行期空证据策略（共享能力，不是图节点）。
+ *
+ * 被 plan-merge 落地、global-rebatch 筛候选共用；不放进任一子目录，避免对方深挖。
+ * Intake `path-plan/empty-policy` 只做 schema 合法化（非法 → degrade）；
+ * 本目录是执行期 apply：合并后按策略硬失败 / 省略 / 放行。
+ *
+ * require：再批后仍空 → 整轮 error
+ * omit：空则从 stepResults / compositeSubResults 拿掉；也不进全局 B
+ * degrade（缺省）：带着缺口继续
  */
-import type { CompositeRetrievalSlot } from "@/agentflow/agents/online/intake-coordinator/composite/interface";
-import type { CompositeSubRetrieval } from "@/agentflow/agents/online/knowledge-manager";
-import type {
-  EmptyPolicy,
-  ExecutionStep,
-  PathPlan,
-  StepResult,
-} from "@/agentflow/agents/online/intake-coordinator/path-plan";
-import type {
-  ExecutionPlanNode,
-  PipelineToolResults,
-} from "@/agentflow/agents/online/tool-orchestrator/interface";
+import type { EmptyPolicy, ExecutionStep, StepResult } from "@/agentflow/agents/online/intake-coordinator/path-plan";
 import { DEFAULT_EMPTY_POLICY } from "@/agentflow/agents/online/intake-coordinator/path-plan";
+import type { PipelineToolResults } from "@/agentflow/agents/online/tool-orchestrator/interface";
+import type {
+  EmptyPolicyApplyInput,
+  EmptyPolicyApplyResult,
+} from "./interface";
+
+export type { EmptyPolicyApplyInput, EmptyPolicyApplyResult } from "./interface";
 
 const policyOf = (raw: EmptyPolicy | undefined): EmptyPolicy =>
   raw ?? DEFAULT_EMPTY_POLICY;
 
+/** 槽 / pathPlan 步：有工具成功、有 hits、或 coverage 非 none → 不算空 */
 export const isStepEvidenceEmpty = (step: StepResult): boolean => {
   if (step.toolOutput?.ok) return false;
   if ((step.hits?.length ?? 0) > 0) return false;
@@ -27,6 +32,7 @@ export const isStepEvidenceEmpty = (step: StepResult): boolean => {
   return true;
 };
 
+/** DAG 节点：无结果 / deps-skip / 非 ok / 证据不足 → 空（供 require 检查） */
 export const isDagNodeEvidenceEmpty = (
   result: PipelineToolResults[string] | undefined
 ): boolean => {
@@ -37,23 +43,10 @@ export const isDagNodeEvidenceEmpty = (
   return false;
 };
 
-export type EmptyPolicyApplyResult = {
-  stepResults: StepResult[];
-  compositeSubResults: CompositeSubRetrieval[] | null;
-  omittedStepIds: string[];
-  /** require 仍空 → 非 null */
-  requireError: string | null;
-};
-
 /** 合并后按 emptyPolicy 过滤 / 硬失败 */
-export const applyEmptyPolicies = (input: {
-  pathPlan: PathPlan;
-  slots: readonly CompositeRetrievalSlot[];
-  stepResults: StepResult[];
-  compositeSubResults: CompositeSubRetrieval[] | null;
-  executionPlan?: ExecutionPlanNode[] | null;
-  dagToolResults?: PipelineToolResults | null;
-}): EmptyPolicyApplyResult => {
+export const applyEmptyPolicies = (
+  input: EmptyPolicyApplyInput
+): EmptyPolicyApplyResult => {
   const policyByStepId = new Map<string, EmptyPolicy>();
   for (const step of input.pathPlan.steps) {
     policyByStepId.set(String(step.id), policyOf(step.emptyPolicy));
@@ -117,7 +110,7 @@ export const applyEmptyPolicies = (input: {
   };
 };
 
-/** 供全局 B：omit 空槽不进再批候选 */
+/** 供全局 B：omit 空槽 / 空 DAG 节点不进再批候选（省预算给可救项） */
 export const shouldSalvageForEmptyPolicy = (
   policy: EmptyPolicy | undefined
 ): boolean => policyOf(policy) !== "omit";

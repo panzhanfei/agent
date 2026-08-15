@@ -15,7 +15,7 @@
 
 **Composite plan：** 纯 list 在 `listRetriever` 内调用 `resolveCompositeCachePlan`（仅 facet，不预查 hits）。
 
-**列举续页：** 游标在 assistant **`enumeration` blocks**（`page` / `pageSize`）；`list_corpus` 分页槽 facetKey 为 `enum:projects:p{N}`（按 `enumerationPage` 分桶，防 continue 命中上一页 cache）；Analyst 单槽流式用 `sliceHitsForAnalystStream` 信 `enumerationMeta.pageSize`，不用 profile `maxHits=8` 截断整页。
+**列举续页：** 游标在 assistant **`enumeration` blocks**（`page` / `pageSize`）；`list_corpus` 分页槽 facetKey 为 `enum:projects:{归一化 searchQuery}:p{N}`（按问法 + `enumerationPage` 分桶，防 continue 命中上一页或另一问法的终稿）；Analyst 单槽流式用 `sliceHitsForAnalystStream` 信 `enumerationMeta.pageSize`，不用 profile `maxHits=8` 截断整页。
 
 ## 目录
 

@@ -38,10 +38,7 @@ import {
   runRepeatRespondEarlyNode,
 } from "@/agentflow/agents/online/repeat-question-guard";
 import { runPersistTurnEnd } from "@/agentflow/agents/online/persist-turn-end";
-import {
-  PipelineGraphAnnotation,
-  type PipelineGraphState,
-} from "./state";
+import { PipelineGraphAnnotation, type PipelineGraphState } from "./state";
 import {
   routeAfterIntake,
   routeAfterPlanCacheResolve,
@@ -62,7 +59,10 @@ const als = withPipelineRunAls;
  */
 const asFanOutSlotNode = (compiled: {
   // 子图 CompiledStateGraph.invoke 签名与父状态略有差异，运行时透传 config 即可
-  invoke: (state: PipelineGraphState, config?: unknown) => Promise<PipelineGraphState>;
+  invoke: (
+    state: PipelineGraphState,
+    config?: unknown
+  ) => Promise<PipelineGraphState>;
 }) => {
   return async (
     state: PipelineGraphState,

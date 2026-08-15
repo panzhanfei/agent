@@ -8,6 +8,7 @@ export {
     buildFacetKey,
     attachFacetKey,
     facetAnswerMatchesSlot,
+    facetKeyMatchesIdentity,
     isPaginatedListCorpusSlot,
     detectCompositeRefreshIntent,
     cachedFacetToAnalystResult,

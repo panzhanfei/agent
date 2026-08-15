@@ -71,10 +71,10 @@ console.log("verify-composite-incremental\n— facetKey —");
             excludeHint: null,
         },
     });
-    if (name !== "id:name" || email !== "id:email" || projects !== "enum:projects") {
+    if (name !== "id:name:x" || email !== "id:email:x" || projects !== "enum:projects:x") {
         fail("姓名 / 邮箱 / 项目 分桶", `${name} ${email} ${projects}`);
     }
-    if (roles !== "enum:employers" && roles !== "enum:employers:roles") {
+    if (roles !== "enum:employers:x") {
         fail("职位独立 facetKey", roles);
     }
     const listP1 = buildFacetKey({
@@ -103,7 +103,7 @@ console.log("verify-composite-incremental\n— facetKey —");
             excludeHint: null,
         },
     });
-    if (listP1 !== "enum:projects:p1" || listP2 !== "enum:projects:p2") {
+    if (listP1 !== "enum:projects:x:p1" || listP2 !== "enum:projects:x:p2") {
         fail("list 分页 facetKey", `${listP1} ${listP2}`);
     }
     ok("姓名 / 邮箱 / 项目 / 职位 分桶 + list 分页键");
@@ -111,10 +111,35 @@ console.log("verify-composite-incremental\n— facetKey —");
 
 console.log("\n— 槽答案会话 —");
 
+const q1NameItem = {
+    label: "姓名",
+    searchQuery: "个人简介 简历 姓名",
+    queryType: "identity" as const,
+    topics: ["personal", "resume"],
+    identityField: "name" as const,
+};
+const q1ProjectItem = {
+    label: "项目经历",
+    searchQuery: "项目经历 全部项目",
+    queryType: "enumeration" as const,
+    topics: ["project"],
+    enumerationControl: {
+        action: "preview" as const,
+        listKind: "project" as const,
+        excludeHint: null,
+    },
+};
+const q1Slots = [
+    planItemToSlot(q1NameItem, 0),
+    planItemToSlot(q1ProjectItem, 1),
+];
+const q1NameKey = buildFacetKey(q1Slots[0]!);
+const q1ProjectKey = buildFacetKey(q1Slots[1]!);
+
 await upsertFacetAnswers(session, {
     facets: [
         analystResultToCachedFacet(
-            "id:name",
+            q1NameKey,
             "姓名",
             {
                 answer: "潘展飞",
@@ -125,7 +150,7 @@ await upsertFacetAnswers(session, {
             "sufficient"
         ),
         analystResultToCachedFacet(
-            "enum:projects",
+            q1ProjectKey,
             "项目经历",
             {
                 answer: "城管平台、E-HR",
@@ -138,35 +163,8 @@ await upsertFacetAnswers(session, {
     ],
     userQuestion: "我叫什么？做过哪些项目？",
     fullAnswer: "1. 姓名\n潘展飞\n\n2. 项目经历\n城管平台、E-HR",
-    facetKeys: ["id:name", "enum:projects"],
+    facetKeys: [q1NameKey, q1ProjectKey],
 });
-
-const q1Slots = [
-    planItemToSlot(
-        {
-            label: "姓名",
-            searchQuery: "个人简介 简历 姓名",
-            queryType: "identity",
-            topics: ["personal", "resume"],
-            identityField: "name",
-        },
-        0
-    ),
-    planItemToSlot(
-        {
-            label: "项目经历",
-            searchQuery: "项目经历 全部项目",
-            queryType: "enumeration",
-            topics: ["project"],
-            enumerationControl: {
-                action: "preview",
-                listKind: "project",
-                excludeHint: null,
-            },
-        },
-        1
-    ),
-];
 
 const q2Slots = [
     ...q1Slots,

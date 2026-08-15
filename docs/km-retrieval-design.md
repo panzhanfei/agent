@@ -115,7 +115,7 @@ Intake `queryType` 与上表 **同名枚举**。`recallDocKindsForQuery` 是 sch
 
 精排：`rankCandidates` **按未封顶综合分排序**；`KnowledgeHit.relevance` 与 `assessConfidence` 的 top1 项再 clamp 0–1。
 
-槽答案 facet：`rel:` 与 `id:` 分桶，identity 与 relations 不共用缓存。
+槽答案 facet：`rel:` 与 `id:` 分桶，identity 与 relations 不共用缓存。成稿键为 `{桶}:{字段或列举类}:{归一化 searchQuery}[:p页]`（如 `id:age:今年多大`），同字段不同问法不覆盖。
 
 ---
 

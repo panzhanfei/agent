@@ -8,6 +8,7 @@ import {
   resolveAnalystQueryProfile,
 } from "./analyst-recall-limits";
 import { memoryBlockHasStructuredUserFacts } from "@/agentflow/agents/online/user-fact";
+import { facetKeyMatchesIdentity } from "@/agentflow/cache";
 import type { IntakeIdentityField } from "@/agentflow/agents/online/intake-coordinator/contract";
 import {
   resolveOrchestratedTool,
@@ -53,7 +54,7 @@ export type SubQuestionAnalyzeInput = {
   searchQuery?: string;
   /** composite 槽位 id（toolResults 键 slot_<id>） */
   slotId?: string;
-  /** 槽答案缓存键（如 id:age），供空结果文案分型 */
+  /** 槽答案缓存键（如 id:age:今年多大），供空结果文案分型 */
   facetKey?: string;
   /** Intake identityField（优先于 facetKey） */
   identityField?: IntakeIdentityField | null;
@@ -138,8 +139,10 @@ const resolveIdentityEmptyKind = (input: {
   facetKey?: string;
 }): "age" | "name" | null => {
   if (input.queryType && input.queryType !== "identity") return null;
-  if (input.identityField === "age" || input.facetKey === "id:age") return "age";
-  if (input.identityField === "name" || input.facetKey === "id:name") {
+  if (input.identityField === "age" || facetKeyMatchesIdentity(input.facetKey, "age")) {
+    return "age";
+  }
+  if (input.identityField === "name" || facetKeyMatchesIdentity(input.facetKey, "name")) {
     return "name";
   }
   return null;

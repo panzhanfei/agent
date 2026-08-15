@@ -1,6 +1,7 @@
 import type { InformationAnalystResult } from "@/agentflow/agents/online/information-analyst/prompt";
 import { resolveAnalystQueryProfile } from "@/agentflow/agents/online/information-analyst/analyst-recall-limits";
 import type { SubQuestionAnalyzeInput } from "@/agentflow/agents/online/information-analyst/analyze-helpers";
+import { facetKeyMatchesIdentity } from "@/agentflow/cache";
 import { resolveIdentityField } from "../catalog";
 import type { PipelineToolResults, ToolRunResult } from "../interface";
 
@@ -53,7 +54,7 @@ export const pickToolResultForSubQuestion = (
     if (
         profile === "identity" &&
         (input.identityField === "age" ||
-            input.facetKey === "id:age" ||
+            facetKeyMatchesIdentity(input.facetKey, "age") ||
             identitySpec?.toolId === "compute_age_from_hits") &&
         toolResults.age
     ) {

@@ -58,7 +58,7 @@ knowledge-manager/
 
 1. `corpus-lister/` — 列举 preview/continue/exhaustive（目录扫盘分页）
 2. `recall/retrieve.ts` — Hybrid → rank → coverage 主路径（identity/tech/external_link/relations）
-3. `agentflow/cache/` — planCacheResolve 全量 facet+hits；Analyst 写 facet 会话缓存
+3. `agentflow/cache/` — planCacheResolve 全量 facet+hits；Analyst 写 facet 会话缓存（成稿键带归一化 searchQuery，见 cache/README）
 4. `profile/query-profile.ts` + `profile/km-config.ts` + `profile/recall-doc-kinds.ts` — 分档参数与 docKind 过滤
 5. `recall/retrieve-helpers.ts` — identityGuard、enumerationFill
 

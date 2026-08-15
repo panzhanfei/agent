@@ -2,11 +2,42 @@ import { describe, expect, it } from "vitest";
 import {
     buildFacetKey,
     facetAnswerMatchesSlot,
+    facetKeyMatchesIdentity,
 } from "@/agentflow/cache";
 import type { CachedFacetAnswer } from "@fambrain/infra";
 
-describe("buildFacetKey pagination", () => {
-    it("scopes list_corpus exhaustive/continue by enumerationPage", () => {
+describe("buildFacetKey shape", () => {
+    it("puts normalized searchQuery on identity keys so variants do not collide", () => {
+        const base = {
+            label: "年龄",
+            queryType: "identity" as const,
+            topics: ["personal"],
+            identityField: "age" as const,
+        };
+        expect(buildFacetKey({ ...base, searchQuery: "今年多大" })).toBe(
+            "id:age:今年多大"
+        );
+        expect(buildFacetKey({ ...base, searchQuery: "按农历多大" })).toBe(
+            "id:age:按农历多大"
+        );
+        expect(buildFacetKey({ ...base, searchQuery: "  今年多大？ " })).toBe(
+            "id:age:今年多大"
+        );
+    });
+
+    it("keeps identityField in the bucket so age and name do not share a key", () => {
+        expect(
+            buildFacetKey({
+                label: "姓名",
+                searchQuery: "个人简介",
+                queryType: "identity",
+                topics: ["personal"],
+                identityField: "name",
+            })
+        ).toBe("id:name:个人简介");
+    });
+
+    it("scopes list_corpus exhaustive/continue by searchQuery and page", () => {
         const base = {
             label: "列举项目",
             searchQuery: "项目经历 全部项目",
@@ -18,9 +49,9 @@ describe("buildFacetKey pagination", () => {
                 listKind: "project" as const,
             },
         };
-        expect(
-            buildFacetKey({ ...base, enumerationPage: 1 })
-        ).toBe("enum:projects:p1");
+        expect(buildFacetKey({ ...base, enumerationPage: 1 })).toBe(
+            "enum:projects:项目经历 全部项目:p1"
+        );
         expect(
             buildFacetKey({
                 ...base,
@@ -30,10 +61,10 @@ describe("buildFacetKey pagination", () => {
                     listKind: "project",
                 },
             })
-        ).toBe("enum:projects:p2");
+        ).toBe("enum:projects:项目经历 全部项目:p2");
     });
 
-    it("scopes list_corpus preview by enumerationPage p1", () => {
+    it("scopes list_corpus preview by searchQuery and p1", () => {
         expect(
             buildFacetKey({
                 label: "项目",
@@ -47,13 +78,21 @@ describe("buildFacetKey pagination", () => {
                     listKind: "project",
                 },
             })
-        ).toBe("enum:projects:p1");
+        ).toBe("enum:projects:x:p1");
+    });
+});
+
+describe("facetKeyMatchesIdentity", () => {
+    it("matches new and legacy age keys", () => {
+        expect(facetKeyMatchesIdentity("id:age:今年多大", "age")).toBe(true);
+        expect(facetKeyMatchesIdentity("id:age", "age")).toBe(true);
+        expect(facetKeyMatchesIdentity("id:name:个人简介", "age")).toBe(false);
     });
 });
 
 describe("facetAnswerMatchesSlot", () => {
     const cached = (page: number): CachedFacetAnswer => ({
-        facetKey: "enum:projects:p2",
+        facetKey: "enum:projects:x:p2",
         label: "项目",
         answer: "x",
         citations: [],
