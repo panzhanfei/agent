@@ -48,7 +48,7 @@ knowledge-manager/
 ├── profile/               ← index + interface + km-config / query-profile / score-candidate / recall-doc-kinds
 ├── recall/                ← index + interface + hybrid / rrf / retrieve / helpers
 ├── composite/             ← 多槽 merge / order（缓存见 agentflow/cache/）
-└── slot/                  ← 单槽工人 + 子图壳（图节点出口在包根）
+└── slot/                  ← 单槽工人（图节点出口在包根）
 ```
 
 

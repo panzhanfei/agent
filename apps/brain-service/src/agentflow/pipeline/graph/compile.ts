@@ -17,7 +17,7 @@ import {
   runListRetrieverNode,
   runListRetrieveNode,
 } from "@/agentflow/agents/online/corpus-lister";
-import { getCompiledKmSlotGraph } from "@/agentflow/agents/online/knowledge-manager";
+import { runKmRetrieveNode } from "@/agentflow/agents/online/knowledge-manager";
 import {
   runPlanSlotJoinNode,
   runPlanMergeNode,
@@ -26,7 +26,7 @@ import { runPlanCacheResolveNode } from "@/agentflow/agents/online/plan-fanout/c
 import {
   runPlanSlotPostNode,
   runPlanDagNode,
-  getCompiledToolSlotGraph,
+  runToolRetrieveNode,
 } from "@/agentflow/agents/online/tool-orchestrator";
 import { runVaultWorkspaceNode } from "@/agentflow/agents/online/vault-write";
 import {
@@ -38,7 +38,7 @@ import {
   runRepeatRespondEarlyNode,
 } from "@/agentflow/agents/online/repeat-question-guard";
 import { runPersistTurnEnd } from "@/agentflow/agents/online/persist-turn-end";
-import { PipelineGraphAnnotation, type PipelineGraphState } from "./state";
+import { PipelineGraphAnnotation } from "./state";
 import {
   routeAfterIntake,
   routeAfterPlanCacheResolve,
@@ -54,35 +54,8 @@ import {
 const als = withPipelineRunAls;
 
 /**
- * 单槽子图若直接挂父图，invoke 会把整份 Pipeline 状态（含 history LastValue）写回；
- * 并行 Send 时触发 INVALID_CONCURRENT_GRAPH_UPDATE。只透传工人补丁通道。
- */
-const asFanOutSlotNode = (compiled: {
-  // 子图 CompiledStateGraph.invoke 签名与父状态略有差异，运行时透传 config 即可
-  invoke: (
-    state: PipelineGraphState,
-    config?: unknown
-  ) => Promise<PipelineGraphState>;
-}) => {
-  return async (
-    state: PipelineGraphState,
-    config?: unknown
-  ): Promise<Partial<PipelineGraphState>> => {
-    const out = await compiled.invoke(state, config);
-    const patches = out.fanOutSlotPatches ?? [];
-    /** 子图内 reducer 可能叠上父级残留；工人每次只应追加本槽最新一条 */
-    const last = patches.length > 0 ? patches[patches.length - 1]! : null;
-    return {
-      fanOutSlotPatches: last ? [last] : [],
-      slotRuntimeById: out.slotRuntimeById ?? {},
-      ...(out.turnAborted ? { turnAborted: true as const } : {}),
-    };
-  };
-};
-
-/**
  * intake → planCacheResolve → Send(每槽 km|list|mem|tool|summarize|vault_workspace ∥ dag ∥ userFactSide)
- *   kmRetrieve / toolRetrieve = 单槽子图壳；list/mem/summarize/vaultWorkspace 扁平
+ *   槽工人均为扁平节点（emitBudgetedSlotPatch + worker）
  *     → planSlotJoin →（可选全局 B 再批 Send ≤1）→ planSlotPost → planMerge
  * → contentOrganizer → contentSummarizer? → analyst
  */
@@ -95,16 +68,10 @@ const buildPipelineGraph = () => {
     .addNode("intake", als(runIntakeNode))
     .addNode("planCacheResolve", als(runPlanCacheResolveNode))
     .addNode("listRetriever", als(runListRetrieverNode))
-    .addNode(
-      "kmRetrieve",
-      als(asFanOutSlotNode(getCompiledKmSlotGraph() as never))
-    )
+    .addNode("kmRetrieve", als(runKmRetrieveNode))
     .addNode("listRetrieve", als(runListRetrieveNode))
     .addNode("memRetrieve", als(runMemRetrieveNode))
-    .addNode(
-      "toolRetrieve",
-      als(asFanOutSlotNode(getCompiledToolSlotGraph() as never))
-    )
+    .addNode("toolRetrieve", als(runToolRetrieveNode))
     .addNode("summarizeSlot", als(runSummarizeSlotNode))
     .addNode("vaultWorkspace", als(runVaultWorkspaceNode))
     .addNode("planSlotJoin", als(runPlanSlotJoinNode))

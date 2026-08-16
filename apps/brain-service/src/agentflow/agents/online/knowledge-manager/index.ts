@@ -64,19 +64,40 @@ export {
 
 export {
   executeKmSlotSub,
-  getCompiledKmSlotGraph,
   runKmSlotWorker,
   type ExecuteKmSlotSubInput,
 } from "./slot";
 
 export { searchCorpusVectors } from "@fambrain/corpus/corpus-vector";
 
+import { logAgentOut } from "@fambrain/brain-shared/agent-log";
+import { emitBudgetedSlotPatch } from "@/agentflow/agents/online/plan-fanout/slot-budget";
 import type { PipelineGraphState } from "@/agentflow/pipeline/graph/state";
-import { getCompiledKmSlotGraph } from "./slot";
+import { runKmSlotWorker } from "./slot";
 
-/** LangGraph `kmRetrieve`：兼容直接 invoke；父图优先挂编译子图 */
+/** LangGraph `kmRetrieve`：单槽工人 + 一层预算，与 list/mem 同形 */
 export const runKmRetrieveNode = async (
   state: PipelineGraphState
 ): Promise<Partial<PipelineGraphState>> => {
-  return getCompiledKmSlotGraph().invoke(state);
+  logAgentOut("KnowledgeManager", "进入", {
+    via: "kmRetrieve",
+    slotId: state.activeSlotId,
+  });
+
+  const out = await emitBudgetedSlotPatch(state, "km", () =>
+    runKmSlotWorker(state)
+  );
+  const patch = out.fanOutSlotPatches?.[0];
+
+  logAgentOut("KnowledgeManager", "出去", {
+    via: "kmRetrieve",
+    slotId: patch?.slotId ?? state.activeSlotId,
+    hitCount: patch?.sub.hits.length ?? 0,
+    coverage: patch?.sub.coverage ?? null,
+    retried: Boolean(patch?.retried),
+    slotStatus: patch?.slotRuntime?.status ?? null,
+    slotReason: patch?.slotRuntime?.reason ?? null,
+  });
+
+  return out;
 };

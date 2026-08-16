@@ -75,8 +75,8 @@ Understand + Plan（可融合为一次 LLM）
 
 ## 7. 子图与 DAG
 
-- km + tool = 单槽子图壳（阶段 3）；首遍执行入口；再批仍进同一壳  
-- list/mem/summarize：扁平  
+- km / list / mem / tool / summarize / vaultWorkspace：扁平工人（`emitBudgetedSlotPatch` + worker）  
+
 - DAG：**不**另起规划器；失败信号并进同一 B  
 - DAG **动态裁剪**：`deps` + `optionalDeps`（soft）；仅 hard 未满足才 skip；soft 失败 → 下游可继续并 `degraded`/备注  
 - DAG **部分再批**：`pendingGlobalRebatchDagNodeIds` + `fanOutDagPatch.toolResults` seed；`collectDownstreamRerunClosure`；`canReuseDagNodeResult`（deps-skip / 失败不可复用）  
