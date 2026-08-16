@@ -1,5 +1,5 @@
 import type { RoutedIntakeDecision } from "@/agentflow/agents/online/intake-coordinator";
-import { extractCompanyHint } from "@/agentflow/agents/online/tool-orchestrator/catalog";
+import { extractCompanyHint } from "@/agentflow/agents/online/intake-coordinator/path-plan/company-hint";
 import type { ExecutionPlanNode } from "@/agentflow/agents/online/tool-orchestrator/interface";
 
 /** 语料简历 + 联网公司/市场 + synthesize（deps 拓扑） */

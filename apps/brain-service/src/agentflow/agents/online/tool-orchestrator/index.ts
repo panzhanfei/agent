@@ -1,6 +1,5 @@
 export * from "./interface";
 export * from "./catalog";
-export * from "./enrich";
 export * from "./execute";
 export {
   assertMatchReportAnswer,
@@ -11,9 +10,5 @@ export {
   parseMatchReport,
   renderMatchReportMarkdown,
 } from "@/agentflow/tools/synthesize";
-export {
-  pickToolResultForSubQuestion,
-  toolRunToAnalystResult,
-} from "./result-helpers";
 export { runToolOrchestratorNode } from "./tool-run";
 export { runToolRetrieveNode, runToolSlotWorker } from "./tool-retrieve";

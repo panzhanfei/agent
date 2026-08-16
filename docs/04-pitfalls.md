@@ -717,7 +717,7 @@ pnpm --filter @fambrain/brain-service run verify:enumeration-pagination
 | `search_web` | 外部事实（Tavily） | 槽 `topics` 含 `external` / `pathPlan.tool`；需 `TAVILY_API_KEY` |
 | `synthesize_merge` | 混合 DAG 汇合 | `DagExecutor` → `toolResults.synthesis` |
 
-**代码：** `agentflow/agents/online/tool-orchestrator/*` · `pipeline/graph/compile.ts`（`dagExecutor` / `toolOrchestrator` 节点）· `field-catalog.ts` · `tools/search-web.ts` · Analyst 读 `pickToolResultForSubQuestion`。
+**代码：** `agentflow/agents/online/tool-orchestrator/*` · `pipeline/graph/compile.ts` · Analyst `pick-tool-result` 读 `toolResults`。
 
 **验证：**
 

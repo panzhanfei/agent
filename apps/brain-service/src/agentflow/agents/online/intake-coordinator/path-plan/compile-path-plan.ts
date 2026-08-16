@@ -4,12 +4,12 @@
  */
 import type { CompositeRetrievalSlot } from "@/agentflow/agents/online/intake-coordinator/composite/interface";
 import type { RoutedIntakeDecision } from "@/agentflow/agents/online/intake-coordinator/guards/interface";
+import { enrichCompositeSlots } from "./enrich-tool-plan";
+import { expandHybridMultiSourceTemplate } from "./dag-templates";
 import {
   decisionSuggestsHybridDag,
   topicsSuggestWebSource,
-} from "@/agentflow/agents/online/tool-orchestrator/catalog";
-import { enrichCompositeSlots } from "@/agentflow/agents/online/tool-orchestrator";
-import { expandHybridMultiSourceTemplate } from "./dag-templates";
+} from "./route-signals";
 import { emptyPathPlan } from "./defaults";
 import { resolveIntakeGraphRouteMode } from "@/agentflow/agents/online/intake-coordinator/pipeline";
 import type {

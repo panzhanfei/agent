@@ -12,7 +12,7 @@ import {
     sliceHitsForAnalystStream,
 } from "./analyst-recall-limits";
 import { resolveOrchestratedTool } from "@/agentflow/tools/orchestrated";
-import { pickToolResultForSubQuestion } from "@/agentflow/agents/online/tool-orchestrator";
+import { pickToolResultForSubQuestion } from "./pick-tool-result";
 import {
     buildSubQuestionFallbackAnswer,
     normalizeAnalystResult,

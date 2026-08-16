@@ -1,3 +1,5 @@
+export { IDENTITY_CORPUS_FIELD_LABELS } from "./corpus-labels";
+
 export type {
   AgeExtraction,
   BirthDate,

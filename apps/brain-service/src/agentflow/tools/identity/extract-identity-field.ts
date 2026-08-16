@@ -1,5 +1,5 @@
 import type { IntakeIdentityField } from "@/agentflow/agents/online/intake-coordinator/contract";
-import { IDENTITY_CORPUS_FIELD_LABELS } from "@/agentflow/agents/online/tool-orchestrator/catalog";
+import { IDENTITY_CORPUS_FIELD_LABELS } from "./corpus-labels";
 import type { KnowledgeHit } from "@/agentflow/agents/online/knowledge-manager";
 import { extractBirthOrAgeFromHits } from "./compute-age";
 import type { IdentityFieldExtraction } from "./interface";

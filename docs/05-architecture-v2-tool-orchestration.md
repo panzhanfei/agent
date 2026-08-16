@@ -83,7 +83,7 @@ Intake（enrichedPlan / executionPlan）
 | 路径 | 职责 |
 |------|------|
 | `agents/online/tool-orchestrator/field-catalog.ts` | 声明式 identity 字段表（`age` → `compute_age_from_hits`）；混合问句 / 外部事实启发式 |
-| `agents/online/tool-orchestrator/enrich-plan.ts` | `applyToolPlanGuard`：富化 `enrichedPlan`；混合问句 → `executionPlan`（`routeMode=plan`） |
+| `intake-coordinator/path-plan/enrich-tool-plan.ts` | `applyToolPlanGuard`：规划期盖 toolId；混合问句 → `executionPlan` |
 | `agents/online/tool-orchestrator/execute/` | 按 toolId 分发；实现在 `agentflow/tools/<name>` |
 | `agents/online/dag-executor/` | DAG 拓扑：`executeDagPlan`、`runPlanDagNode` |
 | `agents/online/tool-orchestrator/nodes.ts` | `runDagExecutorNode`、`runToolOrchestratorNode` |
@@ -189,7 +189,8 @@ agentflow/
 跨目录引用走模块 **index** barrel，例如：
 
 ```ts
-import { applyToolPlanGuard, runToolOrchestratorNode } from "@/agentflow/agents/online/tool-orchestrator";
+import { applyToolPlanGuard } from "@/agentflow/agents/online/intake-coordinator";
+import { runToolOrchestratorNode } from "@/agentflow/agents/online/tool-orchestrator";
 ```
 
 详见 [`.cursor/rules/module-folder-conventions.mdc`](../.cursor/rules/module-folder-conventions.mdc)。

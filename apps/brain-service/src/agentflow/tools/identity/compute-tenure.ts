@@ -5,7 +5,7 @@
  * 否则按总从业：最早起点 → asOf。
  */
 import { IDENTITY_FIELD_SEARCH } from "@/agentflow/agents/online/intake-coordinator/composite";
-import { IDENTITY_CORPUS_FIELD_LABELS } from "@/agentflow/agents/online/tool-orchestrator/catalog";
+import { IDENTITY_CORPUS_FIELD_LABELS } from "./corpus-labels";
 import type { KnowledgeHit } from "@/agentflow/agents/online/knowledge-manager";
 import type {
     TenureExtraction,

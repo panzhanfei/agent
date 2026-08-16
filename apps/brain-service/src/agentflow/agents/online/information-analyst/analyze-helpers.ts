@@ -14,11 +14,11 @@ import {
   resolveOrchestratedTool,
   runOrchestratedSubQuestion,
 } from "@/agentflow/tools/orchestrated";
+import type { PipelineToolResults } from "@/agentflow/agents/online/tool-orchestrator/interface";
 import {
   pickToolResultForSubQuestion,
   toolRunToAnalystResult,
-  type PipelineToolResults,
-} from "@/agentflow/agents/online/tool-orchestrator";
+} from "./pick-tool-result";
 import { composeEnumerationAnswer } from "./compose-message";
 import {
     compactExcerptLine,

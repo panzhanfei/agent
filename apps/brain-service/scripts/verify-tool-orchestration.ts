@@ -4,14 +4,14 @@
  *   pnpm --filter @fambrain/brain-service run verify:tool-orchestration
  */
 import assert from "node:assert/strict";
+import { pickToolResultForSubQuestion } from "../src/agentflow/agents/online/information-analyst";
 import {
-    applyToolPlanGuard,
-    decisionSuggestsHybridDag,
-    pickToolResultForSubQuestion,
     resolveIdentityFieldFromPlan,
     resolvePostRetrievalToolRuns,
 } from "../src/agentflow/agents/online/tool-orchestrator";
 import {
+    applyToolPlanGuard,
+    decisionSuggestsHybridDag,
     emptyPathPlan,
     type RoutedIntakeDecision,
 } from "../src/agentflow/agents/online/intake-coordinator";

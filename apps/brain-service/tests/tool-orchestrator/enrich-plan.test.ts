@@ -1,7 +1,7 @@
 import { describe, expect, it } from "vitest";
-import { applyToolPlanGuard } from "@/agentflow/agents/online/tool-orchestrator";
 import {
     applyPathPlanGuard,
+    applyToolPlanGuard,
     emptyPathPlan,
     type RoutedIntakeDecision,
 } from "@/agentflow/agents/online/intake-coordinator";

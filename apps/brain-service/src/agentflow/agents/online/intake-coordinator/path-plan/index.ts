@@ -14,6 +14,16 @@ export { DEFAULT_EMPTY_POLICY, legalizeEmptyPolicy } from "./empty-policy";
 export { subToStepResult } from "./step-result";
 
 export { expandHybridMultiSourceTemplate } from "./dag-templates";
+export { extractCompanyHint } from "./company-hint";
+export {
+  decisionSuggestsHybridDag,
+  topicsSuggestWebSource,
+} from "./route-signals";
+export {
+  applyToolPlanGuard,
+  enrichCompositeSlots,
+  enrichRetrievalPlan,
+} from "./enrich-tool-plan";
 
 export {
   applyPathPlanGuard,

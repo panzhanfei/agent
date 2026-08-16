@@ -105,9 +105,7 @@ async function* streamSingleAnalyze(
         (synthesis.matchReport || synthesis.answer.includes("## 匹配点")) &&
         (input.compositeSubResults?.length ?? 0) <= 1
     ) {
-        const { toolRunToAnalystResult } = await import(
-            "@/agentflow/agents/online/tool-orchestrator"
-        );
+        const { toolRunToAnalystResult } = await import("./pick-tool-result");
         const rendered = toolRunToAnalystResult(synthesis);
         logAgentOut("InformationAnalyst", "出去", {
             source: "synthesize_match_report",
