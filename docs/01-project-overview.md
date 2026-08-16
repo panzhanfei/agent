@@ -214,7 +214,7 @@ pnpm run dev
 | `resolveCompositeCachePlan` / `writeHitsCache` / `slot/execute-sub` / `orderSubResultsBySlots` | `agentflow/cache/` · `knowledge-manager/slot/` · `composite/` | planCacheResolve 读；km 主逻辑在 slot；join 混排 |
 | `runKmRetrieveNode` | `knowledge-manager/` | 复合路径 km Send 工人（retrieve+FC） |
 | `runPlanSlotJoinNode` / `runPlanMergeNode` | `plan-fanout/` | fan-out 槽汇合 + 与 DAG 线 merge |
-| `runPlanSlotPostNode` / `runPlanDagNode` | `tool-orchestrator/` / `dag-executor/` | post-retrieval tools / hybrid DAG 工人 |
+| `runPlanSlotPostNode` / `runPlanDagNode` | `plan-fanout/` / `dag-executor/` | Join 后 post-tools / hybrid DAG 工人 |
 | `isPureListDecision` | `corpus-lister/route/` | routeAfterIntake → listRetriever 判定 |
 | `addStructuredUserFact` / `searchUserFactMemories` | `packages/brain-memory/src/mem0/store.ts` | Mem0 结构化写入 + 按 factKey 语义检索 |
 | `completeIntakeCoordinator` | `agentflow/agents/online/intake-coordinator/` | 一次 `invoke` → 路由 JSON |
@@ -261,7 +261,7 @@ pnpm run dev
 | `createFambrainTools` | `agentflow/tools/` | LangChain **StructuredTool**：`retrieve_corpus` / `remember_user_fact` / `recall_user_fact` / `list_vault_files` / `summarize_text` |
 | `runKmRetrieveNode` / `runListRetrieveNode` | `knowledge-manager` / `corpus-lister` | 复合 Send 工人 |
 | `runPlanSlotJoinNode` / `runPlanMergeNode` | `plan-fanout/` | join + merge 编排 |
-| `runPlanSlotPostNode` / `runPlanDagNode` | `tool-orchestrator/` / `dag-executor/` | tools / DAG fan-out 工人 |
+| `runPlanSlotPostNode` / `runPlanDagNode` | `plan-fanout/` / `dag-executor/` | Join 后 post-tools / DAG 工人 |
 | `runUserFactSideNode` | `user-fact/side/` | 复合并行 remember side-effect |
 | `compilePathPlan` / `applyPathPlanGuard` | `intake-coordinator/path-plan/` | 旧分桶编译（兼容/测试）；主路径见 `from-llm.ts` |
 | `legalizePathPlan` / `normalizePathPlanSteps` / `deriveCompositeSlotsFromPathPlan` | `intake-coordinator/path-plan/from-llm.ts` | LLM PathPlan → 合法化 + 结构归一 + 派生 slots |

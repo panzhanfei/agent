@@ -24,6 +24,7 @@ export type {
   PlanSlotWorkerPatch,
 } from "./interface";
 export { runPlanSlotJoinNode } from "./plan-slot-join";
+export { runPlanSlotPostNode } from "./plan-slot-post";
 export { runPlanMergeNode } from "./plan-merge";
 export {
   routeAfterPlanSlotJoin,

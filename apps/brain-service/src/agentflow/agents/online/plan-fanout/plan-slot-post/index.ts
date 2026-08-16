@@ -1,11 +1,11 @@
 /**
- * planSlotPost：槽位线 post-retrieval tools（工人内 FC 已废；改 query 在 Join 全局 B）。
- * 在 planFanOut join（及可选再批）之后调用 tool-run，结果写回 fanOutSlotPatch。
+ * planSlotPost：Join（及可选再批）之后、Merge 之前。
+ * 把汇合后的 hits 交给 tool-run 跑 post-retrieval 工具，结果写回 fanOutSlotPatch。
  */
 import { logAgentOut } from "@fambrain/brain-shared/agent-log";
-import type { PlanSlotsPatch } from "@/agentflow/agents/online/plan-fanout/interface";
+import { runToolOrchestratorNode } from "@/agentflow/agents/online/tool-orchestrator/tool-run";
 import type { PipelineGraphState } from "@/agentflow/pipeline/graph/state";
-import { runToolOrchestratorNode } from "../tool-run";
+import type { PlanSlotsPatch } from "../interface";
 
 export const runPlanSlotPostNode = async (
   state: PipelineGraphState
@@ -50,7 +50,6 @@ export const runPlanSlotPostNode = async (
     compositeFacetCacheHits: slotPatch.compositeFacetCacheHits ?? null,
     checkerPassed: slotPatch.checkerPassed ?? true,
     stepResults: slotPatch.slotStepResults ?? null,
-    // 保留 tool/summarize 工人在 join 写入的 toolResults
     toolResults: {
       ...(state.toolResults ?? {}),
       ...(slotPatch.toolResults ?? {}),

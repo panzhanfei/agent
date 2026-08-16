@@ -13,10 +13,10 @@
 | `IntakeCoordinator` | 入口接线员 | 接收输入、理解意图、拆分任务、产出路由 JSON + **PathPlan** |
 | `KnowledgeManager` | 知识管理员 | hybrid 检索（vector ∥ sparse），返回 `hits` / `coverage` / `notes` |
 | **`CorpusLister`** | **语料列举器** | 纯 list 路径：目录扫盘分页（projects / experience）；**不经 KM hybrid** |
-| **`PlanFanOut`** | **计划并行执行** | 复合路径：`fanOutPlanWorkers` Send 派发 → `planSlotJoin` → `planMerge`（retrieve/tools/userFact 节点归各 Agent） |
+| **`PlanFanOut`** | **计划并行执行** | `fanOut` → `planSlotJoin` → **`planSlotPost`** → `planMerge`（retrieve/tool/dag 工人归各 Agent） |
 | `ContentOrganizer` | 内容整理师 | planMerge 后对 `hits` 做 Zod 规范化与 path 去重，再交给分析师 |
 | **全局再规划 B** | Join 后补救 | 结构失败槽改 query / 外搜；DAG 再批用 seed+下游闭包（非整图盲重跑）；`emptyPolicy` 管必答/可省略 |
-| **`ToolOrchestrator`** | **工具编排器** | `runToolOrchestratorNode` + **`runPlanSlotPostNode`**（fan-out 槽后 tools） |
+| **`ToolOrchestrator`** | **工具编排器** | `toolRetrieve` + `runToolOrchestratorNode`（post-retrieval 分发，由 planSlotPost 调用） |
 | **`DagExecutor`** | **DAG 执行器** | `agents/online/dag-executor`：`runDagExecutorNode` + **`runPlanDagNode`**（fan-out hybrid DAG 工人；拓扑/seed/闭包，不跑具体 tool switch） |
 | **`UserFact`** | **用户记忆** | `userFactNode`（纯 remember/recall）+ **`runUserFactSideNode`**（复合并行 side-effect） |
 | `InformationAnalyst` | 信息分析师 | 消费 `stepResults` + `toolResults` + 整理后的 `hits` 写终稿；可并入同轮 remember side-effect |

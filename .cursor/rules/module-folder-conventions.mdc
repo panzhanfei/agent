@@ -54,6 +54,7 @@ corpus-lister/                    plan-fanout/
 ├── interface.ts                                  ├── interface.ts
 ├── list/                                         ├── fan-out/index.ts
 └── slot/                                         ├── plan-slot-join/index.ts
+                                                  ├── plan-slot-post/index.ts
                                                   └── plan-merge/index.ts
 
 knowledge-manager/
@@ -73,7 +74,7 @@ import { runPlanSlotJoinNode, fanOutPlanWorkers } from "@/agentflow/agents/onlin
 // ❌ 禁止 node/ 子目录（已废弃）
 ```
 
-**PlanFanOut 边界：** 只拥有 `fan-out` → `planSlotJoin` → `planMerge`；`kmRetrieve`→KM；`listRetrieve`→Lister；`memRetrieve`→user-fact；`toolRetrieve`/`planSlotPost`→tool-orchestrator；`planDag`→dag-executor；`summarizeSlot`→content-summarizer；`runUserFactSideNode`→user-fact/side。
+**PlanFanOut 边界：** 只拥有 `fan-out` → `planSlotJoin` → `planSlotPost` → `planMerge`；`kmRetrieve`→KM；`listRetrieve`→Lister；`memRetrieve`→user-fact；`toolRetrieve`→tool-orchestrator；`planDag`→dag-executor；`summarizeSlot`→content-summarizer；`runUserFactSideNode`→user-fact/side。
 
 ## 新建 / 改动检查
 

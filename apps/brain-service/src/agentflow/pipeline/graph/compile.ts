@@ -20,14 +20,12 @@ import {
 import { runKmRetrieveNode } from "@/agentflow/agents/online/knowledge-manager";
 import {
   runPlanSlotJoinNode,
+  runPlanSlotPostNode,
   runPlanMergeNode,
 } from "@/agentflow/agents/online/plan-fanout";
 import { runPlanCacheResolveNode } from "@/agentflow/agents/online/plan-fanout/cache-resolve";
 import { runPlanDagNode } from "@/agentflow/agents/online/dag-executor";
-import {
-  runPlanSlotPostNode,
-  runToolRetrieveNode,
-} from "@/agentflow/agents/online/tool-orchestrator";
+import { runToolRetrieveNode } from "@/agentflow/agents/online/tool-orchestrator";
 import { runVaultWorkspaceNode } from "@/agentflow/agents/online/vault-write";
 import {
   runPreparePipelineMemory,

@@ -16,5 +16,4 @@ export {
   toolRunToAnalystResult,
 } from "./result-helpers";
 export { runToolOrchestratorNode } from "./tool-run";
-export { runPlanSlotPostNode } from "./plan-slot-post";
 export { runToolRetrieveNode, runToolSlotWorker } from "./tool-retrieve";
