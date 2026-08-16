@@ -40,9 +40,29 @@ export {
   buildExternalLinksAnswer,
   resolveExternalLinkScope,
   extractExternalLinkEntityTokens,
+  runExtractExternalLinksFromHits,
   type ExtractedLink,
   type ExternalLinkScope,
 } from "./links";
+
+export { runSearchWeb } from "./web";
+export { runTranslateText } from "./translate";
+export {
+  runComputeAgeFromHits,
+  runComputeTenureFromHits,
+  runExtractIdentityFromHits,
+} from "./identity";
+export { runRetrieveCorpus } from "./corpus";
+export { runComposeEnumeration, runListCorpusEntries } from "./enumeration";
+export {
+  runSynthesizeMerge,
+  invokeSynthesizeMerge,
+  buildSynthesizeMergeResult,
+  assertMatchReportAnswer,
+  MATCH_REPORT_HEADINGS,
+  renderMatchReportMarkdown,
+  matchReportToBlocks,
+} from "./synthesize";
 
 /** FamBrain 在线能力对应的 LangChain StructuredTool（主 pipeline 仍走 LangGraph 编排节点 + orchestrated 工具表） */
 export const createFambrainTools = (): StructuredToolInterface[] => [

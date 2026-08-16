@@ -2,7 +2,15 @@ export * from "./interface";
 export * from "./catalog";
 export * from "./enrich";
 export * from "./execute";
-export * from "./synthesize";
+export {
+  assertMatchReportAnswer,
+  buildDeterministicMatchReport,
+  buildSynthesizeMergeResult,
+  MATCH_REPORT_HEADINGS,
+  matchReportToBlocks,
+  parseMatchReport,
+  renderMatchReportMarkdown,
+} from "@/agentflow/tools/synthesize";
 export {
   pickToolResultForSubQuestion,
   toolRunToAnalystResult,

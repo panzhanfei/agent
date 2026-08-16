@@ -1,3 +1,5 @@
+import { buildSynthesizeMergeResult } from "./build";
+
 export type {
   MatchReport,
   MatchReportConclusion,
@@ -19,3 +21,7 @@ export {
 } from "./match-report";
 export { fillMatchReportWithLlm } from "./fill-llm";
 export { buildSynthesizeMergeResult } from "./build";
+
+/** 编排层入口：synthesize_merge */
+export const runSynthesizeMerge = buildSynthesizeMergeResult;
+export const invokeSynthesizeMerge = buildSynthesizeMergeResult;

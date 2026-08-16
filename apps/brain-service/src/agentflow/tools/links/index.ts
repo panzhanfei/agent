@@ -1,4 +1,5 @@
 export type { ExtractedLink, ExternalLinkScope } from "./interface";
+export { runExtractExternalLinksFromHits } from "./run";
 
 export {
   buildExternalLinksAnswer,

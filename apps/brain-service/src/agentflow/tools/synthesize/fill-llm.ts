@@ -7,7 +7,7 @@ import { ChatOllama } from "@langchain/ollama";
 import { getBrainServiceConfig } from "@fambrain/brain-config";
 import { recordLangChainOllamaUsage } from "@fambrain/brain-shared/pipeline-run-context";
 import { parseJsonObject, textFromResponse } from "@/agentflow/utils";
-import type { ToolRunResult } from "../interface";
+import type { ToolRunResult } from "@/agentflow/agents/online/tool-orchestrator/interface";
 import { parseMatchReport } from "./match-report";
 import type { MatchReport } from "./interface";
 

@@ -1,5 +1,5 @@
 import { dedupeCitations } from "@/agentflow/agents/online/content-organizer";
-import type { ToolRunResult } from "../interface";
+import type { ToolRunResult } from "@/agentflow/agents/online/tool-orchestrator/interface";
 import { fillMatchReportWithLlm } from "./fill-llm";
 import {
   buildDeterministicMatchReport,

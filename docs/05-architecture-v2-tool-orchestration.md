@@ -84,7 +84,7 @@ Intake（enrichedPlan / executionPlan）
 |------|------|
 | `agents/online/tool-orchestrator/field-catalog.ts` | 声明式 identity 字段表（`age` → `compute_age_from_hits`）；混合问句 / 外部事实启发式 |
 | `agents/online/tool-orchestrator/enrich-plan.ts` | `applyToolPlanGuard`：富化 `enrichedPlan`；混合问句 → `executionPlan`（`routeMode=plan`） |
-| `agents/online/tool-orchestrator/execute/` | 单工具执行：`invokeComputeAge`、`invokeSearchWeb`、`runExecutionPlanNode` |
+| `agents/online/tool-orchestrator/execute/` | 按 toolId 分发；实现在 `agentflow/tools/<name>` |
 | `agents/online/dag-executor/` | DAG 拓扑：`executeDagPlan`、`runPlanDagNode` |
 | `agents/online/tool-orchestrator/nodes.ts` | `runDagExecutorNode`、`runToolOrchestratorNode` |
 | `pipeline/graph/state.ts` | 新增 `asOfDate`、`toolResults` |
@@ -328,7 +328,7 @@ hybrid 汇合**不是**散文拼接材料包，而是固定契约：
 
 结论枚举仅：`适合` \| `谨慎` \| `信息不足`。`SYNTHESIZE_MATCH_LLM=0` 可关 LLM 填表（单测默认关）。
 
-实现：`tool-orchestrator/synthesize/`。
+实现：`agentflow/tools/synthesize/`。
 
 ### 11.4 新 Pipeline 拓扑
 

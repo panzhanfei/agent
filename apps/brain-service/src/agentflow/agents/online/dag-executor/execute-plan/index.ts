@@ -92,7 +92,7 @@ export const executeDagPlan = async (
         const note = `可选依赖未就绪（${softMissing.join(", ")}），已降级继续。`;
         if (result.matchReport) {
           const { renderMatchReportMarkdown, matchReportToBlocks } =
-            await import("@/agentflow/agents/online/tool-orchestrator/synthesize");
+            await import("@/agentflow/tools/synthesize");
           const matchReport = {
             ...result.matchReport,
             risks: [...result.matchReport.risks, { text: note }],

@@ -34,3 +34,6 @@ export {
 
 export { computeAgeFromHitsTool } from "./compute-age-from-hits";
 export { getCurrentDateTool } from "./get-current-date";
+export { runComputeAgeFromHits } from "./run-age";
+export { runComputeTenureFromHits } from "./run-tenure";
+export { runExtractIdentityFromHits } from "./run-extract";
