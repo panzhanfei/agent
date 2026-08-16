@@ -230,7 +230,7 @@ pnpm --filter @fambrain/brain-service run eval:run   # 全量
 | `path-plan/dag-templates.ts` | 仅 `hybrid_multi_source`（多源汇合；禁止场景 named DAG） |
 | **`plan-fanout/`** | `fan-out` + `planSlotJoin` + `planMerge`；Send 目标节点在 KM / Lister / ToolOrchestrator / UserFact |
 | `corpus-lister/` | LangGraph **`listRetriever` / `listRetrieve`**：纯 list / 复合 list 工人 |
-| `tool-orchestrator/plan-slot-post/`、`plan-dag/` | fan-out 内 tools / DAG 图节点出口 |
+| `tool-orchestrator/plan-slot-post/`、`dag-executor/` | fan-out 内 tools / DAG 图节点出口 |
 | `user-fact/side/` | fan-out 并行 remember side-effect |
 | `corpus-lister/enumeration/` | 列举分页 / UI **exact-match**（Intake barrel re-export） |
 | `tools/lib/extract-external-links.ts` | `extract_external_links_from_hits`（tools 层；Intake 只声明 queryType+toolId；strip 时间口语） |

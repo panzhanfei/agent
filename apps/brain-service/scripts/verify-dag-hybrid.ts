@@ -4,9 +4,9 @@
  *   pnpm --filter @fambrain/brain-service run verify:dag-hybrid
  */
 import assert from "node:assert/strict";
+import { buildHybridExecutionPlan } from "../src/agentflow/agents/online/dag-executor";
 import {
     assertMatchReportAnswer,
-    buildHybridExecutionPlan,
     invokeSynthesizeMerge,
     MATCH_REPORT_HEADINGS,
     type ToolRunResult,

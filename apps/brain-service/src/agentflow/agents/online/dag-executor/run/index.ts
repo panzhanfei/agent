@@ -1,5 +1,5 @@
 import type { PipelineGraphState } from "@/agentflow/pipeline/graph/state";
-import { executeDagPlan } from "../execute";
+import { executeDagPlan } from "../execute-plan";
 
 export const runDagExecutorNode = async (
   state: PipelineGraphState

@@ -84,7 +84,8 @@ Intake（enrichedPlan / executionPlan）
 |------|------|
 | `agents/online/tool-orchestrator/field-catalog.ts` | 声明式 identity 字段表（`age` → `compute_age_from_hits`）；混合问句 / 外部事实启发式 |
 | `agents/online/tool-orchestrator/enrich-plan.ts` | `applyToolPlanGuard`：富化 `enrichedPlan`；混合问句 → `executionPlan`（`routeMode=plan`） |
-| `agents/online/tool-orchestrator/execute-tools.ts` | 工具执行：`invokeComputeAge`、`invokeSearchWeb`、`executeDagPlan` |
+| `agents/online/tool-orchestrator/execute/` | 单工具执行：`invokeComputeAge`、`invokeSearchWeb`、`runExecutionPlanNode` |
+| `agents/online/dag-executor/` | DAG 拓扑：`executeDagPlan`、`runPlanDagNode` |
 | `agents/online/tool-orchestrator/nodes.ts` | `runDagExecutorNode`、`runToolOrchestratorNode` |
 | `pipeline/graph/state.ts` | 新增 `asOfDate`、`toolResults` |
 | `prepare-turn-start` | 注入 `asOfDate`（年龄计算基准日） |

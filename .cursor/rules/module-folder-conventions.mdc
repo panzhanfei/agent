@@ -73,7 +73,7 @@ import { runPlanSlotJoinNode, fanOutPlanWorkers } from "@/agentflow/agents/onlin
 // ❌ 禁止 node/ 子目录（已废弃）
 ```
 
-**PlanFanOut 边界：** 只拥有 `fan-out` → `planSlotJoin` → `planMerge`；`kmRetrieve`→KM；`listRetrieve`→Lister；`memRetrieve`→user-fact；`toolRetrieve`/`planSlotPost`/`planDag`→tool-orchestrator；`summarizeSlot`→content-summarizer；`runUserFactSideNode`→user-fact/side。
+**PlanFanOut 边界：** 只拥有 `fan-out` → `planSlotJoin` → `planMerge`；`kmRetrieve`→KM；`listRetrieve`→Lister；`memRetrieve`→user-fact；`toolRetrieve`/`planSlotPost`→tool-orchestrator；`planDag`→dag-executor；`summarizeSlot`→content-summarizer；`runUserFactSideNode`→user-fact/side。
 
 ## 新建 / 改动检查
 

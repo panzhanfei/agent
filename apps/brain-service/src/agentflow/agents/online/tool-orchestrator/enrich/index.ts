@@ -2,13 +2,13 @@ import type { IntakeRetrievalPlanItem } from "@/agentflow/agents/online/intake-c
 import type { CompositeRetrievalSlot } from "@/agentflow/agents/online/intake-coordinator";
 import type { RoutedIntakeDecision } from "@/agentflow/agents/online/intake-coordinator";
 import type { QueryProfile } from "@/agentflow/agents/online/knowledge-manager";
+import { buildHybridExecutionPlan } from "@/agentflow/agents/online/dag-executor/hybrid-plan";
 import {
     decisionSuggestsHybridDag,
-    extractCompanyHint,
     resolveIdentityFieldFromPlan,
     topicsSuggestWebSource,
 } from "../catalog";
-import type { DataSource, EnrichedPlanItem, ExecutionPlanNode, ToolRunId } from "../interface";
+import type { DataSource, EnrichedPlanItem, ToolRunId } from "../interface";
 import { resolveIntakeGraphRouteMode } from "@/agentflow/agents/online/intake-coordinator/pipeline";
 
 const enrichItem = (
@@ -58,50 +58,6 @@ export const enrichCompositeSlots = (
         ...slot,
         ...enrichItem(slot),
     }));
-
-export const buildHybridExecutionPlan = (
-    userQuestion: string,
-    decision: RoutedIntakeDecision
-): ExecutionPlanNode[] => {
-    const company = extractCompanyHint(userQuestion, decision.searchQuery);
-    const year = new Date().getFullYear();
-    return [
-        {
-            id: "resume",
-            label: "个人简历",
-            dataSource: "corpus",
-            toolId: "retrieve_corpus",
-            searchQuery: "个人简介 简历 技能 经历 项目",
-            queryType: "identity",
-            topics: ["personal", "resume"],
-            field: null,
-            deps: [],
-        },
-        {
-            id: "company",
-            label: "目标公司",
-            dataSource: "web",
-            toolId: "search_web",
-            webQuery: `${company} 公司 业务 招聘 发展 最近`,
-            deps: [],
-        },
-        {
-            id: "market",
-            label: "市场行情",
-            dataSource: "web",
-            toolId: "search_web",
-            webQuery: `${year} 年 市场行情 行业趋势 招聘`,
-            deps: [],
-        },
-        {
-            id: "synthesis",
-            label: "综合评估",
-            dataSource: "synthesize",
-            toolId: "synthesize_merge",
-            deps: ["resume", "company", "market"],
-        },
-    ];
-};
 
 /**
  * Intake guard ⑧：工具 / 数据源规划（不执行工具）。

@@ -17,7 +17,7 @@
 | `ContentOrganizer` | 内容整理师 | planMerge 后对 `hits` 做 Zod 规范化与 path 去重，再交给分析师 |
 | **全局再规划 B** | Join 后补救 | 结构失败槽改 query / 外搜；DAG 再批用 seed+下游闭包（非整图盲重跑）；`emptyPolicy` 管必答/可省略 |
 | **`ToolOrchestrator`** | **工具编排器** | `runToolOrchestratorNode` + **`runPlanSlotPostNode`**（fan-out 槽后 tools） |
-| **`DagExecutor`** | **DAG 执行器** | `runDagExecutorNode` + **`runPlanDagNode`**（fan-out hybrid DAG 工人） |
+| **`DagExecutor`** | **DAG 执行器** | `agents/online/dag-executor`：`runDagExecutorNode` + **`runPlanDagNode`**（fan-out hybrid DAG 工人；拓扑/seed/闭包，不跑具体 tool switch） |
 | **`UserFact`** | **用户记忆** | `userFactNode`（纯 remember/recall）+ **`runUserFactSideNode`**（复合并行 side-effect） |
 | `InformationAnalyst` | 信息分析师 | 消费 `stepResults` + `toolResults` + 整理后的 `hits` 写终稿；可并入同轮 remember side-effect |
 | **`VaultWrite`** | **原文库** | `kind=vault_workspace`：两层 list + `.txt`/文件夹 CRUD；语料化写入 `corpus/personal/imports/workspace/**/*.md` + 向量；**硬删**级联；**禁止**直接 HITL 改 corpus md |
@@ -344,7 +344,7 @@ flowchart TD
 
 **P0-19 / P0-20（2026-06）：** 单问 `identity` / `enumeration` / `default` 走 **plain-text 流式**（与 composite 子问同路径，`think: false`），避免 JSON 解析失败退回「根据知识库摘录」体；hits 上限与 KM **queryProfile** 对齐（`analyst-recall-limits.ts`）；ContentOrganizer 按 profile 设 `maxHits`。详见 [坑点 §2.5.5](./04-pitfalls.md#255-analyst-纯文本流--enumeration-项目公司分流-p0-19--p0-20--p0-21--2026-06)。
 
-**P0-24（2026-07）：** 四类数据源架构 — Intake `applyToolPlanGuard` 富化 `enrichedPlan` / `executionPlan`；**`toolOrchestrator`** 节点在 CO 之后执行 `compute_age_from_hits` / `compose_enumeration` / `search_web`；混合评估走 **`dagExecutor`**。年龄从 Analyst 内联上移到编排层；`prepareTurnStart` 注入 `asOfDate`。代码位于 `agents/online/tool-orchestrator/`。详见 [架构 v2](./05-architecture-v2-tool-orchestration.md)。
+**P0-24（2026-07）：** 四类数据源架构 — Intake `applyToolPlanGuard` 富化 `enrichedPlan` / `executionPlan`；**`toolOrchestrator`** 跑具体 tool；混合评估走 **`dagExecutor`**（`agents/online/dag-executor`）。年龄从 Analyst 内联上移到编排层；`prepareTurnStart` 注入 `asOfDate`。详见 [架构 v2](./05-architecture-v2-tool-orchestration.md)。
 
 **P0-26（2026-07）：** 列举执行从整句 **`routeMode=list`** 改为 **per-slot** `enumerationControl` + `executor`；`retrieval-node` 可同轮混跑 KM hybrid 与 list API。详见 [坑点 §2.5.10](./04-pitfalls.md#2510-列举执行-per-slot-架构升级-p0-26--2026-07)。
 

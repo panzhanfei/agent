@@ -23,9 +23,9 @@ import {
   runPlanMergeNode,
 } from "@/agentflow/agents/online/plan-fanout";
 import { runPlanCacheResolveNode } from "@/agentflow/agents/online/plan-fanout/cache-resolve";
+import { runPlanDagNode } from "@/agentflow/agents/online/dag-executor";
 import {
   runPlanSlotPostNode,
-  runPlanDagNode,
   runToolRetrieveNode,
 } from "@/agentflow/agents/online/tool-orchestrator";
 import { runVaultWorkspaceNode } from "@/agentflow/agents/online/vault-write";

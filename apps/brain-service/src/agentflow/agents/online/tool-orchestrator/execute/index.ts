@@ -1,4 +1,3 @@
-import { logAgentOut } from "@fambrain/brain-shared/agent-log";
 import { dedupeCitations } from "@/agentflow/agents/online/content-organizer";
 import { composeEnumerationAnswer } from "@/agentflow/agents/online/information-analyst/compose-message";
 import type { InformationAnalystResult } from "@/agentflow/agents/online/information-analyst/prompt";
@@ -12,13 +11,6 @@ import {
 } from "@/agentflow/tools";
 import type { PipelineGraphState } from "@/agentflow/pipeline/graph/state";
 import type { RoutedIntakeDecision } from "@/agentflow/agents/online/intake-coordinator";
-import {
-    canReuseDagNodeResult,
-    collectDownstreamRerunClosure,
-    shouldSkipForDeps,
-    skippedDepsResult,
-    unsatisfiedOptionalDeps,
-} from "@/agentflow/execution";
 import { resolveIdentityField, resolveIdentityFieldFromPlan } from "../catalog";
 import type { IntakeIdentityField } from "@/agentflow/agents/online/intake-coordinator/contract";
 import {
@@ -510,149 +502,6 @@ export const runExecutionPlanNode = async (
                 confidence: 0.5,
             };
     }
-};
-
-const topoWaves = (nodes: ExecutionPlanNode[]): ExecutionPlanNode[][] => {
-    const idSet = new Set(nodes.map((n) => n.id));
-    const remaining = new Map(nodes.map((n) => [n.id, n]));
-    const waves: ExecutionPlanNode[][] = [];
-    while (remaining.size > 0) {
-        const wave = [...remaining.values()].filter((n) =>
-            n.deps.every((d) => !remaining.has(d) && idSet.has(d))
-        );
-        if (wave.length === 0) break;
-        waves.push(wave);
-        for (const n of wave) remaining.delete(n.id);
-    }
-    return waves;
-};
-
-export type ExecuteDagPlanOptions = {
-    /** 首遍 / 上轮节点结果；再批时复用可复用节点 */
-    seedToolResults?: PipelineToolResults | null;
-    /** 全局 B 改过的节点（根）；会扩展为下游闭包 */
-    forceRerunIds?: ReadonlySet<string> | readonly string[];
-};
-
-export const executeDagPlan = async (
-    plan: ExecutionPlanNode[],
-    state: PipelineGraphState,
-    options?: ExecuteDagPlanOptions
-): Promise<PipelineToolResults> => {
-    const seed = options?.seedToolResults ?? null;
-    const forceRoots = options?.forceRerunIds ?? [];
-    const rerunSet =
-        seed && [...forceRoots].length > 0
-            ? collectDownstreamRerunClosure(plan, forceRoots)
-            : new Set<string>();
-    const useSeed = Boolean(seed) && rerunSet.size > 0;
-
-    const results: PipelineToolResults = {};
-    let skippedForDeps = 0;
-    let reused = 0;
-    let ran = 0;
-    for (const wave of topoWaves(plan)) {
-        const settled = await Promise.all(
-            wave.map(async (node) => {
-                if (
-                    useSeed &&
-                    !rerunSet.has(node.id) &&
-                    canReuseDagNodeResult(seed?.[node.id])
-                ) {
-                    reused += 1;
-                    return [node.id, seed![node.id]!] as const;
-                }
-
-                const optionalDeps = node.optionalDeps ?? [];
-                if (shouldSkipForDeps(node.deps, results, optionalDeps)) {
-                    skippedForDeps += 1;
-                    const missing = node.deps.filter(
-                        (d) =>
-                            !(optionalDeps.includes(d)) &&
-                            (!results[d] || !results[d]?.ok)
-                    );
-                    return [
-                        node.id,
-                        skippedDepsResult({
-                            toolId: node.toolId,
-                            label: node.label,
-                            missingDeps: missing,
-                        }),
-                    ] as const;
-                }
-                const softMissing = unsatisfiedOptionalDeps(
-                    node.deps,
-                    results,
-                    optionalDeps
-                );
-                ran += 1;
-                const result = await runExecutionPlanNode(node, {
-                    state,
-                    prior: results,
-                });
-                if (softMissing.length === 0) {
-                    return [node.id, result] as const;
-                }
-                const note = `可选依赖未就绪（${softMissing.join(", ")}），已降级继续。`;
-                // MatchReport：软依赖降级写入风险栏，避免破坏 L1 四栏正文
-                if (result.matchReport) {
-                    const { renderMatchReportMarkdown, matchReportToBlocks } =
-                        await import("../synthesize");
-                    const matchReport = {
-                        ...result.matchReport,
-                        risks: [
-                            ...result.matchReport.risks,
-                            { text: note },
-                        ],
-                        conclusion:
-                            result.matchReport.conclusion === "适合"
-                                ? ("谨慎" as const)
-                                : result.matchReport.conclusion,
-                        evidenceGrade:
-                            result.matchReport.evidenceGrade === "sufficient"
-                                ? ("partial" as const)
-                                : result.matchReport.evidenceGrade,
-                    };
-                    const answer = renderMatchReportMarkdown(matchReport);
-                    return [
-                        node.id,
-                        {
-                            ...result,
-                            matchReport,
-                            answer,
-                            blocks: matchReportToBlocks(matchReport),
-                            confidence: Math.min(result.confidence, 0.75),
-                            insufficientEvidence:
-                                result.insufficientEvidence || !result.ok,
-                        },
-                    ] as const;
-                }
-                return [
-                    node.id,
-                    {
-                        ...result,
-                        answer: result.answer
-                            ? `${result.answer}\n\n（${note}）`
-                            : note,
-                        confidence: Math.min(result.confidence, 0.75),
-                        insufficientEvidence:
-                            result.insufficientEvidence || !result.ok,
-                    },
-                ] as const;
-            })
-        );
-        for (const [id, result] of settled) results[id] = result;
-    }
-    logAgentOut("DagExecutor", "完成", {
-        nodeIds: Object.keys(results),
-        synthesis: results.synthesis?.ok ?? null,
-        skippedForDeps,
-        reused,
-        ran,
-        forceRerun: [...rerunSet],
-        partialReexec: useSeed,
-    });
-    return results;
 };
 
 export const resolvePostRetrievalToolRuns = (
