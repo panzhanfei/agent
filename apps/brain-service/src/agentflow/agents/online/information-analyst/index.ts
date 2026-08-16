@@ -5,15 +5,22 @@ import {
   sideEffectAnswerToAssistantBlock,
 } from "@/agentflow/agents/online/user-fact";
 import type { PipelineGraphState } from "@/agentflow/pipeline/graph/state";
+/**
+ * InformationAnalyst：终稿回答。包根只聚合；流式在 stream/，归纳在 analyze/，列举拼装在 compose/。
+ */
 import { streamAnalyzeInformation } from "./stream";
 
-export { streamAnalyzeInformation } from "./stream";
+export type {
+  Citation,
+  InformationAnalystInput,
+  InformationAnalystResult,
+} from "./interface";
+export { prompt } from "./contract";
 export {
-  completeAnalyzeSubQuestion,
-  maxAnalystHitsForProfile,
-  MAX_SUB_QUESTION_HITS,
-  streamAnalyzeSubQuestion,
-} from "./complete-analyze";
+  citationSchema,
+  informationAnalystResultSchema,
+  parseAnalystResult,
+} from "./contract";
 export {
   buildFallbackAnswer,
   buildSubQuestionFallbackAnswer,
@@ -24,27 +31,27 @@ export {
   shouldSkipAnalystLlm,
   toSubQuestionInput,
   type SubQuestionAnalyzeInput,
-} from "./analyze-helpers";
+} from "./analyze";
 export {
   prefersPlainTextAnalystStream,
   resolveAnalystQueryProfile,
-} from "./analyst-recall-limits";
+} from "./limits";
 export {
   pickToolResultForSubQuestion,
   toolRunToAnalystResult,
   type PickToolResultInput,
 } from "./pick-tool-result";
 export {
-  prompt,
-  type Citation,
-  type InformationAnalystInput,
-  type InformationAnalystResult,
-} from "./prompt";
+  composeEnumerationAnswer,
+  mergeCompositeWithBlocks,
+} from "./compose";
 export {
-  citationSchema,
-  informationAnalystResultSchema,
-  parseAnalystResult,
-} from "./schema";
+  streamAnalyzeInformation,
+  completeAnalyzeSubQuestion,
+  maxAnalystHitsForProfile,
+  MAX_SUB_QUESTION_HITS,
+  streamAnalyzeSubQuestion,
+} from "./stream";
 
 /** LangGraph analyst 节点（经 custom 通道流式推送） */
 export const runAnalystNode = async (

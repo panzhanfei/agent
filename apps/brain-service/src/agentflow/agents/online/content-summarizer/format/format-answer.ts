@@ -1,4 +1,4 @@
-import type { ContentSummaryResult } from "./prompt";
+import type { ContentSummaryResult } from "../interface";
 export const formatSummaryAsAnswer = (result: ContentSummaryResult): string => {
     const lines: string[] = [`## ${result.title}`, "", result.summary];
     if (result.bullets.length > 0) {

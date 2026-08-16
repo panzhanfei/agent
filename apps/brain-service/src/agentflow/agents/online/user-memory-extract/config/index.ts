@@ -1,5 +1,5 @@
 import { getBrainServiceConfig } from "@fambrain/brain-config";
-import type { UserMemoryAutoLearnConfig } from "./interface";
+import type { UserMemoryAutoLearnConfig } from "../interface";
 
 const envFlag = (name: string, defaultOn: boolean): boolean => {
   const raw = process.env[name];

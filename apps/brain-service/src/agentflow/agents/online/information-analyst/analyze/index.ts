@@ -6,7 +6,7 @@ import type {
 import type { QueryProfile } from "@/agentflow/agents/online/knowledge-manager";
 import {
   resolveAnalystQueryProfile,
-} from "./analyst-recall-limits";
+} from "../limits";
 import { memoryBlockHasStructuredUserFacts } from "@/agentflow/agents/online/user-fact";
 import { facetKeyMatchesIdentity } from "@/agentflow/cache";
 import type { IntakeIdentityField } from "@/agentflow/agents/online/intake-coordinator/contract";
@@ -18,21 +18,21 @@ import type { PipelineToolResults } from "@/agentflow/agents/online/tool-orchest
 import {
   pickToolResultForSubQuestion,
   toolRunToAnalystResult,
-} from "./pick-tool-result";
-import { composeEnumerationAnswer } from "./compose-message";
+} from "../pick-tool-result";
 import {
     compactExcerptLine,
+    composeEnumerationAnswer,
     formatHitsAsAnswerList,
     hitDisplayTitle,
-} from "./enumeration-format";
+} from "../compose";
 import type {
   Citation,
   InformationAnalystInput,
   InformationAnalystResult,
-} from "./prompt";
-import { parseAnalystResult } from "./schema";
+} from "../interface";
+import { parseAnalystResult } from "../contract";
 export { parseAnalystResult as normalizeAnalystResult };
-export { formatHitsAsAnswerList, hitDisplayTitle, compactExcerptLine } from "./enumeration-format";
+export { formatHitsAsAnswerList, hitDisplayTitle, compactExcerptLine } from "../compose";
 
 /** 单个子问题 Analyst 输入（composite map） */
 export type SubQuestionAnalyzeInput = {

@@ -5,11 +5,10 @@
  */
 import assert from "node:assert/strict";
 import { PROJECTS_SLOT } from "../src/agentflow/agents/online/intake-coordinator";
-import { organizeKnowledge } from "../src/agentflow/agents/online/content-organizer/organize-knowledge";
-import { shouldSkipSubQuestionLlm } from "../src/agentflow/agents/online/information-analyst/analyze-helpers";
-import { composeEnumerationAnswer } from "../src/agentflow/agents/online/information-analyst/compose-message";
+import { organizeHits, organizeKnowledge } from "../src/agentflow/agents/online/content-organizer/organize";
+import { shouldSkipSubQuestionLlm } from "../src/agentflow/agents/online/information-analyst/analyze";
+import { composeEnumerationAnswer } from "../src/agentflow/agents/online/information-analyst/compose";
 import { parseKnowledgeHits } from "../src/agentflow/agents/online/knowledge-manager/contract";
-import { organizeHits } from "../src/agentflow/agents/online/content-organizer/organize-hits";
 import type { KnowledgeHit } from "../src/agentflow/agents/online/knowledge-manager";
 
 const mkHit = (i: number): KnowledgeHit => ({

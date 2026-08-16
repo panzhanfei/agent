@@ -6,8 +6,8 @@
 import assert from "node:assert/strict";
 import { parseIntakeRoutingDecision } from "../src/agentflow/agents/online/intake-coordinator";
 import { parseKnowledgeRetrievalResult } from "../src/agentflow/agents/online/knowledge-manager/contract";
-import { parseAnalystResult } from "../src/agentflow/agents/online/information-analyst/schema";
-import { buildFallbackAnswer } from "../src/agentflow/agents/online/information-analyst/analyze-helpers";
+import { parseAnalystResult } from "../src/agentflow/agents/online/information-analyst/contract";
+import { buildFallbackAnswer } from "../src/agentflow/agents/online/information-analyst/analyze";
 const testIntake = () => {
     const ok = parseIntakeRoutingDecision({
         intent: "retrieve_and_answer",

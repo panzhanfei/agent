@@ -1,5 +1,5 @@
 import { describe, expect, it } from "vitest";
-import { sliceHitsForAnalystStream } from "@/agentflow/agents/online/information-analyst/analyst-recall-limits";
+import { sliceHitsForAnalystStream } from "@/agentflow/agents/online/information-analyst/limits";
 import type { KnowledgeHit } from "@/agentflow/agents/online/knowledge-manager";
 
 const hits = (n: number): KnowledgeHit[] =>

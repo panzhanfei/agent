@@ -1,5 +1,5 @@
 import { Send } from "@langchain/langgraph";
-import { isSummarizeComposeDecision } from "@/agentflow/agents/online/content-summarizer/summarize-route";
+import { isSummarizeComposeDecision } from "@/agentflow/agents/online/content-summarizer/route";
 import type { IntakeRouteMode } from "@/agentflow/agents/online/intake-coordinator/guards/interface";
 import {
   fanOutPlanWorkers,

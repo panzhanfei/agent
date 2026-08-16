@@ -1,5 +1,5 @@
 import type { CachedFacetAnswer } from "@fambrain/infra";
-import type { InformationAnalystResult } from "@/agentflow/agents/online/information-analyst/prompt";
+import type { InformationAnalystResult } from "@/agentflow/agents/online/information-analyst/interface";
 
 /** 缓存终稿 → Analyst 结果形状（供增量跳过 Analyst 时复用） */
 export const cachedFacetToAnalystResult = (

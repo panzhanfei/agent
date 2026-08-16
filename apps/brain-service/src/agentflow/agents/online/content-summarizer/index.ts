@@ -1,27 +1,28 @@
+/**
+ * ContentSummarizer：摘要终稿与 summarizeSlot。包根只聚合；LLM 在 summarize/，路由在 route/。
+ */
 import { logAgentOut } from "@fambrain/brain-shared/agent-log";
 import type { PipelineGraphState } from "@/agentflow/pipeline/graph/state";
-import { buildSummarizeSourceText } from "./build-source-text";
-import { formatSummaryAsAnswer } from "./format-answer";
-import { isSummarizeComposeDecision } from "./summarize-route";
+import { buildSummarizeSourceText } from "./source";
+import { formatSummaryAsAnswer } from "./format";
+import { isSummarizeComposeDecision } from "./route";
 import { summarizeContent } from "./summarize";
 
-export { summarizeContent } from "./summarize";
-export {
-  isPureSummarizeDecision,
-  isSummarizeComposeDecision,
-} from "./summarize-route";
-export { summarizeMarkdownFile } from "./summarize-file";
-export { formatSummaryAsAnswer } from "./format-answer";
-export { buildSummarizeSourceText } from "./build-source-text";
-export {
-  contentSummaryResultSchema,
-  parseContentSummaryResult,
-} from "./schema";
-export { prompt } from "./prompt";
 export type {
   ContentSummarizerInput,
   ContentSummaryResult,
-} from "./prompt";
+} from "./interface";
+export { summarizeContent, summarizeMarkdownFile, prompt } from "./summarize";
+export {
+  contentSummaryResultSchema,
+  parseContentSummaryResult,
+} from "./summarize";
+export {
+  isPureSummarizeDecision,
+  isSummarizeComposeDecision,
+} from "./route";
+export { formatSummaryAsAnswer } from "./format";
+export { buildSummarizeSourceText } from "./source";
 
 export { runSummarizeSlotNode } from "./slot";
 

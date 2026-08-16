@@ -12,7 +12,7 @@ import { ensureBrainServiceRuntime } from "@/config";
 import {
   isPureSummarizeDecision,
   isSummarizeComposeDecision,
-} from "@/agentflow/agents/online/content-summarizer/summarize-route";
+} from "@/agentflow/agents/online/content-summarizer/route";
 import { isPureListDecision } from "@/agentflow/agents/online/corpus-lister";
 import { intakeRequiresKmRetrieval } from "@/agentflow/agents/online/intake-coordinator/pipeline";
 import { describeFanOutPlan } from "@/agentflow/agents/online/plan-fanout";

@@ -1,5 +1,5 @@
 /**
- * 独立抽取节点 system prompt（非 Intake）。
+ * 独立抽取 system prompt（非 Intake）。
  * 语义判断全部交给模型；代码只做 schema 合法化与置信阈值。
  */
 export const USER_MEMORY_EXTRACT_PROMPT = `你是用户跨会话记忆抽取器。只根据【用户本轮原话】判断是否有值得长期记住的稳定事实。

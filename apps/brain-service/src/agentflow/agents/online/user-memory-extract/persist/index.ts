@@ -1,8 +1,8 @@
 import type { AgentPipelineContext } from "@fambrain/brain-types";
 import { logAgentIn, logAgentOut } from "@fambrain/brain-shared/agent-log";
 import { addStructuredUserFact, getMemoryConfig } from "@fambrain/brain-memory";
-import { getUserMemoryAutoLearnConfig } from "./config";
-import { extractUserMemoryFactsFromUtterance } from "./extract";
+import { getUserMemoryAutoLearnConfig } from "../config";
+import { extractUserMemoryFactsFromUtterance } from "../extract";
 
 /**
  * 轮次结束静默自学：用户原话 → 结构化 facts → Mem0（写时去重）。

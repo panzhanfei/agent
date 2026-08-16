@@ -8,7 +8,7 @@ import { runIntakePipeline } from "../src/agentflow/agents/online/intake-coordin
 import {
     composeEnumerationAnswer,
     mergeCompositeWithBlocks,
-} from "../src/agentflow/agents/online/information-analyst/compose-message";
+} from "../src/agentflow/agents/online/information-analyst/compose";
 import type { KnowledgeHit } from "../src/agentflow/agents/online/knowledge-manager";
 
 const USER_QUESTION =

@@ -1,6 +1,6 @@
 import { z } from "zod";
 import type { AssistantMessageBlock } from "@fambrain/brain-types";
-import type { Citation } from "@/agentflow/agents/online/information-analyst/prompt";
+import type { Citation } from "@/agentflow/agents/online/information-analyst/interface";
 import type { ToolRunResult } from "@/agentflow/agents/online/tool-orchestrator/interface";
 import {
   MATCH_REPORT_CONCLUSIONS,

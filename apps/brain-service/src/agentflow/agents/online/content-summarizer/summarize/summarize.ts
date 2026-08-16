@@ -5,7 +5,8 @@ import { logAgentIn, logAgentOut } from "@fambrain/brain-shared/agent-log";
 import { recordLangChainOllamaUsage } from "@fambrain/brain-shared/pipeline-run-context";
 import { parseJsonObject, textFromResponse } from "@/agentflow/utils";
 import { parseContentSummaryResult } from "./schema";
-import { prompt, type ContentSummarizerInput, type ContentSummaryResult, } from "./prompt";
+import { prompt } from "./prompt";
+import type { ContentSummarizerInput, ContentSummaryResult } from "../interface";
 const MAX_INPUT_CHARS = 12000;
 const { ollama } = getBrainServiceConfig();
 const llm = new ChatOllama({

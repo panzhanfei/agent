@@ -1,5 +1,5 @@
 import { describe, expect, it } from "vitest";
-import { buildSummarizeSourceText } from "@/agentflow/agents/online/content-summarizer/build-source-text";
+import { buildSummarizeSourceText } from "@/agentflow/agents/online/content-summarizer/source";
 
 describe("buildSummarizeSourceText", () => {
   it("prefers turnAttachments over empty hits / short question", () => {

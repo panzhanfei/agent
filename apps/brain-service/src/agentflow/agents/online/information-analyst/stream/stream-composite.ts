@@ -11,10 +11,10 @@ import type { AssistantMessageBlock } from "@fambrain/brain-types";
 import {
     mergeSubQuestionAnswers,
     type SubQuestionAnalyzeInput,
-} from "./analyze-helpers";
-import { mergeCompositeWithBlocks } from "./compose-message";
+} from "../analyze";
+import { mergeCompositeWithBlocks } from "../compose";
 import { streamAnalyzeSubQuestion } from "./complete-analyze";
-import type { InformationAnalystInput, InformationAnalystResult } from "./prompt";
+import type { InformationAnalystInput, InformationAnalystResult } from "../interface";
 
 type AnalystStreamChunk =
     | { type: "thinking"; text: string }

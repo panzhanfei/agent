@@ -14,7 +14,7 @@ import {
     analystResultToCachedFacet,
     cachedFacetToAnalystResult,
 } from "../src/agentflow/cache";
-import { composeEnumerationAnswer } from "../src/agentflow/agents/online/information-analyst/compose-message";
+import { composeEnumerationAnswer } from "../src/agentflow/agents/online/information-analyst/compose";
 import { listCorpusEntriesPage } from "../src/agentflow/agents/online/corpus-lister";
 import { retrieveEnumerationPage } from "../src/agentflow/agents/online/corpus-lister";
 import { resolveEnumerationPagination } from "../src/agentflow/agents/online/corpus-lister/enumeration";

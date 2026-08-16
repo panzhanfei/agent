@@ -1,8 +1,8 @@
 import { logAgentIn, logAgentOut } from "@fambrain/brain-shared/agent-log";
 import { getProfileRecallParams } from "@/agentflow/agents/online/knowledge-manager";
 import { organizeHits } from "./organize-hits";
-import type { ContentOrganizerInput, ContentOrganizerResult, } from "./prompt";
-import { parseKnowledgeHits } from "./schema";
+import type { ContentOrganizerInput, ContentOrganizerResult } from "../interface";
+import { parseKnowledgeHits } from "../contract";
 export const organizeKnowledge = (input: ContentOrganizerInput): ContentOrganizerResult => {
     const maxHits = input.maxHitsOverride ??
         (input.queryProfile

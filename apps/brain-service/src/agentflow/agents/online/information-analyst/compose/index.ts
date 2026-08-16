@@ -10,7 +10,7 @@ import type { KnowledgeHit } from "@/agentflow/agents/online/knowledge-manager";
 import type { EnumerationMeta } from "@/agentflow/agents/online/knowledge-manager";
 import { isProjectEnumeration } from "@/agentflow/agents/online/intake-coordinator";
 import { enumerationActionPrompt } from "@/agentflow/agents/online/corpus-lister/enumeration";
-import { formatSubQuestionSection } from "./analyze-helpers";
+import { formatSubQuestionSection } from "../analyze";
 import {
   enumerationStartIndex,
   formatEnumerationPaginationHint,
@@ -19,7 +19,19 @@ import {
   hitDisplayRole,
   hitDisplayTitle,
 } from "./enumeration-format";
-import type { InformationAnalystResult } from "./prompt";
+import type { InformationAnalystResult } from "../interface";
+
+export {
+  compactExcerptLine,
+  compactEnumerationExcerpt,
+  enumerationStartIndex,
+  formatEnumerationPaginationHint,
+  formatEnumerationPaginationLine,
+  formatHitsAsAnswerList,
+  hitDisplayRole,
+  hitDisplayTitle,
+} from "./enumeration-format";
+export type { EnumerationPaginationHintInput } from "./enumeration-format";
 
 export type ComposeEnumerationInput = {
   hits: KnowledgeHit[];

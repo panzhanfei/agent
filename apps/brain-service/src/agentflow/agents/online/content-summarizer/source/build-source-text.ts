@@ -1,5 +1,5 @@
 import type { TurnAttachment } from "@fambrain/brain-types";
-import type { InformationAnalystInput } from "@/agentflow/agents/online/information-analyst";
+import type { InformationAnalystInput } from "@/agentflow/agents/online/information-analyst/interface";
 import type { IntakeRoutingDecision } from "@/agentflow/agents/online/intake-coordinator";
 
 const joinTurnAttachments = (files: TurnAttachment[]): string =>

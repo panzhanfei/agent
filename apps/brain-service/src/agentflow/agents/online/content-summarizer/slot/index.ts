@@ -10,7 +10,7 @@ import type { PlanSlotWorkerPatch } from "@/agentflow/agents/online/plan-fanout/
 import { emitBudgetedSlotPatch } from "@/agentflow/agents/online/plan-fanout/slot-budget";
 import type { PipelineGraphState } from "@/agentflow/pipeline/graph/state";
 import type { ToolRunResult } from "@/agentflow/agents/online/tool-orchestrator/interface";
-import { formatSummaryAsAnswer } from "../format-answer";
+import { formatSummaryAsAnswer } from "../format";
 import { summarizeContent } from "../summarize";
 
 const emptySub = (

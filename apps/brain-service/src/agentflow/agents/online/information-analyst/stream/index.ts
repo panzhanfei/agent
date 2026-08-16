@@ -7,23 +7,30 @@ import {
     prefersPlainTextAnalystStream,
     resolveAnalystQueryProfile,
     sliceHitsForAnalystStream,
-} from "./analyst-recall-limits";
+} from "../limits";
 import {
     buildFallbackAnswer,
     normalizeAnalystResult,
     shouldSkipAnalystLlm,
     toSubQuestionInput,
-} from "./analyze-helpers";
+} from "../analyze";
 import { streamAnalyzeSubQuestion } from "./complete-analyze";
-import {
-    prompt,
-    type InformationAnalystInput,
-    type InformationAnalystResult,
-} from "./prompt";
+import { prompt } from "../contract";
+import type {
+    InformationAnalystInput,
+    InformationAnalystResult,
+} from "../interface";
 import { cachedFacetToAnalystResult } from "@/agentflow/cache";
 import { streamCompositeAnalyze } from "./stream-composite";
-
 import type { AssistantMessageBlock } from "@fambrain/brain-types";
+
+export {
+    completeAnalyzeSubQuestion,
+    maxAnalystHitsForProfile,
+    MAX_SUB_QUESTION_HITS,
+    streamAnalyzeSubQuestion,
+} from "./complete-analyze";
+export { streamCompositeAnalyze } from "./stream-composite";
 
 type AnalystStreamChunk =
     | { type: "thinking"; text: string }

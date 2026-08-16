@@ -7,8 +7,8 @@ import type {
   PipelineToolResults,
   ToolRunResult,
 } from "@/agentflow/agents/online/tool-orchestrator/interface";
-import type { InformationAnalystResult } from "../prompt";
-import { resolveAnalystQueryProfile } from "../analyst-recall-limits";
+import type { InformationAnalystResult } from "../interface";
+import { resolveAnalystQueryProfile } from "../limits";
 import type { PickToolResultInput } from "./interface";
 
 export type { PickToolResultInput } from "./interface";

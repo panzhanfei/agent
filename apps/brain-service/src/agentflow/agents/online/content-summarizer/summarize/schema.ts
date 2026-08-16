@@ -1,6 +1,6 @@
 import { z } from "zod";
 import { nullableTrimmedString } from "@/agentflow/utils";
-import type { ContentSummaryResult } from "./prompt";
+import type { ContentSummaryResult } from "../interface";
 export const contentSummaryResultSchema = z.object({
     title: z.string().trim().min(1),
     summary: z.string().trim().min(1),

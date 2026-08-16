@@ -3,7 +3,7 @@ import { normalizeFactKey } from "@/agentflow/agents/online/user-fact";
 import type {
   ExtractedUserMemoryFact,
   UserMemoryExtractLlmResult,
-} from "./interface";
+} from "../interface";
 
 const factSchema = z.object({
   factKey: z.coerce.string().optional(),

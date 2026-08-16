@@ -2,7 +2,7 @@ import { describe, expect, it } from "vitest";
 import {
     isPureSummarizeDecision,
     isSummarizeComposeDecision,
-} from "@/agentflow/agents/online/content-summarizer/summarize-route";
+} from "@/agentflow/agents/online/content-summarizer/route";
 import { emptyPathPlan } from "@/agentflow/agents/online/intake-coordinator/path-plan";
 
 describe("summarize-route", () => {

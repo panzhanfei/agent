@@ -1,6 +1,6 @@
 import { readFile } from "node:fs/promises";
 import { summarizeContent } from "./summarize";
-import type { ContentSummaryResult } from "./prompt";
+import type { ContentSummaryResult } from "../interface";
 export const summarizeMarkdownFile = async (absPath: string, options?: {
     language?: "zh" | "en" | "mixed";
     maxBullets?: number;

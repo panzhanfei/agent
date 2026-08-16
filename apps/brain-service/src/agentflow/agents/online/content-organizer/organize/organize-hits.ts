@@ -1,4 +1,4 @@
-import type { Citation } from "@/agentflow/agents/online/information-analyst/prompt";
+import type { Citation } from "@/agentflow/agents/online/information-analyst/interface";
 import type { KnowledgeHit } from "@/agentflow/agents/online/knowledge-manager";
 const MAX_HITS = 5;
 const EXCERPT_MAX = 320;

@@ -1,8 +1,8 @@
 /**
  * compose_enumeration / list_corpus_entries：列举成稿。
  */
-import { composeEnumerationAnswer } from "@/agentflow/agents/online/information-analyst/compose-message";
-import type { InformationAnalystResult } from "@/agentflow/agents/online/information-analyst/prompt";
+import { composeEnumerationAnswer } from "@/agentflow/agents/online/information-analyst/compose";
+import type { InformationAnalystResult } from "@/agentflow/agents/online/information-analyst/interface";
 import type { RoutedIntakeDecision } from "@/agentflow/agents/online/intake-coordinator";
 import type { KnowledgeHit } from "@/agentflow/agents/online/knowledge-manager";
 import type { PipelineGraphState } from "@/agentflow/pipeline/graph/state";

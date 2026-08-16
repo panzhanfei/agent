@@ -1,7 +1,7 @@
 import { z } from "zod";
 import { dedupeCitations } from "@/agentflow/agents/online/content-organizer";
 import { unitInterval } from "@/agentflow/utils";
-import type { Citation, InformationAnalystResult } from "./prompt";
+import type { Citation, InformationAnalystResult } from "../interface";
 export const citationSchema = z.object({
     path: z.string().trim().min(1),
     excerpt: z.string().trim().min(1),

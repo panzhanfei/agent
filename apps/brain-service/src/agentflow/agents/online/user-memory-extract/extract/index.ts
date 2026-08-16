@@ -4,10 +4,16 @@ import { getBrainServiceConfig } from "@fambrain/brain-config";
 import { logAgentIn, logAgentOut } from "@fambrain/brain-shared/agent-log";
 import { recordLangChainOllamaUsage } from "@fambrain/brain-shared/pipeline-run-context";
 import { parseJsonObject, textFromResponse } from "@/agentflow/utils";
-import { getUserMemoryAutoLearnConfig } from "./config";
-import type { ExtractedUserMemoryFact } from "./interface";
+import { getUserMemoryAutoLearnConfig } from "../config";
+import type { ExtractedUserMemoryFact } from "../interface";
 import { USER_MEMORY_EXTRACT_PROMPT } from "./prompt";
 import { parseUserMemoryExtractResult } from "./schema";
+
+export { USER_MEMORY_EXTRACT_PROMPT } from "./prompt";
+export {
+  legalizeExtractedUserMemoryFacts,
+  parseUserMemoryExtractResult,
+} from "./schema";
 
 /**
  * 独立 LLM 抽取（非 Intake）。仅消费用户原话。
