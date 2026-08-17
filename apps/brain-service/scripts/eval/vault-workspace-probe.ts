@@ -286,18 +286,6 @@ export const runVaultWorkspaceProbe = async (
         });
         continue;
       }
-        results.push({
-          id: c.id,
-          tier: "pipeline",
-          label: c.label,
-          pass: ok,
-          reason: ok
-            ? "offer rules ok"
-            : `summarize=${summarize} translate=${translate} qa=${qa}`,
-          latencyMs: Date.now() - started,
-        });
-        continue;
-      }
       if (c.mode === "save_gate_prompts") {
         const built = buildVaultSaveGateBlocks({ draft: "hello" });
         const actions = built.blocks.find((b) => b.type === "actions");
