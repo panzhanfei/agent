@@ -26,14 +26,14 @@ Understand + Plan（可融合为一次 LLM）
 
 `pending → running → done | skipped`  
 `running → aborted`（Turn 取消 / supersede）  
-图级人等：仅原文库 `interrupt({ kind: vault_wait })`，不占用槽状态 `awaiting_human`。生成停用 `gen_pause` 截停采样后 **discard**，不 Resume。
+图级人等：仅原文库 `interrupt({ kind: vault_wait })`。槽状态机无 `awaiting_human`。生成停用 `gen_pause` 截停采样后 **discard**，不 Resume。
 
 | 状态 | 含义 |
 |------|------|
 | `pending` | 已进 plan，未拉起 |
 | `running` | 工人/子图执行中 |
 | `done` | 有可用结果（可带 `degraded`） |
-| `skipped` | 超时 / 预算用尽 / deps 失败 / 错误 / 用户拒绝（用 `reason` 区分，不另造 `failed`） |
+| `skipped` | 超时 / 预算用尽 / deps 失败 / 错误（用 `reason` 区分，不另造 `failed`） |
 | `aborted` | Turn 作废，禁止写回 |
 
 **部分结果：** 本槽有弱/部分可用 hits → `done` + `degraded`；完全无可用或超时砍掉 → `skipped`。

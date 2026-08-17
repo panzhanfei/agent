@@ -12,7 +12,7 @@ intake → planCacheResolve（agentflow/cache）
 ├── memRetrieve     PathKind=mem      dataSource=mem0
 ├── toolRetrieve    PathKind=tool     dataSource=web|…
 ├── summarizeSlot   PathKind=summarize dataSource=user_text
-├── vaultWorkspace  PathKind=vault_workspace
+├── vaultWorkspace  PathKind=vault_workspace（interrupt 循环；成功不进 Join）
 ├── userFactSide    remember side-effect
 └── planDag         PathKind=dag（与槽同一 Join）
 
@@ -29,7 +29,7 @@ intake → planCacheResolve（agentflow/cache）
 2. `runExecutionPlanNode` switch 增加 case  
 3. **不要**加入 `POST_RETRIEVAL_TOOL_IDS` → 自动走 `toolRetrieve`  
 
-独立工具一般无需新 PathKind。原文库 CRUD 走 `vault_workspace` → Send `vaultWorkspace`。
+独立工具一般无需新 PathKind。原文库 CRUD 走 `vault_workspace` → Send `vaultWorkspace`（节点内 interrupt，不经预算槽工人）。
 
 ## 结构归一（无字段名表）
 

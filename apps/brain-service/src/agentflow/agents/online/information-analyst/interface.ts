@@ -66,7 +66,7 @@ export type InformationAnalystInput = {
       value: string | null;
     } | null;
     dataSource?: string | null;
-    /** HITL / vault 等工人直接挂载的 UI 块 */
+    /** 工人挂载的 UI 块（如 DAG synthesis；vault HITL 走 interrupt，不经此字段） */
     assistantBlocks?: import("@fambrain/brain-types").AssistantMessageBlock[];
   }>;
   /** composite 增量计划（含 槽答案缓存 命中标记） */

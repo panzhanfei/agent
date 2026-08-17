@@ -348,7 +348,7 @@ export const createPostMessageStreamResponse = (options: {
   /** 入库与 UI 展示 */
   userContent: string;
   /**
-   * 发给 Brain 的当前轮用户正文（可与 userContent 不同，如 HITL exact-match）。
+   * 发给 Brain 的当前轮用户正文（可与 userContent 不同，如 vault 按钮 exact-match）。
    * 缺省 = userContent。
    */
   pipelineContent?: string;
@@ -360,11 +360,6 @@ export const createPostMessageStreamResponse = (options: {
   /** 编辑重跑：已存在的用户消息 id，跳过 append */
   existingUserMessageId?: string;
   resume?: AgentPipelineContext["resume"];
-  /**
-   * @deprecated 刷新/断线不应取消生成。已忽略。
-   * 显式停止请走 cancel API。
-   */
-  clientSignal?: AbortSignal;
 }): Response => {
   const turnId = options.turnId;
   const pipelineContent = options.pipelineContent ?? options.userContent;

@@ -1,6 +1,6 @@
 /**
  * 按 path 增量维护 Qdrant：删旧 chunk →（可选）写入新 chunk。
- * 相对 indexCorpusDocuments 的整库 delete+重建，供单文件 HITL / 局部更新。
+ * 相对 indexCorpusDocuments 的整库 delete+重建，供 vault 语料化 / 局部更新。
  */
 import { Document } from "@langchain/core/documents";
 import type { Logger } from "pino";

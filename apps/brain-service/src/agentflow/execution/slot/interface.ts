@@ -9,8 +9,7 @@ export type SlotStatus =
   | "running"
   | "done"
   | "skipped"
-  | "aborted"
-  | "awaiting_human";
+  | "aborted";
 
 /** skipped / 降级原因：结构化枚举，非口语推断 */
 export type SlotStatusReason =
@@ -18,7 +17,6 @@ export type SlotStatusReason =
   | "budget"
   | "deps"
   | "error"
-  | "user_reject"
   | "degraded"
   | "cancelled"
   | "superseded";
@@ -34,10 +32,9 @@ export type SlotRuntimeState = {
   finishedAtMs?: number | null;
 };
 
-/** Join 可汇合终态；awaiting_human 结束本波（resume 走独立 API） */
+/** Join 可汇合终态。人等走图 interrupt，不占槽状态。 */
 export const SLOT_TERMINAL: ReadonlySet<SlotStatus> = new Set([
   "done",
   "skipped",
   "aborted",
-  "awaiting_human",
 ]);

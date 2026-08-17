@@ -7,13 +7,10 @@ import {
   legalizeRetryPolicy,
   loadRetryPolicyFromEnv,
   markSlotAttempt,
-  markSlotDone,
   markSlotRunning,
-  markSlotSkipped,
   registerTurn,
   runWithSlotBudget,
   shouldSkipForDeps,
-  shouldTriggerGlobalRebatch,
   skippedDepsResult,
   unregisterTurn,
   DEFAULT_RETRY_POLICY,
@@ -92,17 +89,6 @@ describe("DAG deps prune", () => {
     expect(r.skipped).toBe(true);
     expect(r.skipReason).toBe("deps");
     expect(r.ok).toBe(false);
-  });
-});
-
-describe("global rebatch threshold", () => {
-  it("triggers when failed slots >= half", () => {
-    const a = markSlotSkipped(markSlotAttempt(createPendingSlot("a")), "error");
-    const b = markSlotDone(markSlotAttempt(createPendingSlot("b")));
-    expect(shouldTriggerGlobalRebatch([a, b])).toBe(true);
-    expect(shouldTriggerGlobalRebatch([b, markSlotDone(createPendingSlot("c"))])).toBe(
-      false
-    );
   });
 });
 

@@ -1,6 +1,6 @@
 /**
  * UI exact-match：只路由进 vault_workspace 工人，不在 Intake 里跑 CRUD。
- * 图在工人内 Pause 等人点按钮（同一件原文库任务）。
+ * 图在工人内 interrupt({ vault_wait }) 等人点按钮（同一件原文库任务）。
  */
 import type { RoutedIntakeDecision } from "@/agentflow/agents/online/intake-coordinator/guards/interface";
 import {
@@ -105,15 +105,11 @@ export const buildVaultWorkspaceUiDecision = (
   return routed;
 };
 
-/** @deprecated 旧名；现只路由，不执行 op */
-export const resolveVaultWorkspaceUiBypass = async (input: {
-  userQuestion: string;
-  corpusUserId: string;
-  language?: "zh" | "en";
-}): Promise<{ decision: RoutedIntakeDecision } | null> => {
-  void input.corpusUserId;
-  void input.language;
-  const action = matchVaultWorkspaceUiAction(input.userQuestion);
+/** UI exact-match：只产出 vault 槽决策，不跑 CRUD。 */
+export const resolveVaultWorkspaceUiBypass = (
+  userQuestion: string
+): RoutedIntakeDecision | null => {
+  const action = matchVaultWorkspaceUiAction(userQuestion);
   if (!action) return null;
-  return { decision: buildVaultWorkspaceUiDecision(action) };
+  return buildVaultWorkspaceUiDecision(action);
 };

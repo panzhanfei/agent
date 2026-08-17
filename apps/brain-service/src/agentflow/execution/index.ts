@@ -16,7 +16,6 @@ export {
   markSlotDone,
   markSlotRunning,
   markSlotSkipped,
-  shouldTriggerGlobalRebatch,
   runWithSlotBudget,
   type BudgetedSlotResult,
 } from "./slot";

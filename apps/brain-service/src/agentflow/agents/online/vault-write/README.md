@@ -6,7 +6,7 @@
 
 - PathKind：`vault_workspace`
 - UI exact-match：`我的原文库`、`__FAMBRAIN_VAULT_WS_*__`
-- 图节点：`vaultWorkspace` → `planSlotJoin`
+- 图节点：`vaultWorkspace`（op → `interrupt({ kind: vault_wait })` 循环）。缺槽错误补丁才到 `planSlotJoin`
 
 ## 本地验证
 

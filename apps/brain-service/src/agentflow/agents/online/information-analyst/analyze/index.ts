@@ -72,7 +72,7 @@ export type SubQuestionAnalyzeInput = {
   } | null;
   /** 父轮 memoryBlock（复合子问也可据 Mem0 答自述字段） */
   memoryBlock?: string | null;
-  /** HITL 等工人挂载的 UI 块 */
+  /** 工人挂载的 UI 块（如 DAG synthesis） */
   assistantBlocks?: import("@fambrain/brain-types").AssistantMessageBlock[];
 };
 
@@ -334,11 +334,11 @@ export const buildFallbackAnswer = (
   const { userQuestion, hits, coverage, notes, language, queryType, subTasks } =
     input;
 
-  const hitlSubs = (input.compositeSubResults ?? []).filter(
+  const workerBlockSubs = (input.compositeSubResults ?? []).filter(
     (s) => (s.assistantBlocks?.length ?? 0) > 0
   );
-  if (hitlSubs.length > 0) {
-    const answer = hitlSubs
+  if (workerBlockSubs.length > 0) {
+    const answer = workerBlockSubs
       .map((s) => s.notes?.trim())
       .filter(Boolean)
       .join("\n\n") || notes?.trim() || userQuestion;
@@ -347,7 +347,7 @@ export const buildFallbackAnswer = (
       citations: [],
       confidence: 0.95,
       insufficientEvidence: false,
-      blocks: hitlSubs.flatMap((s) => s.assistantBlocks ?? []),
+      blocks: workerBlockSubs.flatMap((s) => s.assistantBlocks ?? []),
     };
   }
 

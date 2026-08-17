@@ -21,7 +21,7 @@ export const canAttemptAgain = (
   slot: Pick<SlotRuntimeState, "attempts" | "status">,
   policy: RetryPolicy
 ): boolean => {
-  if (slot.status === "aborted" || slot.status === "awaiting_human") return false;
+  if (slot.status === "aborted") return false;
   return slot.attempts < policy.maxAttempts;
 };
 

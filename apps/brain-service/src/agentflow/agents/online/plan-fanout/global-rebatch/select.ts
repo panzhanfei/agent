@@ -18,7 +18,7 @@ export const isSlotStructurallySalvageable = (
   policy: RetryPolicy
 ): boolean => {
   if (!canAttemptAgain(runtime, policy)) return false;
-  if (runtime.status === "aborted" || runtime.status === "awaiting_human") {
+  if (runtime.status === "aborted") {
     return false;
   }
   if (patch?.error) return true;

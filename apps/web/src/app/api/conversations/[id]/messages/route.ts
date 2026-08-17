@@ -43,7 +43,7 @@ export const GET = async (_request: Request, context: {
                         blocks?: AssistantMessageBlock[];
                         citations?: Array<{ path: string; excerpt: string }>;
                         taskPaused?: boolean;
-                        pauseKind?: "vault_wait" | "gen_pause";
+                        pauseKind?: "vault_wait";
                     })
                 :   undefined;
             return {
@@ -127,7 +127,6 @@ export const POST = async (req: Request, context: {
             history,
             authToken,
             turnId,
-            clientSignal: req.signal,
             pipelineContext: {
                 actorUserId: session.userId,
                 corpusUserId,

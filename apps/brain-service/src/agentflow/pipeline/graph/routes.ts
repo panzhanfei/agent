@@ -58,9 +58,6 @@ export const routeAfterPlanMerge = (
   return "contentOrganizer";
 };
 
-/** @deprecated 旧名；等同 routeAfterPlanMerge */
-export const routeAfterPlanExecutor = routeAfterPlanMerge;
-
 /** contentOrganizer 之后：仅 summarize 意图进 contentSummarizer；qa / list / composite → analyst */
 export const routeAfterContentOrganizer = (
   state: PipelineGraphState
@@ -80,6 +77,3 @@ export const routeAfterContentSummarizer = (
   if (state.error || state.exitEarly) return "respondEarly";
   return "analyst";
 };
-
-/** @deprecated 保留导出名供旧脚本；图已不再使用 */
-export const routeAfterRetrieval = routeAfterPlanMerge;

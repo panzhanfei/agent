@@ -51,14 +51,14 @@ type ChatMessage = {
   id: string;
   role: "user" | "assistant";
   content: string;
-  /** ISO；用于 actions 30min TTL（与 HITL pending 对齐） */
+  /** ISO；用于 actions 30min TTL */
   createdAt?: string;
   timing?: MessageTiming;
   retrievalPaths?: string[];
   blocks?: AssistantMessageBlock[];
   citations?: Citation[];
   taskPaused?: boolean;
-  pauseKind?: "vault_wait" | "gen_pause";
+  pauseKind?: "vault_wait";
 };
 
 const parseMessageCitations = (raw: unknown): Citation[] | undefined => {
@@ -1157,7 +1157,7 @@ export const ChatShell = ({ initialConversations, viewer }: ChatShellProps) => {
       options?: {
         displayContent?: string;
         staleGroupKey?: string | null;
-        /** 点击的助手消息：整条 actions 作废（对齐 HITL 提案消费） */
+        /** 点击的助手消息：整条 actions 作废 */
         staleMessageId?: string | null;
         resume?: {
           kind: "vault_action";
@@ -1170,7 +1170,7 @@ export const ChatShell = ({ initialConversations, viewer }: ChatShellProps) => {
       if (!trimmed) return;
       const displayContent =
         (options?.displayContent ?? trimmed).trim() || trimmed;
-      // 首 token 前 sendBusy 防连点；流式中允许再发 → supersede（Resume 不丢弃）
+      // 首 token 前 sendBusy 防连点；流式中再发 → supersede（discard）。vault 按钮 Resume 不 discard。
       if (sendBusy && !streamingTurnId && !options?.resume) return;
       if (!options?.resume && (streamingTurnId || activeTurnIdRef.current)) {
         await stopActiveTurn("superseded");
@@ -1288,7 +1288,7 @@ export const ChatShell = ({ initialConversations, viewer }: ChatShellProps) => {
           timing?: PipelineTiming;
           aborted?: boolean;
           paused?: boolean;
-          pauseKind?: "vault_wait" | "gen_pause";
+          pauseKind?: "vault_wait";
           reason?: "cancelled" | "superseded";
         };
         const clientStartedAt = performance.now();
@@ -1787,7 +1787,7 @@ export const ChatShell = ({ initialConversations, viewer }: ChatShellProps) => {
   const canEditUserMessage = useCallback((m: ChatMessage): boolean => {
     if (m.role !== "user") return false;
     if (m.id.startsWith("temp:")) return false;
-    // HITL 内部 prompt 不提供编辑（展示文案按钮另当别论）
+    // 内部 vault prompt 不提供编辑（展示文案按钮另当别论）
     if (m.content.trim().startsWith("__FAMBRAIN_")) return false;
     return true;
   }, []);
@@ -1853,7 +1853,7 @@ export const ChatShell = ({ initialConversations, viewer }: ChatShellProps) => {
       timing?: PipelineTiming;
       aborted?: boolean;
       paused?: boolean;
-      pauseKind?: "vault_wait" | "gen_pause";
+      pauseKind?: "vault_wait";
       reason?: "cancelled" | "superseded";
     };
 

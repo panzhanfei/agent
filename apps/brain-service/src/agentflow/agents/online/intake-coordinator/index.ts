@@ -221,16 +221,13 @@ export const runIntakeNode = async (
       };
     }
 
-    const vaultWsUi = await resolveVaultWorkspaceUiBypass({
-      userQuestion: rawQuestion,
-      corpusUserId: state.context.corpusUserId,
-    });
-    if (vaultWsUi) {
+    const vaultDecision = resolveVaultWorkspaceUiBypass(rawQuestion);
+    if (vaultDecision) {
       logAgentOut("IntakeCoordinator", "路由_vault_workspace_ui", {
         userQuestion: rawQuestion,
       });
       return {
-        decision: vaultWsUi.decision,
+        decision: vaultDecision,
       };
     }
 

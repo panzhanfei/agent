@@ -66,17 +66,3 @@ export const markSlotAborted = (
   reason,
   finishedAtMs: nowMs,
 });
-
-/**
- * @deprecated 阶段 4：全局 B 不再用「过半失败」门槛；
- * 改为「存在结构可救槽 → B ≤1」。保留供观测/旧测。
- */
-export const shouldTriggerGlobalRebatch = (
-  slots: readonly SlotRuntimeState[]
-): boolean => {
-  if (slots.length === 0) return false;
-  const failed = slots.filter(
-    (s) => s.status === "skipped" || (s.status === "done" && s.degraded)
-  ).length;
-  return failed * 2 >= slots.length;
-};

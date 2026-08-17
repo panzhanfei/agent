@@ -13,7 +13,6 @@ export {
   markSlotDone,
   markSlotRunning,
   markSlotSkipped,
-  shouldTriggerGlobalRebatch,
 } from "./status";
 
 export {
