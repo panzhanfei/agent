@@ -47,7 +47,7 @@
 
 ### 图任务 / HITL / 流式停（3）
 
-> 豆包 / ChatGPT 一类产品的对话主路径：生成中只有「停止」；人点工具按钮才停在同一件事上；改口提问就换题。LangGraph `interrupt` 只管图光标，不管模型采样。
+> 对话主路径只有停 / 换题（discard 开新轮）。Resume 只给原文库按钮。LangGraph `interrupt` 只管图光标，不管模型采样。
 
 - [x] **#20 人等载荷认错** — **触发：** 图 `interrupt` 时 `streamMode: values` 常缺 `hits`/`decision`，编排器用这帧当用户可见答案或终态日志 → 列表没了、intent 变 null — **对策：** 给人看的 `answer`/`blocks` **只信 `interrupt(value)`**；`values` **合入**已有 channel，禁止整帧覆盖；完整态用 `graph.getState`
 - [x] **#21 生成停误当续采样** — **触发：** 以为 Pause / checkpointer 能从第 N 个 token 接着吐；做了「继续」等于再跑一遍生成，和半截稿重复 — **对策：** **Pause = 停**（豆包/ChatGPT）：半截稿即终稿，无「继续」；下一句新 invoke。`interrupt` 给人点按钮（原文库），**不是**给同一条 Ollama HTTP 续流。Checkpointer 接不住采样
@@ -212,7 +212,7 @@ pnpm --filter @fambrain/brain-service run eval:run   # 全量
 
 ### 2.12 图任务 HITL / 生成停（✅ P0-35～37 · 2026-08）
 
-> **背景：** 原文库改成图内 `interrupt` + checkpointer 后，连续踩了三件业界同类产品（豆包 / ChatGPT）也面对的坑：人等看哪份载荷、生成停能不能续 token、挂起时记不记会话摘要。产品口径对齐豆包：**生成中只有停；工具按钮才停在同一件事上；改口提问就换题。**
+> **口径：** 流程只两件事——问答 **停/换题 = discard 开新轮**；**Resume 只给原文库按钮**。模式齐（discard + 唯一 Resume），聊天侧不再套 Pause/Checkpointer/Resume。踩坑见下：人等看哪份载荷、生成停不能续 token、挂起时不写 LangMem。
 
 | ID | 典型现象 | 根因 | 对策 |
 |----|----------|------|------|

@@ -56,11 +56,11 @@ Understand + Plan（可融合为一次 LLM）
 ## 4. Turn / 取消
 
 - 每次用户提交 = 新 `turnId`（**Web 生成并贯穿**；Brain 缺省时兜底）  
-- 再发下一句 = **supersede**（默认）  
-- **cancel + supersede** = discard 图任务（世代 +1）  
-- **原文库 Pause** = `interrupt({ kind: vault_wait })` + checkpointer（不 abort）；**Resume** = 同 thread `Command({ resume: vault_action })`  
-- **生成停（Pause=停）** = 截停采样，半截稿落库为终稿，discard；无「继续」，下一句新 invoke。不接同一条 token 流，也不从半截再生成  
-- **HITL 载荷** = `interrupt` value（`answer`/`blocks`）。stream `values` 在 interrupt 时可能缺 channel，合入已有 `hits`/`decision`/`answer`/`assistantBlocks`，禁止当完整快照整帧覆盖  
+- **两模式：** 问答主路径 = **停 / 换题 → discard + 新一轮**（无 Resume）；**Resume 只给原文库按钮**  
+- 再发下一句 = **supersede**（默认）= discard 图任务（世代 +1）  
+- **原文库人等** = `interrupt({ kind: vault_wait })` + checkpointer；点按钮 = 同 thread `Command({ resume: vault_action })`  
+- **生成停** = 截停采样，半截稿落库为终稿，discard；无「继续」  
+- **HITL 载荷** = `interrupt` value（`answer`/`blocks`）。stream `values` 合入已有 channel，禁止整帧覆盖  
 - 双保险：Abort 断流 + cancel API  
 - 落库：cancelled 有正文 → 截停 +「——用户已暂停」；superseded 不写旧 assistant；生成停按普通 `done` 写半截稿（无该后缀）
 
