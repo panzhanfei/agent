@@ -135,6 +135,7 @@ export const fanOutRebatchWorkers = (state: PipelineGraphState): Send[] => {
 
   const idSet = new Set(state.pendingGlobalRebatchSlotIds ?? []);
   for (const slot of decision.compositeSlots ?? []) {
+    if (slot.executor === "vault_workspace") continue;
     const id = String(slot.id);
     if (!idSet.has(id)) continue;
     const payload = { ...state, activeSlotId: id };

@@ -1,5 +1,6 @@
 /**
- * Intake 之后：每槽 Send（km/list/mem/tool/summarize/vault_workspace）∥ planDag ∥ userFactSide。
+ * Intake 之后：每槽 Send（km/list/mem/tool/summarize）∥ planDag ∥ userFactSide。
+ * vault_workspace 独占：只 Send 该工人，不与其它槽 / dag / side 并行。
  * 全部 → planSlotJoin →（可选全局 B 再批）→ planSlotPost → planMerge。
  * 工人内无 FC；改 query / 外搜再试只在 Join 全局 B。
  */
@@ -42,6 +43,13 @@ const sendTargetForExecutor = (
   }
 };
 
+const exclusiveVaultFanOutSlots = <T extends { executor?: string }>(
+  slots: T[]
+): T[] => {
+  const vault = slots.find((s) => s.executor === "vault_workspace");
+  return vault ? [vault] : slots;
+};
+
 export const fanOutPlanWorkers = (state: PipelineGraphState): Send[] => {
   const decision = state.decision;
   const sends: Send[] = [];
@@ -49,17 +57,18 @@ export const fanOutPlanWorkers = (state: PipelineGraphState): Send[] => {
     return [new Send("planMerge", state)];
   }
 
-  const slots = decision.compositeSlots ?? [];
+  const slots = exclusiveVaultFanOutSlots(decision.compositeSlots ?? []);
+  const vaultOnly = slots.length === 1 && slots[0]?.executor === "vault_workspace";
   for (const slot of slots) {
     const payload = { ...state, activeSlotId: String(slot.id) };
     const target = sendTargetForExecutor(slot.executor);
     sends.push(new Send(target, payload));
   }
 
-  if (pathHasHybridDag(state)) {
+  if (!vaultOnly && pathHasHybridDag(state)) {
     sends.push(new Send("planDag", state));
   }
-  if (routeUserFactSideEffect(decision)) {
+  if (!vaultOnly && routeUserFactSideEffect(decision)) {
     sends.push(new Send("userFactSide", state));
   }
 
@@ -107,7 +116,9 @@ export const describeFanOutPlan = (
       vaultWorkspaceCount: 0,
     };
   }
-  const slots = decision.compositeSlots ?? [];
+  const slots = exclusiveVaultFanOutSlots(decision.compositeSlots ?? []);
+  const vaultOnly =
+    slots.length === 1 && slots[0]?.executor === "vault_workspace";
   const kmCount = slots.filter(
     (s) => !s.executor || s.executor === "km_retrieve"
   ).length;
@@ -127,8 +138,10 @@ export const describeFanOutPlan = (
     hasTool: toolCount > 0,
     hasSummarize: summarizeCount > 0,
     hasVaultWorkspace: vaultWorkspaceCount > 0,
-    hasDag: pathHasHybridDag(state),
-    hasSideRemember: Boolean(routeUserFactSideEffect(decision)),
+    hasDag: vaultOnly ? false : pathHasHybridDag(state),
+    hasSideRemember: vaultOnly
+      ? false
+      : Boolean(routeUserFactSideEffect(decision)),
     kmCount,
     listCount,
     memCount,

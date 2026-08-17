@@ -2,7 +2,7 @@
  * planSlotJoin：本波并行工人的汇合点（LangGraph 齐步后再进本节点一次）。
  *
  * 三条路都边接到这里，但写入/汇总不同：
- * - 槽路（km/list/mem/tool/summarize/vault）：每人 append 一条 fanOutSlotPatches
+ * - 槽路（km/list/mem/tool/summarize）：每人 append 一条 fanOutSlotPatches
  *   → 本节点按槽序合成 fanOutSlotPatch
  * - DAG 路：工人已写 fanOutDagPatch；这里只读（给全局 B），和槽的终拼在 planMerge
  * - userFact 路：工人已写 sideEffectAnswer；这里不汇总，只齐步（remember 落盘后再往下）

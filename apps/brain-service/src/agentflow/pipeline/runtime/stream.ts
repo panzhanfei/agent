@@ -577,12 +577,7 @@ async function* runPipelineStreamInner(
           if (fan.hasVaultWorkspace) yield* startStep("vault_workspace");
           if (fan.hasDag) yield* startStep("plan_dag");
           if (fan.hasSideRemember) yield* startStep("user_fact");
-          if (
-            fan.hasKm ||
-            fan.hasList ||
-            fan.hasVaultWorkspace ||
-            fan.hasSideRemember
-          ) {
+          if (fan.hasKm || fan.hasList || fan.hasSideRemember) {
             yield* startStep("plan_slot_join");
           }
         }
@@ -596,12 +591,7 @@ async function* runPipelineStreamInner(
         if (fan.hasVaultWorkspace) yield* startStep("vault_workspace");
         if (fan.hasDag) yield* startStep("plan_dag");
         if (fan.hasSideRemember) yield* startStep("user_fact");
-        if (
-          fan.hasKm ||
-          fan.hasList ||
-          fan.hasVaultWorkspace ||
-          fan.hasSideRemember
-        ) {
+        if (fan.hasKm || fan.hasList || fan.hasSideRemember) {
           yield* startStep("plan_slot_join");
         }
         continue;
@@ -643,6 +633,17 @@ async function* runPipelineStreamInner(
         continue;
       }
       if (nodeName === "vaultWorkspace") {
+        if (nodePatch?.answer || nodePatch?.error) {
+          yield* finishStep("vault_workspace");
+          if (nodePatch.answer) {
+            timing.markFirstToken();
+            yield* emitAssistant(nodePatch.answer);
+          }
+          if (nodePatch.error) {
+            yield { type: "error", message: nodePatch.error };
+          }
+          yield* startStep("persist_turn_end");
+        }
         continue;
       }
       if (nodeName === "planSlotJoin") {
@@ -651,9 +652,6 @@ async function* runPipelineStreamInner(
         }
         if (runningSteps.has("list_retrieve")) {
           yield* finishStep("list_retrieve");
-        }
-        if (runningSteps.has("vault_workspace")) {
-          yield* finishStep("vault_workspace");
         }
         yield* finishStep("plan_slot_join");
         yield* startStep("plan_slot_post");

@@ -1,6 +1,8 @@
 import { describe, expect, it } from "vitest";
 import {
   deriveCompositeSlotsFromPathPlan,
+  ensureMemRecallStepFromTopUserFact,
+  legalizeComposeMode,
   legalizePathPlan,
   stepsOfKind,
 } from "@/agentflow/agents/online/intake-coordinator";
@@ -102,6 +104,83 @@ describe("pathPlan vault_workspace", () => {
       ],
     });
     expect(stepsOfKind(noPath, "vault_workspace")).toHaveLength(0);
+  });
+
+  it("drops sibling km/list/mem when any vault_workspace step exists", () => {
+    const plan = legalizePathPlan({
+      steps: [
+        {
+          id: "km-age",
+          kind: "km",
+          label: "年龄",
+          searchQuery: "年龄",
+          queryType: "identity",
+          topics: ["personal"],
+          identityField: "age",
+        },
+        {
+          id: "vault-list",
+          kind: "vault_workspace",
+          label: "原文库列表",
+          searchQuery: "",
+          queryType: "default",
+          topics: ["personal"],
+          params: { operation: "list", targetPath: "" },
+        },
+        {
+          id: "vault-open",
+          kind: "vault_workspace",
+          label: "打开",
+          searchQuery: "a.txt",
+          queryType: "default",
+          topics: ["personal"],
+          params: { operation: "open", targetPath: "a.txt" },
+        },
+        {
+          id: "list-exp",
+          kind: "list",
+          label: "履历",
+          searchQuery: "履历",
+          queryType: "enumeration",
+          topics: ["experience"],
+          enumerationControl: { action: "preview", listKind: "experience" },
+        },
+      ],
+    });
+    expect(plan.steps).toHaveLength(1);
+    expect(plan.steps[0]?.id).toBe("vault-list");
+    expect(plan.steps[0]?.kind).toBe("vault_workspace");
+    const slots = deriveCompositeSlotsFromPathPlan(plan);
+    expect(slots).toHaveLength(1);
+    expect(slots[0]?.executor).toBe("vault_workspace");
+    expect(legalizeComposeMode("composite", plan)).toBe("qa");
+  });
+
+  it("does not inject mem recall beside a vault_workspace plan", () => {
+    const plan = legalizePathPlan({
+      steps: [
+        {
+          id: "vault-list",
+          kind: "vault_workspace",
+          label: "原文库列表",
+          searchQuery: "",
+          queryType: "default",
+          topics: ["personal"],
+          params: { operation: "list", targetPath: "" },
+        },
+      ],
+    });
+    const next = ensureMemRecallStepFromTopUserFact(
+      {
+        intent: "retrieve_and_answer",
+        userFactKey: "qq",
+        userFactLabel: "QQ",
+        userFactValue: null,
+      },
+      plan
+    );
+    expect(next.steps).toHaveLength(1);
+    expect(next.steps[0]?.kind).toBe("vault_workspace");
   });
 
   it("matches UI exact-match prompts", () => {

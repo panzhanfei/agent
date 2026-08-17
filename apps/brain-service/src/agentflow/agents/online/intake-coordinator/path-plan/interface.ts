@@ -44,7 +44,7 @@ export type EmptyPolicy = "require" | "omit" | "degrade";
  * - tool：独立工具步（search_web 等；扩展天气/搜索同族）
  * - summarize：子步总结用户原文（dataSource=user_text）
  * - dag：仅 hybrid_multi_source（语料+外网汇合）
- * - vault_workspace：原文库 txt/文件夹（params.operation=list|open|create_*|update|delete_*；list 可无 path）
+ * - vault_workspace：原文库 txt/文件夹（params.operation=list|open|create_*|update|delete_*；list 可无 path）。独占单槽，不与 km/list/mem/tool/dag/summarize 同 plan
  */
 export type ExecutionStep = {
   id: string;

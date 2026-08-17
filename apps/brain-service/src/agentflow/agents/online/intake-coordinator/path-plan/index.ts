@@ -35,6 +35,7 @@ export {
   deriveCompositeSlotsFromPathPlan,
   deriveRetrievalPlanFromPathPlan,
   ensureMemRecallStepFromTopUserFact,
+  exclusiveVaultWorkspacePlan,
   executionPlanFromPathPlanDag,
   fillListPagesInPathPlan,
   isPathPlanEmpty,

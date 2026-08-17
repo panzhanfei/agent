@@ -285,6 +285,16 @@ const toToolStep = (step: ExecutionStep): ExecutionStep | null => {
 };
 
 /**
+ * vault_workspace 独占单槽：有 vault 步则只保留第一个，丢弃同 plan 内其它 kind。
+ * 信 structured `kind`（非问句口语）。
+ */
+export const exclusiveVaultWorkspacePlan = (plan: PathPlan): PathPlan => {
+  const vault = plan.steps.find((s) => s.kind === "vault_workspace");
+  if (!vault) return plan;
+  return { steps: [vault] };
+};
+
+/**
  * 结构归一：只信 dataSource / userFactKey / identityField / toolId 族。
  * 不维护 Mem0 字段名表；不猜 label/问句。
  */
@@ -383,7 +393,7 @@ export const normalizePathPlanSteps = (plan: PathPlan): PathPlan => {
       userFactLabel: null,
     });
   }
-  return { steps };
+  return exclusiveVaultWorkspacePlan({ steps });
 };
 
 const legalizeStep = (raw: unknown, index: number): ExecutionStep | null => {
@@ -724,6 +734,7 @@ export const legalizeComposeMode = (
   raw: unknown,
   plan: PathPlan
 ): ComposeMode => {
+  if (plan.steps.some((s) => s.kind === "vault_workspace")) return "qa";
   if (raw === "qa" || raw === "summarize" || raw === "composite") return raw;
   if (plan.steps.length >= 2) return "composite";
   return defaultComposeMode();
@@ -741,6 +752,7 @@ export const ensureMemRecallStepFromTopUserFact = (
   plan: PathPlan
 ): PathPlan => {
   if (decision.intent !== "retrieve_and_answer") return plan;
+  if (plan.steps.some((s) => s.kind === "vault_workspace")) return plan;
   const factKey = normalizeFactKey(decision.userFactKey ?? "");
   if (!factKey || decision.userFactValue?.trim()) return plan;
   if (plan.steps.length === 0) return plan;
@@ -866,10 +878,11 @@ export const deriveCompositeSlotsFromPathPlan = (
   plan: PathPlan,
   _answerOrder?: string[]
 ): CompositeRetrievalSlot[] => {
+  const exclusive = exclusiveVaultWorkspacePlan(plan);
   const steps =
     _answerOrder && _answerOrder.length > 0
-      ? reorderPathPlanByAnswerOrder(plan, _answerOrder).steps
-      : plan.steps;
+      ? reorderPathPlanByAnswerOrder(exclusive, _answerOrder).steps
+      : exclusive.steps;
   const slots: CompositeRetrievalSlot[] = [];
   for (const step of steps) {
     if (step.kind === "dag") continue;

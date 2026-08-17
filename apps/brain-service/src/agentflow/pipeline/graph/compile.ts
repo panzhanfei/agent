@@ -53,11 +53,12 @@ import {
 const als = withPipelineRunAls;
 
 /**
- * intake → planCacheResolve → Send(每槽 km|list|mem|tool|summarize|vault_workspace ∥ dag ∥ userFactSide)
+ * intake → planCacheResolve → Send(每槽 km|list|mem|tool|summarize ∥ dag ∥ userFactSide)
  *   km/list/mem/tool/summarize：扁平节点 + emitBudgetedSlotPatch
- *   vaultWorkspace：interrupt(vault_wait) 循环，不套槽位预算；无槽时返回 patch → planSlotJoin
  *     → planSlotJoin →（可选全局 B 再批 Send ≤1）→ planSlotPost → planMerge
- * → contentOrganizer → contentSummarizer? → analyst
+ *     → contentOrganizer → contentSummarizer? → analyst
+ *   vaultWorkspace：独占单槽；interrupt(vault_wait) 循环，不进 Join。
+ *     缺槽才返回 → persistTurnEnd
  */
 const buildPipelineGraph = () => {
   return new StateGraph(PipelineGraphAnnotation)
@@ -99,7 +100,7 @@ const buildPipelineGraph = () => {
     .addEdge("memRetrieve", "planSlotJoin")
     .addEdge("toolRetrieve", "planSlotJoin")
     .addEdge("summarizeSlot", "planSlotJoin")
-    .addEdge("vaultWorkspace", "planSlotJoin")
+    .addEdge("vaultWorkspace", "persistTurnEnd")
     .addEdge("userFactSide", "planSlotJoin")
     .addEdge("planDag", "planSlotJoin")
     .addConditionalEdges("planSlotJoin", routeAfterPlanSlotJoin)

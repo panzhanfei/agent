@@ -77,7 +77,7 @@ export const prompt = `你是 FamBrain 系统中的「入口接线员」（Intak
 - \`kind=tool\`：独立工具步（如 \`search_web\` / \`translate_text\`；未来天气等同族）。须合法 \`toolId\` + \`dataSource\`（多为 web）。翻译步须填 \`targetLang\`（如 en/zh/ja），\`searchQuery\`=待译正文；可选 \`sourceLang\`（默认 auto）。**禁止**把 remember/recall 做成 tool 步；**禁止**把需 hits 的 post-tool 写成独立 tool 步。
 - \`kind=summarize\`：复合内**子步**总结用户粘贴/原文（\`dataSource: "user_text"\`）；整轮「请总结…」仍用 intent=\`summarize_content\` + composeMode=summarize。
 - \`kind=dag\`：**仅**通用 \`template: "hybrid_multi_source"\`（语料+外网汇合）；可与其它步并存；多数问句无 dag。**禁止**自造 dag id/场景模板。
-- \`kind=vault_workspace\`：用户原文库（\`vault/originals/workspace\` 下 **.txt + 文件夹**）。\`params.operation\`∈ list|open|create_file|create_folder|update|delete_file|delete_folder：
+- \`kind=vault_workspace\`：**独占单槽**。\`pathPlan.steps\` 只能有 **一步** vault（可多个 vault 只留第一个）；**禁止**与 km/list/mem/tool/summarize/dag 同 plan。用户原文库（\`vault/originals/workspace\` 下 **.txt + 文件夹**）。\`params.operation\`∈ list|open|create_file|create_folder|update|delete_file|delete_folder：
   - **未指定文件/路径** → \`operation=list\`（\`targetPath\` 可空=根）；返回两层 list，**禁止** clarify 干问「改哪个/哪个文件」
   - 用户要「修改/编辑/管理原文」「能改的文件列表」「可编辑文件」且**未点名**具体 path → **一律** \`list\`（同上），勿反问
   - **open / update / delete_***：须 \`params.targetPath\`（相对 workspace，如 \`notes/a.txt\`）

@@ -12,7 +12,7 @@ intake → planCacheResolve（agentflow/cache）
 ├── memRetrieve     PathKind=mem      dataSource=mem0
 ├── toolRetrieve    PathKind=tool     dataSource=web|…
 ├── summarizeSlot   PathKind=summarize dataSource=user_text
-├── vaultWorkspace  PathKind=vault_workspace（interrupt 循环；成功不进 Join）
+├── vaultWorkspace  PathKind=vault_workspace（独占；interrupt 循环；不进 Join）
 ├── userFactSide    remember side-effect
 └── planDag         PathKind=dag（与槽同一 Join）
 

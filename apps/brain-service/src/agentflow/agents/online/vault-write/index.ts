@@ -12,7 +12,7 @@ import {
   runVaultWorkspaceOp,
   takeCachedVaultWorkspaceOp,
 } from "./ops";
-import { missingVaultWorkspaceSlotPatch } from "./missing-slot";
+import { missingVaultWorkspaceSlotState } from "./missing-slot";
 
 export type {
   VaultWorkspaceListResult,
@@ -51,7 +51,7 @@ export {
 
 /**
  * vaultWorkspace 节点：执行一次 op 后 interrupt，Command Resume 后继续。
- * 不套槽位墙钟预算。Resume 从节点入口重跑，写操作依赖 op-cache 避免重复执行。
+ * 不套槽位墙钟预算；不进 planSlotJoin。Resume 从节点入口重跑，写操作依赖 op-cache 避免重复执行。
  */
 export const runVaultWorkspaceNode = async (
   state: PipelineGraphState
@@ -63,9 +63,7 @@ export const runVaultWorkspaceNode = async (
 
   const slot = resolveActiveSlot(state);
   if (!slot) {
-    return {
-      fanOutSlotPatches: [missingVaultWorkspaceSlotPatch(state)],
-    };
+    return missingVaultWorkspaceSlotState();
   }
 
   let params: VaultWorkspaceParams =
