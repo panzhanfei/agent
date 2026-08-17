@@ -5,4 +5,7 @@ export {
   getTurnAbortReason,
   registerTurn,
   unregisterTurn,
+  requestTurnPause,
+  isTurnPauseRequested,
+  clearTurnPauseRequest,
 } from "./registry";

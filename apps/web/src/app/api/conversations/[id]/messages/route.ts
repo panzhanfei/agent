@@ -42,6 +42,8 @@ export const GET = async (_request: Request, context: {
                         retrievalPaths?: string[];
                         blocks?: AssistantMessageBlock[];
                         citations?: Array<{ path: string; excerpt: string }>;
+                        taskPaused?: boolean;
+                        pauseKind?: "vault_wait" | "gen_pause";
                     })
                 :   undefined;
             return {
@@ -52,6 +54,8 @@ export const GET = async (_request: Request, context: {
                 retrievalPaths: meta?.retrievalPaths,
                 blocks: meta?.blocks,
                 citations: meta?.citations,
+                taskPaused: meta?.taskPaused,
+                pauseKind: meta?.pauseKind,
             };
         });
         return NextResponse.json(messages);
@@ -100,6 +104,7 @@ export const POST = async (req: Request, context: {
         routingContent,
         turnId: clientTurnId,
         attachmentBatchId,
+        resume,
     } = parsedBody.data;
     const turnId = clientTurnId ?? crypto.randomUUID();
     try {
@@ -132,7 +137,9 @@ export const POST = async (req: Request, context: {
                 ...(attachmentBatchId
                     ? { attachmentBatchId }
                     : {}),
+                ...(resume ? { resume } : {}),
             },
+            ...(resume ? { resume } : {}),
         });
     }
     catch (e) {

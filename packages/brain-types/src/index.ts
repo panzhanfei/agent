@@ -41,6 +41,14 @@ export type AgentPipelineContext = {
      * cancel / supersede 均按此 id 点名中止。
      */
     turnId?: string;
+    /**
+     * Resume 原文库 HITL（vault 按钮）。生成停不 Resume。
+     * 有则走 Command，不 discard 旧 thread。
+     */
+    resume?: {
+        kind: "vault_action";
+        prompt?: string;
+    };
     /** /documents/extract 返回的批次 id（入库时取原件） */
     attachmentBatchId?: string;
     /** 已抽取的附件文本（发送后注入；供 Intake / summarize / translate） */
@@ -115,7 +123,7 @@ export type TurnTraceSnapshot = {
     timing?: PipelineTiming;
     entries: PipelineLogEntry[];
     steps: TurnStepEvent[];
-    status: "done" | "error" | "cancelled" | "superseded";
+    status: "done" | "error" | "cancelled" | "superseded" | "paused";
     userQuestion?: string;
     error?: string;
 };
@@ -169,6 +177,13 @@ export type AgentStreamEvent = {
     type: "aborted";
     turnId: string;
     reason: TurnAbortReason;
+} | {
+    /** 原文库 HITL Pause（checkpointer）；等人点 vault 按钮 Resume */
+    type: "paused";
+    turnId: string;
+    kind: "vault_wait";
+    answer: string;
+    blocks?: AssistantMessageBlock[];
 };
 export type AgentPipelineResult = {
     answer: string;
@@ -192,4 +207,7 @@ export type AgentPipelineResult = {
     aborted?: boolean;
     abortReason?: TurnAbortReason;
     turnId?: string;
+    /** 图停在 vault HITL interrupt；answer/blocks 可落库，thread 可 Resume */
+    paused?: boolean;
+    pauseKind?: "vault_wait";
 };

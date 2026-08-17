@@ -109,6 +109,8 @@ export async function* streamAgentPipeline(
         steps?: AgentPipelineResult["steps"];
         aborted?: boolean;
         abortReason?: TurnAbortReason;
+        paused?: boolean;
+        pauseKind?: AgentPipelineResult["pauseKind"];
         turnId?: string;
       };
       return {
@@ -122,6 +124,8 @@ export async function* streamAgentPipeline(
         steps: payload.steps,
         aborted: payload.aborted,
         abortReason: payload.abortReason,
+        paused: payload.paused,
+        pauseKind: payload.pauseKind,
         turnId: payload.turnId,
       };
     }
@@ -156,4 +160,30 @@ export const cancelAgentPipelineTurn = async (input: {
   }
   const data = (await res.json()) as { ok?: boolean; aborted?: boolean };
   return { ok: Boolean(data.ok), aborted: Boolean(data.aborted) };
+};
+
+/** 请求图内 Pause（不 abort SSE） */
+export const pauseAgentPipelineTurn = async (input: {
+  authToken: string;
+  turnId: string;
+  conversationId?: string;
+}): Promise<{ ok: boolean; paused: boolean }> => {
+  const baseUrl = resolveBrainServiceUrl();
+  const res = await fetch(`${baseUrl}/pipeline/pause`, {
+    method: "POST",
+    headers: {
+      "Content-Type": "application/json",
+      Authorization: `Bearer ${input.authToken}`,
+    },
+    body: JSON.stringify({
+      turnId: input.turnId,
+      conversationId: input.conversationId,
+    }),
+  });
+  if (!res.ok) {
+    const text = await res.text().catch(() => "");
+    throw new Error(text || `Brain pause 失败（HTTP ${res.status}）`);
+  }
+  const data = (await res.json()) as { ok?: boolean; paused?: boolean };
+  return { ok: Boolean(data.ok), paused: Boolean(data.paused) };
 };

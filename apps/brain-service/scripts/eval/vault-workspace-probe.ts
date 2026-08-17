@@ -166,25 +166,30 @@ export const runVaultWorkspaceProbe = async (
           const next = await gen.next();
           if (next.done) {
             answer = next.value?.answer ?? answer;
+            const paused = Boolean(next.value?.paused);
+            const ok =
+              paused &&
+              /原文库|Workspace|暂无文件|项：|新建/.test(answer) &&
+              !/再说清楚|哪一方面|请明确/.test(answer);
+            results.push({
+              id: c.id,
+              tier: "pipeline",
+              label: c.label,
+              pass: ok,
+              reason: ok
+                ? `pipeline list pause ok (${answer.slice(0, 80).replace(/\n/g, " ")})`
+                : `pipeline list bad paused=${paused}: ${answer.slice(0, 160)}`,
+              latencyMs: Date.now() - started,
+            });
             break;
           }
           if (next.value.type === "assistant") {
             answer += next.value.text;
           }
+          if (next.value.type === "paused" && next.value.answer) {
+            answer = next.value.answer;
+          }
         }
-        const ok =
-          /原文库|Workspace|暂无文件|项：|新建/.test(answer) &&
-          !/再说清楚|哪一方面|请明确/.test(answer);
-        results.push({
-          id: c.id,
-          tier: "pipeline",
-          label: c.label,
-          pass: ok,
-          reason: ok
-            ? `pipeline list ok (${answer.slice(0, 80).replace(/\n/g, " ")})`
-            : `pipeline list bad: ${answer.slice(0, 160)}`,
-          latencyMs: Date.now() - started,
-        });
         continue;
       }
 

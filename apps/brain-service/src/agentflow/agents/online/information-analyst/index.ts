@@ -1,5 +1,9 @@
-import { getWriter } from "@langchain/langgraph";
+import { getWriter, interrupt, isGraphInterrupt } from "@langchain/langgraph";
 import type { LangGraphRunnableConfig } from "@langchain/langgraph";
+import {
+  clearTurnPauseRequest,
+  isTurnPauseRequested,
+} from "@/agentflow/execution";
 import {
   prependSideEffectAssistantBlocks,
   sideEffectAnswerToAssistantBlock,
@@ -63,7 +67,22 @@ export const runAnalystNode = async (
     return { answer: "（未能理解您的问题，请换一种方式描述）" };
   }
   const write = getWriter(config);
+  const turnId = state.context.turnId;
+  /** Pause=停：截停采样，半截稿经 interrupt 带出后由 stream discard，不 Resume。 */
+  const stopIfPauseRequested = (
+    answer: string,
+    blocks: import("@fambrain/brain-types").AssistantMessageBlock[]
+  ) => {
+    if (!turnId || !isTurnPauseRequested(turnId)) return;
+    clearTurnPauseRequest(turnId);
+    interrupt({
+      kind: "gen_pause",
+      answer,
+      blocks,
+    });
+  };
   try {
+    stopIfPauseRequested("", []);
     const sideBlock = sideEffectAnswerToAssistantBlock(state.sideEffectAnswer);
     if (sideBlock?.type === "text") {
       write?.({ type: "ui_block", block: sideBlock });
@@ -97,8 +116,31 @@ export const runAnalystNode = async (
       },
     });
     let result = await gen.next();
+    let streamed = "";
+    const streamedBlocks: import("@fambrain/brain-types").AssistantMessageBlock[] =
+      [];
     while (!result.done) {
       write?.(result.value);
+      if (result.value.type === "assistant") {
+        streamed += result.value.text;
+      } else if (result.value.type === "ui_block") {
+        streamedBlocks.push(result.value.block);
+      }
+      if (turnId && isTurnPauseRequested(turnId)) {
+        clearTurnPauseRequest(turnId);
+        await gen.return({
+          answer: streamed,
+          citations: [],
+          confidence: 0,
+          insufficientEvidence: true,
+          blocks: streamedBlocks,
+        });
+        interrupt({
+          kind: "gen_pause",
+          answer: streamed,
+          blocks: streamedBlocks,
+        });
+      }
       result = await gen.next();
     }
     const side = state.sideEffectAnswer?.trim();
@@ -114,6 +156,7 @@ export const runAnalystNode = async (
       sideEffectAnswer: null,
     };
   } catch (e) {
+    if (isGraphInterrupt(e)) throw e;
     const msg = e instanceof Error ? e.message : "信息分析师调用失败";
     const answer = "（生成回答时出错，请稍后重试）";
     write?.({ type: "assistant", text: answer });

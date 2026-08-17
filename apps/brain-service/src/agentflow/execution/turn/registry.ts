@@ -4,6 +4,7 @@
  */
 import type { TurnAbortReason } from "@fambrain/brain-types";
 import type { RegisteredTurn } from "./interface";
+import { discardPipelineTask } from "../checkpoint";
 
 export type { RegisteredTurn } from "./interface";
 
@@ -25,6 +26,7 @@ export const registerTurn = (input: {
     actorUserId: input.actorUserId,
     controller,
     reason: null,
+    pauseRequested: false,
   });
   return controller;
 };
@@ -46,7 +48,25 @@ export const abortTurn = (
   if (!entry.controller.signal.aborted) {
     entry.controller.abort();
   }
+  if (entry.conversationId) {
+    discardPipelineTask(entry.conversationId);
+  }
   return true;
+};
+
+export const requestTurnPause = (turnId: string): boolean => {
+  const entry = activeTurns.get(turnId);
+  if (!entry) return false;
+  entry.pauseRequested = true;
+  return true;
+};
+
+export const isTurnPauseRequested = (turnId: string): boolean =>
+  Boolean(activeTurns.get(turnId)?.pauseRequested);
+
+export const clearTurnPauseRequest = (turnId: string): void => {
+  const entry = activeTurns.get(turnId);
+  if (entry) entry.pauseRequested = false;
 };
 
 export const unregisterTurn = (turnId: string): void => {

@@ -5,6 +5,7 @@ import {
     handleHealth,
     handleNotFound,
     handlePipelineCancel,
+    handlePipelinePause,
     handlePipelineStream,
 } from "@/server/routes";
 import {
@@ -27,6 +28,10 @@ const server = createServer((req, res) => {
     }
     if (url === "/pipeline/cancel") {
         handleAsync(handlePipelineCancel)(req, res);
+        return;
+    }
+    if (url === "/pipeline/pause") {
+        handleAsync(handlePipelinePause)(req, res);
         return;
     }
     if (url === "/documents/upload") {

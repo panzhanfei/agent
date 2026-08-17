@@ -47,4 +47,22 @@ export {
   abortTurn,
   getTurn,
   getTurnAbortReason,
+  requestTurnPause,
+  isTurnPauseRequested,
+  clearTurnPauseRequest,
 } from "./turn";
+
+export {
+  discardPipelineTask,
+  getPipelineCheckpointer,
+  pipelineThreadId,
+  isPipelinePauseValue,
+  isResumablePipelinePause,
+  extractPipelinePauseValue,
+  registerPipelineDiscardHook,
+  resetPipelineCheckpointForTests,
+  useSqliteCheckpointerForTests,
+  type PipelinePauseValue,
+  type PipelineResumePayload,
+  type PipelinePauseKind,
+} from "./checkpoint";

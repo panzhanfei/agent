@@ -1,4 +1,4 @@
-export { getCompiledPipelineGraph } from "./compile";
+export { getCompiledPipelineGraph, resetCompiledPipelineGraph } from "./compile";
 export {
   routeAfterIntake,
   routeAfterPlanExecutor,

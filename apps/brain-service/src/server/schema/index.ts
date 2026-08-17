@@ -37,6 +37,9 @@ const assistantMessageBlockSchema = z.discriminatedUnion("type", [
                 id: z.string(),
                 label: z.string(),
                 prompt: z.string(),
+                displayText: z.string().optional(),
+                disabled: z.boolean().optional(),
+                clientHandler: z.enum(["chat", "open_editor"]).optional(),
             })
         ),
     }),
@@ -57,6 +60,13 @@ export const pipelineStreamBodySchema = z.object({
         conversationId: z.string().min(1),
         /** Web 贯穿的 turnId；缺省时 Brain 兜底生成 */
         turnId: z.string().uuid().optional(),
+        /** Resume 原文库 HITL；有则不 discard。生成停不 Resume。 */
+        resume: z
+            .object({
+                kind: z.enum(["vault_action"]),
+                prompt: z.string().optional(),
+            })
+            .optional(),
         /** 聊天附件批次（/documents/extract）；服务端展开为 turnAttachments */
         attachmentBatchId: z.string().uuid().optional(),
     }),
@@ -66,4 +76,9 @@ export const pipelineCancelBodySchema = z.object({
     turnId: z.string().uuid(),
     conversationId: z.string().min(1).optional(),
     reason: z.enum(["cancelled", "superseded"]).default("cancelled"),
+});
+
+export const pipelinePauseBodySchema = z.object({
+    turnId: z.string().uuid(),
+    conversationId: z.string().min(1).optional(),
 });

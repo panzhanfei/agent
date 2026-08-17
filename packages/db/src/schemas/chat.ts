@@ -41,6 +41,15 @@ export const postConversationMessageBodySchema = z.object({
      * Brain 按 id 取已抽取文本；勿在 JSON 里塞全文。
      */
     attachmentBatchId: z.string().uuid().optional(),
+    /**
+     * Resume 原文库 HITL（vault 按钮）。生成停不 Resume。
+     */
+    resume: z
+        .object({
+            kind: z.enum(["vault_action"]),
+            prompt: z.string().optional(),
+        })
+        .optional(),
 });
 
 /** POST …/messages/:messageId/edit-regenerate — 原地改用户问并重跑 */

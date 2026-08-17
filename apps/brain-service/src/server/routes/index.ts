@@ -17,6 +17,7 @@ import { pipelineStreamBodySchema } from "@/server/schema";
 import { initSseResponse, readJsonBody, writeSse } from "@/server/http";
 
 export { handlePipelineCancel } from "./pipeline-cancel";
+export { handlePipelinePause } from "./pipeline-pause";
 
 const streamEventName = (ev: AgentStreamEvent): string => {
     return ev.type;
@@ -110,6 +111,8 @@ export const handlePipelineStream = async (req: IncomingMessage, res: ServerResp
             timing?: import("@fambrain/brain-types").PipelineTiming;
             aborted?: boolean;
             abortReason?: "cancelled" | "superseded";
+            paused?: boolean;
+            pauseKind?: "vault_wait";
             turnId?: string;
             logs?: import("@fambrain/brain-types").PipelineLogEntry[];
             steps?: import("@fambrain/brain-types").TurnStepEvent[];
@@ -132,9 +135,11 @@ export const handlePipelineStream = async (req: IncomingMessage, res: ServerResp
             timing: pipelineResult?.timing,
             logs: pipelineResult?.logs,
             steps: pipelineResult?.steps,
-            aborted: pipelineResult?.aborted,
-            abortReason: pipelineResult?.abortReason,
-            turnId: pipelineResult?.turnId ?? turnId,
+        aborted: pipelineResult?.aborted,
+        abortReason: pipelineResult?.abortReason,
+        paused: pipelineResult?.paused,
+        pauseKind: pipelineResult?.pauseKind,
+        turnId: pipelineResult?.turnId ?? turnId,
         });
     }
     catch (e) {

@@ -5,6 +5,8 @@ export {
     toModelHistory,
     appendUserMessage,
     appendAssistantMessage,
+    disableActionsInMetadata,
+    disableConversationActionBlocks,
     maybeUpdateConversationTitle,
     deleteOwnedConversation,
     editUserMessageAndTruncateAfter,

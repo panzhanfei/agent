@@ -1,36 +1,23 @@
 /**
- * UI exact-match 旁路：原文库 list / open / create / delete。
+ * UI exact-match：只路由进 vault_workspace 工人，不在 Intake 里跑 CRUD。
+ * 图在工人内 Pause 等人点按钮（同一件原文库任务）。
  */
-import type { AssistantMessageBlock } from "@fambrain/brain-types";
-import type { IntakeRoutingDecision } from "@/agentflow/agents/online/intake-coordinator/contract";
-import { matchVaultWorkspaceUiPrompt, VAULT_WORKSPACE_UI_ENTRY } from "./actions";
-import { runVaultWorkspaceOp } from "./ops";
+import type { RoutedIntakeDecision } from "@/agentflow/agents/online/intake-coordinator/guards/interface";
+import {
+  deriveCompositeSlotsFromPathPlan,
+  deriveRetrievalPlanFromPathPlan,
+  legalizePathPlan,
+} from "@/agentflow/agents/online/intake-coordinator/path-plan";
+import { resolveIntakeGraphRouteMode } from "@/agentflow/agents/online/intake-coordinator/pipeline";
+import {
+  matchVaultWorkspaceUiPrompt,
+  VAULT_WORKSPACE_UI_ENTRY,
+  type VaultWsUiAction,
+} from "./actions";
 import type { VaultWorkspaceParams } from "./interface";
 
-const baseDirect = (briefReply: string): IntakeRoutingDecision => ({
-  intent: "direct_answer",
-  searchQuery: "",
-  subTasks: [],
-  topics: [],
-  language: "zh",
-  confidence: 1,
-  queryType: "default",
-  clarifyingQuestion: null,
-  briefReply,
-  retrievalPlan: [],
-  userFactKey: null,
-  userFactLabel: null,
-  userFactValue: null,
-});
-
-export type VaultWorkspaceIntakeBypass = {
-  decision: IntakeRoutingDecision;
-  answer: string;
-  assistantBlocks: AssistantMessageBlock[] | null;
-};
-
-const toParams = (
-  action: NonNullable<ReturnType<typeof matchVaultWorkspaceUiPrompt>>
+export const toVaultWorkspaceParams = (
+  action: VaultWsUiAction
 ): VaultWorkspaceParams => {
   switch (action.type) {
     case "list":
@@ -61,28 +48,73 @@ const toParams = (
   }
 };
 
+export const matchVaultWorkspaceUiAction = (
+  userQuestion: string
+): VaultWsUiAction | null => {
+  const q = userQuestion.trim();
+  if (!q) return null;
+  if (q === VAULT_WORKSPACE_UI_ENTRY) {
+    return { type: "list", folderRel: "" };
+  }
+  return matchVaultWorkspaceUiPrompt(q);
+};
+
+export const buildVaultWorkspaceUiDecision = (
+  action: VaultWsUiAction
+): RoutedIntakeDecision => {
+  const params = toVaultWorkspaceParams(action);
+  const pathPlan = legalizePathPlan({
+    steps: [
+      {
+        id: "vault-ui",
+        kind: "vault_workspace",
+        label: "原文库",
+        searchQuery: params.targetPath ?? "",
+        queryType: "default",
+        topics: ["personal"],
+        params,
+      },
+    ],
+  });
+  const compositeSlots = deriveCompositeSlotsFromPathPlan(pathPlan);
+  const retrievalPlan = deriveRetrievalPlanFromPathPlan(pathPlan);
+  const routed: RoutedIntakeDecision = {
+    intent: "retrieve_and_answer",
+    searchQuery: params.targetPath ?? "",
+    subTasks: ["原文库"],
+    topics: ["personal"],
+    language: "zh",
+    confidence: 1,
+    queryType: "default",
+    clarifyingQuestion: null,
+    briefReply: null,
+    retrievalPlan,
+    userFactKey: null,
+    userFactLabel: null,
+    userFactValue: null,
+    pathPlan,
+    answerOrder: pathPlan.steps.map((s) => s.id),
+    composeMode: "qa",
+    compositeSlots,
+    routeMode: "planFanOut",
+    routeReason: "intake_path_plan",
+    routePlanSource: "intake_path_plan",
+    executionPlan: null,
+    listIntent: null,
+  };
+  routed.routeMode = resolveIntakeGraphRouteMode(routed);
+  return routed;
+};
+
+/** @deprecated 旧名；现只路由，不执行 op */
 export const resolveVaultWorkspaceUiBypass = async (input: {
   userQuestion: string;
   corpusUserId: string;
   language?: "zh" | "en";
-}): Promise<VaultWorkspaceIntakeBypass | null> => {
-  const q = input.userQuestion.trim();
-  const action =
-    q === VAULT_WORKSPACE_UI_ENTRY
-      ? ({ type: "list", folderRel: "" } as const)
-      : matchVaultWorkspaceUiPrompt(q);
+}): Promise<{ decision: RoutedIntakeDecision } | null> => {
+  void input.corpusUserId;
+  void input.language;
+  const action = matchVaultWorkspaceUiAction(input.userQuestion);
   if (!action) return null;
-
-  const language = input.language === "en" ? "en" : "zh";
-  const result = await runVaultWorkspaceOp({
-    corpusUserId: input.corpusUserId,
-    params: toParams(action),
-    language,
-  });
-
-  return {
-    decision: baseDirect(result.answer),
-    answer: result.answer,
-    assistantBlocks: result.blocks ?? null,
-  };
+  return { decision: buildVaultWorkspaceUiDecision(action) };
 };

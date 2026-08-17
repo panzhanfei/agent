@@ -8,6 +8,7 @@
  *
  * 对外入口：runPipelineStream()，由 HTTP routes / eval / golden 调用。
  */
+import { Command, isGraphInterrupt } from "@langchain/langgraph";
 import { ensureBrainServiceRuntime } from "@/config";
 import {
   isPureSummarizeDecision,
@@ -40,9 +41,14 @@ import {
   type PipelineRunStore,
 } from "@fambrain/brain-shared/pipeline-run-context";
 import {
+  discardPipelineTask,
+  extractPipelinePauseValue,
   getTurnAbortReason,
+  isResumablePipelinePause,
+  pipelineThreadId,
   registerTurn,
   unregisterTurn,
+  type PipelinePauseValue,
 } from "@/agentflow/execution";
 import { getCompiledPipelineGraph } from "../graph/compile";
 import type { PipelineGraphState } from "../graph/state";
@@ -87,7 +93,7 @@ const analystChunkToStreamEvent = (
 
 /** 从 finalState.hits 提取去重后的 corpus path，供 AgentPipelineResult */
 const retrievalPathsFromState = (state: PipelineGraphState): string[] => {
-  const paths = state.hits
+  const paths = (state.hits ?? [])
     .map((h) => h.path?.trim())
     .filter((p): p is string => Boolean(p));
   return [...new Set(paths)];
@@ -120,7 +126,7 @@ const summarizePipelineOut = (
       : state.decision
         ? false
         : null,
-  hitCount: state.hits.length,
+  hitCount: (state.hits ?? []).length,
   coverage: state.coverage,
   checkerPassed: state.checkerPassed,
   retryCount: state.retryCount,
@@ -152,7 +158,7 @@ const summarizePipelineOut = (
   citationCount: state.citations?.length ?? 0,
   citationPaths: (state.citations ?? []).slice(0, 8).map((c) => c.path),
   error: state.error,
-  hitPaths: state.hits.map((h) => h.path),
+  hitPaths: (state.hits ?? []).map((h) => h.path),
   timing,
   tokens: timing.tokens
     ? {
@@ -274,6 +280,80 @@ async function* runPipelineStreamInner(
     };
   };
 
+  const finishPaused = function* (
+    pause: PipelinePauseValue
+  ): Generator<AgentStreamEvent, AgentPipelineResult> {
+    // HITL 对用户可见的 answer/blocks 以 interrupt 载荷为准，不信缺 channel 的 values 帧
+    const answer = pause.answer || finalState.answer || "";
+    const blocks =
+      pause.blocks?.length > 0
+        ? pause.blocks
+        : (finalState.assistantBlocks ?? undefined);
+    timing.markFirstToken();
+    if (answer) {
+      yield* emitAssistant(answer);
+    }
+    if (blocks?.length) {
+      yield {
+        type: "assistant_message",
+        message: { plainText: answer, blocks },
+      };
+    }
+    if (!isResumablePipelinePause(pause)) {
+      // Pause=停：半截稿即终稿，discard 图任务；不发 paused、不 Resume
+      discardPipelineTask(context.conversationId);
+      const pipelineTiming = yield* finishPipeline(
+        timing,
+        collectedLogs,
+        runStore
+      );
+      logAgentOut(
+        "Pipeline",
+        "出去",
+        summarizePipelineOut(finalState, answer, pipelineTiming)
+      );
+      return {
+        answer,
+        blocks,
+        repeatQuestionHit: finalState.repeatQuestionHit,
+        retrievalCacheHit: finalState.retrievalCacheHit,
+        compositeFacetCacheHits: finalState.compositeFacetCacheHits,
+        timing: pipelineTiming,
+        retrievalPaths: retrievalPathsFromState(finalState),
+        logs: [...collectedLogs],
+        steps: [...collectedSteps],
+        turnId,
+      };
+    }
+    yield {
+      type: "paused",
+      turnId,
+      kind: pause.kind,
+      answer,
+      blocks,
+    };
+    const pipelineTiming = yield* finishPipeline(timing, collectedLogs, runStore);
+    logAgentOut(
+      "Pipeline",
+      "出去",
+      summarizePipelineOut(finalState, answer, pipelineTiming)
+    );
+    return {
+      answer,
+      blocks,
+      repeatQuestionHit: finalState.repeatQuestionHit,
+      retrievalCacheHit: finalState.retrievalCacheHit,
+      compositeFacetCacheHits: finalState.compositeFacetCacheHits,
+      timing: pipelineTiming,
+      retrievalPaths: retrievalPathsFromState(finalState),
+      logs: [...collectedLogs],
+      steps: [...collectedSteps],
+      turnId,
+      paused: true,
+      pauseKind: pause.kind,
+    };
+  };
+
   try {
   bindPipelineRunStore(runStore);
   const langsmithCfg = buildLangGraphRunConfig({
@@ -282,19 +362,27 @@ async function* runPipelineStreamInner(
     actorUserId: context.actorUserId,
     userQuestion,
   });
-  const stream = await graph.stream(
-    input as Parameters<typeof graph.stream>[0],
-    {
+  const resumePayload = context.resume;
+  if (!resumePayload) {
+    discardPipelineTask(context.conversationId);
+  }
+  const threadId = pipelineThreadId(context.conversationId);
+  const streamInput = resumePayload
+    ? (new Command({ resume: resumePayload }) as Parameters<
+        typeof graph.stream
+      >[0])
+    : (input as Parameters<typeof graph.stream>[0]);
+  const stream = await graph.stream(streamInput, {
       streamMode: ["updates", "values", "custom"],
       signal: turnSignal,
       ...langsmithCfg,
       configurable: {
         ...((langsmithCfg as { configurable?: Record<string, unknown> })
           .configurable ?? {}),
+        thread_id: threadId,
         [PIPELINE_RUN_STORE_CONFIG_KEY]: runStore,
       },
-    }
-  );
+    });
   /** 结束 step：记耗时、yield step done（支持并行多 step） */
   const finishStep = function* (name: PipelineStepName) {
     if (!runningSteps.has(name) && activeStep !== name) return;
@@ -332,6 +420,7 @@ async function* runPipelineStreamInner(
     yield { type: "step", name, status: "running" } as const;
   };
   const streamIter = stream[Symbol.asyncIterator]();
+  let pendingPause: PipelinePauseValue | null = null;
   while (true) {
     bindPipelineRunStore(runStore);
     const iterNext = await streamIter.next();
@@ -344,7 +433,18 @@ async function* runPipelineStreamInner(
     }
     const [mode, payload] = chunk as ["updates" | "values" | "custom", unknown];
     if (mode === "values") {
-      finalState = payload as PipelineGraphState;
+      const next = payload as Partial<PipelineGraphState> | null;
+      if (next && typeof next === "object") {
+        // interrupt 时 values 可能是不完整快照；合入而非整帧替换，避免抹掉 hits/decision/answer
+        finalState = {
+          ...finalState,
+          ...next,
+          hits: next.hits ?? finalState.hits,
+          decision: next.decision ?? finalState.decision,
+          answer: next.answer ?? finalState.answer,
+          assistantBlocks: next.assistantBlocks ?? finalState.assistantBlocks,
+        } as PipelineGraphState;
+      }
       continue;
     }
     if (mode === "custom") {
@@ -354,11 +454,15 @@ async function* runPipelineStreamInner(
       }
       continue;
     }
-    const update = payload as Record<string, Partial<PipelineGraphState>>;
+    const update = payload as Record<string, unknown>;
+    if ("__interrupt__" in update) {
+      pendingPause =
+        extractPipelinePauseValue(update.__interrupt__) ?? pendingPause;
+    }
     const nodeName = Object.keys(update)[0];
-    if (!nodeName) continue;
-    const nodePatch = update[nodeName];
-    if (nodePatch) {
+    if (!nodeName || nodeName === "__interrupt__") continue;
+    const nodePatch = update[nodeName] as Partial<PipelineGraphState> | undefined;
+    if (nodePatch && typeof nodePatch === "object") {
       finalState = { ...finalState, ...nodePatch };
     }
     if (nodeName === "prepareTurnStart") {
@@ -634,6 +738,21 @@ async function* runPipelineStreamInner(
     const reason = getTurnAbortReason(turnId) ?? "cancelled";
     return yield* finishAborted(reason);
   }
+  if (!pendingPause) {
+    try {
+      const snap = await graph.getState({
+        configurable: { thread_id: threadId },
+      });
+      pendingPause = extractPipelinePauseValue(
+        (snap as { tasks?: unknown }).tasks
+      );
+    } catch {
+      // getState 失败不挡正常收尾
+    }
+  }
+  if (pendingPause) {
+    return yield* finishPaused(pendingPause);
+  }
   if (activeStep) {
     const durationMs = timing.markNodeEnd(activeStep);
     upsertCollectedStep(collectedSteps, {
@@ -698,6 +817,10 @@ async function* runPipelineStreamInner(
     if (turnSignal.aborted) {
       const reason = getTurnAbortReason(turnId) ?? "cancelled";
       return yield* finishAborted(reason);
+    }
+    if (isGraphInterrupt(e)) {
+      const pause = extractPipelinePauseValue(e.interrupts);
+      if (pause) return yield* finishPaused(pause);
     }
     throw e;
   } finally {

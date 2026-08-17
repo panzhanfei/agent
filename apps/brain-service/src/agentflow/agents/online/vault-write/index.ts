@@ -30,14 +30,56 @@ export {
 } from "./ops";
 
 export { runVaultWorkspaceSlotWorker } from "./slot";
-export { resolveVaultWorkspaceUiBypass } from "./intake-bypass";
+export {
+  resolveVaultWorkspaceUiBypass,
+  buildVaultWorkspaceUiDecision,
+  matchVaultWorkspaceUiAction,
+  toVaultWorkspaceParams,
+} from "./intake-bypass";
 
+import { interrupt } from "@langchain/langgraph";
 import { logAgentOut } from "@fambrain/brain-shared/agent-log";
-import { emitBudgetedSlotPatch } from "@/agentflow/agents/online/plan-fanout/slot-budget";
+import { resolveActiveSlot } from "@/agentflow/agents/online/plan-fanout/active-slot";
 import type { PipelineGraphState } from "@/agentflow/pipeline/graph/state";
+import type { PipelineResumePayload } from "@/agentflow/execution";
+import {
+  matchVaultWorkspaceUiPrompt,
+  VAULT_WORKSPACE_UI_ENTRY,
+} from "./actions";
+import { toVaultWorkspaceParams } from "./intake-bypass";
+import {
+  parseVaultWorkspaceParams,
+  runVaultWorkspaceOp,
+} from "./ops";
+import type { VaultWorkspaceParams } from "./interface";
+import {
+  rememberVaultWorkspaceOp,
+  takeCachedVaultWorkspaceOp,
+} from "./op-cache";
 import { runVaultWorkspaceSlotWorker } from "./slot";
 
-/** LangGraph `vaultWorkspace` 节点：Send 工人 */
+const paramsFromResume = (
+  resume: unknown,
+  fallback: VaultWorkspaceParams
+): VaultWorkspaceParams => {
+  if (!resume || typeof resume !== "object") return fallback;
+  const r = resume as PipelineResumePayload & { prompt?: string };
+  if (r.kind === "continue") return fallback;
+  const prompt = typeof r.prompt === "string" ? r.prompt : "";
+  if (!prompt.trim()) return fallback;
+  const q = prompt.trim();
+  const action =
+    q === VAULT_WORKSPACE_UI_ENTRY
+      ? ({ type: "list", folderRel: "" } as const)
+      : matchVaultWorkspaceUiPrompt(q);
+  if (!action) return fallback;
+  return toVaultWorkspaceParams(action);
+};
+
+/**
+ * LangGraph `vaultWorkspace`：跑一次 op 后 interrupt，Resume 再跑。
+ * 不走 60s 预算 race（等人点按钮会超过墙钟）。
+ */
 export const runVaultWorkspaceNode = async (
   state: PipelineGraphState
 ): Promise<Partial<PipelineGraphState>> => {
@@ -46,17 +88,39 @@ export const runVaultWorkspaceNode = async (
     slotId: state.activeSlotId,
   });
 
-  const out = await emitBudgetedSlotPatch(state, "vault_workspace", () =>
-    runVaultWorkspaceSlotWorker(state)
-  );
-  const patch = out.fanOutSlotPatches?.[0];
+  const slot = resolveActiveSlot(state);
+  if (!slot) {
+    const out = await runVaultWorkspaceSlotWorker(state);
+    return {
+      fanOutSlotPatches: [out],
+    };
+  }
 
-  logAgentOut("VaultWrite", "出去", {
-    via: "vaultWorkspace",
-    slotId: patch?.slotId ?? state.activeSlotId,
-    slotStatus: patch?.slotRuntime?.status ?? null,
-    notesPreview: patch?.sub.notes?.slice(0, 120) ?? null,
-  });
+  let params: VaultWorkspaceParams =
+    parseVaultWorkspaceParams(
+      (slot.params as Record<string, unknown> | undefined) ?? null
+    ) ?? {
+      operation: "list",
+      targetPath: String(slot.searchQuery ?? "").trim() || "",
+    };
+  const language = state.decision?.language === "en" ? "en" : "zh";
 
-  return out;
+  const conversationId = state.context.conversationId;
+  for (;;) {
+    let result = takeCachedVaultWorkspaceOp(conversationId, params);
+    if (!result) {
+      result = await runVaultWorkspaceOp({
+        corpusUserId: state.context.corpusUserId,
+        params,
+        language,
+      });
+      rememberVaultWorkspaceOp(conversationId, params, result);
+    }
+    const resume: unknown = interrupt({
+      kind: "vault_wait",
+      answer: result.answer,
+      blocks: result.blocks ?? [],
+    });
+    params = paramsFromResume(resume, params);
+  }
 };

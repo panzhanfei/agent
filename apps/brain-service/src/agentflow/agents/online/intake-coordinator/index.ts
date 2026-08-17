@@ -226,13 +226,11 @@ export const runIntakeNode = async (
       corpusUserId: state.context.corpusUserId,
     });
     if (vaultWsUi) {
-      logAgentOut("IntakeCoordinator", "短路_vault_workspace_ui", {
+      logAgentOut("IntakeCoordinator", "路由_vault_workspace_ui", {
         userQuestion: rawQuestion,
       });
       return {
-        decision: buildEarlyExitRoutedDecision(vaultWsUi.decision),
-        answer: vaultWsUi.answer,
-        assistantBlocks: vaultWsUi.assistantBlocks,
+        decision: vaultWsUi.decision,
       };
     }
 

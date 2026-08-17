@@ -12,4 +12,6 @@ export type RegisteredTurn = {
   actorUserId: string;
   controller: AbortController;
   reason: TurnAbortReason | null;
+  /** Pause：节点内 interrupt，不 abort 流 */
+  pauseRequested: boolean;
 };

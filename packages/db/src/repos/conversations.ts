@@ -85,6 +85,70 @@ export const appendAssistantMessage = async (
     select: { id: true, role: true, content: true },
   });
 };
+
+type ActionBlock = {
+  type: "actions";
+  actions: Array<{ disabled?: boolean; [k: string]: unknown }>;
+};
+
+const isActionBlock = (b: unknown): b is ActionBlock =>
+  Boolean(
+    b &&
+      typeof b === "object" &&
+      (b as { type?: unknown }).type === "actions" &&
+      Array.isArray((b as { actions?: unknown }).actions)
+  );
+
+/** 纯函数：把 metadata.blocks 里所有 actions 标 disabled，并清 taskPaused */
+export const disableActionsInMetadata = (
+  metadata: unknown
+): { next: Record<string, unknown>; changed: boolean } | null => {
+  if (!metadata || typeof metadata !== "object") return null;
+  const meta = metadata as Record<string, unknown>;
+  const blocks = meta.blocks;
+  if (!Array.isArray(blocks)) {
+    if (meta.taskPaused) {
+      return { next: { ...meta, taskPaused: false }, changed: true };
+    }
+    return null;
+  }
+  let changed = Boolean(meta.taskPaused);
+  const nextBlocks = blocks.map((block) => {
+    if (!isActionBlock(block)) return block;
+    const actions = block.actions.map((a) => {
+      if (a.disabled) return a;
+      changed = true;
+      return { ...a, disabled: true };
+    });
+    return { ...block, actions };
+  });
+  if (!changed) return null;
+  return {
+    next: { ...meta, blocks: nextBlocks, taskPaused: false },
+    changed: true,
+  };
+};
+
+/** 会话内已有助手消息的按钮全部作废（后端为 source of truth） */
+export const disableConversationActionBlocks = async (
+  conversationId: string
+): Promise<number> => {
+  const rows = await prisma.message.findMany({
+    where: { conversationId, role: ChatRole.assistant },
+    select: { id: true, metadata: true },
+  });
+  let n = 0;
+  for (const row of rows) {
+    const patched = disableActionsInMetadata(row.metadata);
+    if (!patched) continue;
+    await prisma.message.update({
+      where: { id: row.id },
+      data: { metadata: patched.next as Prisma.InputJsonValue },
+    });
+    n += 1;
+  }
+  return n;
+};
 const CONVERSATION_TITLE_MAX_LEN = 20;
 
 /** 首条用户消息 → 侧边栏/顶栏标题：取第一个问句，再截断 */

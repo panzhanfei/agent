@@ -78,6 +78,12 @@ export const chatActionStaleGroupKey = (prompt: string): string | null => {
   return null;
 };
 
+export const isVaultWorkspaceActionPrompt = (prompt: string): boolean => {
+  const t = prompt.trim();
+  if (t === "我的原文库") return true;
+  return t.startsWith("__FAMBRAIN_VAULT_WS_");
+};
+
 export const isChatActionExpired = (
   createdAt: string | number | Date | null | undefined
 ): boolean => {

@@ -27,6 +27,7 @@ import { runPlanCacheResolveNode } from "@/agentflow/agents/online/plan-fanout/c
 import { runPlanDagNode } from "@/agentflow/agents/online/dag-executor";
 import { runToolRetrieveNode } from "@/agentflow/agents/online/tool-orchestrator";
 import { runVaultWorkspaceNode } from "@/agentflow/agents/online/vault-write";
+import { getPipelineCheckpointer } from "@/agentflow/execution";
 import {
   runPreparePipelineMemory,
   runPrepareTurnStart,
@@ -116,7 +117,15 @@ let compiledGraph: ReturnType<
 
 export const getCompiledPipelineGraph = () => {
   if (!compiledGraph) {
-    compiledGraph = buildPipelineGraph().compile({ name: "fambrain-pipeline" });
+    compiledGraph = buildPipelineGraph().compile({
+      name: "fambrain-pipeline",
+      checkpointer: getPipelineCheckpointer(),
+    });
   }
   return compiledGraph;
+};
+
+/** 单测换 MemorySaver 后须重 compile，否则仍持有旧 checkpointer */
+export const resetCompiledPipelineGraph = (): void => {
+  compiledGraph = null;
 };

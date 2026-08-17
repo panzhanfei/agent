@@ -574,7 +574,7 @@
       },
       {
         "id": "V-pipeline-list",
-        "label": "pipeline「我的原文库」旁路 list",
+        "label": "pipeline「我的原文库」interrupt list（Pause/Resume）",
         "mode": "pipeline_list"
       }
     ]

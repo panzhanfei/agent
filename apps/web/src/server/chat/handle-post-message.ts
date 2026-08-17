@@ -10,6 +10,7 @@ import { encodeSseEvent, sseResponse } from "@/lib/chat/sse";
 import {
   appendAssistantMessage,
   appendUserMessage,
+  disableConversationActionBlocks,
   maybeUpdateConversationTitle,
   upsertTurnTrace,
 } from "@fambrain/db";
@@ -109,6 +110,8 @@ const runTurnPipeline = async (input: {
      * history 须已含该条为末条 user。
      */
     existingUserMessageId?: string;
+    /** Resume 原文库 HITL；vault_action 追加按钮对应的用户气泡 */
+    resume?: AgentPipelineContext["resume"];
   };
   inflight: InflightTurn;
   send: SseSend;
@@ -116,6 +119,13 @@ const runTurnPipeline = async (input: {
   const { options, inflight, send } = input;
   const turnId = options.turnId;
   const pipelineContent = options.pipelineContent;
+  const resume = options.resume;
+
+  try {
+    await disableConversationActionBlocks(options.conversationId);
+  } catch (e) {
+    console.error("disableConversationActionBlocks failed", e);
+  }
 
   let userRow: { id: string; role: string; content: string };
   if (options.existingUserMessageId) {
@@ -152,7 +162,11 @@ const runTurnPipeline = async (input: {
     : [...options.history, { role: "user", content: pipelineContent }];
   const gen = streamAgentPipeline(
     historyWithUser,
-    { ...options.pipelineContext, turnId },
+    {
+      ...options.pipelineContext,
+      turnId,
+      ...(resume ? { resume } : {}),
+    },
     options.authToken,
     { signal: inflight.brainAbort.signal }
   );
@@ -195,6 +209,10 @@ const runTurnPipeline = async (input: {
         reason,
         assistantMessage: persisted.assistantMessage,
       });
+      continue;
+    }
+    if (ev.type === "paused") {
+      send("paused", ev);
       continue;
     }
     send(streamEventName(ev), ev);
@@ -252,31 +270,38 @@ const runTurnPipeline = async (input: {
     return;
   }
 
+  const isPaused = Boolean(pipelineResult?.paused);
   const finalContent =
     pipelineResult?.answer?.trim() ||
-    "（模型未返回助手文本：请确认 Ollama 已启动且模型已拉取）";
+    (isPaused
+      ? ""
+      : "（模型未返回助手文本：请确认 Ollama 已启动且模型已拉取）");
   appendInflightPreview(turnId, finalContent);
   send("ready", {
     answer: finalContent,
     timing: pipelineResult?.timing,
+    paused: isPaused,
+    pauseKind: pipelineResult?.pauseKind,
   });
+  const assistantMeta = {
+    ...(pipelineResult?.retrievalPaths?.length
+      ? { retrievalPaths: pipelineResult.retrievalPaths }
+      : {}),
+    ...(pipelineResult?.blocks?.length
+      ? { blocks: pipelineResult.blocks as AssistantMessageBlock[] }
+      : {}),
+    ...(pipelineResult?.citations?.length
+      ? { citations: pipelineResult.citations }
+      : {}),
+    ...(isPaused
+      ? { taskPaused: true, pauseKind: pipelineResult?.pauseKind }
+      : {}),
+  };
   const assistantRow = await appendAssistantMessage(
     options.conversationId,
     finalContent,
-    pipelineResult?.retrievalPaths?.length ||
-      pipelineResult?.blocks?.length ||
-      pipelineResult?.citations?.length
-      ? {
-          ...(pipelineResult?.retrievalPaths?.length
-            ? { retrievalPaths: pipelineResult.retrievalPaths }
-            : {}),
-          ...(pipelineResult?.blocks?.length
-            ? { blocks: pipelineResult.blocks as AssistantMessageBlock[] }
-            : {}),
-          ...(pipelineResult?.citations?.length
-            ? { citations: pipelineResult.citations }
-            : {}),
-        }
+    Object.keys(assistantMeta).length
+      ? assistantMeta
       : undefined
   );
   inflight.finalized = true;
@@ -287,7 +312,7 @@ const runTurnPipeline = async (input: {
       messageId: assistantRow.id,
       userMessageId: userRow.id,
       userQuestion: pipelineContent,
-      status: "done",
+      status: isPaused ? "paused" : "done",
       timing: pipelineResult?.timing ?? null,
       entries: pipelineResult?.logs ?? inflight.logs,
       steps: pipelineResult?.steps ?? inflight.steps,
@@ -297,6 +322,8 @@ const runTurnPipeline = async (input: {
   }
   send("done", {
     turnId,
+    paused: isPaused,
+    pauseKind: pipelineResult?.pauseKind,
     userMessage: {
       id: userRow.id,
       role: mapRole(userRow.role),
@@ -309,6 +336,8 @@ const runTurnPipeline = async (input: {
       retrievalPaths: pipelineResult?.retrievalPaths,
       blocks: pipelineResult?.blocks,
       citations: pipelineResult?.citations,
+      taskPaused: isPaused,
+      pauseKind: pipelineResult?.pauseKind,
     },
     timing: pipelineResult?.timing,
   });
@@ -330,6 +359,7 @@ export const createPostMessageStreamResponse = (options: {
   turnId: string;
   /** 编辑重跑：已存在的用户消息 id，跳过 append */
   existingUserMessageId?: string;
+  resume?: AgentPipelineContext["resume"];
   /**
    * @deprecated 刷新/断线不应取消生成。已忽略。
    * 显式停止请走 cancel API。
@@ -370,6 +400,7 @@ export const createPostMessageStreamResponse = (options: {
         authToken: options.authToken,
         turnId,
         existingUserMessageId: options.existingUserMessageId,
+        resume: options.resume,
       },
       inflight,
       send: emit,
@@ -448,6 +479,11 @@ export const finalizeInflightTurnCancel = async (input: {
   turn.reason = input.reason;
   if (!turn.brainAbort.signal.aborted) {
     turn.brainAbort.abort();
+  }
+  try {
+    await disableConversationActionBlocks(input.conversationId);
+  } catch (e) {
+    console.error("disableConversationActionBlocks (cancel) failed", e);
   }
   const persisted = await persistCancelledTurn(turn, input.reason);
   return {

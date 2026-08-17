@@ -1,5 +1,6 @@
 /**
- * vault_workspace 单槽工人：list / open / CRUD txt+文件夹。
+ * vault_workspace 单槽工人（无 interrupt）：测试 / 缺槽兜底。
+ * 图主路径 Pause 在包根 runVaultWorkspaceNode。
  */
 import type { CompositeSubRetrieval } from "@/agentflow/agents/online/knowledge-manager";
 import type { StepResult } from "@/agentflow/agents/online/intake-coordinator/path-plan/interface";

@@ -1,11 +1,11 @@
 import type { IncomingMessage, ServerResponse } from "node:http";
-import { abortTurn, discardPipelineTask, getTurn } from "@/agentflow/execution";
+import { getTurn, requestTurnPause } from "@/agentflow/execution";
 import { requireAuth } from "@/server/middleware";
-import { pipelineCancelBodySchema } from "@/server/schema";
+import { pipelinePauseBodySchema } from "@/server/schema";
 import { readJsonBody } from "@/server/http";
 
-/** POST /pipeline/cancel — 按 turnId 点名中止进行中的图执行 */
-export const handlePipelineCancel = async (
+/** POST /pipeline/pause — 请求停止生成（半截稿即终稿，随后 discard；不 abort SSE） */
+export const handlePipelinePause = async (
   req: IncomingMessage,
   res: ServerResponse
 ): Promise<void> => {
@@ -27,23 +27,23 @@ export const handlePipelineCancel = async (
     return;
   }
 
-  const parsed = pipelineCancelBodySchema.safeParse(body);
+  const parsed = pipelinePauseBodySchema.safeParse(body);
   if (!parsed.success) {
     res.writeHead(400, { "Content-Type": "application/json" });
     res.end(JSON.stringify({ error: parsed.error.message }));
     return;
   }
 
-  const { turnId, reason, conversationId } = parsed.data;
+  const { turnId, conversationId } = parsed.data;
   const entry = getTurn(turnId);
   if (!entry) {
     res.writeHead(200, { "Content-Type": "application/json" });
-    res.end(JSON.stringify({ ok: true, aborted: false, turnId, reason }));
+    res.end(JSON.stringify({ ok: true, paused: false, turnId }));
     return;
   }
   if (entry.actorUserId !== userId) {
     res.writeHead(403, { "Content-Type": "application/json" });
-    res.end(JSON.stringify({ error: "无权取消该 turn" }));
+    res.end(JSON.stringify({ error: "无权暂停该 turn" }));
     return;
   }
   if (
@@ -56,11 +56,7 @@ export const handlePipelineCancel = async (
     return;
   }
 
-  const aborted = abortTurn(turnId, reason);
-  const discardId = conversationId ?? entry.conversationId;
-  if (discardId) {
-    discardPipelineTask(discardId);
-  }
+  const paused = requestTurnPause(turnId);
   res.writeHead(200, { "Content-Type": "application/json" });
-  res.end(JSON.stringify({ ok: true, aborted, turnId, reason }));
+  res.end(JSON.stringify({ ok: true, paused, turnId }));
 };

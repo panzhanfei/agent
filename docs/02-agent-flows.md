@@ -33,7 +33,11 @@
 | 向量 | Qdrant payload `path` = md repo path；`sourcePath` = vault 相对 | create/update → materialize；delete → purge |
 
 - **未指定 path**：`operation=list`（或 UI exact-match「我的原文库」/ `__FAMBRAIN_VAULT_WS_*__`）→ 两层 list + 新建 CTA。
-- **队列（可选）**：`CORPUS_QUEUE_ENABLED=1` 时 `corpus.materialize` / `corpus.purge` 入 BullMQ；worker：`pnpm --filter @fambrain/brain-service run corpus-worker`。未开队列则聊天路径同步语料化。
+- **队列（可选）**：`CORPUS_QUEUE_ENABLED=1` 时 `corpus.materialize` / `corpus.purge` 入 BullMQ；worker：`pnpm --filter @fambrain/brain-service run corpus-worker`。未开队列则 **fire-and-forget** 语料化（图只提交，不等 embed；丢弃图任务不中止已提交的入库）。
+- **Pause/Resume（原文库）：** 每次 list/CRUD 后 `interrupt({ kind: vault_wait })`；点按钮 `Command({ resume: vault_action })` 同一 thread。对人可见的 list/CTA 以 **interrupt 载荷** 为准（`answer`/`blocks`）；stream `values` 在 interrupt 时可能缺 channel，**合入**已有 `hits`/`decision`/`answer`，禁止整帧覆盖。
+- **生成停（Pause=停）：** 流式中点「停止」→ analyst 截停，半截稿落库为终稿，**discard** 图任务。无「继续」；下一句是新 invoke。不接同一条 Ollama 采样，也不从半截稿再生成。
+- **丢弃：** 新问题 / 编辑重跑 / 显式停止 / 生成停 = discard，不 Resume。点「确定入库」后改问：丢弃图任务，**不中止**已提交的语料化。
+- **UI 按钮：** 启用/禁用以后端 Prisma `Message.metadata.blocks[].actions[].disabled` 为准；新问或 Resume 前作废旧按钮。
 - **写路径**：`kind=vault_workspace` CRUD `vault/originals/workspace/*.txt`；语料化 md+向量；硬删级联。不再直接改 corpus md。
 - **UI stale：** 列表/打开/删除按 `vault:cwd:<folder>` 分组；**新建 txt/文件夹**走 `vault:create:<cwd>`，避免点「新建」把同目录新列表的删除按钮一出生就置灰（`apps/web/src/lib/chat/action-lifecycle.ts`）。
 
@@ -112,7 +116,7 @@ flowchart TB
 
 实现：`pipeline/graph/compile.ts`（只注册节点 + 连边）· `pipeline/runtime/stream.ts` → `runPipelineStream()`（SSE + 步骤耗时；**不含** Agent 业务逻辑）。
 
-**`runtime/stream.ts` 仅负责：** SSE 推送、`PipelineTimingTracker`、Pipeline 出去日志；**不**含 Mem0 读写或检索 cache 业务。
+**`runtime/stream.ts` 仅负责：** SSE 推送、`PipelineTimingTracker`、Pipeline 出去日志；**不**含 Mem0 读写或检索 cache 业务。interrupt 时 HITL 正文取 interrupt 载荷；`values` 合入已有 channel，不整帧覆盖。
 
 **D5-2 / P0-15 三层 cache（2026-06 · env 可关）：**
 
@@ -467,7 +471,7 @@ flowchart TD
 | Mem0 向量 | Qdrant collection `fambrain_user_memories`（`MEM0_QDRANT_COLLECTION`） |
 | Mem0 流水 | `data/memory/mem0/history.db` |
 | LangMem | Prisma `Conversation.sessionSummary` / `sessionSummaryAt` |
-| HITL checkpointer | `data/memory/langgraph/checkpoints.db`（仅 HITL 子图） |
+| 图任务 checkpointer | 官方 `SqliteSaver` → `data/memory/langgraph/checkpoints.db`（可用 `LANGGRAPH_CHECKPOINT_PATH` 覆盖）。每会话一件进行中任务：原文库 Pause=`interrupt(vault_wait)`，Resume=`Command({ resume: vault_action })`；生成停 / 新问 / 显式停止 = discard 世代 + `deleteThread`。HITL 正文以 interrupt 载荷为准。单测走 MemorySaver。 |
 
 BFF 请求体须带 `conversationId`（`packages/brain-types`）。
 
@@ -638,5 +642,6 @@ pnpm --filter @fambrain/brain-service run experiment:bind-tools -- "我的名字
 | `ready` | Pipeline 已出终稿、即将落库（BFF）；前端可提前解锁输入 |
 | `thinking` | 信息分析师推理流（若模型/Ollama 支持） |
 | `assistant` | 面向用户的正文增量（流结束后以 `answer` 写入 DB） |
-| `done` | 流结束，含 user/assistant 消息 id、终稿 `content`、可选 `timing` |
+| `done` | 流结束，含 user/assistant 消息 id、终稿 `content`、可选 `timing`。生成停也走 `done`（半截稿即终稿） |
+| `paused` | 原文库 HITL：`kind=vault_wait`，thread 可 Resume；**不是**生成停 |
 | `error` | 模型或编排失败 |

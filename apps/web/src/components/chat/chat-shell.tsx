@@ -12,6 +12,7 @@ import { LinkifiedText } from "@/components/chat/linkified-text";
 import { ConversationLogPanel } from "@/components/chat/conversation-log-panel";
 import {
   chatActionStaleGroupKey,
+  isVaultWorkspaceActionPrompt,
   messageActionStaleKey,
   type ChatActionPayload,
 } from "@/lib/chat/action-lifecycle";
@@ -56,6 +57,8 @@ type ChatMessage = {
   retrievalPaths?: string[];
   blocks?: AssistantMessageBlock[];
   citations?: Citation[];
+  taskPaused?: boolean;
+  pauseKind?: "vault_wait" | "gen_pause";
 };
 
 const parseMessageCitations = (raw: unknown): Citation[] | undefined => {
@@ -1035,6 +1038,23 @@ export const ChatShell = ({ initialConversations, viewer }: ChatShellProps) => {
     },
     [updateLogsForConversation]
   );
+  /** 请求停止生成：半截稿即终稿，不 abort SSE（否则 Brain 会当成 cancel） */
+  const pauseActiveTurn = useCallback(async () => {
+    const turnId = activeTurnIdRef.current;
+    const convId = activeConversationId;
+    if (!turnId || !convId) return;
+    try {
+      await fetch(`/api/conversations/${convId}/turns/${turnId}/pause`, {
+        method: "POST",
+        headers: { "Content-Type": "application/json" },
+        credentials: "same-origin",
+        body: JSON.stringify({}),
+      });
+    } catch {
+      //
+    }
+  }, [activeConversationId]);
+
   /** 停止当前 turn：显式 cancel API + Abort（supersede 时 reason=superseded） */
   const stopActiveTurn = useCallback(
     async (reason: "cancelled" | "superseded") => {
@@ -1139,15 +1159,20 @@ export const ChatShell = ({ initialConversations, viewer }: ChatShellProps) => {
         staleGroupKey?: string | null;
         /** 点击的助手消息：整条 actions 作废（对齐 HITL 提案消费） */
         staleMessageId?: string | null;
+        resume?: {
+          kind: "vault_action";
+          prompt?: string;
+        };
+        omitUserBubble?: boolean;
       }
     ) => {
       const trimmed = content.trim();
       if (!trimmed) return;
       const displayContent =
         (options?.displayContent ?? trimmed).trim() || trimmed;
-      // 首 token 前 sendBusy 防连点；流式中允许再发 → supersede
-      if (sendBusy && !streamingTurnId) return;
-      if (streamingTurnId || activeTurnIdRef.current) {
+      // 首 token 前 sendBusy 防连点；流式中允许再发 → supersede（Resume 不丢弃）
+      if (sendBusy && !streamingTurnId && !options?.resume) return;
+      if (!options?.resume && (streamingTurnId || activeTurnIdRef.current)) {
         await stopActiveTurn("superseded");
       }
       setSendBusy(true);
@@ -1216,10 +1241,14 @@ export const ChatShell = ({ initialConversations, viewer }: ChatShellProps) => {
         }
         setPreferEmptySession(false);
         setActiveConversationId(convId);
-        setMessages((prev) => [
-          ...prev,
-          { id: tempUserId, role: "user", content: userBubbleContent },
-        ]);
+        if (!options?.omitUserBubble) {
+          setMessages((prev) => [
+            ...prev,
+            { id: tempUserId, role: "user", content: userBubbleContent },
+          ]);
+        } else {
+          pendingUserTempIdRef.current = null;
+        }
         updateLogsForConversation(convId, (bundle) =>
           appendTurnToBundle(bundle, createTurnLog(turnId, userBubbleContent))
         );
@@ -1258,6 +1287,8 @@ export const ChatShell = ({ initialConversations, viewer }: ChatShellProps) => {
           assistantMessage?: ChatMessage;
           timing?: PipelineTiming;
           aborted?: boolean;
+          paused?: boolean;
+          pauseKind?: "vault_wait" | "gen_pause";
           reason?: "cancelled" | "superseded";
         };
         const clientStartedAt = performance.now();
@@ -1273,6 +1304,7 @@ export const ChatShell = ({ initialConversations, viewer }: ChatShellProps) => {
               : {}),
             turnId,
             ...(attachmentBatchId ? { attachmentBatchId } : {}),
+            ...(options?.resume ? { resume: options.resume } : {}),
           }),
           signal: controller.signal,
         });
@@ -1595,7 +1627,7 @@ export const ChatShell = ({ initialConversations, viewer }: ChatShellProps) => {
               patchActiveTurnLog(convId, turnId, (t) => ({
                 ...t,
                 ...(assistantId ? { turnId: assistantId } : {}),
-                status: "done",
+                status: p.paused ? "paused" : "done",
                 timing: timing ?? t.timing,
               }));
               pendingUserTempIdRef.current = null;
@@ -1633,6 +1665,13 @@ export const ChatShell = ({ initialConversations, viewer }: ChatShellProps) => {
                   citations: parseMessageCitations(
                     (p.assistantMessage as { citations?: unknown }).citations
                   ),
+                  taskPaused: Boolean(
+                    (p.assistantMessage as { taskPaused?: boolean }).taskPaused ??
+                      p.paused
+                  ),
+                  pauseKind:
+                    (p.assistantMessage as { pauseKind?: ChatMessage["pauseKind"] })
+                      .pauseKind ?? p.pauseKind,
                 };
                 flushSync(() => {
                   setMessages((prev) => {
@@ -1720,10 +1759,22 @@ export const ChatShell = ({ initialConversations, viewer }: ChatShellProps) => {
       if (action.clientHandler === "open_editor") {
         return;
       }
+      const lastAssistant = [...messagesRef.current]
+        .reverse()
+        .find((m) => m.role === "assistant");
+      const resumeVault =
+        lastAssistant?.taskPaused &&
+        lastAssistant.pauseKind === "vault_wait" &&
+        isVaultWorkspaceActionPrompt(action.prompt);
       void sendMessageWithContent(action.prompt, {
         displayContent: action.displayText ?? action.label,
         staleGroupKey: chatActionStaleGroupKey(action.prompt),
         staleMessageId: action.sourceMessageId ?? null,
+        ...(resumeVault
+          ? {
+              resume: { kind: "vault_action" as const, prompt: action.prompt },
+            }
+          : {}),
       });
     },
     [sendMessageWithContent]
@@ -1801,6 +1852,8 @@ export const ChatShell = ({ initialConversations, viewer }: ChatShellProps) => {
       assistantMessage?: ChatMessage;
       timing?: PipelineTiming;
       aborted?: boolean;
+      paused?: boolean;
+      pauseKind?: "vault_wait" | "gen_pause";
       reason?: "cancelled" | "superseded";
     };
 
@@ -2066,7 +2119,7 @@ export const ChatShell = ({ initialConversations, viewer }: ChatShellProps) => {
             patchActiveTurnLog(convId, turnId, (turn) => ({
               ...turn,
               ...(assistantId ? { turnId: assistantId } : {}),
-              status: "done",
+              status: p.paused ? "paused" : "done",
               timing: timing ?? turn.timing,
             }));
             if (
@@ -2095,6 +2148,13 @@ export const ChatShell = ({ initialConversations, viewer }: ChatShellProps) => {
                 citations: parseMessageCitations(
                   (p.assistantMessage as { citations?: unknown }).citations
                 ),
+                taskPaused: Boolean(
+                  (p.assistantMessage as { taskPaused?: boolean }).taskPaused ??
+                    p.paused
+                ),
+                pauseKind:
+                  (p.assistantMessage as { pauseKind?: ChatMessage["pauseKind"] })
+                    .pauseKind ?? p.pauseKind,
               };
               flushSync(() => {
                 setMessages((prev) => {
@@ -2806,7 +2866,7 @@ export const ChatShell = ({ initialConversations, viewer }: ChatShellProps) => {
                 {streamingTurnId ? (
                   <button
                     type="button"
-                    onClick={() => void stopActiveTurn("cancelled")}
+                    onClick={() => void pauseActiveTurn()}
                     className="rounded-full bg-[#dc2626] px-4 py-1.5 text-[13px] font-medium text-white"
                   >
                     停止

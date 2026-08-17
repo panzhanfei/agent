@@ -6,7 +6,7 @@
 
 ---
 
-## 一、行业常见坑（19 项）
+## 一、行业常见坑（22 项）
 
 ### 推理与规划（4）
 
@@ -45,6 +45,14 @@
 
 - [x] **#18 推理黑盒（P0 部分）** — **已做：** SSE `step` 展示 intake / retrieval（km/list/mem/…）/ **`content_organizer`** / analyst；`thinking` 展示推理流；`agent-log` 打 Intake / KM / **ContentOrganizer** / Pipeline；**Token 按节点**；**引用列表 UI** — **待做：** 完整调试面板（P1）。（历史 `fact_checker` step 仅旧日志；模块已删）
 
+### 图任务 / HITL / 流式停（3）
+
+> 豆包 / ChatGPT 一类产品的对话主路径：生成中只有「停止」；人点工具按钮才停在同一件事上；改口提问就换题。LangGraph `interrupt` 只管图光标，不管模型采样。
+
+- [x] **#20 人等载荷认错** — **触发：** 图 `interrupt` 时 `streamMode: values` 常缺 `hits`/`decision`，编排器用这帧当用户可见答案或终态日志 → 列表没了、intent 变 null — **对策：** 给人看的 `answer`/`blocks` **只信 `interrupt(value)`**；`values` **合入**已有 channel，禁止整帧覆盖；完整态用 `graph.getState`
+- [x] **#21 生成停误当续采样** — **触发：** 以为 Pause / checkpointer 能从第 N 个 token 接着吐；做了「继续」等于再跑一遍生成，和半截稿重复 — **对策：** **Pause = 停**（豆包/ChatGPT）：半截稿即终稿，无「继续」；下一句新 invoke。`interrupt` 给人点按钮（原文库），**不是**给同一条 Ollama HTTP 续流。Checkpointer 接不住采样
+- [x] **#22 人等跳过轮次收尾** — **触发：** `interrupt` 挂起图，END 前 `persistTurnEnd` 不到 → 浏览列表 / 等人点按钮时不写 LangMem — **对策：** **预期。** 人等不是「一轮答完」；气泡仍落 Prisma `Message`。真问答走完图才写会话摘要。生成停同样不经本节点（半截稿由 BFF 落库）
+
 ---
 
 ## 二、本项目踩坑（FamBrain P0 + D3 联调）
@@ -67,6 +75,7 @@
 | **工具 / 确定性编排** | 年龄不计算、公司年限答成总从业、列举 blocks、联网 | P0-23、**P0-32**、P0-24、P0-22 | §2.5.6、§2.5.7、**§2.5.11**、[架构 v2 §11](./05-architecture-v2-tool-orchestration.md#11-pathplan-统一执行计划-2026-07) |
 | **Intake 架构（档 B）** | 代码二次规划、散文触发指代、复盘难 | **P0-30**、**P0-31** | **§2.9**、**§2.10** · [架构 v2 §12–13](./05-architecture-v2-tool-orchestration.md#12-intake-llm-主导--schema-兜底2026-07--去问句硬编码) |
 | **猜模型意图兜底债** | pathPlan/userFact 抬升、亲友改写、口语工具 fallback；换模型后应删 | **P0-34** | **§2.11** · [架构 v2 §14](./05-architecture-v2-tool-orchestration.md#14-猜模型意图兜底债--dify换模型后删除-p0-34--2026-08) |
+| **图任务 / HITL / 流式停** | 残缺 values 当终稿、生成停误当续 token、interrupt 不写 LangMem | **P0-35～37** | **§2.12** · [流程 · 原文库](./02-agent-flows.md) · [控制面 §4](./06-architecture-control-plane.md) |
 
 ### Agent 职责边界（合同）
 
@@ -118,6 +127,9 @@
 | P0-21 | Intake / KM / Analyst | composite 槽 label「**具体项目名称**」→ 答 **云联智慧/友谊时光** 等公司 | 所有 enumeration 共用 **experience fill**；Intake 误标 `topics:experience` → canonical 到 employers | **`resolveEnumerationTarget`**（label 优先）+ KM **projects/** 专扫 + Analyst project prompt | ✅ **已解决**（2026-06）← §2.5.5 |
 | **P0-33** | HITL / 语料写盘 | 直接改 `corpus/**/*.md` + 软清空 `<!-- fambrain:cleared -->`；用户难记 path | 编辑面与检索产物耦合；软删仍占向量 path | **模型 A**：只 CRUD `vault/originals/workspace/*.txt`；`vault_workspace` list/CRUD；语料化 md+向量；**硬删**级联；`corpus_edit` 已删除 | ✅ **已解决**（2026-08）← [流程 · 原文库](./02-agent-flows.md) |
 | **P0-34** | Intake / Tool / Mem0 | 小模型 pathPlan 不稳 → 代码「猜 LLM 本意」抬升/改写（亲友 searchQuery、`km-qq`→mem、空 plan→remember、年龄口语 regex 等） | 本地小模型 JSON 纪律弱；为过 eval 叠加结构兜底，复盘时难分「模型工单错」vs「代码又规划」 | **暂留（现在不删）**；债 **主要在 Intake，工具层次之**；与 **Dify 抽离 + 换更强 Intake 模型** 同批验证；绿后按 §2.11 模块账本删除 | ⬜ **待清理** ← **§2.11** · [架构 v2 §14](./05-architecture-v2-tool-orchestration.md#14-猜模型意图兜底债--dify换模型后删除-p0-34--2026-08) |
+| **P0-35** | Pipeline / HITL | 原文库 `interrupt` 时 `values` 缺 `hits`/`decision`，出去日志 `intent: null`；若拿这帧当终稿则列表没了 | LangGraph HITL 时 values 常是不完整快照；曾整帧覆盖 `finalState` | 给人看的 list/CTA **只信 `interrupt({ answer, blocks })`**；`values` **合入**已有 channel | ✅ **已解决**（2026-08）← **§2.12** · [控制面 §4](./06-architecture-control-plane.md) |
+| **P0-36** | Analyst / 产品 | 生成「暂停」后点「继续」会从头再生成一篇，不能从半截 token 接着写 | Checkpointer 只管图光标；Ollama HTTP 流一断就没了；`interrupt` 不是给采样续流用的 | **Pause = 停**（豆包/ChatGPT）：半截稿即终稿，discard 图任务，无「继续」；下一句新 invoke。原文库仍 `vault_wait` Resume | ✅ **已解决**（2026-08）← **§2.12** · [流程 · 原文库](./02-agent-flows.md) |
+| **P0-37** | persistTurnEnd / LangMem | 原文库 Pause 到不了 `persistTurnEnd`，浏览列表不写会话摘要；生成停同样跳过 | `interrupt` 挂起图，END 前收尾节点不跑 | **预期。** 人等 / 生成停不是「一轮答完」；气泡仍落 Prisma。真问答走完图才写 LangMem | ✅ **已定型**（2026-08）← **§2.12** |
 
 ### 2.11 猜模型意图兜底债（⬜ P0-34 · 与 Dify 抽离同批 · 2026-08）
 
@@ -197,6 +209,26 @@ pnpm --filter @fambrain/brain-service run eval:run   # 全量
 ```
 
 详见 [架构 v2 §14](./05-architecture-v2-tool-orchestration.md#14-猜模型意图兜底债--dify换模型后删除-p0-34--2026-08)、[控制面阶段 8](./06-architecture-control-plane.md#8-实现阶段)。
+
+### 2.12 图任务 HITL / 生成停（✅ P0-35～37 · 2026-08）
+
+> **背景：** 原文库改成图内 `interrupt` + checkpointer 后，连续踩了三件业界同类产品（豆包 / ChatGPT）也面对的坑：人等看哪份载荷、生成停能不能续 token、挂起时记不记会话摘要。产品口径对齐豆包：**生成中只有停；工具按钮才停在同一件事上；改口提问就换题。**
+
+| ID | 典型现象 | 根因 | 对策 |
+|----|----------|------|------|
+| **P0-35**（#20） | `interrupt` 时 `values` 缺 `hits`/`decision`，出去日志 `intent: null`；若当终稿则列表没了 | HITL 的 values 常是不完整快照；曾整帧覆盖 `finalState` | 给人看的 list/CTA **只信 `interrupt({ answer, blocks })`**。`runtime/stream.ts` 对 `values` **合入**已有 channel，禁止整帧覆盖。完整态用 `graph.getState` |
+| **P0-36**（#21） | 点「继续」从头再生成一篇，不能从半截 token 接着写 | Checkpointer 存图光标，不存 Ollama HTTP 采样。Resume 该节点 = 再调一次模型 | **Pause = 停**：半截稿即终稿，discard，无「继续」。下一句新 invoke。原文库仍 `Command({ resume: vault_action })`。`interrupt` 给人点按钮，不是给采样续流 |
+| **P0-37**（#22） | 浏览原文库 / 生成停到不了 `persistTurnEnd`，不写 LangMem | `interrupt` 挂起图，END 前收尾不跑 | **预期。** 人等不是「一轮答完」。气泡仍落 Prisma `Message`。真问答走完图才写会话摘要。不要为 list/CTA 硬跑记忆写入 |
+
+**对照（别混）：**
+
+| | 丢的是什么 | Checkpointer | 用户看到 |
+|--|--|--|--|
+| P0-35 | 一帧图 **channel** | 管（完整态在 checkpoint / getState） | interrupt 载荷里的 list/CTA |
+| P0-36 | **这一次采样** | 不管 | 半截稿落成普通助手消息 |
+| P0-37 | **轮次收尾副作用**（LangMem） | 图还挂着 | 聊天气泡在；会话摘要等真问答走完再写 |
+
+详见 [流程 · 原文库](./02-agent-flows.md)、[控制面 §4 Turn / 取消](./06-architecture-control-plane.md)。
 
 ### 2.8 PathPlan 统一编排（✅ P0-28 · 2026-07）
 
@@ -1197,7 +1229,7 @@ pnpm run verify:agent-schemas
 
 **仍待完善（KM v3）：** 见 [km-retrieval-design.md](./km-retrieval-design.md) §三；P0-14（corpus/Mem0 矛盾）已由 KM 优化 ✅。
 
-### 与通用坑 #1～#19 的对应
+### 与通用坑 #1～#22 的对应
 
 | 本项目 | 通用坑 |
 |--------|--------|
@@ -1217,6 +1249,9 @@ pnpm run verify:agent-schemas
 | **P0-30** | #2 任务拆分不合理（口语二次规划） | ✅ §2.9 |
 | **P0-31** | #1 意图误判（盲预合并 / 散文当指代）；#17 上下文污染（误并上轮）；复盘黑盒 | ✅ §2.10 |
 | **P0-34** | #1 意图误判 / #2 任务拆分（代码猜 LLM pathPlan/userFact）；与 Dify 抽离同批删兜底 | ⬜ §2.11 |
+| **P0-35** | #20 人等载荷认错（残缺 values 当终稿） | ✅ §2.12 |
+| **P0-36** | #21 生成停误当续采样（Pause=停） | ✅ §2.12 |
+| **P0-37** | #22 人等跳过轮次收尾（浏览不写 LangMem，预期） | ✅ §2.12 |
 | **P0-32** | #5 工具选择/语义错误（公司年限误用总从业工具）；#11 过度自信（复合甩推算文案） | ✅ §2.5.11 |
 | **P0-28** | #2 任务拆分不合理；#4 计划漂移（多槽互斥） | ✅ §2.8 · 架构 v2 §11 |
 | P0-14 | #9 信息捏造；#16 Mem0 vs corpus 同句矛盾 | ✅ KM 优化 |
@@ -1253,3 +1288,6 @@ pnpm run verify:agent-schemas
 - [x] **综合履历 → 编号子问**（同会话）：编号「1. 我在哪几家公司…」仍 **4 家** ← R6-3 ✅ · `verify:r6-no-cache`
 - [x] **格式化追问**（「用表格列出来」）：表格追问仍保留已确认公司 ← R6-2 ✅ · `verify:r6-no-cache`
 - [x] **跨会话 userFact**（A 记 QQ → B 问）：step 为 `user_fact`；answer 含完整号码；Mem0 行 `QQ号是…` 勿误提取「码」← P0-16 ✅ · `verify:user-fact`
+- [x] **原文库 HITL**：给人看的 list/CTA 来自 `interrupt` 载荷，不是残缺 `values` ← **P0-35** ✅ · §2.12
+- [x] **生成停**：半截稿即终稿，无「继续」；下一句新 invoke ← **P0-36** ✅ · §2.12
+- [x] **vault_wait / 生成停** 不经 `persistTurnEnd`（浏览不写 LangMem）属预期 ← **P0-37** ✅ · §2.12

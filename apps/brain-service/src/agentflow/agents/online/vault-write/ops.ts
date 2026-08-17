@@ -58,20 +58,31 @@ export type VaultWorkspaceRunResult = {
   syncNote?: string;
 };
 
+const submitCorpusSideEffect = (run: () => Promise<unknown>): void => {
+  void run().catch((err) => {
+    const msg = err instanceof Error ? err.message : String(err);
+    console.warn(`[vault-write] corpus side-effect failed: ${msg}`);
+  });
+};
+
 const syncMaterialize = async (
   corpusUserId: string,
   workspaceRel: string
 ): Promise<string> => {
   if (isCorpusQueueEnabled()) {
-    await enqueueCorpusMaterialize({ corpusUserId, workspaceRel });
-    return "已入队语料化（异步更新 md/向量）";
+    submitCorpusSideEffect(() =>
+      enqueueCorpusMaterialize({ corpusUserId, workspaceRel })
+    );
+    return "已提交语料化（后台更新 md/向量）";
   }
-  await materializeWorkspaceTxt({
-    corpusUserId,
-    workspaceRel,
-    indexAfter: true,
-  });
-  return "已同步语料化并更新向量";
+  submitCorpusSideEffect(() =>
+    materializeWorkspaceTxt({
+      corpusUserId,
+      workspaceRel,
+      indexAfter: true,
+    })
+  );
+  return "已提交语料化（后台更新 md/向量）";
 };
 
 const syncPurge = async (
@@ -79,11 +90,15 @@ const syncPurge = async (
   workspaceRels: string[]
 ): Promise<string> => {
   if (isCorpusQueueEnabled()) {
-    await enqueueCorpusPurge({ corpusUserId, workspaceRels });
-    return "已入队硬删语料/向量";
+    submitCorpusSideEffect(() =>
+      enqueueCorpusPurge({ corpusUserId, workspaceRels })
+    );
+    return "已提交硬删语料/向量（后台）";
   }
-  await purgeWorkspaceTxtCascade({ corpusUserId, workspaceRels });
-  return "已硬删对应 md 与向量";
+  submitCorpusSideEffect(() =>
+    purgeWorkspaceTxtCascade({ corpusUserId, workspaceRels })
+  );
+  return "已提交硬删对应 md 与向量（后台）";
 };
 
 export const runVaultWorkspaceOp = async (input: {
