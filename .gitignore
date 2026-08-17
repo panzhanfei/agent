@@ -1,6 +1,5 @@
 # dependencies
 node_modules/
-tools/chroma-server/.venv/
 package-lock.json
 /.pnp
 .pnp.*
@@ -23,11 +22,7 @@ package-lock.json
 # personal knowledge corpus (resume, originals — keep local only)
 /data/doc/
 
-# Chroma 向量库（KnowledgeIndexer 本地持久化）
-/data/chroma/*
-!/data/chroma/.gitkeep
-
-# Mem0 / LangMem 本地存储
+# Mem0 / LangMem / LangGraph checkpointer 本地存储
 /data/memory/*
 !/data/memory/.gitkeep
 !/data/memory/mem0/.gitkeep

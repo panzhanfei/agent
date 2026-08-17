@@ -1109,7 +1109,7 @@ pnpm --filter @fambrain/brain-service run verify:r6-no-cache           # 同会�
 ### 2.1 D3 / LangChain 联调踩坑（2026-05-22）
 
 > **背景（2026-05）：** 入库 + 在线检索由 LlamaIndex 迁至 **LangChain**（当时 `@langchain/community` Chroma + `@langchain/ollama` Embeddings）。  
-> **现状（2026-08）：** 语料与 Mem0 均已迁 **Qdrant**；Chroma / `chroma-rag.ts` / `tools/chroma-server` 运行时已拆除。下表保留当时踩坑，对策列若写 Chroma 视为历史。
+> **现状（2026-08）：** 语料与 Mem0 均已迁 **Qdrant**；Chroma 运行时、`data/chroma`、`tools/chroma-server` 均已删除。下表保留当时踩坑，对策列若写 Chroma 视为历史。
 
 | ID | 环节 | 现象 | 根因 | 对策（计划） | 状态 |
 |----|------|------|------|--------------|------|
@@ -1125,7 +1125,7 @@ pnpm --filter @fambrain/brain-service run verify:r6-no-cache           # 同会�
 | D3-10 | RAG | G3「项目+技术」hits 有但偏 `aky-*` 模板 | 向量未优先 `experience/` / `personal/` | 路径加权或 Intake topics 引导；Golden G3 断言 path 分布 | ⬜ sprint D2 |
 | D3-11 | 文档 | 流程图仍写 LlamaIndex / Chroma | 迁移后未同步 docs | 2026-08 已统一写 Qdrant / `@fambrain/corpus` | ✅ 已解决 |
 | D3-12 | 开发 | `pnpm dev` agents `EADDRINUSE :3001`；依赖分散 | 旧进程占端口 | `scripts/dev-all.sh` 一键起 **Qdrant** + Redis + Web + Brain；端口冲突仍需手动 kill | 🔄 **部分缓解** |
-| D3-13 | 开发 | 每次 `pnpm dev` 都 `uv` 下载 Chroma；heartbeat 过短卡住启动 | 旧 `uv run --with chromadb` | 曾用 `tools/chroma-server/.venv`；**2026-08 已拆除 Chroma**，不再需要 uv/chroma | ✅ **已过时**（2026-08 迁 Qdrant） |
+| D3-13 | 开发 | 每次 `pnpm dev` 都 `uv` 下载 Chroma；heartbeat 过短卡住启动 | 旧 `uv run --with chromadb` | 曾有 `tools/chroma-server`；**已删除**，向量只走 Qdrant | ✅ **已过时**（2026-08 迁 Qdrant） |
 | D3-14 | 向量库 | Chroma L2 + 查询时内存 BM25 与 Mem0 共用一套 HTTP | 语料要 sparse+RRF；Mem0 要 get/list/delete | **自托管 Qdrant v1.15.5**：语料 named `dense`+`sparse` 引擎 RRF；Mem0 独立 unnamed dense collection | ✅ **已解决**（2026-08） |
 
 **典型日志（D3-2）：**
