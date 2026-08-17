@@ -60,7 +60,7 @@ export const pipelineStreamBodySchema = z.object({
         conversationId: z.string().min(1),
         /** Web 贯穿的 turnId；缺省时 Brain 兜底生成 */
         turnId: z.string().uuid().optional(),
-        /** Resume 原文库 HITL；有则不 discard。生成停不 Resume。 */
+        /** vault_wait Resume 载荷；有则不 discard。gen_pause 不使用。 */
         resume: z
             .object({
                 kind: z.enum(["vault_action"]),

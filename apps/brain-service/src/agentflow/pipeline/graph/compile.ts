@@ -55,7 +55,7 @@ const als = withPipelineRunAls;
 /**
  * intake → planCacheResolve → Send(每槽 km|list|mem|tool|summarize|vault_workspace ∥ dag ∥ userFactSide)
  *   km/list/mem/tool/summarize：扁平节点 + emitBudgetedSlotPatch
- *   vaultWorkspace：interrupt({ vault_wait }) 循环（不走 60s 预算）；缺槽才返回 patch → planSlotJoin
+ *   vaultWorkspace：interrupt(vault_wait) 循环，不套槽位预算；无槽时返回 patch → planSlotJoin
  *     → planSlotJoin →（可选全局 B 再批 Send ≤1）→ planSlotPost → planMerge
  * → contentOrganizer → contentSummarizer? → analyst
  */

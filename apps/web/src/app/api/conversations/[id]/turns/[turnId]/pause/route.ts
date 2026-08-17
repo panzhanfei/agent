@@ -12,7 +12,7 @@ const MAX_JSON_BODY = 4096;
 
 /**
  * POST /api/conversations/:id/turns/:turnId/pause
- * 请求停止生成（半截稿落库为终稿，discard 图任务；不 abort SSE）。
+ * 停止生成：当前稿落库为终稿并 discard 图任务；不 abort SSE。
  */
 export const POST = async (
   req: Request,

@@ -1,7 +1,7 @@
 /**
- * 图内 interrupt 载荷。
- * - `vault_wait`：HITL，可 Resume
- * - `gen_pause`：生成停（Pause=停），半截稿即终稿，随后 discard，不可 Resume
+ * Pipeline interrupt 载荷。
+ * - vault_wait：可 Command Resume
+ * - gen_pause：停止生成后 discard，不可 Resume
  */
 export type PipelinePauseKind = "vault_wait" | "gen_pause";
 
@@ -11,5 +11,5 @@ export type PipelinePauseValue = {
   blocks: import("@fambrain/brain-types").AssistantMessageBlock[];
 };
 
-/** 仅原文库按钮可 Resume；生成停不走 Command。 */
+/** vault_wait 的 Resume 载荷；gen_pause 不使用 Command。 */
 export type PipelineResumePayload = { kind: "vault_action"; prompt: string };

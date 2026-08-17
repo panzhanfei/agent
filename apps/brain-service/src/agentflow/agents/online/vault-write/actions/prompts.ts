@@ -1,6 +1,8 @@
 /**
  * vault workspace UI exact-match prompts（非口语词表）。
  */
+import type { VaultWsUiAction } from "./interface";
+
 export const VAULT_WORKSPACE_ACTION = {
   listPrefix: "__FAMBRAIN_VAULT_WS_LIST__:",
   openPrefix: "__FAMBRAIN_VAULT_WS_OPEN__:",
@@ -32,14 +34,6 @@ export const vaultWsDeleteFilePrompt = (fileRel: string): string =>
 
 export const vaultWsDeleteFolderPrompt = (folderRel: string): string =>
   `${VAULT_WORKSPACE_ACTION.deleteFolderPrefix}${folderRel}`;
-
-export type VaultWsUiAction =
-  | { type: "list"; folderRel: string }
-  | { type: "open"; fileRel: string }
-  | { type: "create_file"; folderRel: string }
-  | { type: "create_folder"; folderRel: string }
-  | { type: "delete_file"; fileRel: string }
-  | { type: "delete_folder"; folderRel: string };
 
 export const matchVaultWorkspaceUiPrompt = (
   userQuestion: string

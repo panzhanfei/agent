@@ -355,11 +355,11 @@ export const useChatShell = ({
         setMessagesError(null);
         return;
       }
-      // 流式回答中勿 refetch：sendBusy 会在首 token 提前解锁，但 streamingTurnId 仍在
+      // 流式进行中不 refetch；sendBusy 可能在首 token 后解除，仍以 streamingTurnId 为准
       if (sendBusy || streamingTurnId != null) {
         return;
       }
-      // 已有消息时后台同步，勿整页「加载消息中…」（会白屏闪缩）
+      // 已有消息时后台同步，避免用整页 loading 替换当前列表
       const showFullPageLoader = messagesRef.current.length === 0;
       if (showFullPageLoader) {
         setMessagesLoading(true);
@@ -521,7 +521,7 @@ export const useChatShell = ({
     },
     [updateLogsForConversation]
   );
-  /** 请求停止生成：半截稿即终稿，不 abort SSE（否则 Brain 会当成 cancel） */
+  /** 停止生成：当前稿落库为终稿；不 abort SSE，避免被当成 cancel */
   const pauseActiveTurn = useCallback(async () => {
     const turnId = activeTurnIdRef.current;
     const convId = activeConversationId;
@@ -653,7 +653,7 @@ export const useChatShell = ({
       if (!trimmed) return;
       const displayContent =
         (options?.displayContent ?? trimmed).trim() || trimmed;
-      // 首 token 前 sendBusy 防连点；流式中再发 → supersede（discard）。vault 按钮 Resume 不 discard。
+      // 首 token 前 sendBusy 防连点；流式中再发会 supersede（discard）。带 resume 的 vault_action 不 discard。
       if (sendBusy && !streamingTurnId && !options?.resume) return;
       if (!options?.resume && (streamingTurnId || activeTurnIdRef.current)) {
         await stopActiveTurn("superseded");
@@ -1041,7 +1041,7 @@ export const useChatShell = ({
               if (activeTurnIdRef.current !== turnId) {
                 return;
               }
-              // 停止按钮路径已用 cancel 响应更新过 UI，此处仅补齐未展示的截停稿
+              // cancel 响应已更新 UI 时，仅补齐尚未展示的已停止文本
               if (
                 reason === "cancelled" &&
                 p.assistantMessage &&

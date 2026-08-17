@@ -13,15 +13,15 @@ import {
   readVaultWorkspaceTxt,
   writeVaultWorkspaceTxt,
 } from "@fambrain/corpus";
-import type { AssistantMessageBlock } from "@fambrain/brain-types";
-import { buildVaultWorkspaceListBlocks } from "./compose-actions";
-import type { VaultWorkspaceParams } from "./interface";
-import { VAULT_WORKSPACE_OPS } from "./interface";
+import { buildVaultWorkspaceListBlocks } from "../actions";
+import type { VaultWorkspaceParams } from "../interface";
+import { VAULT_WORKSPACE_OPS } from "../interface";
 import {
   enqueueCorpusMaterialize,
   enqueueCorpusPurge,
   isCorpusQueueEnabled,
 } from "@fambrain/infra";
+import type { VaultWorkspaceRunResult } from "./interface";
 
 export const parseVaultWorkspaceParams = (
   raw: Record<string, unknown> | undefined | null
@@ -48,14 +48,6 @@ export const parseVaultWorkspaceParams = (
           : null,
     recursive: Boolean(raw.recursive),
   };
-};
-
-export type VaultWorkspaceRunResult = {
-  ok: boolean;
-  answer: string;
-  blocks?: AssistantMessageBlock[];
-  error?: string;
-  syncNote?: string;
 };
 
 const submitCorpusSideEffect = (run: () => Promise<unknown>): void => {

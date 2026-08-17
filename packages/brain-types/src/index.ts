@@ -42,8 +42,8 @@ export type AgentPipelineContext = {
      */
     turnId?: string;
     /**
-     * Resume 原文库 HITL（vault 按钮）。生成停不 Resume。
-     * 有则走 Command，不 discard 旧 thread。
+     * vault_wait Resume 载荷。有则走 Command，不 discard 当前 thread。
+     * gen_pause 不使用。
      */
     resume?: {
         kind: "vault_action";
@@ -178,7 +178,7 @@ export type AgentStreamEvent = {
     turnId: string;
     reason: TurnAbortReason;
 } | {
-    /** 原文库 HITL Pause（checkpointer）；等人点 vault 按钮 Resume */
+    /** vault_wait / gen_pause：图 interrupt，载荷见 pauseKind */
     type: "paused";
     turnId: string;
     kind: "vault_wait";
@@ -207,7 +207,7 @@ export type AgentPipelineResult = {
     aborted?: boolean;
     abortReason?: TurnAbortReason;
     turnId?: string;
-    /** 图停在 vault HITL interrupt；answer/blocks 可落库，thread 可 Resume */
+    /** 图停在 interrupt；vault_wait 可 Resume，gen_pause 随后 discard */
     paused?: boolean;
     pauseKind?: "vault_wait";
 };

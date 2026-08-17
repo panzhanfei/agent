@@ -10,7 +10,7 @@ import {
   vaultWsDeleteFolderPrompt,
   vaultWsListPrompt,
   vaultWsOpenPrompt,
-} from "./actions";
+} from "./prompts";
 
 export const buildVaultWorkspaceListBlocks = (input: {
   folderRel: string;

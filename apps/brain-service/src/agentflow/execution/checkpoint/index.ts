@@ -1,9 +1,8 @@
 /**
- * 每会话一件进行中图任务：Checkpointer + thread 世代。
- * 新问 / 生成停 / 显式停止 = 丢弃（世代 +1，旧档不再 Resume）。
- * 原文库 HITL 才 Resume 同一 thread。
+ * 每会话一个进行中 pipeline thread：Checkpointer + generation。
+ * 无 resume 的新请求会 discard（generation +1）。仅 vault_wait 在同一 thread 上 Resume。
  *
- * 生产：官方 SqliteSaver → `data/memory/langgraph/checkpoints.db`
+ * 生产：SqliteSaver → `data/memory/langgraph/checkpoints.db`
  * 单测：MemorySaver（VITEST 或 resetPipelineCheckpointForTests）
  */
 import { mkdirSync } from "node:fs";
@@ -135,7 +134,7 @@ const deleteThreadSafe = (threadId: string): void => {
   });
 };
 
-/** 新 invoke / 停止前调用：旧 Pause 不可 Resume。 */
+/** 提升 generation 并删除旧 thread；此后旧 checkpoint 不可 Resume。 */
 export const discardPipelineTask = (conversationId: string): string => {
   ensureSaver();
   const prevId = pipelineThreadId(conversationId);
@@ -160,7 +159,7 @@ export const isPipelinePauseValue = (
   );
 };
 
-/** 仅 vault_wait 可 Command Resume；gen_pause 是停。 */
+/** vault_wait 可 Command Resume；gen_pause 不可。 */
 export const isResumablePipelinePause = (
   value: PipelinePauseValue
 ): value is PipelinePauseValue & { kind: "vault_wait" } =>
@@ -207,7 +206,7 @@ export const resetPipelineCheckpointForTests = (): void => {
   saver = new MemorySaver();
 };
 
-/** 单测：用临时 sqlite 验证世代落盘（与生产同一套表） */
+/** 单测：用临时 sqlite 验证 generation 落盘（与生产同一套表） */
 export const useSqliteCheckpointerForTests = (dbPath: string): void => {
   generationByConversation.clear();
   if (sqliteDb) {

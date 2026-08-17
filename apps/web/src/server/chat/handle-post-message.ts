@@ -348,7 +348,7 @@ export const createPostMessageStreamResponse = (options: {
   /** 入库与 UI 展示 */
   userContent: string;
   /**
-   * 发给 Brain 的当前轮用户正文（可与 userContent 不同，如 vault 按钮 exact-match）。
+   * 发给 Brain 的当前轮用户正文（可与 userContent 不同，例如 vault UI exact-match prompt）。
    * 缺省 = userContent。
    */
   pipelineContent?: string;
@@ -416,7 +416,7 @@ export const createPostMessageStreamResponse = (options: {
     return turnPromise;
   };
 
-  // 请求/SSE 结束后仍等待 turn 完成并落库（刷新不丢答案）
+  // 请求/SSE 结束后仍等待 turn 完成并落库
   after(() => {
     void beginTurn();
   });
@@ -437,7 +437,7 @@ export const createPostMessageStreamResponse = (options: {
       }
     },
     cancel() {
-      // 断线 / 刷新：只停推 SSE，不 abort Brain（停止按钮走 cancel API）
+      // 断线或刷新：只关闭 SSE，不 abort Brain（取消走 cancel API）
       sseOpen = false;
       enqueue = null;
     },

@@ -68,7 +68,7 @@ export const runAnalystNode = async (
   }
   const write = getWriter(config);
   const turnId = state.context.turnId;
-  /** Pause=停：截停采样，半截稿经 interrupt 带出后由 stream discard，不 Resume。 */
+  /** gen_pause：经 interrupt 带出当前稿，由 stream discard。 */
   const stopIfPauseRequested = (
     answer: string,
     blocks: import("@fambrain/brain-types").AssistantMessageBlock[]

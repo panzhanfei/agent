@@ -1,6 +1,5 @@
 /**
- * UI exact-match：只路由进 vault_workspace 工人，不在 Intake 里跑 CRUD。
- * 图在工人内 interrupt({ vault_wait }) 等人点按钮（同一件原文库任务）。
+ * UI exact-match：路由至 vault_workspace 工人，不在 Intake 执行 CRUD。
  */
 import type { RoutedIntakeDecision } from "@/agentflow/agents/online/intake-coordinator/guards/interface";
 import {
@@ -9,12 +8,13 @@ import {
   legalizePathPlan,
 } from "@/agentflow/agents/online/intake-coordinator/path-plan";
 import { resolveIntakeGraphRouteMode } from "@/agentflow/agents/online/intake-coordinator/pipeline";
+import type { PipelineResumePayload } from "@/agentflow/execution";
 import {
   matchVaultWorkspaceUiPrompt,
   VAULT_WORKSPACE_UI_ENTRY,
-  type VaultWsUiAction,
-} from "./actions";
-import type { VaultWorkspaceParams } from "./interface";
+} from "../actions";
+import type { VaultWorkspaceParams } from "../interface";
+import type { VaultWsUiAction } from "./interface";
 
 export const toVaultWorkspaceParams = (
   action: VaultWsUiAction
@@ -112,4 +112,28 @@ export const resolveVaultWorkspaceUiBypass = (
   const action = matchVaultWorkspaceUiAction(userQuestion);
   if (!action) return null;
   return buildVaultWorkspaceUiDecision(action);
+};
+
+const isVaultActionResume = (
+  resume: unknown
+): resume is PipelineResumePayload => {
+  if (!resume || typeof resume !== "object") return false;
+  const r = resume as { kind?: unknown; prompt?: unknown };
+  return r.kind === "vault_action" && typeof r.prompt === "string";
+};
+
+/** 将 Resume 的 vault_action.prompt 解析为下一步 params；无法识别则沿用当前 params。 */
+export const paramsFromResume = (
+  resume: unknown,
+  fallback: VaultWorkspaceParams
+): VaultWorkspaceParams => {
+  if (!isVaultActionResume(resume)) return fallback;
+  const q = resume.prompt.trim();
+  if (!q) return fallback;
+  const action =
+    q === VAULT_WORKSPACE_UI_ENTRY
+      ? ({ type: "list", folderRel: "" } as const)
+      : matchVaultWorkspaceUiPrompt(q);
+  if (!action) return fallback;
+  return toVaultWorkspaceParams(action);
 };

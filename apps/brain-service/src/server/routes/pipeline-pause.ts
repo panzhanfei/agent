@@ -4,7 +4,7 @@ import { requireAuth } from "@/server/middleware";
 import { pipelinePauseBodySchema } from "@/server/schema";
 import { readJsonBody } from "@/server/http";
 
-/** POST /pipeline/pause — 请求停止生成（半截稿即终稿，随后 discard；不 abort SSE） */
+/** POST /pipeline/pause — 停止生成：当前稿落库为终稿并 discard；不 abort SSE */
 export const handlePipelinePause = async (
   req: IncomingMessage,
   res: ServerResponse

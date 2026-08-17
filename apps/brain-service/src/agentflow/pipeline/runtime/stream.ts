@@ -283,7 +283,7 @@ async function* runPipelineStreamInner(
   const finishPaused = function* (
     pause: PipelinePauseValue
   ): Generator<AgentStreamEvent, AgentPipelineResult> {
-    // HITL 对用户可见的 answer/blocks 以 interrupt 载荷为准，不信缺 channel 的 values 帧
+    // 用户可见文本以 interrupt 载荷为准（interrupt 时 values 帧可能不完整）
     const answer = pause.answer || finalState.answer || "";
     const blocks =
       pause.blocks?.length > 0
@@ -300,7 +300,7 @@ async function* runPipelineStreamInner(
       };
     }
     if (!isResumablePipelinePause(pause)) {
-      // Pause=停：半截稿即终稿，discard 图任务；不发 paused、不 Resume
+      // gen_pause：discard 图任务，不发 paused，不可 Resume
       discardPipelineTask(context.conversationId);
       const pipelineTiming = yield* finishPipeline(
         timing,

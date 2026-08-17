@@ -1,9 +1,9 @@
 /**
- * Resume 时 LangGraph 会从头重跑节点；list/open 可重入，create 不能再写一遍。
- * 按会话缓存上一次 op 结果，discard 时清掉。
+ * 按 conversationId 缓存最近一次 vault op 结果。
+ * 节点 Resume 从入口重跑，写操作须命中缓存以免重复执行；discard 时清除。
  */
 import { registerPipelineDiscardHook } from "@/agentflow/execution";
-import type { VaultWorkspaceRunResult } from "./ops";
+import type { VaultWorkspaceRunResult } from "./interface";
 
 const cache = new Map<
   string,

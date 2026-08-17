@@ -42,7 +42,7 @@ export const postConversationMessageBodySchema = z.object({
      */
     attachmentBatchId: z.string().uuid().optional(),
     /**
-     * Resume 原文库 HITL（vault 按钮）。生成停不 Resume。
+     * vault_wait 的 Resume 载荷；有则走 Command。gen_pause 不使用。
      */
     resume: z
         .object({
