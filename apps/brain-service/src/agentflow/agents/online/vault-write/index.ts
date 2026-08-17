@@ -58,16 +58,21 @@ import {
 } from "./op-cache";
 import { runVaultWorkspaceSlotWorker } from "./slot";
 
+const isVaultActionResume = (
+  resume: unknown
+): resume is PipelineResumePayload => {
+  if (!resume || typeof resume !== "object") return false;
+  const r = resume as { kind?: unknown; prompt?: unknown };
+  return r.kind === "vault_action" && typeof r.prompt === "string";
+};
+
 const paramsFromResume = (
   resume: unknown,
   fallback: VaultWorkspaceParams
 ): VaultWorkspaceParams => {
-  if (!resume || typeof resume !== "object") return fallback;
-  const r = resume as PipelineResumePayload & { prompt?: string };
-  if (r.kind === "continue") return fallback;
-  const prompt = typeof r.prompt === "string" ? r.prompt : "";
-  if (!prompt.trim()) return fallback;
-  const q = prompt.trim();
+  if (!isVaultActionResume(resume)) return fallback;
+  const q = resume.prompt.trim();
+  if (!q) return fallback;
   const action =
     q === VAULT_WORKSPACE_UI_ENTRY
       ? ({ type: "list", folderRel: "" } as const)

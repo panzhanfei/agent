@@ -354,16 +354,7 @@ export const buildFallbackAnswer = (
   const fromTools = pickToolResultForSubQuestion(
     {
       userQuestion,
-      language,
-      hits,
-      coverage,
-      notes,
       queryType: queryType ?? undefined,
-      topics: input.topics ?? [],
-      enumerationMeta: input.enumerationMeta ?? null,
-      listIntent: input.listIntent ?? null,
-      asOfDate: input.asOfDate,
-      toolResults: input.toolResults,
     },
     input.toolResults
   );

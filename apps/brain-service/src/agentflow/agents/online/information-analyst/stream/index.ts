@@ -23,6 +23,7 @@ import type {
 import { cachedFacetToAnalystResult } from "@/agentflow/cache";
 import { streamCompositeAnalyze } from "./stream-composite";
 import type { AssistantMessageBlock } from "@fambrain/brain-types";
+import { toolRunToAnalystResult } from "../pick-tool-result";
 
 export {
     completeAnalyzeSubQuestion,
@@ -112,7 +113,6 @@ async function* streamSingleAnalyze(
         (synthesis.matchReport || synthesis.answer.includes("## 匹配点")) &&
         (input.compositeSubResults?.length ?? 0) <= 1
     ) {
-        const { toolRunToAnalystResult } = await import("./pick-tool-result");
         const rendered = toolRunToAnalystResult(synthesis);
         logAgentOut("InformationAnalyst", "出去", {
             source: "synthesize_match_report",

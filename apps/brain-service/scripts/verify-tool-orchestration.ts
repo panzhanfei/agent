@@ -175,25 +175,9 @@ console.log("\n— pickToolResultForSubQuestion —");
     const picked = pickToolResultForSubQuestion(
         {
             userQuestion: "我今年多大",
-            language: "zh",
-            hits: [resumeHit("| 出生日期 | 1993.03 |")],
-            coverage: "sufficient",
-            notes: null,
             queryType: "identity",
             identityField: "age",
             facetKey: "id:age",
-            toolResults: {
-                age: {
-                    toolId: "compute_age_from_hits",
-                    label: "年龄",
-                    ok: true,
-                    answer: "33 岁",
-                    citations: [],
-                    hits: [],
-                    insufficientEvidence: false,
-                    confidence: 0.9,
-                },
-            },
         },
         {
             age: {

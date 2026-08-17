@@ -131,8 +131,7 @@ export const normalizePlanItemFromSchema = (
     item.enumerationControl?.listKind &&
     queryType !== "enumeration" &&
     queryType !== "external_link" &&
-    queryType !== "tech" &&
-    queryType !== "relations"
+    queryType !== "tech"
   ) {
     queryType = "enumeration";
   }

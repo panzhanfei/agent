@@ -99,7 +99,6 @@ export const buildVaultWorkspaceUiDecision = (
     routeMode: "planFanOut",
     routeReason: "intake_path_plan",
     routePlanSource: "intake_path_plan",
-    executionPlan: null,
     listIntent: null,
   };
   routed.routeMode = resolveIntakeGraphRouteMode(routed);
