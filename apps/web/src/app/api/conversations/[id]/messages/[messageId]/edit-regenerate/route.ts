@@ -2,20 +2,21 @@ import { getAuthSession, getAuthToken } from "@fambrain/auth";
 import {
   conversationIdSchema,
   editRegenerateMessageBodySchema,
-  editUserMessageAndTruncateAfter,
-  findOwnedConversation,
-  listConversationMessages,
-  toModelHistory,
 } from "@fambrain/db";
 import { forbiddenIfUntrustedMutation } from "@/lib/security/same-origin";
 import { rejectIfPayloadTooLarge } from "@/lib/security/request-limits";
-import { cancelAgentPipelineTurn } from "@/server/chat/brain-service-client";
 import {
+  cancelAgentPipelineTurn,
   createPostMessageStreamResponse,
   finalizeInflightTurnCancel,
-} from "@/server/chat/handle-post-message";
-import { findInflightTurnByConversation } from "@/server/chat/inflight-turns";
-import { resolveCorpusUserId } from "@/server/knowledge/resolve-corpus-user";
+  findInflightTurnByConversation,
+} from "@/server/chat";
+import {
+  editUserMessageAndTruncateAfter,
+  listModelHistory,
+  requireOwnedConversation,
+} from "@/server/conversations";
+import { resolveCorpusUserId } from "@/server/knowledge";
 import { NextResponse } from "next/server";
 import { z } from "zod";
 
@@ -77,7 +78,7 @@ export const POST = async (
   const turnId = parsedBody.data.turnId ?? crypto.randomUUID();
 
   try {
-    const conversation = await findOwnedConversation(
+    const conversation = await requireOwnedConversation(
       conversationId,
       session.userId
     );
@@ -90,7 +91,6 @@ export const POST = async (
       return NextResponse.json({ error: "未登录" }, { status: 401 });
     }
 
-    // 进行中 turn → supersede（刷新断线不会走这里）
     const inflight = findInflightTurnByConversation(
       conversationId,
       session.userId
@@ -136,8 +136,7 @@ export const POST = async (
       return NextResponse.json({ error: msg }, { status });
     }
 
-    const rows = await listConversationMessages(conversationId);
-    const history = toModelHistory(rows);
+    const history = await listModelHistory(conversationId);
     const corpusUserId = await resolveCorpusUserId(session.userId);
 
     return createPostMessageStreamResponse({

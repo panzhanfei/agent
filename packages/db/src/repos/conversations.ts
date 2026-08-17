@@ -19,6 +19,42 @@ export const findOwnedConversation = async (
     })
     .then((c) => (c && c.userId === userId ? c : null));
 };
+
+export const createConversation = async (input: {
+  userId: string;
+  title?: string;
+}) => {
+  return prisma.conversation.create({
+    data: {
+      userId: input.userId,
+      title: input.title ?? "新对话",
+    },
+    select: { id: true, title: true, updatedAt: true },
+  });
+};
+
+export const patchOwnedConversation = async (input: {
+  conversationId: string;
+  userId: string;
+  title?: string;
+  pinned?: boolean;
+}) => {
+  const owned = await findOwnedConversation(input.conversationId, input.userId);
+  if (!owned) return null;
+  return prisma.conversation.update({
+    where: { id: input.conversationId },
+    data: {
+      ...(input.title !== undefined ? { title: input.title } : {}),
+      ...(input.pinned !== undefined ? { pinned: input.pinned } : {}),
+    },
+    select: {
+      id: true,
+      title: true,
+      pinned: true,
+      updatedAt: true,
+    },
+  });
+};
 export const listConversationMessages = async (
   conversationId: string
 ): Promise<MessageRow[]> => {

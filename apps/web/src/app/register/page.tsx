@@ -1,6 +1,6 @@
 import { RegisterForm } from "@/components/auth/register-form";
-import { prisma } from "@fambrain/db";
 import { getAuthSession } from "@fambrain/auth";
+import { isEmptyInstall } from "@/server/users";
 import Link from "next/link";
 import { redirect } from "next/navigation";
 const RegisterPage = async () => {
@@ -9,7 +9,7 @@ const RegisterPage = async () => {
         redirect("/");
     if (session?.status === "PENDING")
         redirect("/pending");
-    const hintBootstrap = (await prisma.user.count()) === 0;
+    const hintBootstrap = await isEmptyInstall();
     return (<div className="flex min-h-dvh flex-col items-center justify-center bg-[#f3f4f6] px-4 py-12 dark:bg-[#0a0a0a]">
       <div className="w-full max-w-md rounded-2xl border border-[#e5e7eb] bg-white p-8 shadow-sm dark:border-neutral-800 dark:bg-[#111827] dark:text-neutral-100">
         <div className="mb-8 text-center">

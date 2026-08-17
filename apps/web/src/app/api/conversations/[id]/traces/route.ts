@@ -1,10 +1,6 @@
 import { getAuthSession } from "@fambrain/auth";
-import {
-  conversationIdSchema,
-  findOwnedConversation,
-  listTurnTracesForConversation,
-} from "@fambrain/db";
-import type { ConversationTurnLog } from "@/lib/chat/conversation-logs";
+import { conversationIdSchema } from "@fambrain/db";
+import { listOwnedConversationTraces } from "@/server/traces";
 import { NextResponse } from "next/server";
 
 export const runtime = "nodejs";
@@ -32,38 +28,14 @@ export const GET = async (
     return NextResponse.json({ error: "无效会话 id" }, { status: 400 });
   }
   try {
-    const conversation = await findOwnedConversation(
-      parsedId.data,
-      session.userId
-    );
-    if (!conversation) {
-      return NextResponse.json({ error: "会话不存在" }, { status: 404 });
-    }
-    const rows = await listTurnTracesForConversation({
+    const body = await listOwnedConversationTraces({
       conversationId: parsedId.data,
       userId: session.userId,
     });
-    const turns: ConversationTurnLog[] = rows.map((r) => ({
-      turnId: r.messageId,
-      userQuestion: r.userQuestion ?? "",
-      startedAt: r.createdAt.getTime(),
-      status:
-        r.status === "error"
-          ? "error"
-          : r.status === "cancelled"
-            ? "cancelled"
-            : r.status === "superseded"
-              ? "superseded"
-              : "done",
-      entries: r.entries,
-      steps: r.steps,
-      ...(r.timing ? { timing: r.timing } : {}),
-      ...(r.error ? { error: r.error } : {}),
-    }));
-    return NextResponse.json({
-      conversationId: parsedId.data,
-      turns,
-    });
+    if (!body) {
+      return NextResponse.json({ error: "会话不存在" }, { status: 404 });
+    }
+    return NextResponse.json(body);
   } catch (e) {
     console.error(e);
     return NextResponse.json({ error: "加载轨迹失败" }, { status: 500 });

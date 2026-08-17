@@ -254,15 +254,15 @@ async function* runPipelineStreamInner(
   ): Generator<AgentStreamEvent, AgentPipelineResult> {
     finalState = { ...finalState, turnAborted: true };
     yield { type: "aborted", turnId, reason };
-    const pipelineTiming = yield* finishPipeline(timing, collectedLogs, runStore);
+    const pipelineTiming = yield* finishPipeline(
+      timing,
+      collectedLogs,
+      runStore
+    );
     logAgentOut(
       "Pipeline",
       "出去",
-      summarizePipelineOut(
-        finalState,
-        finalState.answer ?? "",
-        pipelineTiming
-      )
+      summarizePipelineOut(finalState, finalState.answer ?? "", pipelineTiming)
     );
     return {
       answer: finalState.answer ?? "",
@@ -332,7 +332,11 @@ async function* runPipelineStreamInner(
       answer,
       blocks,
     };
-    const pipelineTiming = yield* finishPipeline(timing, collectedLogs, runStore);
+    const pipelineTiming = yield* finishPipeline(
+      timing,
+      collectedLogs,
+      runStore
+    );
     logAgentOut(
       "Pipeline",
       "出去",
@@ -355,24 +359,25 @@ async function* runPipelineStreamInner(
   };
 
   try {
-  bindPipelineRunStore(runStore);
-  const langsmithCfg = buildLangGraphRunConfig({
-    conversationId: context.conversationId,
-    corpusUserId: context.corpusUserId,
-    actorUserId: context.actorUserId,
-    userQuestion,
-  });
-  const resumePayload = context.resume;
-  if (!resumePayload) {
-    discardPipelineTask(context.conversationId);
-  }
-  const threadId = pipelineThreadId(context.conversationId);
-  const streamInput = resumePayload
-    ? (new Command({ resume: resumePayload }) as Parameters<
-        typeof graph.stream
-      >[0])
-    : (input as Parameters<typeof graph.stream>[0]);
-  const stream = await graph.stream(streamInput, {
+    bindPipelineRunStore(runStore);
+    const langsmithCfg = buildLangGraphRunConfig({
+      conversationId: context.conversationId,
+      corpusUserId: context.corpusUserId,
+      actorUserId: context.actorUserId,
+      userQuestion,
+    });
+    const resumePayload = context.resume;
+    if (!resumePayload) {
+      discardPipelineTask(context.conversationId);
+    }
+    const threadId = pipelineThreadId(context.conversationId);
+
+    const streamInput = resumePayload
+      ? (new Command({ resume: resumePayload }) as Parameters<
+          typeof graph.stream
+        >[0])
+      : (input as Parameters<typeof graph.stream>[0]);
+    const stream = await graph.stream(streamInput, {
       streamMode: ["updates", "values", "custom"],
       signal: turnSignal,
       ...langsmithCfg,
@@ -383,177 +388,208 @@ async function* runPipelineStreamInner(
         [PIPELINE_RUN_STORE_CONFIG_KEY]: runStore,
       },
     });
-  /** 结束 step：记耗时、yield step done（支持并行多 step） */
-  const finishStep = function* (name: PipelineStepName) {
-    if (!runningSteps.has(name) && activeStep !== name) return;
-    const durationMs = timing.markNodeEnd(name);
-    runningSteps.delete(name);
-    if (activeStep === name) {
-      activeStep = null;
-      setPipelineActiveNode(
-        runningSteps.size > 0
-          ? ([...runningSteps].at(-1) as PipelineStepName)
-          : null
-      );
-    }
-    upsertCollectedStep(collectedSteps, {
-      name,
-      status: "done",
-      ...(durationMs !== undefined ? { durationMs } : {}),
-    });
-    yield {
-      type: "step",
-      name,
-      status: "done",
-      ...(durationMs !== undefined ? { durationMs } : {}),
-    } as const;
-    yield* flushPipelineLogs(collectedLogs, runStore);
-  };
-  /** 开始 step：支持并行（不强制结束其它 running） */
-  const startStep = function* (name: PipelineStepName) {
-    if (runningSteps.has(name)) return;
-    timing.markNodeStart(name);
-    runningSteps.add(name);
-    setPipelineActiveNode(name);
-    activeStep = name;
-    upsertCollectedStep(collectedSteps, { name, status: "running" });
-    yield { type: "step", name, status: "running" } as const;
-  };
-  const streamIter = stream[Symbol.asyncIterator]();
-  let pendingPause: PipelinePauseValue | null = null;
-  while (true) {
-    bindPipelineRunStore(runStore);
-    const iterNext = await streamIter.next();
-    if (iterNext.done) break;
-    const chunk = iterNext.value;
-    bindPipelineRunStore(runStore);
-    if (turnSignal.aborted) {
-      const reason = getTurnAbortReason(turnId) ?? "cancelled";
-      return yield* finishAborted(reason);
-    }
-    const [mode, payload] = chunk as ["updates" | "values" | "custom", unknown];
-    if (mode === "values") {
-      const next = payload as Partial<PipelineGraphState> | null;
-      if (next && typeof next === "object") {
-        // interrupt 时 values 可能是不完整快照；合入而非整帧替换，避免抹掉 hits/decision/answer
-        finalState = {
-          ...finalState,
-          ...next,
-          hits: next.hits ?? finalState.hits,
-          decision: next.decision ?? finalState.decision,
-          answer: next.answer ?? finalState.answer,
-          assistantBlocks: next.assistantBlocks ?? finalState.assistantBlocks,
-        } as PipelineGraphState;
-      }
-      continue;
-    }
-    if (mode === "custom") {
-      if (isAnalystStreamChunk(payload)) {
-        timing.markFirstToken();
-        yield analystChunkToStreamEvent(payload);
-      }
-      continue;
-    }
-    const update = payload as Record<string, unknown>;
-    if ("__interrupt__" in update) {
-      pendingPause =
-        extractPipelinePauseValue(update.__interrupt__) ?? pendingPause;
-    }
-    const nodeName = Object.keys(update)[0];
-    if (!nodeName || nodeName === "__interrupt__") continue;
-    const nodePatch = update[nodeName] as Partial<PipelineGraphState> | undefined;
-    if (nodePatch && typeof nodePatch === "object") {
-      finalState = { ...finalState, ...nodePatch };
-    }
-    if (nodeName === "prepareTurnStart") {
-      yield* finishStep("prepare_turn_start");
-      yield* flushPipelineLogs(collectedLogs, runStore);
-      yield* startStep("repeat_question_guard");
-      continue;
-    }
-    if (nodeName === "repeatQuestionGuard") {
-      yield* finishStep("repeat_question_guard");
-      yield* flushPipelineLogs(collectedLogs, runStore);
-      if (finalState.repeatQuestionHit) {
-        yield* startStep("repeat_respond_early");
-      } else {
-        yield* startStep("prepare_pipeline_memory");
-      }
-      continue;
-    }
-    if (nodeName === "preparePipelineMemory") {
-      yield* finishStep("prepare_pipeline_memory");
-      yield* flushPipelineLogs(collectedLogs, runStore);
-      if (finalState.error && finalState.exitEarly) {
-        yield { type: "error", message: finalState.error };
-        const answer =
-          finalState.answer ?? "（准备对话上下文失败，请稍后重试）";
-        timing.markFirstToken();
-        const pipelineTiming = yield* finishPipeline(timing, collectedLogs, runStore);
-        logAgentOut(
-          "Pipeline",
-          "出去",
-          summarizePipelineOut(finalState, answer, pipelineTiming)
+    /** 结束 step：记耗时、yield step done（支持并行多 step） */
+    const finishStep = function* (name: PipelineStepName) {
+      if (!runningSteps.has(name) && activeStep !== name) return;
+      const durationMs = timing.markNodeEnd(name);
+      runningSteps.delete(name);
+      if (activeStep === name) {
+        activeStep = null;
+        setPipelineActiveNode(
+          runningSteps.size > 0
+            ? ([...runningSteps].at(-1) as PipelineStepName)
+            : null
         );
-        yield* emitAssistant(answer);
-        return {
-          answer,
-          repeatQuestionHit: false,
-          retrievalCacheHit: false,
-          timing: pipelineTiming,
-          logs: [...collectedLogs],
-          steps: [...collectedSteps],
-        };
       }
-      yield* startStep("intake");
-      continue;
-    }
-    if (nodeName === "repeatRespondEarly") {
-      yield* finishStep("repeat_respond_early");
+      upsertCollectedStep(collectedSteps, {
+        name,
+        status: "done",
+        ...(durationMs !== undefined ? { durationMs } : {}),
+      });
+      yield {
+        type: "step",
+        name,
+        status: "done",
+        ...(durationMs !== undefined ? { durationMs } : {}),
+      } as const;
       yield* flushPipelineLogs(collectedLogs, runStore);
-      yield* startStep("persist_turn_end");
-      continue;
-    }
-    if (nodeName === "intake") {
-      yield* finishStep("intake");
-      yield* flushPipelineLogs(collectedLogs, runStore);
-      if (finalState.error) {
-        yield { type: "error", message: finalState.error };
-        const answer =
-          finalState.answer ??
-          "（模型调用失败：请确认本地 Ollama 已启动且模型已拉取）";
-        timing.markFirstToken();
-        const pipelineTiming = yield* finishPipeline(timing, collectedLogs, runStore);
-        logAgentOut(
-          "Pipeline",
-          "出去",
-          summarizePipelineOut(finalState, answer, pipelineTiming)
-        );
-        yield* emitAssistant(answer);
-        return {
-          answer,
-          repeatQuestionHit: finalState.repeatQuestionHit,
-          retrievalCacheHit: finalState.retrievalCacheHit,
-          timing: pipelineTiming,
-          logs: [...collectedLogs],
-          steps: [...collectedSteps],
-        };
+    };
+    /** 开始 step：支持并行（不强制结束其它 running） */
+    const startStep = function* (name: PipelineStepName) {
+      if (runningSteps.has(name)) return;
+      timing.markNodeStart(name);
+      runningSteps.add(name);
+      setPipelineActiveNode(name);
+      activeStep = name;
+      upsertCollectedStep(collectedSteps, { name, status: "running" });
+      yield { type: "step", name, status: "running" } as const;
+    };
+    const streamIter = stream[Symbol.asyncIterator]();
+    let pendingPause: PipelinePauseValue | null = null;
+    while (true) {
+      bindPipelineRunStore(runStore);
+      const iterNext = await streamIter.next();
+      if (iterNext.done) break;
+      const chunk = iterNext.value;
+      bindPipelineRunStore(runStore);
+      if (turnSignal.aborted) {
+        const reason = getTurnAbortReason(turnId) ?? "cancelled";
+        return yield* finishAborted(reason);
       }
-      const decision = finalState.decision;
-      if (decision && isUserFactIntent(decision.intent)) {
-        yield* startStep("user_fact");
-      } else if (decision && isPureSummarizeDecision(decision)) {
-        yield* startStep("content_summarizer");
-      } else if (decision && isPureListDecision(decision)) {
-        yield* startStep("list_retrieve");
-      } else if (decision && decision.routeMode === "planFanOut") {
-        yield* startStep("plan_cache_resolve");
-      } else if (
-        decision &&
-        (intakeRequiresKmRetrieval(decision) ||
-          (decision.pathPlan &&
-            (decision.pathPlan.steps?.length ?? 0) > 0))
-      ) {
+      const [mode, payload] = chunk as [
+        "updates" | "values" | "custom",
+        unknown,
+      ];
+      if (mode === "values") {
+        const next = payload as Partial<PipelineGraphState> | null;
+        if (next && typeof next === "object") {
+          // interrupt 时 values 可能是不完整快照；合入而非整帧替换，避免抹掉 hits/decision/answer
+          finalState = {
+            ...finalState,
+            ...next,
+            hits: next.hits ?? finalState.hits,
+            decision: next.decision ?? finalState.decision,
+            answer: next.answer ?? finalState.answer,
+            assistantBlocks: next.assistantBlocks ?? finalState.assistantBlocks,
+          } as PipelineGraphState;
+        }
+        continue;
+      }
+      if (mode === "custom") {
+        if (isAnalystStreamChunk(payload)) {
+          timing.markFirstToken();
+          yield analystChunkToStreamEvent(payload);
+        }
+        continue;
+      }
+      const update = payload as Record<string, unknown>;
+      if ("__interrupt__" in update) {
+        pendingPause =
+          extractPipelinePauseValue(update.__interrupt__) ?? pendingPause;
+      }
+      const nodeName = Object.keys(update)[0];
+      if (!nodeName || nodeName === "__interrupt__") continue;
+      const nodePatch = update[nodeName] as
+        | Partial<PipelineGraphState>
+        | undefined;
+      if (nodePatch && typeof nodePatch === "object") {
+        finalState = { ...finalState, ...nodePatch };
+      }
+      if (nodeName === "prepareTurnStart") {
+        yield* finishStep("prepare_turn_start");
+        yield* flushPipelineLogs(collectedLogs, runStore);
+        yield* startStep("repeat_question_guard");
+        continue;
+      }
+      if (nodeName === "repeatQuestionGuard") {
+        yield* finishStep("repeat_question_guard");
+        yield* flushPipelineLogs(collectedLogs, runStore);
+        if (finalState.repeatQuestionHit) {
+          yield* startStep("repeat_respond_early");
+        } else {
+          yield* startStep("prepare_pipeline_memory");
+        }
+        continue;
+      }
+      if (nodeName === "preparePipelineMemory") {
+        yield* finishStep("prepare_pipeline_memory");
+        yield* flushPipelineLogs(collectedLogs, runStore);
+        if (finalState.error && finalState.exitEarly) {
+          yield { type: "error", message: finalState.error };
+          const answer =
+            finalState.answer ?? "（准备对话上下文失败，请稍后重试）";
+          timing.markFirstToken();
+          const pipelineTiming = yield* finishPipeline(
+            timing,
+            collectedLogs,
+            runStore
+          );
+          logAgentOut(
+            "Pipeline",
+            "出去",
+            summarizePipelineOut(finalState, answer, pipelineTiming)
+          );
+          yield* emitAssistant(answer);
+          return {
+            answer,
+            repeatQuestionHit: false,
+            retrievalCacheHit: false,
+            timing: pipelineTiming,
+            logs: [...collectedLogs],
+            steps: [...collectedSteps],
+          };
+        }
+        yield* startStep("intake");
+        continue;
+      }
+      if (nodeName === "repeatRespondEarly") {
+        yield* finishStep("repeat_respond_early");
+        yield* flushPipelineLogs(collectedLogs, runStore);
+        yield* startStep("persist_turn_end");
+        continue;
+      }
+      if (nodeName === "intake") {
+        yield* finishStep("intake");
+        yield* flushPipelineLogs(collectedLogs, runStore);
+        if (finalState.error) {
+          yield { type: "error", message: finalState.error };
+          const answer =
+            finalState.answer ??
+            "（模型调用失败：请确认本地 Ollama 已启动且模型已拉取）";
+          timing.markFirstToken();
+          const pipelineTiming = yield* finishPipeline(
+            timing,
+            collectedLogs,
+            runStore
+          );
+          logAgentOut(
+            "Pipeline",
+            "出去",
+            summarizePipelineOut(finalState, answer, pipelineTiming)
+          );
+          yield* emitAssistant(answer);
+          return {
+            answer,
+            repeatQuestionHit: finalState.repeatQuestionHit,
+            retrievalCacheHit: finalState.retrievalCacheHit,
+            timing: pipelineTiming,
+            logs: [...collectedLogs],
+            steps: [...collectedSteps],
+          };
+        }
+        const decision = finalState.decision;
+        if (decision && isUserFactIntent(decision.intent)) {
+          yield* startStep("user_fact");
+        } else if (decision && isPureSummarizeDecision(decision)) {
+          yield* startStep("content_summarizer");
+        } else if (decision && isPureListDecision(decision)) {
+          yield* startStep("list_retrieve");
+        } else if (decision && decision.routeMode === "planFanOut") {
+          yield* startStep("plan_cache_resolve");
+        } else if (
+          decision &&
+          (intakeRequiresKmRetrieval(decision) ||
+            (decision.pathPlan && (decision.pathPlan.steps?.length ?? 0) > 0))
+        ) {
+          const fan = describeFanOutPlan(finalState);
+          if (fan.hasKm) yield* startStep("km_retrieve");
+          if (fan.hasList) yield* startStep("list_retrieve");
+          if (fan.hasVaultWorkspace) yield* startStep("vault_workspace");
+          if (fan.hasDag) yield* startStep("plan_dag");
+          if (fan.hasSideRemember) yield* startStep("user_fact");
+          if (
+            fan.hasKm ||
+            fan.hasList ||
+            fan.hasVaultWorkspace ||
+            fan.hasSideRemember
+          ) {
+            yield* startStep("plan_slot_join");
+          }
+        }
+        continue;
+      }
+      if (nodeName === "planCacheResolve") {
+        yield* finishStep("plan_cache_resolve");
         const fan = describeFanOutPlan(finalState);
         if (fan.hasKm) yield* startStep("km_retrieve");
         if (fan.hasList) yield* startStep("list_retrieve");
@@ -568,251 +604,238 @@ async function* runPipelineStreamInner(
         ) {
           yield* startStep("plan_slot_join");
         }
+        continue;
       }
-      continue;
-    }
-    if (nodeName === "planCacheResolve") {
-      yield* finishStep("plan_cache_resolve");
-      const fan = describeFanOutPlan(finalState);
-      if (fan.hasKm) yield* startStep("km_retrieve");
-      if (fan.hasList) yield* startStep("list_retrieve");
-      if (fan.hasVaultWorkspace) yield* startStep("vault_workspace");
-      if (fan.hasDag) yield* startStep("plan_dag");
-      if (fan.hasSideRemember) yield* startStep("user_fact");
-      if (
-        fan.hasKm ||
-        fan.hasList ||
-        fan.hasVaultWorkspace ||
-        fan.hasSideRemember
-      ) {
-        yield* startStep("plan_slot_join");
-      }
-      continue;
-    }
-    if (nodeName === "listRetriever") {
-      yield* finishStep("list_retrieve");
-      yield {
-        type: "retrieval_meta",
-        cacheHit: false,
-      };
-      yield* startStep("content_organizer");
-      if (finalState.error) {
-        yield { type: "error", message: finalState.error };
-      }
-      continue;
-    }
-    if (nodeName === "userFact") {
-      yield* finishStep("user_fact");
-      if (finalState.answer) {
-        timing.markFirstToken();
-        yield* emitAssistant(finalState.answer);
-      }
-      if (finalState.error) {
-        yield { type: "error", message: finalState.error };
-      }
-      yield* startStep("persist_turn_end");
-      continue;
-    }
-    if (nodeName === "userFactSide") {
-      // 多槽并行时不提前 finish km/list；join 统一收口
-      yield* finishStep("user_fact");
-      continue;
-    }
-    if (nodeName === "kmRetrieve") {
-      // 每槽一个 kmRetrieve：等 planSlotJoin 再 finish km_retrieve
-      continue;
-    }
-    if (nodeName === "listRetrieve") {
-      continue;
-    }
-    if (nodeName === "vaultWorkspace") {
-      continue;
-    }
-    if (nodeName === "planSlotJoin") {
-      if (runningSteps.has("km_retrieve")) {
-        yield* finishStep("km_retrieve");
-      }
-      if (runningSteps.has("list_retrieve")) {
+      if (nodeName === "listRetriever") {
         yield* finishStep("list_retrieve");
-      }
-      if (runningSteps.has("vault_workspace")) {
-        yield* finishStep("vault_workspace");
-      }
-      yield* finishStep("plan_slot_join");
-      yield* startStep("plan_slot_post");
-      continue;
-    }
-    if (nodeName === "planSlotPost") {
-      yield* finishStep("plan_slot_post");
-      if (!runningSteps.has("plan_dag")) {
-        yield* startStep("plan_merge");
-      }
-      continue;
-    }
-    if (nodeName === "planDag") {
-      yield* finishStep("plan_dag");
-      if (!runningSteps.has("plan_slot_post") && !runningSteps.has("plan_slot_join")) {
-        yield* startStep("plan_merge");
-      }
-      continue;
-    }
-    if (nodeName === "planMerge") {
-      yield* finishStep("plan_merge");
-      // 兜底：收掉仍标 running 的 join/post（竞态）
-      if (runningSteps.has("plan_slot_join")) {
-        yield* finishStep("plan_slot_join");
-      }
-      if (runningSteps.has("plan_slot_post")) {
-        yield* finishStep("plan_slot_post");
-      }
-      if (runningSteps.has("km_retrieve")) {
-        yield* finishStep("km_retrieve");
-      }
-      if (runningSteps.has("list_retrieve")) {
-        yield* finishStep("list_retrieve");
-      }
-      yield {
-        type: "retrieval_meta",
-        cacheHit: Boolean(finalState.retrievalCacheHit),
-      };
-      yield* startStep("content_organizer");
-      if (finalState.error) {
-        yield { type: "error", message: finalState.error };
-      }
-      continue;
-    }
-    if (nodeName === "contentSummarizer") {
-      yield* finishStep("content_summarizer");
-      if (finalState.exitEarly && finalState.answer) {
-        timing.markFirstToken();
-        yield* emitAssistant(finalState.answer);
-      } else if (!finalState.exitEarly) {
-        yield* startStep("analyst");
-      }
-      continue;
-    }
-    if (nodeName === "contentOrganizer") {
-      yield* finishStep("content_organizer");
-      const decision = finalState.decision;
-      if (decision && isSummarizeComposeDecision(decision)) {
-        yield* startStep("content_summarizer");
-      } else {
-        yield* startStep("analyst");
-      }
-      continue;
-    }
-    if (nodeName === "analyst") {
-      yield* finishStep("analyst");
-      if (finalState.error) {
-        yield { type: "error", message: finalState.error };
-      }
-      yield* startStep("persist_turn_end");
-      continue;
-    }
-    if (nodeName === "respondEarly") {
-      if (activeStep) {
-        const durationMs = timing.markNodeEnd(activeStep);
-        upsertCollectedStep(collectedSteps, {
-          name: activeStep,
-          status: "done",
-          ...(durationMs !== undefined ? { durationMs } : {}),
-        });
         yield {
-          type: "step",
-          name: activeStep,
-          status: "done",
-          ...(durationMs !== undefined ? { durationMs } : {}),
+          type: "retrieval_meta",
+          cacheHit: false,
         };
-        activeStep = null;
+        yield* startStep("content_organizer");
+        if (finalState.error) {
+          yield { type: "error", message: finalState.error };
+        }
+        continue;
       }
-      yield* startStep("persist_turn_end");
-      continue;
+      if (nodeName === "userFact") {
+        yield* finishStep("user_fact");
+        if (finalState.answer) {
+          timing.markFirstToken();
+          yield* emitAssistant(finalState.answer);
+        }
+        if (finalState.error) {
+          yield { type: "error", message: finalState.error };
+        }
+        yield* startStep("persist_turn_end");
+        continue;
+      }
+      if (nodeName === "userFactSide") {
+        // 多槽并行时不提前 finish km/list；join 统一收口
+        yield* finishStep("user_fact");
+        continue;
+      }
+      if (nodeName === "kmRetrieve") {
+        // 每槽一个 kmRetrieve：等 planSlotJoin 再 finish km_retrieve
+        continue;
+      }
+      if (nodeName === "listRetrieve") {
+        continue;
+      }
+      if (nodeName === "vaultWorkspace") {
+        continue;
+      }
+      if (nodeName === "planSlotJoin") {
+        if (runningSteps.has("km_retrieve")) {
+          yield* finishStep("km_retrieve");
+        }
+        if (runningSteps.has("list_retrieve")) {
+          yield* finishStep("list_retrieve");
+        }
+        if (runningSteps.has("vault_workspace")) {
+          yield* finishStep("vault_workspace");
+        }
+        yield* finishStep("plan_slot_join");
+        yield* startStep("plan_slot_post");
+        continue;
+      }
+      if (nodeName === "planSlotPost") {
+        yield* finishStep("plan_slot_post");
+        if (!runningSteps.has("plan_dag")) {
+          yield* startStep("plan_merge");
+        }
+        continue;
+      }
+      if (nodeName === "planDag") {
+        yield* finishStep("plan_dag");
+        if (
+          !runningSteps.has("plan_slot_post") &&
+          !runningSteps.has("plan_slot_join")
+        ) {
+          yield* startStep("plan_merge");
+        }
+        continue;
+      }
+      if (nodeName === "planMerge") {
+        yield* finishStep("plan_merge");
+        // 兜底：收掉仍标 running 的 join/post（竞态）
+        if (runningSteps.has("plan_slot_join")) {
+          yield* finishStep("plan_slot_join");
+        }
+        if (runningSteps.has("plan_slot_post")) {
+          yield* finishStep("plan_slot_post");
+        }
+        if (runningSteps.has("km_retrieve")) {
+          yield* finishStep("km_retrieve");
+        }
+        if (runningSteps.has("list_retrieve")) {
+          yield* finishStep("list_retrieve");
+        }
+        yield {
+          type: "retrieval_meta",
+          cacheHit: Boolean(finalState.retrievalCacheHit),
+        };
+        yield* startStep("content_organizer");
+        if (finalState.error) {
+          yield { type: "error", message: finalState.error };
+        }
+        continue;
+      }
+      if (nodeName === "contentSummarizer") {
+        yield* finishStep("content_summarizer");
+        if (finalState.exitEarly && finalState.answer) {
+          timing.markFirstToken();
+          yield* emitAssistant(finalState.answer);
+        } else if (!finalState.exitEarly) {
+          yield* startStep("analyst");
+        }
+        continue;
+      }
+      if (nodeName === "contentOrganizer") {
+        yield* finishStep("content_organizer");
+        const decision = finalState.decision;
+        if (decision && isSummarizeComposeDecision(decision)) {
+          yield* startStep("content_summarizer");
+        } else {
+          yield* startStep("analyst");
+        }
+        continue;
+      }
+      if (nodeName === "analyst") {
+        yield* finishStep("analyst");
+        if (finalState.error) {
+          yield { type: "error", message: finalState.error };
+        }
+        yield* startStep("persist_turn_end");
+        continue;
+      }
+      if (nodeName === "respondEarly") {
+        if (activeStep) {
+          const durationMs = timing.markNodeEnd(activeStep);
+          upsertCollectedStep(collectedSteps, {
+            name: activeStep,
+            status: "done",
+            ...(durationMs !== undefined ? { durationMs } : {}),
+          });
+          yield {
+            type: "step",
+            name: activeStep,
+            status: "done",
+            ...(durationMs !== undefined ? { durationMs } : {}),
+          };
+          activeStep = null;
+        }
+        yield* startStep("persist_turn_end");
+        continue;
+      }
+      if (nodeName === "persistTurnEnd") {
+        yield* finishStep("persist_turn_end");
+        yield* flushPipelineLogs(collectedLogs, runStore);
+        continue;
+      }
     }
-    if (nodeName === "persistTurnEnd") {
-      yield* finishStep("persist_turn_end");
-      yield* flushPipelineLogs(collectedLogs, runStore);
-      continue;
+    if (turnSignal.aborted) {
+      const reason = getTurnAbortReason(turnId) ?? "cancelled";
+      return yield* finishAborted(reason);
     }
-  }
-  if (turnSignal.aborted) {
-    const reason = getTurnAbortReason(turnId) ?? "cancelled";
-    return yield* finishAborted(reason);
-  }
-  if (!pendingPause) {
-    try {
-      const snap = await graph.getState({
-        configurable: { thread_id: threadId },
+    if (!pendingPause) {
+      try {
+        const snap = await graph.getState({
+          configurable: { thread_id: threadId },
+        });
+        pendingPause = extractPipelinePauseValue(
+          (snap as { tasks?: unknown }).tasks
+        );
+      } catch {
+        // getState 失败不挡正常收尾
+      }
+    }
+    if (pendingPause) {
+      return yield* finishPaused(pendingPause);
+    }
+    if (activeStep) {
+      const durationMs = timing.markNodeEnd(activeStep);
+      upsertCollectedStep(collectedSteps, {
+        name: activeStep,
+        status: "done",
+        ...(durationMs !== undefined ? { durationMs } : {}),
       });
-      pendingPause = extractPipelinePauseValue(
-        (snap as { tasks?: unknown }).tasks
-      );
-    } catch {
-      // getState 失败不挡正常收尾
+      yield {
+        type: "step",
+        name: activeStep,
+        status: "done",
+        ...(durationMs !== undefined ? { durationMs } : {}),
+      };
     }
-  }
-  if (pendingPause) {
-    return yield* finishPaused(pendingPause);
-  }
-  if (activeStep) {
-    const durationMs = timing.markNodeEnd(activeStep);
-    upsertCollectedStep(collectedSteps, {
-      name: activeStep,
-      status: "done",
-      ...(durationMs !== undefined ? { durationMs } : {}),
-    });
-    yield {
-      type: "step",
-      name: activeStep,
-      status: "done",
-      ...(durationMs !== undefined ? { durationMs } : {}),
+    if (finalState.exitEarly && finalState.answer) {
+      timing.markFirstToken();
+      yield* emitAssistant(finalState.answer);
+    }
+    const answer = finalState.answer ?? "（未能生成回复，请稍后重试）";
+    if (!finalState.exitEarly && !finalState.answer) {
+      timing.markFirstToken();
+      yield* emitAssistant(answer);
+    }
+    const pipelineTiming = yield* finishPipeline(
+      timing,
+      collectedLogs,
+      runStore
+    );
+    logAgentOut(
+      "Pipeline",
+      "出去",
+      summarizePipelineOut(finalState, answer, pipelineTiming)
+    );
+    const blocks = finalState.assistantBlocks ?? undefined;
+    const citations = finalState.citations?.length
+      ? finalState.citations
+      : undefined;
+    if (blocks?.length || citations?.length) {
+      yield {
+        type: "assistant_message",
+        message: {
+          plainText: answer,
+          blocks: blocks ?? [],
+          ...(citations?.length ? { citations } : {}),
+        },
+      };
+    }
+    if (citations?.length) {
+      yield { type: "citations", citations };
+    }
+    return {
+      answer,
+      blocks,
+      citations,
+      repeatQuestionHit: finalState.repeatQuestionHit,
+      retrievalCacheHit: finalState.retrievalCacheHit,
+      compositeFacetCacheHits: finalState.compositeFacetCacheHits,
+      timing: pipelineTiming,
+      retrievalPaths: retrievalPathsFromState(finalState),
+      logs: [...collectedLogs],
+      steps: [...collectedSteps],
+      turnId,
     };
-  }
-  if (finalState.exitEarly && finalState.answer) {
-    timing.markFirstToken();
-    yield* emitAssistant(finalState.answer);
-  }
-  const answer =
-    finalState.answer ?? "（未能生成回复，请稍后重试）";
-  if (!finalState.exitEarly && !finalState.answer) {
-    timing.markFirstToken();
-    yield* emitAssistant(answer);
-  }
-  const pipelineTiming = yield* finishPipeline(timing, collectedLogs, runStore);
-  logAgentOut(
-    "Pipeline",
-    "出去",
-    summarizePipelineOut(finalState, answer, pipelineTiming)
-  );
-  const blocks = finalState.assistantBlocks ?? undefined;
-  const citations = finalState.citations?.length
-    ? finalState.citations
-    : undefined;
-  if (blocks?.length || citations?.length) {
-    yield {
-      type: "assistant_message",
-      message: {
-        plainText: answer,
-        blocks: blocks ?? [],
-        ...(citations?.length ? { citations } : {}),
-      },
-    };
-  }
-  if (citations?.length) {
-    yield { type: "citations", citations };
-  }
-  return {
-    answer,
-    blocks,
-    citations,
-    repeatQuestionHit: finalState.repeatQuestionHit,
-    retrievalCacheHit: finalState.retrievalCacheHit,
-    compositeFacetCacheHits: finalState.compositeFacetCacheHits,
-    timing: pipelineTiming,
-    retrievalPaths: retrievalPathsFromState(finalState),
-    logs: [...collectedLogs],
-    steps: [...collectedSteps],
-    turnId,
-  };
   } catch (e) {
     if (turnSignal.aborted) {
       const reason = getTurnAbortReason(turnId) ?? "cancelled";

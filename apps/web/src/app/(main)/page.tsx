@@ -1,13 +1,13 @@
 import { ChatShell } from "@/components/chat/chat-shell";
 import { getAuthSession } from "@fambrain/auth";
-import { getSidebarConversations } from "@fambrain/db";
+import { listSidebarConversations } from "@/server/conversations";
 export const dynamic = "force-dynamic";
 const Home = async () => {
     const session = await getAuthSession();
     if (!session) {
         return null;
     }
-    const initialConversations = await getSidebarConversations(session.userId);
+    const initialConversations = await listSidebarConversations(session.userId);
     return (<ChatShell initialConversations={initialConversations} viewer={{
             displayName: session.displayName,
             username: session.username,

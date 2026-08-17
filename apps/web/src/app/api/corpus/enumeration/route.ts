@@ -1,7 +1,7 @@
 import { getAuthSession, getAuthToken } from "@fambrain/auth";
 import { resolveBrainServiceUrl } from "@fambrain/brain-config/service-url";
 import { forbiddenIfUntrustedMutation } from "@/lib/security/same-origin";
-import { resolveCorpusUserId } from "@/server/knowledge/resolve-corpus-user";
+import { resolveCorpusUserId } from "@/server/knowledge";
 import { NextResponse } from "next/server";
 
 export const runtime = "nodejs";

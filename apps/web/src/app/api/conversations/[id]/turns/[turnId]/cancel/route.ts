@@ -1,14 +1,12 @@
 import { getAuthSession, getAuthToken } from "@fambrain/auth";
-import {
-  cancelTurnBodySchema,
-  conversationIdSchema,
-  findOwnedConversation,
-  turnIdParamSchema,
-} from "@fambrain/db";
+import { cancelTurnBodySchema, conversationIdSchema, turnIdParamSchema } from "@fambrain/db";
 import { forbiddenIfUntrustedMutation } from "@/lib/security/same-origin";
 import { rejectIfPayloadTooLarge } from "@/lib/security/request-limits";
-import { cancelAgentPipelineTurn } from "@/server/chat/brain-service-client";
-import { finalizeInflightTurnCancel } from "@/server/chat/handle-post-message";
+import {
+  cancelAgentPipelineTurn,
+  finalizeInflightTurnCancel,
+} from "@/server/chat";
+import { requireOwnedConversation } from "@/server/conversations";
 import { NextResponse } from "next/server";
 
 export const runtime = "nodejs";
@@ -68,7 +66,7 @@ export const POST = async (
   const reason = parsedBody.data.reason;
 
   try {
-    const conversation = await findOwnedConversation(
+    const conversation = await requireOwnedConversation(
       conversationId,
       session.userId
     );

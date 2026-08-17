@@ -9,6 +9,8 @@ export {
     disableConversationActionBlocks,
     maybeUpdateConversationTitle,
     deleteOwnedConversation,
+    createConversation,
+    patchOwnedConversation,
     editUserMessageAndTruncateAfter,
     getConversationSessionSummary,
     upsertConversationSessionSummary,
@@ -43,3 +45,12 @@ export {
     UserRole,
     UserStatus,
 } from "./generated/prisma/client";
+export {
+    countUsers,
+    getUserCorpusUserId,
+    listUsersForAdmin,
+    findUserId,
+    updateUserStatus,
+    deleteUserById,
+    type AdminUserRow,
+} from "./repos/users";

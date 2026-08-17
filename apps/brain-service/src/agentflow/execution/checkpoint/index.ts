@@ -47,10 +47,7 @@ const resolveCheckpointDbPath = (): string => {
       ? override
       : path.join(findMonorepoRoot(), override);
   }
-  return path.join(
-    findMonorepoRoot(),
-    "data/memory/langgraph/checkpoints.db"
-  );
+  return path.join(findMonorepoRoot(), "data/memory/langgraph/checkpoints.db");
 };
 
 const ensureGenerationTable = (db: SqliteDb): void => {
@@ -150,8 +147,7 @@ export const discardPipelineTask = (conversationId: string): string => {
   return pipelineThreadId(conversationId);
 };
 
-export const getPipelineCheckpointer = (): BaseCheckpointSaver =>
-  ensureSaver();
+export const getPipelineCheckpointer = (): BaseCheckpointSaver => ensureSaver();
 
 export const isPipelinePauseValue = (
   value: unknown
