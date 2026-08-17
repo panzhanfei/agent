@@ -5,7 +5,7 @@ import {
   fanOutPlanWorkers,
   routeAfterPlanSlotJoin,
 } from "@/agentflow/agents/online/plan-fanout";
-import { shouldOfferVaultSaveGate } from "@/agentflow/agents/online/vault-write";
+import { shouldOfferVaultSaveGate } from "@/agentflow/agents/online/vault-save-gate";
 import type { PipelineGraphState } from "./state";
 
 export { routeAfterPlanSlotJoin };
@@ -71,7 +71,7 @@ export const routeAfterContentOrganizer = (
   return "analyst";
 };
 
-/** contentSummarizer 之后：摘要终稿可进写回闸门；否则 respondEarly / analyst */
+/** contentSummarizer 之后：附件/粘贴摘要进写回闸门；查库摘要 respondEarly / analyst */
 export const routeAfterContentSummarizer = (
   state: PipelineGraphState
 ): "vaultSaveGate" | "respondEarly" | "analyst" => {
@@ -81,7 +81,7 @@ export const routeAfterContentSummarizer = (
   return "analyst";
 };
 
-/** Analyst 之后：附件翻译/总结终稿进写回闸门；普通 QA 直接收尾 */
+/** Analyst 之后：附件翻译终稿进写回闸门；普通 QA / 查库摘要直接收尾 */
 export const routeAfterAnalyst = (
   state: PipelineGraphState
 ): "vaultSaveGate" | "persistTurnEnd" => {

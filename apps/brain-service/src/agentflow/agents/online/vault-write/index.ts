@@ -43,7 +43,9 @@ export {
 export {
   parseVaultWorkspaceParams,
   purgeOneForTest,
+  rememberVaultWorkspaceOp,
   runVaultWorkspaceOp,
+  takeCachedVaultWorkspaceOp,
   type VaultWorkspaceRunResult,
 } from "./ops";
 
@@ -54,17 +56,6 @@ export {
   resolveVaultWorkspaceUiBypass,
   toVaultWorkspaceParams,
 } from "./intake";
-
-export {
-  buildVaultSaveGateBlocks,
-  parseVaultSaveResume,
-  runVaultSaveGateNode,
-  sanitizeVaultSaveBasename,
-  shouldOfferVaultSaveGate,
-  suggestedVaultSaveBasename,
-  VAULT_SAVE_CANCEL_PROMPT,
-  VAULT_SAVE_CONFIRM_PROMPT,
-} from "./save-gate";
 
 /**
  * vaultWorkspace 节点：执行一次 op 后 interrupt，Command Resume 后继续。

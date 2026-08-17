@@ -20,7 +20,8 @@
 | **`DagExecutor`** | **DAG 执行器** | `agents/online/dag-executor`：`runDagExecutorNode` + **`runPlanDagNode`**（fan-out hybrid DAG 工人；拓扑/seed/闭包，不跑具体 tool switch） |
 | **`UserFact`** | **用户记忆** | `userFactNode`（纯 remember/recall）+ **`runUserFactSideNode`**（复合并行 side-effect） |
 | `InformationAnalyst` | 信息分析师 | 消费 `stepResults` + `toolResults` + 整理后的 `hits` 写终稿；可并入同轮 remember side-effect |
-| **`VaultWrite`** | **原文库** | 工作台 `kind=vault_workspace`：两层 list + `.txt`/文件夹 CRUD；**写回闸门** `vaultSaveGate`：摘要/翻译终稿确认后 `create_file` + materialize；语料化写入 `corpus/personal/imports/workspace/**/*.md` + 向量；**硬删**级联；**禁止**直接 HITL 改 corpus md |
+| **`VaultWrite`** | **原文库工作台** | `kind=vault_workspace`：两层 list + `.txt`/文件夹 CRUD；语料化写入 `corpus/personal/imports/workspace/**/*.md` + 向量；**硬删**级联；**禁止**直接 HITL 改 corpus md |
+| **`VaultSaveGate`** | **写回闸门** | 独立图节点 `vaultSaveGate`：附件总结/翻译或粘贴长文终稿一次 HITL；确认后走 VaultWrite `create_file` + materialize。查库摘要与普通 QA 不出闸 |
 
 **链路：** 用户提问 → **轮次开始** → 意图识别 → **PathPlan fan-out**（按 `steps[]` 并行工人 → Join，可选全局 B）→ **内容整理** → **Compose**（qa / composite / summarize）→ 回答 → **轮次结束**。跨轮 cache 见 [坑点 §2.2](./04-pitfalls.md)。
 
@@ -36,7 +37,7 @@
 - **队列（可选）**：`CORPUS_QUEUE_ENABLED=1` 时 `corpus.materialize` / `corpus.purge` 入 BullMQ；worker：`pnpm --filter @fambrain/brain-service run corpus-worker`。未开队列则 **fire-and-forget** 语料化（图只提交，不等 embed；丢弃图任务不中止已提交的入库）。
 - **图任务两模式（简单、齐）：** 问答主路径只有 **停 / 换题 = discard + 新一轮**，不用 Resume。真正 Resume **只给原文库 HITL 按钮**（工作台 CRUD / 写回闸门；同一 thread `Command({ resume: vault_action })`）。Checkpointer 是给这件事撑着的，不是给聊天暂停续写用的。
 - **原文库人等：** 每次 list/CRUD 后 `interrupt({ kind: vault_wait })`；点按钮才 Resume。对人可见的 list/CTA 以 **interrupt 载荷** 为准（`answer`/`blocks`）；stream `values` 在 interrupt 时可能缺 channel，**合入**已有 `hits`/`decision`/`answer`，禁止整帧覆盖。
-- **写回闸门（`vaultSaveGate`）：** Analyst / ContentSummarizer 之后、`persistTurnEnd` 之前一次 interrupt。出闸条件：`composeMode=summarize` / `intent=summarize_content`，或 `attachmentAction` 为 `summarize`/`translate`。聊天按钮 **确定入库** | **取消**；确定入库 = `clientHandler: vault_save_name` → **文件名弹窗**（确认才 Resume，关闭弹窗不 Resume）；取消 = Resume 不写盘。写入 workspace 根目录 `.txt` + materialize（图不等 embed）。**不与工作台 fan-out 混用。**
+- **写回闸门（`vaultSaveGate`）：** Analyst / ContentSummarizer 之后、`persistTurnEnd` 之前一次 interrupt。出闸只给**新材料**：`attachmentAction` 为 `summarize`/`translate`，或粘贴长文总结（`composeMode=summarize` / `intent=summarize_content` 且无 `searchQuery`、无 pathPlan 步）。**查库摘要、普通 QA、extract 不出闸。** 聊天按钮 **确定入库** | **取消**；确定入库 = `clientHandler: vault_save_name` → **文件名弹窗**（确认才 Resume，关闭弹窗不 Resume）；取消 = Resume 不写盘。写入 workspace 根目录 `.txt` + materialize（图不等 embed）。**不与工作台 fan-out 混用。**
 - **三条写路径勿混：** ① 语料页批量 `ingestDocumentBatch`（原件→corpus）；② 工作台 CRUD（用户编辑 txt）；③ 写回闸门（本轮终稿→txt）。**聊天附件不再 ingest**；LLM 若仍输出 `ingest`，schema 合法化为 `summarize`，走总结后再出闸门。
 - **生成停：** 流式中点「停止」→ 半截稿即终稿，**discard**。无「继续」。不接同一条 Ollama 采样。
 - **丢弃：** 新问题 / 编辑重跑 / 显式停止 / 生成停 = discard。点「确定入库」后改问：丢弃图任务，**不中止**已提交的语料化。
@@ -95,8 +96,8 @@ flowchart TB
     CO --> IA[InformationAnalyst<br/>composeMode]
     IA --> GATE{写回闸门?}
     SUM --> GATE
-    GATE -->|摘要/翻译终稿| VSG[vaultSaveGate]
-    GATE -->|普通 QA| OUT[assistant 入库]
+    GATE -->|附件/粘贴终稿| VSG[vaultSaveGate]
+    GATE -->|普通 QA / 查库摘要| OUT[assistant 入库]
     VSG --> OUT
     UF --> OUT
     R1 --> OUT
@@ -153,7 +154,7 @@ flowchart TD
   CO --> G[InformationAnalyst]
   G --> GATE{写回闸门?}
   CS --> GATE
-  GATE -->|摘要/附件翻译| VSG[vaultSaveGate]
+  GATE -->|附件/粘贴| VSG[vaultSaveGate]
   GATE -->|否| PST[TurnEnd]
   VSG --> PST
   D --> PST
@@ -278,7 +279,7 @@ flowchart TD
 
 **工作台：** `kind=vault_workspace` 独占单槽 → `vaultWorkspace` → `persistTurnEnd`（不进 Join）。HITL「结束」exact-match `__FAMBRAIN_VAULT_WS_DONE__`。
 
-**写回闸门：** 同包新节点 `vaultSaveGate`（不是新 Agent）。摘要 Compose 或附件 summarize/translate 终稿 → 一次 `interrupt(vault_wait)` → 确定入库（文件名弹窗）写 txt + materialize，或取消不写盘。Eval：`golden.json` → `vaultWorkspaceProbe` 含 `save_gate_*`。
+**写回闸门：** 独立 Agent 包 `vault-save-gate/`，图节点 `vaultSaveGate`。附件 summarize/translate 或粘贴长文总结终稿 → 一次 `interrupt(vault_wait)` → 确定入库（文件名弹窗）写 txt + materialize，或取消不写盘。查库摘要当阅读，不出闸。写盘复用 VaultWrite op。Eval：`golden.json` → `vaultWorkspaceProbe` 含 `save_gate_*`。
 
 ### 2.5 跨会话用户事实 userFact — P0-16 ✅
 
@@ -540,9 +541,10 @@ flowchart TD
   R -->|true| KM[KnowledgeManager]
   R -->|false| CS[ContentSummarizer]
   KM --> CS
-  CS --> GATE{写回闸门}
-  GATE --> VSG[vaultSaveGate]
-  VSG --> OUT[assistant 终稿 / 已入库]
+  CS --> GATE{新材料?}
+  GATE -->|附件/粘贴| VSG[vaultSaveGate]
+  GATE -->|查库摘要| OUT[assistant 终稿]
+  VSG --> OUT
 ```
 
 **验证：** `pnpm run verify:content-summarizer`；`verify:agent-schemas`（含 `summarize_content` intent）；CLI 需 Ollama。
@@ -641,8 +643,8 @@ pnpm --filter @fambrain/brain-service run experiment:bind-tools -- "我的名字
 |------|----------|--------------|
 | `intent === "clarify"` 且 `clarifyingQuestion` 有值 | `respondEarly` | 澄清提问 |
 | `intent` 为 `chitchat` / `out_of_scope` 且 `briefReply` 有值 | `respondEarly` | 简短回复 |
-| `intent === "summarize_content"` 且需查库（`searchQuery` 非空） | `retrieval` → **contentSummarizer** → **vaultSaveGate** | 摘要终稿 + 是否入库 |
-| `intent === "summarize_content"` 且无需查库 | **contentSummarizer** → **vaultSaveGate** | 摘要终稿 + 是否入库 |
+| `intent === "summarize_content"` 且需查库（`searchQuery` 非空） | `retrieval` → **contentSummarizer** | 摘要终稿（阅读已有语料，**不出闸**） |
+| `intent === "summarize_content"` 且无需查库（粘贴长文） | **contentSummarizer** → **vaultSaveGate** | 摘要终稿 + 是否入库 |
 | `attachmentAction` 为 `summarize` / `translate` | 总结或翻译链 → **vaultSaveGate** | 终稿 + 是否入库（聊天附件不再 ingest） |
 | `intent` 为 `remember_user_fact` / `recall_user_fact` 且 Intake 填齐 schema | **userFact** → 终稿 | SSE：`user_fact`；**不经 KM / FC / Analyst** |
 | `retrieve_and_answer` / composite 等需检索 | `planCacheResolve` → **planFanOut**（km/list/mem/tool/…）→ **contentOrganizer** → **Analyst** | 检索 + 分析终稿 |

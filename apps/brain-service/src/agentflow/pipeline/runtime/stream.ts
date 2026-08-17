@@ -18,7 +18,7 @@ import { isPureListDecision } from "@/agentflow/agents/online/corpus-lister";
 import { intakeRequiresKmRetrieval } from "@/agentflow/agents/online/intake-coordinator/pipeline";
 import { describeFanOutPlan } from "@/agentflow/agents/online/plan-fanout";
 import { isUserFactIntent } from "@/agentflow/agents/online/user-fact";
-import { shouldOfferVaultSaveGate } from "@/agentflow/agents/online/vault-write";
+import { shouldOfferVaultSaveGate } from "@/agentflow/agents/online/vault-save-gate";
 import { buildLangGraphRunConfig } from "@fambrain/brain-config/langsmith";
 import { logAgentOut } from "@fambrain/brain-shared/agent-log";
 import type {

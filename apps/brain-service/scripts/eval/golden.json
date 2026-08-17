@@ -584,7 +584,7 @@
       },
       {
         "id": "V-save-gate-offer",
-        "label": "写回闸门：仅 summarize/translate 终稿出闸",
+        "label": "写回闸门：仅附件/粘贴新材料出闸，查库摘要不出",
         "mode": "save_gate_offer"
       },
       {

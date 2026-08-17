@@ -1,15 +1,15 @@
 /**
- * vaultSaveGate：Analyst / Summarizer 之后一次 interrupt。
- * 弹窗确认后 create_file + materialize；取消不写盘。不进 Join。
+ * VaultSaveGate：附件/粘贴新材料终稿一次 interrupt。
+ * 弹窗确认后走 VaultWrite create_file + materialize；取消不写盘。不进 Join。
  */
 import { interrupt } from "@langchain/langgraph";
 import { logAgentOut } from "@fambrain/brain-shared/agent-log";
-import type { PipelineGraphState } from "@/agentflow/pipeline/graph/state";
 import {
   rememberVaultWorkspaceOp,
   runVaultWorkspaceOp,
   takeCachedVaultWorkspaceOp,
-} from "../ops";
+} from "@/agentflow/agents/online/vault-write";
+import type { PipelineGraphState } from "@/agentflow/pipeline/graph/state";
 import { sanitizeVaultSaveBasename } from "./filename";
 import type { VaultSaveGateBlocks, VaultSaveResume } from "./interface";
 import {
@@ -17,7 +17,7 @@ import {
   VAULT_SAVE_CONFIRM_PROMPT,
 } from "./interface";
 
-export type { VaultSaveResume } from "./interface";
+export type { VaultSaveGateBlocks, VaultSaveResume } from "./interface";
 export {
   VAULT_SAVE_CANCEL_PROMPT,
   VAULT_SAVE_CONFIRM_PROMPT,
@@ -27,7 +27,7 @@ export {
   suggestedVaultSaveBasename,
 } from "./filename";
 
-/** 摘要终稿或附件翻译/总结：出闸门。普通 QA / extract 不出。 */
+/** 新材料终稿才出闸：附件总结/翻译、粘贴长文总结。查库摘要与普通 QA 不出。 */
 export const shouldOfferVaultSaveGate = (
   state: Pick<PipelineGraphState, "answer" | "error" | "decision">
 ): boolean => {
@@ -35,12 +35,18 @@ export const shouldOfferVaultSaveGate = (
   if (!state.answer?.trim()) return false;
   const d = state.decision;
   if (!d) return false;
-  if (d.composeMode === "summarize" || d.intent === "summarize_content") {
+  if (
+    d.attachmentAction === "translate" ||
+    d.attachmentAction === "summarize"
+  ) {
     return true;
   }
-  return (
-    d.attachmentAction === "translate" || d.attachmentAction === "summarize"
-  );
+  const isSummarize =
+    d.composeMode === "summarize" || d.intent === "summarize_content";
+  if (!isSummarize) return false;
+  const hasPathSteps = (d.pathPlan?.steps?.length ?? 0) > 0;
+  const hasSearchQuery = Boolean(d.searchQuery?.trim());
+  return !hasPathSteps && !hasSearchQuery;
 };
 
 export const parseVaultSaveResume = (resume: unknown): VaultSaveResume => {
@@ -98,10 +104,14 @@ export const buildVaultSaveGateBlocks = (input: {
   };
 };
 
+/**
+ * vaultSaveGate 节点：一次 interrupt；确认写盘或取消后 → persistTurnEnd。
+ * Resume 从节点入口重跑，写操作依赖 VaultWrite op-cache 避免重复执行。
+ */
 export const runVaultSaveGateNode = async (
   state: PipelineGraphState
 ): Promise<Partial<PipelineGraphState>> => {
-  logAgentOut("VaultWrite", "进入", { via: "vaultSaveGate" });
+  logAgentOut("VaultSaveGate", "进入", { via: "vaultSaveGate" });
   const draft = state.answer?.trim() ?? "";
   if (!draft) {
     return {};
@@ -118,7 +128,7 @@ export const runVaultSaveGateNode = async (
     });
     const parsed = parseVaultSaveResume(resume);
     if (parsed.kind === "cancel") {
-      logAgentOut("VaultWrite", "写回取消", { via: "vaultSaveGate" });
+      logAgentOut("VaultSaveGate", "写回取消", { via: "vaultSaveGate" });
       return { answer: draft, assistantBlocks: null };
     }
     if (parsed.kind === "confirm") {
@@ -143,7 +153,7 @@ export const runVaultSaveGateNode = async (
           ? `Saved as ${fileName}. ${result.syncNote ?? ""}`.trim()
           : `已入库为 ${fileName}。${result.syncNote ?? ""}`.trim()
         : result.answer;
-      logAgentOut("VaultWrite", "写回完成", {
+      logAgentOut("VaultSaveGate", "写回完成", {
         via: "vaultSaveGate",
         ok: result.ok,
         name: fileName,

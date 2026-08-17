@@ -7,7 +7,7 @@ import {
   shouldOfferVaultSaveGate,
   VAULT_SAVE_CANCEL_PROMPT,
   VAULT_SAVE_CONFIRM_PROMPT,
-} from "@/agentflow/agents/online/vault-write";
+} from "@/agentflow/agents/online/vault-save-gate";
 import {
   routeAfterAnalyst,
   routeAfterContentSummarizer,
@@ -98,13 +98,15 @@ describe("parseVaultSaveResume", () => {
 });
 
 describe("shouldOfferVaultSaveGate", () => {
-  it("offers on summarize compose or attachment translate/summarize", () => {
+  it("offers on attachment summarize/translate and pasted summarize only", () => {
     expect(
       shouldOfferVaultSaveGate(
         state({
           decision: decision({
             composeMode: "summarize",
             intent: "summarize_content",
+            searchQuery: "",
+            pathPlan: { steps: [] },
           }),
         })
       )
@@ -123,6 +125,29 @@ describe("shouldOfferVaultSaveGate", () => {
         })
       )
     ).toBe(true);
+    expect(
+      shouldOfferVaultSaveGate(
+        state({
+          decision: decision({
+            composeMode: "summarize",
+            intent: "summarize_content",
+            searchQuery: "城管平台 技术栈",
+            pathPlan: {
+              steps: [
+                {
+                  id: "km-0",
+                  kind: "km",
+                  label: "摘要检索",
+                  searchQuery: "城管平台 技术栈",
+                  queryType: "tech",
+                  topics: [],
+                },
+              ],
+            },
+          }),
+        })
+      )
+    ).toBe(false);
     expect(shouldOfferVaultSaveGate(state({}))).toBe(false);
     expect(
       shouldOfferVaultSaveGate(
@@ -153,14 +178,26 @@ describe("buildVaultSaveGateBlocks", () => {
 
 describe("save-gate routes", () => {
   it("routes summarizer/analyst to vaultSaveGate when offering", () => {
-    const offering = state({
+    const pasted = state({
       decision: decision({
         composeMode: "summarize",
         intent: "summarize_content",
+        searchQuery: "",
+        pathPlan: { steps: [] },
       }),
     });
-    expect(routeAfterContentSummarizer(offering)).toBe("vaultSaveGate");
-    expect(routeAfterAnalyst(offering)).toBe("vaultSaveGate");
+    const corpusSummarize = state({
+      exitEarly: true,
+      decision: decision({
+        composeMode: "summarize",
+        intent: "summarize_content",
+        searchQuery: "城管平台",
+      }),
+    });
+    expect(routeAfterContentSummarizer(pasted)).toBe("vaultSaveGate");
+    expect(routeAfterAnalyst(pasted)).toBe("vaultSaveGate");
+    expect(routeAfterContentSummarizer(corpusSummarize)).toBe("respondEarly");
+    expect(routeAfterAnalyst(corpusSummarize)).toBe("persistTurnEnd");
     expect(routeAfterAnalyst(state({}))).toBe("persistTurnEnd");
   });
 });

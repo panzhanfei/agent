@@ -104,7 +104,7 @@ HITL 直接改 `corpus/**/*.md` 的 `corpus_edit` 已删除。写盘只走 Vault
 | 路径 | 图节点 | 写什么 | HITL |
 |------|--------|--------|------|
 | 工作台 | `vaultWorkspace` | 用户 CRUD workspace `.txt` | interrupt 循环 +「结束」 |
-| 写回闸门 | `vaultSaveGate` | 本轮摘要/翻译终稿 → `.txt` | 一次暂停；确定入库弹窗填名 / 取消 |
+| 写回闸门 | `vaultSaveGate`（独立 Agent） | 附件/粘贴终稿 → `.txt` | 一次暂停；确定入库弹窗填名 / 取消。查库摘要不出闸 |
 | 语料页批量 | （不在聊天图内） | 原件 → corpus | 无；`ingestDocumentBatch` |
 
 聊天附件 **不再 ingest**；要入库先总结或翻译，再走写回闸门。

@@ -102,6 +102,7 @@ export const AGENT_LABELS: Record<string, string> = {
     ContentSummarizer: "摘要",
     InformationAnalyst: "回答",
     VaultWrite: "原文库",
+    VaultSaveGate: "写回闸门",
     Mem0: "记忆",
     UserFact: "用户事实",
     UserMemoryExtract: "静默记忆",

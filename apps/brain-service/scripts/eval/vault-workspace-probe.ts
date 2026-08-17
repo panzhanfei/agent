@@ -28,13 +28,15 @@ import {
   vaultWsListPrompt,
   vaultWsOpenPrompt,
   VAULT_WORKSPACE_UI_ENTRY,
+} from "@/agentflow/agents/online/vault-write";
+import {
   buildVaultSaveGateBlocks,
   parseVaultSaveResume,
   sanitizeVaultSaveBasename,
   shouldOfferVaultSaveGate,
   VAULT_SAVE_CANCEL_PROMPT,
   VAULT_SAVE_CONFIRM_PROMPT,
-} from "@/agentflow/agents/online/vault-write";
+} from "@/agentflow/agents/online/vault-save-gate";
 
 export type VaultWorkspaceProbeCase = {
   id: string;
@@ -231,12 +233,25 @@ export const runVaultWorkspaceProbe = async (
         continue;
       }
       if (c.mode === "save_gate_offer") {
-        const summarize = shouldOfferVaultSaveGate({
+        const pasted = shouldOfferVaultSaveGate({
           answer: "draft",
           error: null,
           decision: {
             composeMode: "summarize",
             intent: "summarize_content",
+            searchQuery: "",
+            pathPlan: { steps: [] },
+            attachmentAction: null,
+          } as never,
+        });
+        const corpus = shouldOfferVaultSaveGate({
+          answer: "draft",
+          error: null,
+          decision: {
+            composeMode: "summarize",
+            intent: "summarize_content",
+            searchQuery: "城管平台 技术栈",
+            pathPlan: { steps: [{ kind: "km" }] },
             attachmentAction: null,
           } as never,
         });
@@ -258,7 +273,19 @@ export const runVaultWorkspaceProbe = async (
             attachmentAction: null,
           } as never,
         });
-        const ok = summarize && translate && !qa;
+        const ok = pasted && translate && !corpus && !qa;
+        results.push({
+          id: c.id,
+          tier: "pipeline",
+          label: c.label,
+          pass: ok,
+          reason: ok
+            ? "offer rules ok"
+            : `pasted=${pasted} translate=${translate} corpus=${corpus} qa=${qa}`,
+          latencyMs: Date.now() - started,
+        });
+        continue;
+      }
         results.push({
           id: c.id,
           tier: "pipeline",

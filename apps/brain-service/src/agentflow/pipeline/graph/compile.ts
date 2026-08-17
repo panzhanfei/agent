@@ -26,10 +26,8 @@ import {
 import { runPlanCacheResolveNode } from "@/agentflow/agents/online/plan-fanout/cache-resolve";
 import { runPlanDagNode } from "@/agentflow/agents/online/dag-executor";
 import { runToolRetrieveNode } from "@/agentflow/agents/online/tool-orchestrator";
-import {
-  runVaultSaveGateNode,
-  runVaultWorkspaceNode,
-} from "@/agentflow/agents/online/vault-write";
+import { runVaultWorkspaceNode } from "@/agentflow/agents/online/vault-write";
+import { runVaultSaveGateNode } from "@/agentflow/agents/online/vault-save-gate";
 import { getPipelineCheckpointer } from "@/agentflow/execution";
 import {
   runPreparePipelineMemory,
@@ -62,7 +60,7 @@ const als = withPipelineRunAls;
  *     → planSlotJoin →（可选全局 B 再批 Send ≤1）→ planSlotPost → planMerge
  *     → contentOrganizer → contentSummarizer? → analyst
  *   vaultWorkspace：独占单槽；interrupt 循环；点「结束」或缺槽 → persistTurnEnd
- *   vaultSaveGate：Analyst / Summarizer 之后一次确认入库 → persistTurnEnd
+ *   vaultSaveGate：附件/粘贴新材料终稿一次确认入库 → persistTurnEnd；查库摘要不出闸
  */
 const buildPipelineGraph = () => {
   return new StateGraph(PipelineGraphAnnotation)
