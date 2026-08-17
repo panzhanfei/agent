@@ -1,13 +1,12 @@
 /**
  * 聊天附件：按 Intake 结构化 attachmentAction 归一 pathPlan / 早退信号。
- * 抽取已在 /documents/extract 完成；此处只决定展示/总结/翻译/入库。
+ * 抽取已在 /documents/extract 完成；此处只决定展示/总结/翻译。
+ * 写入原文库改走 Compose 后的写回闸门，不再从聊天附件直接 ingest。
  */
 import type { TurnAttachment } from "@fambrain/brain-types";
 import type { IntakeRoutingDecision } from "@/agentflow/agents/online/intake-coordinator/contract";
 import {
   joinAttachmentTexts,
-  ingestStagedAttachmentBatch,
-  docParserLogger,
 } from "@/agentflow/agents/offline/doc-parser";
 import { emptyPathPlan } from "@/agentflow/agents/online/intake-coordinator/path-plan";
 
@@ -22,7 +21,6 @@ export const ATTACHMENT_ACTIONS = [
   "extract",
   "summarize",
   "translate",
-  "ingest",
 ] as const;
 
 export const parseAttachmentAction = (
@@ -54,7 +52,8 @@ const withClarify = (
 
 /**
  * 有 turnAttachments 时：必须有合法 attachmentAction，否则 clarify。
- * extract/ingest → earlyExit；summarize/translate → 改写 pathPlan。
+ * extract → earlyExit；summarize/translate → 改写 pathPlan。
+ * 旧 ingest 合法化为 summarize（入库改走写回闸门）。
  */
 export const applyAttachmentAction = async (input: {
   decision: IntakeRoutingDecision;
@@ -68,13 +67,20 @@ export const applyAttachmentAction = async (input: {
     return { decision, earlyExit: false };
   }
 
-  const action = parseAttachmentAction(decision.attachmentAction);
+  const rawAction =
+    typeof decision.attachmentAction === "string"
+      ? decision.attachmentAction.trim().toLowerCase()
+      : "";
+  const action =
+    rawAction === "ingest"
+      ? ("summarize" as const)
+      : parseAttachmentAction(rawAction);
   if (!action) {
     return withClarify(
       decision,
       decision.language === "en"
-        ? "What should I do with the attached file(s): show extracted text, summarize, translate, or ingest into the knowledge base?"
-        : "请说明要对附件做什么：展示抽取原文 / 总结 / 翻译（请注明目标语言）/ 入库到知识库？",
+        ? "What should I do with the attached file(s): show extracted text, summarize, or translate?"
+        : "请说明要对附件做什么：展示抽取原文 / 总结 / 翻译（请注明目标语言）。入库请先总结或翻译，结束后可写入原文库。",
       null
     );
   }
@@ -115,49 +121,6 @@ export const applyAttachmentAction = async (input: {
         attachmentAction: action,
       },
       answer: `${header}${text}`,
-      earlyExit: true,
-    };
-  }
-
-  if (action === "ingest") {
-    if (!input.attachmentBatchId) {
-      return withClarify(
-        decision,
-        "附件批次缺失，请重新选择文件后再请求入库。",
-        action
-      );
-    }
-    const ingested = await ingestStagedAttachmentBatch({
-      batchId: input.attachmentBatchId,
-      actorUserId: input.actorUserId,
-      corpusUserId: input.corpusUserId,
-      indexAfter: true,
-      logger: docParserLogger,
-    });
-    if (!ingested.ok) {
-      return {
-        decision: {
-          ...decision,
-          intent: "direct_answer",
-          briefReply: null,
-          clarifyingQuestion: null,
-          pathPlan: emptyPathPlan(),
-          attachmentAction: action,
-        },
-        answer: `入库失败：${ingested.error}`,
-        earlyExit: true,
-      };
-    }
-    return {
-      decision: {
-        ...decision,
-        intent: "direct_answer",
-        briefReply: null,
-        clarifyingQuestion: null,
-        pathPlan: emptyPathPlan(),
-        attachmentAction: action,
-      },
-      answer: ingested.summary,
       earlyExit: true,
     };
   }

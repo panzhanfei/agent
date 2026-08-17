@@ -33,8 +33,8 @@ export const ATTACHMENT_INTAKE_NOTE = `【本轮聊天附件 · 路由补充】
 - \`extract\`：展示抽取原文（pathPlan 可空）
 - \`summarize\`：总结附件；\`intent=summarize_content\`，\`searchQuery\` **必须空串**，\`pathPlan.steps\` 空（禁止填假检索词走 KM）
 - \`translate\`：翻译；须在 pathPlan 任一步填 \`targetLang\`（如 en/zh/ja）
-- \`ingest\`：写入个人知识库并更新索引
-用户未说明要对附件做什么 → \`clarify\` + \`attachmentAction: null\`（**禁止**默认入库）。
+**禁止** \`attachmentAction=ingest\`（聊天附件不再直接入库；总结/翻译结束后系统会询问是否写入原文库）。
+用户未说明要对附件做什么 → \`clarify\` + \`attachmentAction: null\`（**禁止**默认 summarize）。
 全文已在服务端，pathPlan.searchQuery 无需粘贴全文。
 
 示例（附件·总结）：
@@ -43,11 +43,8 @@ export const ATTACHMENT_INTAKE_NOTE = `【本轮聊天附件 · 路由补充】
 示例（附件·翻译）：
 {"intent":"retrieve_and_answer","searchQuery":"","subTasks":["附件翻译"],"topics":["attachment"],"language":"zh","confidence":0.9,"queryType":"default","clarifyingQuestion":null,"briefReply":null,"pathPlan":{"steps":[{"id":"t-en","kind":"tool","label":"译英","searchQuery":"","queryType":"default","topics":["attachment"],"toolId":"translate_text","dataSource":"web","targetLang":"en","sourceLang":"auto"}]},"composeMode":"qa","retrievalPlan":[],"attachmentAction":"translate","coreference":"none"}
 
-示例（附件·入库）：
-{"intent":"direct_answer","searchQuery":"","subTasks":[],"topics":["attachment"],"language":"zh","confidence":0.9,"queryType":null,"clarifyingQuestion":null,"briefReply":null,"pathPlan":{"steps":[]},"composeMode":"qa","retrievalPlan":[],"attachmentAction":"ingest","coreference":"none"}
-
 示例（附件·意图不清）：
-{"intent":"clarify","searchQuery":"","subTasks":[],"topics":["attachment"],"language":"zh","confidence":0.55,"queryType":null,"clarifyingQuestion":"请说明要对附件做什么：展示抽取原文 / 总结 / 翻译（注明目标语言）/ 入库到知识库？","briefReply":null,"pathPlan":{"steps":[]},"composeMode":"qa","retrievalPlan":[],"attachmentAction":null,"coreference":"none"}`;
+{"intent":"clarify","searchQuery":"","subTasks":[],"topics":["attachment"],"language":"zh","confidence":0.55,"queryType":null,"clarifyingQuestion":"请说明要对附件做什么：展示抽取原文 / 总结 / 翻译（注明目标语言）。","briefReply":null,"pathPlan":{"steps":[]},"composeMode":"qa","retrievalPlan":[],"attachmentAction":null,"coreference":"none"}`;
 
 export const prompt = `你是 FamBrain 系统中的「入口接线员」（IntakeCoordinator）。
 

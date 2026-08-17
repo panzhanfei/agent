@@ -4,9 +4,18 @@
 
 ## 入口
 
-- PathKind：`vault_workspace`
-- UI exact-match：`我的原文库`、`__FAMBRAIN_VAULT_WS_*__`
-- 图节点：`vaultWorkspace`（op → `interrupt({ kind: vault_wait })` 循环）。不进 `planSlotJoin`；缺槽 → `persistTurnEnd`
+- PathKind：`vault_workspace`（工作台，独占单槽）
+- UI exact-match：`我的原文库`、`__FAMBRAIN_VAULT_WS_*__`（含「结束」`__FAMBRAIN_VAULT_WS_DONE__`）
+- 图节点：`vaultWorkspace`（op → `interrupt({ kind: vault_wait })` 循环）。点「结束」或缺槽 → `persistTurnEnd`；不进 `planSlotJoin`
+
+## 写回闸门
+
+- 图节点：`vaultSaveGate`（同包，不是新 Agent）
+- 接在 Analyst / ContentSummarizer 之后 → `persistTurnEnd`
+- 出闸：`composeMode=summarize` / `intent=summarize_content`，或 `attachmentAction` 为 `summarize`/`translate`
+- 聊天按钮：确定入库（`clientHandler: vault_save_name` → 文件名弹窗，确认才 Resume）| 取消（Resume 不写盘）
+- 写入 workspace 根目录 `.txt` + materialize（图不等 embed）
+- 聊天附件不再 `ingest`；旧 `ingest` 合法化为 `summarize`
 
 ## 本地验证
 

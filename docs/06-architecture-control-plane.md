@@ -26,7 +26,7 @@ Understand + Plan（可融合为一次 LLM）
 
 `pending → running → done | skipped`  
 `running → aborted`（Turn 取消 / supersede）  
-图级人等：仅原文库 `interrupt({ kind: vault_wait })`。槽状态机无 `awaiting_human`。生成停用 `gen_pause` 截停采样后 **discard**，不 Resume。
+图级人等：仅原文库 `interrupt({ kind: vault_wait })`（工作台 CRUD 循环 + 写回闸门一次确认）。槽状态机无 `awaiting_human`。生成停用 `gen_pause` 截停采样后 **discard**，不 Resume。
 
 | 状态 | 含义 |
 |------|------|
@@ -56,9 +56,9 @@ Understand + Plan（可融合为一次 LLM）
 ## 4. Turn / 取消
 
 - 每次用户提交 = 新 `turnId`（**Web 生成并贯穿**；Brain 缺省时兜底）  
-- **两模式：** 问答主路径 = **停 / 换题 → discard + 新一轮**（无 Resume）；**Resume 只给原文库按钮**  
+- **两模式：** 问答主路径 = **停 / 换题 → discard + 新一轮**（无 Resume）；**Resume 只给原文库 HITL 按钮**（工作台 + 写回闸门）  
 - 再发下一句 = **supersede**（默认）= discard 图任务（世代 +1）  
-- **原文库人等** = `interrupt({ kind: vault_wait })` + checkpointer；点按钮 = 同 thread `Command({ resume: vault_action })`  
+- **原文库人等** = `interrupt({ kind: vault_wait })` + checkpointer；点按钮 = 同 thread `Command({ resume: vault_action })`（写回闸门可带 `name`）  
 - **生成停** = 截停采样，半截稿落库为终稿，discard；无「继续」  
 - **HITL 载荷** = `interrupt` value（`answer`/`blocks`）。stream `values` 合入已有 channel，禁止整帧覆盖  
 - 双保险：Abort 断流 + cancel API  
@@ -99,9 +99,17 @@ Understand + Plan（可融合为一次 LLM）
 
 ### 阶段 6 定稿（原文库写盘）
 
-HITL 直接改 `corpus/**/*.md` 的 `corpus_edit` 已删除。写盘只走 `vault_workspace`（workspace txt CRUD + materialize/purge）。
+HITL 直接改 `corpus/**/*.md` 的 `corpus_edit` 已删除。写盘只走 VaultWrite：
 
-Eval：`golden.json` → `vaultWorkspaceProbe`；`eval:run -- --vault-only`。
+| 路径 | 图节点 | 写什么 | HITL |
+|------|--------|--------|------|
+| 工作台 | `vaultWorkspace` | 用户 CRUD workspace `.txt` | interrupt 循环 +「结束」 |
+| 写回闸门 | `vaultSaveGate` | 本轮摘要/翻译终稿 → `.txt` | 一次暂停；确定入库弹窗填名 / 取消 |
+| 语料页批量 | （不在聊天图内） | 原件 → corpus | 无；`ingestDocumentBatch` |
+
+聊天附件 **不再 ingest**；要入库先总结或翻译，再走写回闸门。
+
+Eval：`golden.json` → `vaultWorkspaceProbe`（含 `save_gate_*`）；`eval:run -- --vault-only`。
 
 ### 记忆分层（自学重设计）
 

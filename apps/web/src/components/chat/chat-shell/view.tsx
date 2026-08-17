@@ -119,6 +119,67 @@ export const ChatShell = (props: ChatShellProps) => {
           <ChatThread model={model} />
           <ChatComposer model={model} />
         </div>
+        {model.vaultSaveNameModal ? (
+          <div
+            className="absolute inset-0 z-30 flex items-center justify-center bg-black/30 p-4"
+            role="dialog"
+            aria-modal="true"
+            aria-labelledby="vault-save-name-title"
+          >
+            <div className="w-full max-w-sm rounded-2xl bg-white p-4 shadow-xl">
+              <h2
+                id="vault-save-name-title"
+                className="text-[15px] font-semibold text-[#111827]"
+              >
+                写入原文库
+              </h2>
+              <p className="mt-1 text-[13px] text-[#6b7280]">
+                文件会保存为 .txt。关闭弹窗不会取消本轮确认。
+              </p>
+              <label className="mt-3 block text-[12px] text-[#6b7280]">
+                文件名
+                <input
+                  autoFocus
+                  value={model.vaultSaveNameModal.name}
+                  onChange={(e) => model.setVaultSaveNameDraft(e.target.value)}
+                  onKeyDown={(e) => {
+                    if (e.key === "Enter") {
+                      e.preventDefault();
+                      model.confirmVaultSaveName();
+                    }
+                    if (e.key === "Escape") {
+                      e.preventDefault();
+                      model.closeVaultSaveNameModal();
+                    }
+                  }}
+                  className="mt-1 w-full rounded-lg border border-[#e5e7eb] px-3 py-2 text-[14px] text-[#111827] outline-none focus:border-[#818cf8]"
+                  placeholder="untitled"
+                />
+              </label>
+              {model.vaultSaveNameModal.error ? (
+                <p className="mt-2 text-[12px] text-red-600">
+                  {model.vaultSaveNameModal.error}
+                </p>
+              ) : null}
+              <div className="mt-4 flex justify-end gap-2">
+                <button
+                  type="button"
+                  onClick={model.closeVaultSaveNameModal}
+                  className="rounded-full px-3 py-1.5 text-[13px] text-[#6b7280] hover:bg-[#f3f4f6]"
+                >
+                  关闭
+                </button>
+                <button
+                  type="button"
+                  onClick={model.confirmVaultSaveName}
+                  className="rounded-full bg-[#4f46e5] px-3 py-1.5 text-[13px] font-medium text-white hover:bg-[#4338ca]"
+                >
+                  确认
+                </button>
+              </div>
+            </div>
+          </div>
+        ) : null}
       </main>
     </div>
   );

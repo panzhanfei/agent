@@ -48,6 +48,7 @@ export const postConversationMessageBodySchema = z.object({
         .object({
             kind: z.enum(["vault_action"]),
             prompt: z.string().optional(),
+            name: z.string().max(120).optional(),
         })
         .optional(),
 });

@@ -48,6 +48,8 @@ export type AgentPipelineContext = {
     resume?: {
         kind: "vault_action";
         prompt?: string;
+        /** 写回闸门：弹窗确认的文件基名（不含 .txt） */
+        name?: string;
     };
     /** /documents/extract 返回的批次 id（入库时取原件） */
     attachmentBatchId?: string;
@@ -68,6 +70,7 @@ export type PipelineStepName =
     | "km_retrieve"
     | "list_retrieve"
     | "vault_workspace"
+    | "vault_save_gate"
     | "plan_cache_resolve"
     | "plan_slot_join"
     | "plan_slot_post"

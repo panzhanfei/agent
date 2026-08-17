@@ -70,7 +70,7 @@ export const ChatComposer = ({ model }: ChatComposerProps) => {
                     : speech.listening
                       ? "正在听你说…（说完点红色麦克风停止）"
                       : pendingAttachments.length > 0
-                        ? "写明要对附件做什么：抽取原文 / 总结 / 翻译 / 入库（须有文字才能发送）"
+                        ? "写明要对附件做什么：抽取原文 / 总结 / 翻译（须有文字才能发送）"
                         : "发消息或输入 '/' 选择技能（Enter 发送，Shift+Enter 换行；中文选字时 Enter 不会发送）"
                 }
                 rows={3}
@@ -124,7 +124,7 @@ export const ChatComposer = ({ model }: ChatComposerProps) => {
                   onClick={() => attachInputRef.current?.click()}
                   className="rounded-lg p-2 text-[#9ca3af] hover:bg-black/[0.04] hover:text-[#374151] disabled:opacity-40"
                   aria-label="添加附件"
-                  title="添加附件（发送后按你的说明抽取/总结/翻译/入库；语料页仍可直接入库）"
+                  title="添加附件（发送后按你的说明抽取/总结/翻译；语料页仍可批量入库）"
                 >
                   <IconPlus className="h-5 w-5" />
                 </button>

@@ -8,8 +8,13 @@ import {
 } from "@/agentflow/agents/online/intake-coordinator";
 import {
   matchVaultWorkspaceUiPrompt,
+  nextFromResume,
+  resolveVaultWorkspaceUiBypass,
+  VAULT_WORKSPACE_ACTION,
   VAULT_WORKSPACE_UI_ENTRY,
+  vaultWsDonePrompt,
   vaultWsListPrompt,
+  withVaultHitlDone,
 } from "@/agentflow/agents/online/vault-write";
 
 describe("pathPlan vault_workspace", () => {
@@ -193,5 +198,42 @@ describe("pathPlan vault_workspace", () => {
       type: "list",
       folderRel: "notes",
     });
+    expect(matchVaultWorkspaceUiPrompt(vaultWsDonePrompt())).toEqual({
+      type: "done",
+    });
+    expect(matchVaultWorkspaceUiPrompt(VAULT_WORKSPACE_ACTION.donePrompt)).toEqual(
+      { type: "done" }
+    );
+  });
+
+  it("HITL done prompt resumes as done and bypasses to respondEarly", () => {
+    expect(
+      nextFromResume(
+        { kind: "vault_action", prompt: vaultWsDonePrompt() },
+        { operation: "list", targetPath: "" }
+      )
+    ).toEqual({ kind: "done" });
+    const decision = resolveVaultWorkspaceUiBypass(vaultWsDonePrompt());
+    expect(decision?.routeMode).toBe("respondEarly");
+    expect(decision?.intent).toBe("direct_answer");
+    expect(decision?.pathPlan.steps).toHaveLength(0);
+    expect(decision?.briefReply).toBe("原文库操作已结束。");
+  });
+
+  it("appends an exact-match 结束 action for HITL pause", () => {
+    const blocks = withVaultHitlDone([], "zh");
+    expect(blocks).toEqual([
+      {
+        type: "actions",
+        actions: [
+          {
+            id: "vault-ws-done",
+            label: "结束",
+            prompt: VAULT_WORKSPACE_ACTION.donePrompt,
+            displayText: "结束原文库操作",
+          },
+        ],
+      },
+    ]);
   });
 });

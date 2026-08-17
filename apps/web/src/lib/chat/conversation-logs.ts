@@ -101,6 +101,7 @@ export const AGENT_LABELS: Record<string, string> = {
     ContentOrganizer: "整理",
     ContentSummarizer: "摘要",
     InformationAnalyst: "回答",
+    VaultWrite: "原文库",
     Mem0: "记忆",
     UserFact: "用户事实",
     UserMemoryExtract: "静默记忆",

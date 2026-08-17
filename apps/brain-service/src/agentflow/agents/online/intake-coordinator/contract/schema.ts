@@ -270,16 +270,12 @@ export const intakeRoutingDecisionSchema = z.object({
       if (v === null || v === undefined || v === "") return null;
       if (typeof v !== "string") return null;
       const s = v.trim().toLowerCase();
-      if (
-        s === "extract" ||
-        s === "summarize" ||
-        s === "translate" ||
-        s === "ingest"
-      ) {
+      if (s === "ingest") return "summarize";
+      if (s === "extract" || s === "summarize" || s === "translate") {
         return s;
       }
       return null;
-    }, z.enum(["extract", "summarize", "translate", "ingest"]).nullable())
+    }, z.enum(["extract", "summarize", "translate"]).nullable())
     .catch(null),
   coreference: z
     .enum(["none", "resolved", "unresolved"])

@@ -18,6 +18,7 @@ import { isPureListDecision } from "@/agentflow/agents/online/corpus-lister";
 import { intakeRequiresKmRetrieval } from "@/agentflow/agents/online/intake-coordinator/pipeline";
 import { describeFanOutPlan } from "@/agentflow/agents/online/plan-fanout";
 import { isUserFactIntent } from "@/agentflow/agents/online/user-fact";
+import { shouldOfferVaultSaveGate } from "@/agentflow/agents/online/vault-write";
 import { buildLangGraphRunConfig } from "@fambrain/brain-config/langsmith";
 import { logAgentOut } from "@fambrain/brain-shared/agent-log";
 import type {
@@ -701,7 +702,9 @@ async function* runPipelineStreamInner(
       }
       if (nodeName === "contentSummarizer") {
         yield* finishStep("content_summarizer");
-        if (finalState.exitEarly && finalState.answer) {
+        if (shouldOfferVaultSaveGate(finalState)) {
+          yield* startStep("vault_save_gate");
+        } else if (finalState.exitEarly && finalState.answer) {
           timing.markFirstToken();
           yield* emitAssistant(finalState.answer);
         } else if (!finalState.exitEarly) {
@@ -724,7 +727,22 @@ async function* runPipelineStreamInner(
         if (finalState.error) {
           yield { type: "error", message: finalState.error };
         }
-        yield* startStep("persist_turn_end");
+        if (shouldOfferVaultSaveGate(finalState)) {
+          yield* startStep("vault_save_gate");
+        } else {
+          yield* startStep("persist_turn_end");
+        }
+        continue;
+      }
+      if (nodeName === "vaultSaveGate") {
+        if (nodePatch?.answer || nodePatch?.assistantBlocks === null) {
+          yield* finishStep("vault_save_gate");
+          if (nodePatch.answer) {
+            timing.markFirstToken();
+            yield* emitAssistant(nodePatch.answer);
+          }
+          yield* startStep("persist_turn_end");
+        }
         continue;
       }
       if (nodeName === "respondEarly") {

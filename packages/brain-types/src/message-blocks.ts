@@ -39,9 +39,10 @@ export type AssistantMessageBlock =
               /** 历史卡片作废时由客户端置位 */
               disabled?: boolean;
               /**
-               * chat：走消息发送；open_editor：客户端打开双模式编辑器（不发聊天）
+               * chat：走消息发送；open_editor：客户端打开双模式编辑器（不发聊天）；
+               * vault_save_name：打开文件名弹窗，确认后才 Resume
                */
-              clientHandler?: "chat" | "open_editor";
+              clientHandler?: "chat" | "open_editor" | "vault_save_name";
           }>;
       };
 

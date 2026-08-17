@@ -12,4 +12,8 @@ export type PipelinePauseValue = {
 };
 
 /** vault_wait 的 Resume 载荷；gen_pause 不使用 Command。 */
-export type PipelineResumePayload = { kind: "vault_action"; prompt: string };
+export type PipelineResumePayload = {
+  kind: "vault_action";
+  prompt: string;
+  name?: string;
+};

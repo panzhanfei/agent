@@ -10,6 +10,7 @@ import {
   chatActionStaleGroupKey,
   isVaultWorkspaceActionPrompt,
   messageActionStaleKey,
+  sanitizeClientVaultSaveBasename,
   type ChatActionPayload,
 } from "@/lib/chat/action-lifecycle";
 import {
@@ -50,6 +51,7 @@ import type {
   MessageTiming,
   PatchConversationOk,
   PendingAttachment,
+  VaultSaveNameModalState,
 } from "./interface";
 import { STEP_RUNNING_LABELS } from "./timing";
 
@@ -78,6 +80,8 @@ export const useChatShell = ({
   const [staleActionKeys, setStaleActionKeys] = useState<Set<string>>(
     () => new Set()
   );
+  const [vaultSaveNameModal, setVaultSaveNameModal] =
+    useState<VaultSaveNameModalState | null>(null);
   const [staleActionConvId, setStaleActionConvId] = useState(
     activeConversationId
   );
@@ -645,6 +649,7 @@ export const useChatShell = ({
         resume?: {
           kind: "vault_action";
           prompt?: string;
+          name?: string;
         };
         omitUserBubble?: boolean;
       }
@@ -1242,6 +1247,16 @@ export const useChatShell = ({
       if (action.clientHandler === "open_editor") {
         return;
       }
+      if (action.clientHandler === "vault_save_name") {
+        setVaultSaveNameModal({
+          prompt: action.prompt,
+          displayText: action.displayText ?? action.label,
+          sourceMessageId: action.sourceMessageId,
+          name: `untitled-${Date.now().toString(36)}`,
+          error: null,
+        });
+        return;
+      }
       const lastAssistant = [...messagesRef.current]
         .reverse()
         .find((m) => m.role === "assistant");
@@ -1262,6 +1277,40 @@ export const useChatShell = ({
     },
     [sendMessageWithContent]
   );
+
+  const setVaultSaveNameDraft = useCallback((name: string) => {
+    setVaultSaveNameModal((prev) =>
+      prev ? { ...prev, name, error: null } : prev
+    );
+  }, []);
+
+  const closeVaultSaveNameModal = useCallback(() => {
+    setVaultSaveNameModal(null);
+  }, []);
+
+  const confirmVaultSaveName = useCallback(() => {
+    const modal = vaultSaveNameModal;
+    if (!modal) return;
+    const name = sanitizeClientVaultSaveBasename(modal.name);
+    if (!name) {
+      setVaultSaveNameModal({
+        ...modal,
+        error: "请填写文件名（不要含 / 或 ..）",
+      });
+      return;
+    }
+    setVaultSaveNameModal(null);
+    void sendMessageWithContent(modal.prompt, {
+      displayContent: modal.displayText,
+      staleGroupKey: chatActionStaleGroupKey(modal.prompt),
+      staleMessageId: modal.sourceMessageId ?? null,
+      resume: {
+        kind: "vault_action",
+        prompt: modal.prompt,
+        name,
+      },
+    });
+  }, [sendMessageWithContent, vaultSaveNameModal]);
 
   const sendMessage = useCallback(async () => {
     await sendMessageWithContent(draft);
@@ -1798,6 +1847,10 @@ export const useChatShell = ({
     setMessagesRetryTick,
     messagesScrollRef,
     handleChatAction,
+    vaultSaveNameModal,
+    setVaultSaveNameDraft,
+    closeVaultSaveNameModal,
+    confirmVaultSaveName,
     staleActionKeys,
     turnInFlight,
     hasLiveStreamUi,

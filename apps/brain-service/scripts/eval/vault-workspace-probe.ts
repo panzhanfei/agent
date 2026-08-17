@@ -28,6 +28,12 @@ import {
   vaultWsListPrompt,
   vaultWsOpenPrompt,
   VAULT_WORKSPACE_UI_ENTRY,
+  buildVaultSaveGateBlocks,
+  parseVaultSaveResume,
+  sanitizeVaultSaveBasename,
+  shouldOfferVaultSaveGate,
+  VAULT_SAVE_CANCEL_PROMPT,
+  VAULT_SAVE_CONFIRM_PROMPT,
 } from "@/agentflow/agents/online/vault-write";
 
 export type VaultWorkspaceProbeCase = {
@@ -40,7 +46,10 @@ export type VaultWorkspaceProbeCase = {
     | "ui_crud_prompts"
     | "nested_folder"
     | "update_body"
-    | "pipeline_list";
+    | "pipeline_list"
+    | "save_gate_sanitize"
+    | "save_gate_offer"
+    | "save_gate_prompts";
 };
 
 export type VaultWorkspaceProbeSpec = {
@@ -190,6 +199,101 @@ export const runVaultWorkspaceProbe = async (
             answer = next.value.answer;
           }
         }
+        continue;
+      }
+      if (c.mode === "save_gate_sanitize") {
+        const ok =
+          sanitizeVaultSaveBasename("  notes/a.txt  ") === "notesa" &&
+          sanitizeVaultSaveBasename("foo.TXT") === "foo" &&
+          sanitizeVaultSaveBasename("") === null &&
+          parseVaultSaveResume({
+            kind: "vault_action",
+            prompt: VAULT_SAVE_CONFIRM_PROMPT,
+            name: "memo",
+          }).kind === "confirm" &&
+          parseVaultSaveResume({
+            kind: "vault_action",
+            prompt: VAULT_SAVE_CANCEL_PROMPT,
+          }).kind === "cancel" &&
+          parseVaultSaveResume({
+            kind: "vault_action",
+            prompt: VAULT_SAVE_CONFIRM_PROMPT,
+            name: "",
+          }).kind === "unknown";
+        results.push({
+          id: c.id,
+          tier: "pipeline",
+          label: c.label,
+          pass: ok,
+          reason: ok ? "save-gate sanitize/resume ok" : "save-gate sanitize fail",
+          latencyMs: Date.now() - started,
+        });
+        continue;
+      }
+      if (c.mode === "save_gate_offer") {
+        const summarize = shouldOfferVaultSaveGate({
+          answer: "draft",
+          error: null,
+          decision: {
+            composeMode: "summarize",
+            intent: "summarize_content",
+            attachmentAction: null,
+          } as never,
+        });
+        const translate = shouldOfferVaultSaveGate({
+          answer: "draft",
+          error: null,
+          decision: {
+            composeMode: "qa",
+            intent: "retrieve_and_answer",
+            attachmentAction: "translate",
+          } as never,
+        });
+        const qa = shouldOfferVaultSaveGate({
+          answer: "draft",
+          error: null,
+          decision: {
+            composeMode: "qa",
+            intent: "retrieve_and_answer",
+            attachmentAction: null,
+          } as never,
+        });
+        const ok = summarize && translate && !qa;
+        results.push({
+          id: c.id,
+          tier: "pipeline",
+          label: c.label,
+          pass: ok,
+          reason: ok
+            ? "offer rules ok"
+            : `summarize=${summarize} translate=${translate} qa=${qa}`,
+          latencyMs: Date.now() - started,
+        });
+        continue;
+      }
+      if (c.mode === "save_gate_prompts") {
+        const built = buildVaultSaveGateBlocks({ draft: "hello" });
+        const actions = built.blocks.find((b) => b.type === "actions");
+        const prompts =
+          actions?.type === "actions"
+            ? actions.actions.map((a) => a.prompt)
+            : [];
+        const handler =
+          actions?.type === "actions"
+            ? actions.actions[0]?.clientHandler
+            : undefined;
+        const ok =
+          prompts[0] === VAULT_SAVE_CONFIRM_PROMPT &&
+          prompts[1] === VAULT_SAVE_CANCEL_PROMPT &&
+          handler === "vault_save_name";
+        results.push({
+          id: c.id,
+          tier: "pipeline",
+          label: c.label,
+          pass: ok,
+          reason: ok ? "save-gate prompts ok" : `prompts=${prompts.join(",")}`,
+          latencyMs: Date.now() - started,
+        });
         continue;
       }
 

@@ -53,15 +53,11 @@ export type IntakeLinkLookupGuardReason =
   | "harmonize_plan_query_types"
   | "harmonize_query_type";
 
-export type AttachmentAction =
-  | "extract"
-  | "summarize"
-  | "translate"
-  | "ingest";
+export type AttachmentAction = "extract" | "summarize" | "translate";
 
 export type ApplyAttachmentActionResult = {
   decision: IntakeRoutingDecision;
-  /** 直接作答（extract / ingest） */
+  /** 直接作答（extract） */
   answer?: string;
   earlyExit: boolean;
 };

@@ -35,6 +35,14 @@ export type PatchConversationOk = {
   updatedAt: string;
 };
 
+export type VaultSaveNameModalState = {
+  prompt: string;
+  displayText: string;
+  sourceMessageId?: string;
+  name: string;
+  error: string | null;
+};
+
 export type PendingAttachment = {
   id: string;
   file: File;
@@ -105,6 +113,10 @@ export type ChatShellModel = {
   setMessagesRetryTick: Dispatch<SetStateAction<number>>;
   messagesScrollRef: RefObject<HTMLDivElement | null>;
   handleChatAction: (payload: ChatActionPayload) => void;
+  vaultSaveNameModal: VaultSaveNameModalState | null;
+  setVaultSaveNameDraft: (name: string) => void;
+  closeVaultSaveNameModal: () => void;
+  confirmVaultSaveName: () => void;
   staleActionKeys: Set<string>;
   turnInFlight: boolean;
   hasLiveStreamUi: boolean;

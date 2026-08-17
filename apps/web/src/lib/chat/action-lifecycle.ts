@@ -14,6 +14,11 @@ const VAULT_WS = {
   createFolderPrefix: "__FAMBRAIN_VAULT_WS_CREATE_FOLDER__:",
   deleteFilePrefix: "__FAMBRAIN_VAULT_WS_DELETE_FILE__:",
   deleteFolderPrefix: "__FAMBRAIN_VAULT_WS_DELETE_FOLDER__:",
+  donePrompt: "__FAMBRAIN_VAULT_WS_DONE__",
+} as const;
+
+const VAULT_SAVE = {
+  prefix: "__FAMBRAIN_VAULT_SAVE_",
 } as const;
 
 /** UI exact-match（与 brain ENUMERATION_ACTION_PROMPTS 对齐，非口语猜意图） */
@@ -30,7 +35,7 @@ export type ChatActionPayload = {
   prompt: string;
   displayText?: string;
   disabled?: boolean;
-  clientHandler?: "chat" | "open_editor";
+  clientHandler?: "chat" | "open_editor" | "vault_save_name";
   /** 所属助手消息（点击后整条 message 作废） */
   sourceMessageId?: string;
 };
@@ -70,6 +75,8 @@ export const chatActionStaleGroupKey = (prompt: string): string | null => {
     const folderRel = t.slice(VAULT_WS.deleteFolderPrefix.length);
     return folderRel ? `vault:cwd:${parentCwd(folderRel)}` : null;
   }
+  if (t === VAULT_WS.donePrompt) return "vault:done";
+  if (t.startsWith(VAULT_SAVE.prefix)) return "vault:save";
 
   if (t in ENUM_PROMPTS) {
     return ENUM_PROMPTS[t as keyof typeof ENUM_PROMPTS];
@@ -81,7 +88,24 @@ export const chatActionStaleGroupKey = (prompt: string): string | null => {
 export const isVaultWorkspaceActionPrompt = (prompt: string): boolean => {
   const t = prompt.trim();
   if (t === "我的原文库") return true;
-  return t.startsWith("__FAMBRAIN_VAULT_WS_");
+  return (
+    t.startsWith("__FAMBRAIN_VAULT_WS_") || t.startsWith(VAULT_SAVE.prefix)
+  );
+};
+
+/** 弹窗文件名 → 基名（不含 .txt）；空则不要 Resume */
+export const sanitizeClientVaultSaveBasename = (
+  raw: string
+): string | null => {
+  let s = raw.trim();
+  if (!s) return null;
+  s = s.replace(/[/\\]/g, "");
+  s = s.replace(/\.txt$/i, "");
+  s = s.replace(/\.{2,}/g, ".");
+  s = s.replace(/[<>:"|?*]/g, "");
+  s = s.trim().replace(/^\.+|\.+$/g, "");
+  if (!s || s === "." || s === "..") return null;
+  return s.slice(0, 80);
 };
 
 export const isChatActionExpired = (

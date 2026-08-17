@@ -4,7 +4,7 @@ import { interrupt } from "@langchain/langgraph";
 import { logAgentOut } from "@fambrain/brain-shared/agent-log";
 import { resolveActiveSlot } from "@/agentflow/agents/online/plan-fanout/active-slot";
 import type { PipelineGraphState } from "@/agentflow/pipeline/graph/state";
-import { paramsFromResume } from "./intake";
+import { nextFromResume } from "./intake";
 import type { VaultWorkspaceParams } from "./interface";
 import {
   parseVaultWorkspaceParams,
@@ -13,6 +13,7 @@ import {
   takeCachedVaultWorkspaceOp,
 } from "./ops";
 import { missingVaultWorkspaceSlotState } from "./missing-slot";
+import { vaultWorkspaceDoneReply, withVaultHitlDone } from "./actions";
 
 export type {
   VaultWorkspaceListResult,
@@ -26,12 +27,16 @@ export {
   VAULT_WORKSPACE_UI_ENTRY,
   buildVaultWorkspaceListBlocks,
   matchVaultWorkspaceUiPrompt,
+  vaultWorkspaceDoneReply,
   vaultWsCreateFilePrompt,
   vaultWsCreateFolderPrompt,
   vaultWsDeleteFilePrompt,
   vaultWsDeleteFolderPrompt,
+  vaultWsDoneAction,
+  vaultWsDonePrompt,
   vaultWsListPrompt,
   vaultWsOpenPrompt,
+  withVaultHitlDone,
   type VaultWsUiAction,
 } from "./actions";
 
@@ -45,13 +50,26 @@ export {
 export {
   buildVaultWorkspaceUiDecision,
   matchVaultWorkspaceUiAction,
+  nextFromResume,
   resolveVaultWorkspaceUiBypass,
   toVaultWorkspaceParams,
 } from "./intake";
 
+export {
+  buildVaultSaveGateBlocks,
+  parseVaultSaveResume,
+  runVaultSaveGateNode,
+  sanitizeVaultSaveBasename,
+  shouldOfferVaultSaveGate,
+  suggestedVaultSaveBasename,
+  VAULT_SAVE_CANCEL_PROMPT,
+  VAULT_SAVE_CONFIRM_PROMPT,
+} from "./save-gate";
+
 /**
  * vaultWorkspace 节点：执行一次 op 后 interrupt，Command Resume 后继续。
- * 不套槽位墙钟预算；不进 planSlotJoin。Resume 从节点入口重跑，写操作依赖 op-cache 避免重复执行。
+ * 点「结束」则 return → persistTurnEnd。不进 planSlotJoin。
+ * Resume 从节点入口重跑，写操作依赖 op-cache 避免重复执行。
  */
 export const runVaultWorkspaceNode = async (
   state: PipelineGraphState
@@ -89,8 +107,12 @@ export const runVaultWorkspaceNode = async (
     const resume: unknown = interrupt({
       kind: "vault_wait",
       answer: result.answer,
-      blocks: result.blocks ?? [],
+      blocks: withVaultHitlDone(result.blocks ?? [], language),
     });
-    params = paramsFromResume(resume, params);
+    const next = nextFromResume(resume, params);
+    if (next.kind === "done") {
+      return { answer: vaultWorkspaceDoneReply(language) };
+    }
+    params = next.params;
   }
 };

@@ -540,7 +540,7 @@
   },
   "vaultWorkspaceProbe": {
     "id": "G-vault-workspace",
-    "label": "vault_workspace：pathPlan · UI · CRUD · nested · pipeline list",
+    "label": "vault_workspace：pathPlan · UI · CRUD · nested · pipeline list · save-gate",
     "cases": [
       {
         "id": "V-list-pathplan",
@@ -576,6 +576,21 @@
         "id": "V-pipeline-list",
         "label": "pipeline「我的原文库」interrupt list（Pause/Resume）",
         "mode": "pipeline_list"
+      },
+      {
+        "id": "V-save-gate-sanitize",
+        "label": "写回闸门：文件名清洗 + resume 解析",
+        "mode": "save_gate_sanitize"
+      },
+      {
+        "id": "V-save-gate-offer",
+        "label": "写回闸门：仅 summarize/translate 终稿出闸",
+        "mode": "save_gate_offer"
+      },
+      {
+        "id": "V-save-gate-prompts",
+        "label": "写回闸门：确定入库/取消 exact-match + 文件名弹窗",
+        "mode": "save_gate_prompts"
       }
     ]
   },

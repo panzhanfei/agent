@@ -26,7 +26,10 @@ import {
 import { runPlanCacheResolveNode } from "@/agentflow/agents/online/plan-fanout/cache-resolve";
 import { runPlanDagNode } from "@/agentflow/agents/online/dag-executor";
 import { runToolRetrieveNode } from "@/agentflow/agents/online/tool-orchestrator";
-import { runVaultWorkspaceNode } from "@/agentflow/agents/online/vault-write";
+import {
+  runVaultSaveGateNode,
+  runVaultWorkspaceNode,
+} from "@/agentflow/agents/online/vault-write";
 import { getPipelineCheckpointer } from "@/agentflow/execution";
 import {
   runPreparePipelineMemory,
@@ -45,6 +48,7 @@ import {
   routeAfterPlanMerge,
   routeAfterContentOrganizer,
   routeAfterContentSummarizer,
+  routeAfterAnalyst,
   routeAfterPrepareMemory,
   routeAfterRepeat,
 } from "./routes";
@@ -57,8 +61,8 @@ const als = withPipelineRunAls;
  *   km/list/mem/tool/summarize：扁平节点 + emitBudgetedSlotPatch
  *     → planSlotJoin →（可选全局 B 再批 Send ≤1）→ planSlotPost → planMerge
  *     → contentOrganizer → contentSummarizer? → analyst
- *   vaultWorkspace：独占单槽；interrupt(vault_wait) 循环，不进 Join。
- *     缺槽才返回 → persistTurnEnd
+ *   vaultWorkspace：独占单槽；interrupt 循环；点「结束」或缺槽 → persistTurnEnd
+ *   vaultSaveGate：Analyst / Summarizer 之后一次确认入库 → persistTurnEnd
  */
 const buildPipelineGraph = () => {
   return new StateGraph(PipelineGraphAnnotation)
@@ -75,6 +79,7 @@ const buildPipelineGraph = () => {
     .addNode("toolRetrieve", als(runToolRetrieveNode))
     .addNode("summarizeSlot", als(runSummarizeSlotNode))
     .addNode("vaultWorkspace", als(runVaultWorkspaceNode))
+    .addNode("vaultSaveGate", als(runVaultSaveGateNode))
     .addNode("planSlotJoin", als(runPlanSlotJoinNode))
     .addNode("planSlotPost", als(runPlanSlotPostNode))
     .addNode("planDag", als(runPlanDagNode))
@@ -108,7 +113,8 @@ const buildPipelineGraph = () => {
     .addConditionalEdges("planMerge", routeAfterPlanMerge)
     .addConditionalEdges("contentOrganizer", routeAfterContentOrganizer)
     .addConditionalEdges("contentSummarizer", routeAfterContentSummarizer)
-    .addEdge("analyst", "persistTurnEnd")
+    .addConditionalEdges("analyst", routeAfterAnalyst)
+    .addEdge("vaultSaveGate", "persistTurnEnd")
     .addEdge("respondEarly", "persistTurnEnd")
     .addEdge("persistTurnEnd", END);
 };

@@ -39,7 +39,9 @@ const assistantMessageBlockSchema = z.discriminatedUnion("type", [
                 prompt: z.string(),
                 displayText: z.string().optional(),
                 disabled: z.boolean().optional(),
-                clientHandler: z.enum(["chat", "open_editor"]).optional(),
+                clientHandler: z
+                    .enum(["chat", "open_editor", "vault_save_name"])
+                    .optional(),
             })
         ),
     }),
@@ -65,6 +67,7 @@ export const pipelineStreamBodySchema = z.object({
             .object({
                 kind: z.enum(["vault_action"]),
                 prompt: z.string().optional(),
+                name: z.string().max(120).optional(),
             })
             .optional(),
         /** 聊天附件批次（/documents/extract）；服务端展开为 turnAttachments */

@@ -55,7 +55,24 @@ describe("applyAttachmentAction", () => {
     });
     expect(r.earlyExit).toBe(true);
     expect(r.decision.intent).toBe("clarify");
-    expect(r.decision.clarifyingQuestion).toMatch(/抽取|总结|翻译|入库/);
+    expect(r.decision.clarifyingQuestion).toMatch(/抽取|总结|翻译/);
+    expect(r.decision.clarifyingQuestion).not.toMatch(/\/ 入库到知识库/);
+  });
+
+  it("coerces ingest to summarize (chat ingest removed)", async () => {
+    const r = await applyAttachmentAction({
+      decision: baseDecision({
+        attachmentAction: "ingest" as never,
+      }),
+      attachments: [sampleAtt],
+      actorUserId: "u1",
+      corpusUserId: "c1",
+    });
+    expect(r.earlyExit).toBe(false);
+    expect(r.decision.attachmentAction).toBe("summarize");
+    expect(r.decision.intent).toBe("summarize_content");
+    expect(r.decision.composeMode).toBe("summarize");
+    expect(r.decision.searchQuery).toBe("");
   });
 
   it("extract returns answer early", async () => {

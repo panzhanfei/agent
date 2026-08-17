@@ -12,6 +12,8 @@ export const VAULT_WORKSPACE_ACTION = {
   deleteFolderPrefix: "__FAMBRAIN_VAULT_WS_DELETE_FOLDER__:",
   /** 入口：打开原文库根 list */
   rootListPrompt: "__FAMBRAIN_VAULT_WS_LIST__:",
+  /** HITL 结束：节点 return → persistTurnEnd */
+  donePrompt: "__FAMBRAIN_VAULT_WS_DONE__",
 } as const;
 
 /** UI 按钮 exact-match（与 ENUMERATION_ACTION_PROMPTS 同类，允许） */
@@ -35,11 +37,34 @@ export const vaultWsDeleteFilePrompt = (fileRel: string): string =>
 export const vaultWsDeleteFolderPrompt = (folderRel: string): string =>
   `${VAULT_WORKSPACE_ACTION.deleteFolderPrefix}${folderRel}`;
 
+export const vaultWsDonePrompt = (): string => VAULT_WORKSPACE_ACTION.donePrompt;
+
+export const vaultWorkspaceDoneReply = (language?: "zh" | "en"): string =>
+  language === "en" ? "Workspace session finished." : "原文库操作已结束。";
+
+export const vaultWsDoneAction = (
+  language?: "zh" | "en"
+): {
+  id: string;
+  label: string;
+  prompt: string;
+  displayText: string;
+} => {
+  const zh = language !== "en";
+  return {
+    id: "vault-ws-done",
+    label: zh ? "结束" : "Done",
+    prompt: VAULT_WORKSPACE_ACTION.donePrompt,
+    displayText: zh ? "结束原文库操作" : "Finish workspace",
+  };
+};
+
 export const matchVaultWorkspaceUiPrompt = (
   userQuestion: string
 ): VaultWsUiAction | null => {
   const t = userQuestion.trim();
   if (!t) return null;
+  if (t === VAULT_WORKSPACE_ACTION.donePrompt) return { type: "done" };
   const take = (prefix: string) => t.slice(prefix.length);
   if (t.startsWith(VAULT_WORKSPACE_ACTION.listPrefix)) {
     return { type: "list", folderRel: take(VAULT_WORKSPACE_ACTION.listPrefix) };

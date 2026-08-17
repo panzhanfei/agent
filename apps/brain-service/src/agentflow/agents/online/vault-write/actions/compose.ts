@@ -8,9 +8,19 @@ import {
   vaultWsCreateFolderPrompt,
   vaultWsDeleteFilePrompt,
   vaultWsDeleteFolderPrompt,
+  vaultWsDoneAction,
   vaultWsListPrompt,
   vaultWsOpenPrompt,
 } from "./prompts";
+
+/** 每轮 HITL 暂停都带「结束」，点后节点 return 走出图。 */
+export const withVaultHitlDone = (
+  blocks: AssistantMessageBlock[],
+  language?: "zh" | "en"
+): AssistantMessageBlock[] => [
+  ...blocks,
+  { type: "actions", actions: [vaultWsDoneAction(language)] },
+];
 
 export const buildVaultWorkspaceListBlocks = (input: {
   folderRel: string;
