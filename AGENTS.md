@@ -9,6 +9,7 @@ This version has breaking changes — APIs, conventions, and file structure may 
 - **Brain 服务**：`apps/brain-service/`（HTTP，`BRAIN_SERVICE_PORT`，Web 通过 `BRAIN_SERVICE_URL` 调用）
 - **DB / Auth / Brain 公共包**：`packages/*`
 - **环境变量**：仓库根目录 `.env` 唯一来源；端口用 `PORT` / `OLLAMA_HOST`+`OLLAMA_PORT` / `QDRANT_HOST`+`QDRANT_PORT`（完整 URL 变量可覆盖）
+- **Chat**：`CHAT_PROVIDER=ollama|openai` **须显式切换**；openai 默认 DeepSeek。失败不静默回落 14b。embed / OCR / Mem0 仍走 Ollama。**不接入 Dify**
 - **语料 / 向量库**：`data/doc/`；Qdrant（语料 dense+sparse，Mem0 dense-only）
 - **本地 Qdrant**：`pnpm run qdrant:server` 或 `pnpm dev` 自动 `docker compose up -d qdrant`
 

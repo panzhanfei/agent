@@ -2,7 +2,7 @@
 
 > **基线：** [§2.1.1 KM 规则精排已消坑](./04-pitfalls.md#211-km-移除在线-llm--规则精排p0-4--d3-2--d3-3--d3-5---已消坑-2026-06)（v1，无在线 LLM）  
 > **原则：** 检索层不调 Chat LLM；快、稳、可回归；Pipeline 对外合同保持 `hits / coverage / notes`（可选扩展 `confidenceTier`）  
-> **范围：** **KM 为主** + 必须/建议配合的模块；FC / Organizer / Analyst 默认不动
+> **范围：** **KM 为主** + 必须/建议配合的模块；Organizer / Analyst 默认不动（FactChecker 主链已删）
 
 > **代码布局：** 见 `apps/brain-service/src/agentflow/agents/online/knowledge-manager/README.md`（`contract/` · `nodes/` · `pipeline/` · `recall/` · `profile/`）。
 
@@ -14,7 +14,7 @@
 | **混合召回** | 向量 ∥ sparse → RRF | **Qdrant 引擎加权 RRF**（dense+sparse prefetch） | 保持引擎 RRF；可选 Cross-Encoder |
 | **置信评估** | 融合分 + 分档路由 | 向量距离阈值 + `coverage` 规则 | 多维置信 + 可选 `confidenceTier` |
 | **结果加工** | dedupe、excerpt、Cross-Encoder | 规则 rank + pickExcerpt | pathBoost、guard、表格 excerpt、可选 rerank |
-| **多级兜底** | 改写重查 → FAQ → 无知识标识 | scan + ensureNonEmptyHits | 分级兜底；FC retry 保留 |
+| **多级兜底** | 改写重查 → FAQ → 无知识标识 | scan + ensureNonEmptyHits；失败槽走全局 B | 分级兜底（无 FC retry） |
 
 **Pipeline 分工：**
 
@@ -36,7 +36,7 @@ Intake（查询理解）→ KM（混合召回～兜底）→ ContentOrganizer �
 | **pipeline**（compile / parse-intake / state） | 小 | 传 `queryType`、retry 语义 |
 | **brain-shared**（agent-log） | 小 | 可观测字段 |
 | **scripts** | 小 | verify / compare-recall |
-| **fact-checker** | 可选 | 高置信规则快检 |
+| **fact-checker** | 已删 | 主链无 FC；失败槽走全局 B |
 | **content-organizer** | 可选小 | structuredFields |
 | **information-analyst** | 暂不动 | 吃 hits |
 
@@ -150,7 +150,7 @@ Intake `queryType` 与上表 **同名枚举**。`recallDocKindsForQuery` 是 sch
 - 「我的名字是什么？」→ Top1 `personal/个人简历-潘展飞.md`，excerpt 含姓名表格行；`docKind=identity_card`
 - 「我在哪几家公司上过班？」→ hits 均为 `experience/*.md`，notes 含列举覆盖段数
 - 「开源项目的 GitHub 链接有哪些？」→ `queryType=external_link`；hits 含 `github.com/panzhanfei/sentinel-monorepo` 与 `release-bot`（**非** aky offline 路径）
-- 亲友步（槽已标 `topics: family`）→ `queryType=relations`，只进 `docKind=relations`（如 `personal/亲友关系.md`）。单问「我哥叫什么」若 Intake 未标 family，仍走 identity → 换模型再测 **E2E-brother**（[坑点 §2.11](./04-pitfalls.md#211-猜模型意图兜底债-p0-34--与-dify-抽离同批--2026-08)）
+- 亲友步（槽已标 `topics: family`）→ `queryType=relations`，只进 `docKind=relations`（如 `personal/亲友关系.md`）。单问「我哥叫什么」须 Intake 标 family（**E2E-brother** 已绿）；代码不扫问句「哥哥」（[坑点 §2.11](./04-pitfalls.md#211-猜模型意图兜底债-p0-34-intake-主债已清--2026-08)）
 
 ---
 
@@ -164,3 +164,4 @@ Intake `queryType` 与上表 **同名枚举**。`recallDocKindsForQuery` 是 sch
 | 2026-07 | **`external_link` queryProfile**（P0-25）；Intake link lookup + continuation guard |
 | 2026-08 | **语料 + Mem0 迁 Qdrant**：dense+sparse 入库；查询走引擎加权 RRF；不再用 Chroma / 查询时内存 BM25 |
 | 2026-08 | **文件级 `docKind`** + `queryType=relations`：按 Intake 类型滤 Qdrant；亲友不再靠 `default` 全库；rank 排序不解封顶 |
+| 2026-08 | **`default` + 槽 topics** `experience`/`project`/`family` → `docKind` 过滤（K5 履历 Top1）；P0-34 猜意图抬升已清；**不接入 Dify** |

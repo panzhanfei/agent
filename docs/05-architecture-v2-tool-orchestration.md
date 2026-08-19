@@ -2,7 +2,7 @@
 
 [← 返回 README](../README.md) · [Agent 流程图](./02-agent-flows.md) · [坑点清单](./04-pitfalls.md)
 
-本文记录 **2026-07** 从 Classic RAG 演进到 **四类问题架构** 的动机、提交链路与实现要点。触发原因是 **年龄计算**（P0-23）暴露了「Analyst 内联硬编码工具」的架构债。
+本文记录 **2026-07** 从 Classic RAG 演进到 **四类问题架构** 的动机与实现，以及 **2026-08** 现网口径：catalog `invokeTool`、双图文件 HITL、Chat 可切换、**不接入 Dify**、P0-34 已清。触发原因是 **年龄计算**（P0-23）暴露了「Analyst 内联硬编码工具」的架构债。
 
 ---
 
@@ -53,15 +53,18 @@ flowchart TD
   IC[IntakeCoordinator] --> R{routeAfterIntake}
 
   R -->|pathPlan.dag hybrid| DAG[planFanOut 内 DagExecutor<br/>可与 slots 并存]
-  R -->|pathPlan km/list/tool| PE[planFanOut 槽检索 + tools]
+  R -->|pathPlan km/list/mem/tool| PE[planFanOut 槽检索 + tools]
   R -->|纯 list| LIST[listRetriever]
   R -->|其它| EARLY[respondEarly / userFact / summarizer]
 
-  DAG --> CO[ContentOrganizer]
-  PE --> CO
-  LIST --> CO
-  CO --> TO[ToolOrchestrator / planSlotPost<br/>age / enumeration / web]
-  TO --> IA[InformationAnalyst<br/>消费 toolResults]
+  DAG --> JOIN[planSlotJoin 可选全局 B]
+  PE --> JOIN
+  LIST --> CO[ContentOrganizer]
+  JOIN --> POST[planSlotPost / ToolOrchestrator]
+  POST --> CO
+  CO --> IA[InformationAnalyst<br/>消费 stepResults + toolResults]
+  IA --> FH[fileHandoff?]
+  FH --> PST[persistTurnEnd]
 ```
 
 **与 P0-23 对比：**
@@ -70,10 +73,13 @@ flowchart TD
 # 旧（P0-23）
 Intake → KM → FC → CO → Analyst（内联 resolveOrchestratedTool + regex）
 
-# 新（P0-24）
-Intake（enrichedPlan / executionPlan）
-  → KM 或 DagExecutor
-  → FC → CO → ToolOrchestrator → Analyst（读 state.toolResults）
+# 现网（2026-08）
+Intake pathPlan
+  → planFanOut（km/list/mem/tool/dag）
+  → Join / 可选全局 B（无 FactChecker）
+  → Organizer → planSlotPost tools → Analyst
+  → fileHandoff? → persistTurnEnd
+  文件 HITL 在 sideline/file
 ```
 
 ---
@@ -89,8 +95,10 @@ Intake（enrichedPlan / executionPlan）
 | `agents/online/tool-orchestrator/nodes.ts` | `runDagExecutorNode`、`runToolOrchestratorNode` |
 | `pipeline/graph/state.ts` | 新增 `asOfDate`、`toolResults` |
 | `prepare-turn-start` | 注入 `asOfDate`（年龄计算基准日） |
-| `tools/search-web.ts` | Tavily API；未配置时 `status=disabled` |
-| `tools/get-current-date.ts` | `get_current_date` LangChain 工具 |
+| `tools/catalog` + `tools/invoke` | 生产 `toolId` 清单与分发（含 `get_weather`） |
+| `tools/local/web` | Tavily `search_web`；未配置时 `status=disabled` |
+| `tools/mcp/server/weather` | Open-Meteo MCP；pipeline `get_weather` |
+| LangChain StructuredTool | 实验 `bindTools`；主链不由模型选工具 |
 
 ### 4.1 Intake 新增字段（`RoutedIntakeDecision`）
 
@@ -140,10 +148,9 @@ pnpm --filter @fambrain/brain-service run verify:langchain-tools
 
 | 项 | 说明 |
 |----|------|
-| 混合 DAG 由 LLM 生成 `executionPlan` | 当前 `buildHybridExecutionPlan` 为声明式模板，可改为 Intake JSON 输出 |
-| `field-catalog` 扩展 | 工作年限差、地点等计算字段 |
-| ReAct / bind-tools 实验并入主链 | 见 `experiments/bind-tools-react.ts` |
-| FactChecker 对 web citations 的核查策略 | URL excerpt 与语料 path 混排 |
+| 混合 DAG 由 Intake 写齐 `executionPlan` | 已有 `hybrid_multi_source` 模板；扩展字段仍走 schema→executor，不并入 ReAct |
+| `field-catalog` 扩展 | 新计算字段只加 catalog 映射，不加口语 if |
+| bind-tools | **保持实验**（`experiments/bind-tools-react.ts`）；主链不让模型自主选工具 |
 
 ---
 
@@ -168,7 +175,7 @@ pnpm --filter @fambrain/brain-service run verify:langchain-tools
 | `agentflow/brain-service/offline/` | `agentflow/agents/offline/` | 同上 |
 | `agentflow/tool-orchestration/` | `agentflow/agents/online/tool-orchestrator/` | 与 Intake / KM / Analyst **同级**；图节点实现归 online Agent |
 | `agentflow/pipeline/` | **不变** | LangGraph **编排骨架**（state / routes / compile / SSE runtime） |
-| `agentflow/tools/` | **不变** | LangChain **StructuredTool** 定义；包边界导出 `createFambrainTools` |
+| `agentflow/tools/` | catalog + invoke | 生产 `toolId` 分发；LangChain StructuredTool 仅实验 |
 | `agentflow/utils/` | **不变** | 跨 Agent 的 LLM / Zod 小工具，非业务域 |
 
 ### 9.2 目标目录树
@@ -435,17 +442,18 @@ pnpm --filter @fambrain/brain-service run verify:intake-coreference
 
 ---
 
-## 14. 猜模型意图兜底债 → Dify/换模型后删除（P0-34 · 2026-08）
+## 14. P0-34 猜模型意图兜底已清（2026-08）
 
 > **问题：** P0-30/31 已定「意图归 LLM、代码只 schema 合法化」。本地小模型时期叠过亲友改写、`km-qq`→mem、空 plan→remember、年龄口语 regex。
 >
-> **2026-08：** Intake 换 DeepSeek Flash 后，上述猜意图抬升 **已删**。只留 Zod 合法化、空 plan→clarify、`topics=family`→relations、UI exact-match。外链 label 剥词仍在（不改路由）。
+> **2026-08：** `CHAT_PROVIDER=openai`（DeepSeek Flash）后，上述猜意图抬升 **已删**。只留 Zod 合法化、空 plan→clarify、`topics=family`→relations、UI exact-match。外链 label 剥词仍在（不改路由）。
+>
+> **不接入 Dify。** 提示词与 schema 留在仓库；复盘先看 Intake JSON，不要再加代码抬升。
 >
 > 清单见 [坑点 §2.11](./04-pitfalls.md#211-猜模型意图兜底债-p0-34-intake-主债已清--2026-08)。
 
-| 现在 | 换模型后 |
-|------|----------|
-| 暂留 Intake `from-llm` / `intake-pipeline` / schema lift；随后才动工具口语 fallback | 只留 Zod 合法化、空 plan→clarify、UI exact-match、schema→executor |
-| 复盘先怀疑兜底是否掩盖了坏 JSON | 复盘先看 Dify/模型工单；兜底应接近零 |
+| 已删除 | 保留（schema→executor / 合法化） |
+|--------|----------------------------------|
+| 亲友 searchQuery 改写、`km-qq`→mem、空 plan→remember、年龄口语 regex、无 key 发明字段名 | Zod 合法化、空 plan→clarify、`topics=family`→relations、UI exact-match |
 
-**验证：** `eval:run -- --mem-only` · `--case E2E-six-composite-qq-phone` · **`--case E2E-brother`** · **`--case G5b`**（[坑点 §2.11 已知红](./04-pitfalls.md#211-猜模型意图兜底债-p0-34--与-dify-抽离同批--2026-08)） · 全量 `eval:run` · `test:unit`。
+**验证：** `eval:run -- --mem-only` · `--case E2E-six-composite-qq-phone` · **`--case E2E-brother`** · **`--case G5b`** · 全量 `eval:run` · `test:unit`。

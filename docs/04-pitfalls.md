@@ -4,6 +4,8 @@
 
 **跟踪方式：** 通用坑落实对策后，把 `- [ ]` 改成 `- [x]`；本项目踩坑表更新 **状态** 列。
 
+**现网口径（2026-08）：** 不接入 Dify；P0-34 猜意图抬升已清；FactChecker 已删（补救走全局 B）；Chat 跟 `CHAT_PROVIDER`。总览见 [01 现状](./01-project-overview.md#现状2026-08)。
+
 ---
 
 ## 一、行业常见坑（22 项）
@@ -74,7 +76,7 @@
 | **Mem0 / 用户事实** | corpus 与 memory 矛盾、跨会话遗忘 | P0-14、P0-16 | §2.5.2、§2.6 |
 | **工具 / 确定性编排** | 年龄不计算、公司年限答成总从业、列举 blocks、联网 | P0-23、**P0-32**、P0-24、P0-22 | §2.5.6、§2.5.7、**§2.5.11**、[架构 v2 §11](./05-architecture-v2-tool-orchestration.md#11-pathplan-统一执行计划-2026-07) |
 | **Intake 架构（档 B）** | 代码二次规划、散文触发指代、复盘难 | **P0-30**、**P0-31** | **§2.9**、**§2.10** · [架构 v2 §12–13](./05-architecture-v2-tool-orchestration.md#12-intake-llm-主导--schema-兜底2026-07--去问句硬编码) |
-| **猜模型意图兜底债** | pathPlan/userFact 抬升、亲友改写、口语工具 fallback；换模型后应删 | **P0-34** | **§2.11** · [架构 v2 §14](./05-architecture-v2-tool-orchestration.md#14-猜模型意图兜底债--dify换模型后删除-p0-34--2026-08) |
+| **猜模型意图兜底债** | pathPlan/userFact 抬升、亲友改写、口语工具 fallback；**已清** | **P0-34** | **§2.11** · [架构 v2 §14](./05-architecture-v2-tool-orchestration.md#14-p0-34-猜模型意图兜底已清2026-08) |
 | **图任务 / HITL / 流式停** | 残缺 values 当终稿、生成停误当续 token | **P0-35～36** | **§2.12** · [流程 · 原文库](./02-agent-flows.md) · [控制面 §4](./06-architecture-control-plane.md) |
 
 ### Agent 职责边界（合同）
@@ -119,7 +121,7 @@
 | P0-26 | Intake / KM / 编排 | **混合问**「React 经验 + **列出全部项目**」→ 整句走 list、tech 段丢失；续问「更多项目」靠 **口语 regex** 误判 | P0-22 用 **整句 `routeMode=list`** 表达穷举；`enumeration-list-intent` 堆 regex，与 per-slot composite 冲突；KM 无 **按槽 executor** | **per-slot** `enumerationControl` + `executor=km_retrieve\|list_corpus`；`applyEnumerationSlotGuard`；UI **`ENUMERATION_ACTION_PROMPTS`** exact-match；`retrieval-node` 按槽执行 | ✅ **已解决**（2026-07）← §2.5.10 · [架构 v2 §10](./05-architecture-v2-tool-orchestration.md#10-列举执行-per-slot-演进-2026-07) |
 | P0-27 | Intake / Web | 「列出全部项目 + **开源** GitHub/线上地址」→ 第 2 段变成「**每个**项目的 GitHub」且无 URL；前端无分页按钮 | LLM 双槽皆标 enumeration；link guard 误 aggregate；槽 id 撞车；Web BFF `pipeline_done` **丢 blocks** | Intake 示例 16 + `harmonizeRetrievalPlanQueryTypes`（`inferQueryProfile`）+ 保留混合 plan；`planItemToSlot` 唯一 id；BFF 透传 blocks；分页文案对齐 `ENUMERATION_ACTION_PROMPTS` | ✅ **已解决**（2026-07）← §2.5.10 · diagnose-mixed-projects-github-query |
 | **P0-28** | Intake / KM / 编排 | **混合问**「列举项目 + 开源 GitHub 链接」→ composite 只答 **一段**（或 external_link 槽被 label regex 漏掉）；旧 FC 对 composite≥2 **整轮跳过** | `routeMode` / `compositeSlots` / `executionPlan` / toolPlan **四套多槽互斥**；opensource 与 enumeration **并行 KM** 而非依赖链 | **PathPlan** 有序 `steps[]` + **`planFanOut`（LangGraph Send）**；external_link 作 km 步 + extract 工具；补救走 **全局 B**（FC 已删）；`composeMode` 一次 composite | ✅ **已解决**（2026-07）← **§2.8** · [架构 v2 §11](./05-architecture-v2-tool-orchestration.md#11-pathplan-统一执行计划-2026-07) |
-| **P0-29** | Intake | `verify:intake-chitchat` 偶发「你好」→ **`retrieve_and_answer`**；脚本断言逻辑反了 | 小模型对极短句非确定性；prompt 检索示例偏多；parse 失败 → `defaultIntakeDecision`；测试在 intent=chitchat 时误 throw | **`isPureSocialUtterance`** 入口跳过 LLM；chitchat briefReply 仍走 P0-13 模板 | ✅ **已解决**（2026-07）← **§2.8.1** · `verify:intake-chitchat` |
+| **P0-29** | Intake | `verify:intake-chitchat` 偶发「你好」→ **`retrieve_and_answer`**；脚本断言逻辑反了 | 小模型对极短句非确定性 | 历史上入口词表短路；**现网 `isPureSocialUtterance` stub 恒 false**，问候走 Intake LLM + P0-13 briefReply 模板 | ✅ **已缓解**（2026-07 短路；2026-08 stub，由强模型接手）← **§2.8.1** · `verify:intake-chitchat` |
 | **P0-30** | Intake / KM / Analyst / Web | 超长复合履历问：重复「工作经历/任职」、表头误「项目名称」、年限只算近段、近两年未过滤；`labels` 口语二次规划 | Intake 过拆 + repair 口语注入；canonicalize 盖掉 tenure 检索词；UI 写死表头；list 无时间窗 | **LLM 主导合并拆分**；schema 合法化 + facet 去重；`tenure` + `timeWindowYears`；职位/链接 UI；单测迁 `tests/` | ✅ **已解决**（2026-07）← **§2.9** · [架构 v2 §12](./05-architecture-v2-tool-orchestration.md#12-intake-llm-主导--schema-兜底2026-07--去问句硬编码) |
 | **P0-31** | Intake | 单字乱敲浪费 token；短续问**盲预合并**误伤换题；散文当指代信号；复盘时「代码像二次 Intake」 | 结构启发当语义；散文兜底驱动重试；规划与纠偏缠在一起 | **档 B 定型**：主路径=LLM 任务规划；旁路=normalize / JSON 修复 / 指代拼接≤1 / guard 纠偏；`coreference` 字段 | ✅ **已解决**（2026-07）← **§2.10** · [架构 v2 §13](./05-architecture-v2-tool-orchestration.md#13-intake-档-b主路径规划--旁路纠偏-2026-07) |
 | **P0-32** | Tool / Analyst | 复合问「奥卡云上班年限」→「5 年 6 个月（最早自 2021）」；单问同槽常只复述 **2021.6–2024.9**；「出生年份」易答成周岁 | `compute_tenure_from_hits` 用 **earliest 总从业→asOf**，非雇主过滤/离职日；与 age 同属 asOf 算术但语义不同；复合挂工具、单问常跳过 | 雇主年限按槽 **searchQuery** 实体匹配经历区间，有结束日则止于结束日；`identityField=birthYear` 抽年份；终稿标注 asOf | ✅ **已解决**（2026-08）← **§2.5.11** |
@@ -128,7 +130,7 @@
 | **P0-33** | HITL / 语料写盘 | 直接改 `corpus/**/*.md` + 软清空 `<!-- fambrain:cleared -->`；用户难记 path | 编辑面与检索产物耦合；软删仍占向量 path | **模型 A**：只 CRUD `vault/originals/workspace/*.txt`；`vault_workspace` list/CRUD；语料化 md+向量；**硬删**级联；`corpus_edit` 已删除 | ✅ **已解决**（2026-08）← [流程 · 原文库](./02-agent-flows.md) |
 | **P0-34** | Intake / Tool / Mem0 | 小模型 pathPlan 不稳 → 代码「猜 LLM 本意」抬升/改写 | 本地小模型 JSON 纪律弱 | **已清 Intake 猜意图抬升**（DeepSeek Flash）：亲友 searchQuery 改写、`km-qq`→mem、空 plan→remember、顶层 key 注 mem 步、年龄口语分流、无 key 发明字段名。**保留** `topics=family`→relations、Zod 合法化、空 plan→clarify。外链 label 剥词（P1）未动 | ✅ **Intake 主债已清**（2026-08）← **§2.11** |
 | **P0-35** | Pipeline / HITL | 原文库 `interrupt` 时 `values` 缺 channel，若拿这帧当终稿则列表没了 | LangGraph HITL 时 values 常是不完整快照；曾整帧覆盖 `finalState` | 给人看的 list/CTA **只信 `interrupt({ answer, blocks })`**；`values` **合入**已有 channel。现网 HITL 在文件子图 | ✅ **已解决**（2026-08）← **§2.12** · [控制面 §4](./06-architecture-control-plane.md) |
-| **P0-36** | Analyst / 产品 | 生成「暂停」后点「继续」会从头再生成一篇，不能从半截 token 接着写 | Checkpointer 只管图光标；Ollama HTTP 流一断就没了；`interrupt` 不是给采样续流用的 | **Pause = 停**（豆包/ChatGPT）：半截稿即终稿，discard 问答 thread，无「继续」；下一句新 invoke。文件子线仍 `vault_wait` Resume（须 `jobId`） | ✅ **已解决**（2026-08）← **§2.12** · [流程 · 原文库](./02-agent-flows.md) |
+| **P0-36** | Analyst / 产品 | 生成「暂停」后点「继续」会从头再生成一篇，不能从半截 token 接着写 | Checkpointer 只管图光标；Chat HTTP 流一断就没了；`interrupt` 不是给采样续流用的 | **Pause = 停**（豆包/ChatGPT）：半截稿即终稿，discard 问答 thread，无「继续」；下一句新 invoke。文件子线仍 `vault_wait` Resume（须 `jobId`） | ✅ **已解决**（2026-08）← **§2.12** · [流程 · 原文库](./02-agent-flows.md) |
 
 ### 2.11 猜模型意图兜底债（✅ P0-34 Intake 主债已清 · 2026-08）
 
@@ -140,7 +142,7 @@
 >
 > **未清（P1 外链）：** `extract-external-links.ts` 仍对 Intake **label** 剥 GitHub/开源等泛词（不对用户口语路由）。复盘后可再收成只对 excerpt 抽 URL。
 
-#### 已知红（换模型后已重测）
+#### 已知红（Flash 后已重测）
 
 DeepSeek Flash 下 **E2E-brother** / **G5b** 已绿（不再为过 eval 加口语兜底）。后续回归仍禁止扫问句「哥哥」或用口语猜指代。
 
@@ -167,7 +169,7 @@ DeepSeek Flash 下 **E2E-brother** / **G5b** 已绿（不再为过 eval 加口�
 | **D 语料抽取** | 对 **excerpt** 抽出生日期 / URL（不对用户口语猜意图） |
 | **E 结构信号** | 空 plan→clarify；UI exact-match；JSON 格式修复 1×；multipart 结构 |
 
-#### 验证命令（换模型后）
+#### 验证命令
 
 ```bash
 pnpm test:unit
@@ -178,7 +180,7 @@ pnpm --filter @fambrain/brain-service run eval:run -- --case G5b
 pnpm --filter @fambrain/brain-service run eval:run   # 全量
 ```
 
-详见 [架构 v2 §14](./05-architecture-v2-tool-orchestration.md#14-猜模型意图兜底债--dify换模型后删除-p0-34--2026-08)、[控制面阶段 8](./06-architecture-control-plane.md#8-实现阶段)。
+详见 [架构 v2 §14](./05-architecture-v2-tool-orchestration.md#14-p0-34-猜模型意图兜底已清2026-08)、[控制面阶段 8](./06-architecture-control-plane.md#8-实现阶段)。
 
 ### 2.12 图任务 HITL / 生成停（✅ P0-35～36 · 双图 2026-08）
 
@@ -189,7 +191,7 @@ pnpm --filter @fambrain/brain-service run eval:run   # 全量
 | ID | 典型现象 | 根因 | 对策 |
 |----|----------|------|------|
 | **P0-35**（#20） | `interrupt` 时 `values` 缺 channel；若当终稿则列表没了 | HITL 的 values 常是不完整快照；曾整帧覆盖 | 给人看的 list/CTA **只信 `interrupt({ answer, blocks })`**。文件子图 `orchestrate.ts` 取 interrupt 载荷。完整态用 `graph.getState` |
-| **P0-36**（#21） | 点「继续」从头再生成一篇，不能从半截 token 接着写 | Checkpointer 存图光标，不存 Ollama HTTP 采样 | **Pause = 停**：半截稿即终稿，discard 问答 thread，无「继续」。下一句新 invoke。文件子线 `Command({ resume: vault_action })` 须带 `jobId` |
+| **P0-36**（#21） | 点「继续」从头再生成一篇，不能从半截 token 接着写 | Checkpointer 存图光标，不存 Chat HTTP 采样 | **Pause = 停**：半截稿即终稿，discard 问答 thread，无「继续」。下一句新 invoke。文件子线 `Command({ resume: vault_action })` 须带 `jobId` |
 
 **对照（别混）：**
 
@@ -240,7 +242,7 @@ pnpm --filter @fambrain/brain-service run eval:run   # 全量
 | `composite-slot-queries.ts` | `EXTERNAL_LINK_SLOT` canonical searchQuery |
 | `information-analyst/stream.ts` | `composeMode=composite` 走 parallel composite 流 |
 
-**链路（通俗）：** Intake 把子任务写成有序 `steps[]`（kind=执行类型）并标依赖 → planFanOut 并行取数、**km 槽各自核查（list 不经 FC）** → 整理师规范化 → Analyst **只混剪一次** 出终稿。
+**链路（通俗）：** Intake 把子任务写成有序 `steps[]`（kind=执行类型）并标依赖 → planFanOut 并行取数 → 整理师规范化 → Analyst **只混剪一次** 出终稿。Join 后结构失败走全局 B，工人无 FactChecker。
 
 **验证：**
 
@@ -266,16 +268,16 @@ pnpm --filter @fambrain/brain-service run eval:run   # E2E-five-composite + five
 | 层 | 说明 |
 |----|------|
 | LLM 非确定性 | 极短句语义空，小模型偏向 prompt 里大量的 retrieve 示例 |
-| parse 兜底 | JSON 失败时 `defaultIntakeDecision` → **clarify**（入口社交短路仍跳过 LLM） |
+| parse 兜底 | JSON 失败时 `defaultIntakeDecision` → **clarify** |
 | 测试脚本 | 曾在 `intent===chitchat` 时误 throw「不应走检索」 |
 
 **对策：**
 
 | 优先级 | 对策 | 文件 |
 |--------|------|------|
-| P0 | **入口短路**：`isPureSocialUtterance`（你好/hi/谢谢等）→ **跳过 LLM**，直接 chitchat 早退 | `signals/pure-social-utterance.ts`、`nodes/intake-node.ts` |
+| P0 | **入口短路（历史）**：问候词表曾跳过 LLM。**现网 stub 恒 false**，「你好」走 Intake LLM | `signals/pure-social-utterance.ts` |
 | +1 | briefReply 仍走 P0-13 **`DEFAULT_CHITCHAT_BRIEF_REPLY`**（intent=chitchat 时） | `applyIntakeChitchatGuard` |
-| 注 | `applyPureSocialUtteranceGuard` 仍导出供 verify；**pipeline 不再二次覆盖**（档 B） | `guards/intake-chitchat-guard.ts` |
+| 注 | `applyPureSocialUtteranceGuard` 仍导出供 verify；**pipeline 不再用词表覆盖** | `guards/intake-chitchat-guard.ts` |
 
 **验证：**
 
@@ -283,7 +285,7 @@ pnpm --filter @fambrain/brain-service run eval:run   # E2E-five-composite + five
 pnpm --filter @fambrain/brain-service run verify:intake-chitchat   # CHITCHAT_RUNS=10
 ```
 
-**注意：** 仅匹配 **纯** 问候/感谢（≤24 字、无并列问句）；「你好，我叫什么」仍走 LLM 检索。
+**注意：** 现网问候不再靠词表跳过 LLM。「你好，我叫什么」与纯「你好」都走 Intake；chitchat 的 briefReply 仍由服务端模板覆盖。单字残缺仍短路（`shouldShortCircuitIncompleteUtterance`）。
 
 ### 2.9 Intake 去硬编码与复合履历（✅ P0-30 · 2026-07）
 
@@ -1218,7 +1220,7 @@ pnpm run verify:agent-schemas
 | **P0-29** | #1 意图误判（纯问候 → retrieve） | ✅ §2.8.1 |
 | **P0-30** | #2 任务拆分不合理（口语二次规划） | ✅ §2.9 |
 | **P0-31** | #1 意图误判（盲预合并 / 散文当指代）；#17 上下文污染（误并上轮）；复盘黑盒 | ✅ §2.10 |
-| **P0-34** | #1 意图误判 / #2 任务拆分（代码猜 LLM pathPlan/userFact）；与 Dify 抽离同批删兜底 | ⬜ §2.11 |
+| **P0-34** | #1 意图误判 / #2 任务拆分（代码猜 LLM pathPlan/userFact） | ✅ §2.11 |
 | **P0-35** | #20 人等载荷认错（残缺 values 当终稿） | ✅ §2.12 |
 | **P0-36** | #21 生成停误当续采样（Pause=停） | ✅ §2.12 |
 | **P0-32** | #5 工具选择/语义错误（公司年限误用总从业工具）；#11 过度自信（复合甩推算文案） | ✅ §2.5.11 |
@@ -1249,8 +1251,8 @@ pnpm run verify:agent-schemas
 - [ ] 预扫 paths 是否同一 md 重复过多（chunk 去重）← D3-6
 - [ ] Analyst 输入里 `hits` / `coverage` 是否与 KM 一致 ← P0-6
 - [ ] 终稿是否出现候选中不存在的公司、项目、日期（幻觉）
-- [ ] 换模型复现：区分 prompt 问题 vs 模型能力（`OLLAMA_MODEL` / `OLLAMA_MODEL_INTAKE_COORDINATOR`）
-- [ ] **Dify / 换模型后（P0-34）：** GMem + 六连问 QQ 不依赖 `km-qq`→mem / 空 plan→remember；**E2E-brother**（潘小强）+ **G5b**（城管指代）须绿（§2.11 已知红）；通过后按 §2.11 删猜意图兜底
+- [ ] 换模型复现：区分 prompt 问题 vs 模型能力（`CHAT_PROVIDER` / `OPENAI_MODEL` / `OLLAMA_MODEL` / `OLLAMA_MODEL_INTAKE_COORDINATOR`）
+- [x] **P0-34：** GMem + 六连问 QQ 不依赖 `km-qq`→mem / 空 plan→remember；**E2E-brother** + **G5b** 已绿；猜意图抬升已删（§2.11）
 - [ ] agents 服务 `:3001` 是否唯一实例（无 EADDRINUSE）← D3-12
 - [ ] **hitCount=0 / coverage=none**：Analyst 应 `rules_empty_hits_skip_llm`（**P0-12** ✅）← §2.2.1
 - [x] **列举型问题**（「哪几家公司」）：同句再问 answer 仍 **4 家** ← R6-1 ✅ · `verify:r6-no-cache`

@@ -40,7 +40,7 @@
 - **写回闸门：** 主图 Analyst / ContentSummarizer 之后 → `fileHandoff`（只写信封）→ **`persistTurnEnd`（会跑）** → END。runtime 再开文件图 `saveHitl` 一次 interrupt。出闸只给**新材料**：`attachmentAction` 为 `summarize`/`translate`，或粘贴长文总结（`composeMode=summarize` / `intent=summarize_content` 且无 `searchQuery`、无 pathPlan 步）。**查库摘要、普通 QA、extract 不出闸。** 聊天是 **两条助手消息**：主图终稿 `done`，再短 CTA + 按钮 `paused`。确定入库 = `clientHandler: vault_save_name` → **文件名弹窗**（确认才 Resume，关闭弹窗不 Resume）；取消 = Resume 不写盘。写入 workspace 根目录 `.txt` + materialize（图不等 embed）。
 - **新问 vs HITL：** 新 QA **不**作废 save_offer 按钮；**会**顶替 workspace HITL。同会话一个活跃 FileJob；新文件任务 supersede 旧文件 thread。TTL 30min → job `cancelled` + `discardFileTask`。同问短路不启动文件子线。Resume 无 `jobId` → HTTP 400。
 - **三条写路径勿混：** ① 语料页批量 `ingestDocumentBatch`（原件→corpus）；② 工作台 CRUD（用户编辑 txt）；③ 写回闸门（本轮终稿→txt）。**聊天附件不再 ingest**；LLM 若仍输出 `ingest`，schema 合法化为 `summarize`，走总结后再出闸门。
-- **生成停：** 流式中点「停止」→ 半截稿即终稿，**discard 问答 thread**。无「继续」。不接同一条 Ollama 采样。
+- **生成停：** 流式中点「停止」→ 半截稿即终稿，**discard 问答 thread**。无「继续」。不接同一次 Chat HTTP 采样。
 - **丢弃：** 新问题 / 编辑重跑 / 显式停止 / 生成停 = discard **问答** thread。文件 thread 仅在新文件任务 / workspace 被非原文库问顶替 / TTL 时 discard。点「确定入库」后改问：丢弃文件任务，**不中止**已提交的语料化。
 - **UI 按钮：** 启用/禁用以后端 Prisma `Message.metadata.blocks[].actions[].disabled` 为准；新问作废 workspace 按钮但 **保留** save_offer（`keepFileJobIds`）。
 - **写路径**：`kind=vault_workspace` CRUD `vault/originals/workspace/*.txt`；语料化 md+向量；硬删级联。不再直接改 corpus md。
@@ -48,17 +48,17 @@
 
 **PathPlan 有序 steps（2026-07 · 端到端）：** Intake LLM 直接产出 `pathPlan.steps[]` + `composeMode`（数组顺序 = 回答/执行顺序；`answerOrder` 可选）；pipeline **合法化 + 结构归一**（`dataSource`/`userFactKey`/`identityField`/`toolId` 族修正 kind）并派生 `compositeSlots`。LangGraph：**纯 list** → `listRetriever` → `contentOrganizer` → `analyst`；**纯总结（无查库）** → `contentSummarizer`；**复合** → `planCacheResolve` → `planFanOut`（每槽 `Send`→`kmRetrieve`/`listRetrieve`/… ∥`planDag`→Join 可选全局 B→`planMerge`）→ `contentOrganizer` → `analyst`。步可带 `emptyPolicy`（require/omit/degrade）。SSE 按真实图节点报步骤。
 
-**架构双线（2026-06，目录 2026-07 对齐）：**
+**架构双线（2026-06，目录 2026-07 对齐；Chat 2026-08）：**
 
 | 线 | 目录 | 编排 |
 |----|------|------|
-| **在线 Agent 实现** | `agentflow/agents/online/`（含 `tool-orchestrator/`） | 各 Agent 图节点；`file-handoff/` 只写信封 |
+| **在线 Agent 实现** | `agentflow/agents/online/`（含 `tool-orchestrator/`） | 各 Agent 图节点；`file-handoff/` 只写信封；Chat 走 `completeChat`/`streamChat` |
 | **文件子线（平级图）** | `agentflow/agents/sideline/file/` | 独立 compile `fambrain-file`；runtime `orchestrateAgentStream` 调用 |
 | **编排骨架 + SSE** | `agentflow/pipeline/` | 主图 `graph/` + `runtime/stream.ts`；双图编排 `runtime/orchestrate.ts` |
 | **离线** | `agentflow/agents/offline/` | 手动脚本：Indexer / DocParser 等 |
-| **工具定义** | `agentflow/tools/` | LangChain StructuredTool（被 tool-orchestrator 调用） |
+| **工具定义** | `agentflow/tools/` | **catalog `toolId` + `invokeTool`**（生产）；LangChain StructuredTool 仅实验 |
 
-架构演进详见 [架构 v2 §9 代码布局](./05-architecture-v2-tool-orchestration.md#9-代码布局演进2026-07)、[§10 列举 per-slot](./05-architecture-v2-tool-orchestration.md#10-列举执行-per-slot-演进-2026-07)。
+架构演进详见 [架构 v2 §9 代码布局](./05-architecture-v2-tool-orchestration.md#9-代码布局演进2026-07)、[§10 列举 per-slot](./05-architecture-v2-tool-orchestration.md#10-列举执行-per-slot-演进-2026-07)、[§14 P0-34](./05-architecture-v2-tool-orchestration.md#14-p0-34-猜模型意图兜底已清2026-08)。
 
 ## 全链路总览（离线入库 + 在线对话）
 
@@ -279,7 +279,7 @@ flowchart TD
 - **`external_link`**：GitHub、仓库、对外 URL；与 KM `queryProfile` 同名，**不走** enumeration projects fill。外链抽取工具 `extract_external_links_from_hits` 在 **tools 层**；Intake 只声明 `queryType=external_link` + `toolId`。
 - **`relations`**：语料亲友名册。槽 `topics` 含 `"family"` 时 `from-llm` 落 `queryType=relations` 并清 `identityField`（**只信槽字段，不扫问句「哥哥」**）；KM 只滤 `docKind=relations`。**不是** `identityField=name`、**不是** mem。`identity`+`name` 且无 family → 仍只搜档案。详见 [km-retrieval-design §六](./km-retrieval-design.md#六queryprofile-参数表)。
 
-**单问 / 多问统一路由：** Intake 出口 `resolveIntakeGraphRouteMode` 写入 **`routeMode`（与图节点 1:1）**；`routes.ts` 只读分发。优先级：**vault_workspace → fileHandoff**；其余 **userFact → respondEarly → …**（remember/recall 进 **userFact**；**仅一步 mem** 结构折叠为 recall 早退）。km/list/mem/tool/summarize/dag 并存 → `planFanOut`。空 pathPlan → `respondEarly`（clarify）。dag **仅** `hybrid_multi_source`。独立工具（如 `search_web`）→ `toolRetrieve`；扩展天气等同族只需加 `TOOL_RUN_IDS` + execute，无需新 PathKind。原文库 CRUD **不进 fan-out**，主图 `fileHandoff` → persistTurnEnd，HITL 在文件子图。
+**单问 / 多问统一路由：** Intake 出口 `resolveIntakeGraphRouteMode` 写入 **`routeMode`（与图节点 1:1）**；`routes.ts` 只读分发。优先级：**vault_workspace → fileHandoff**；其余 **userFact → respondEarly → …**（remember/recall 进 **userFact**；**仅一步 mem** 结构折叠为 recall 早退）。km/list/mem/tool/summarize/dag 并存 → `planFanOut`。空 pathPlan → `respondEarly`（clarify）。dag **仅** `hybrid_multi_source`。独立工具（如 `search_web` / `get_weather`）→ `toolRetrieve`；扩展同族只需加 `TOOL_RUN_IDS` + execute，无需新 PathKind。原文库 CRUD **不进 fan-out**，主图 `fileHandoff` → persistTurnEnd，HITL 在文件子图。
 
 **外链 / 混合：** `applyIntakeLinkLookupGuard` 仅做 **harmonize**。编号拆槽、混合步序由 **LLM 写齐 `pathPlan.steps[]`**（数组顺序即答序），代码不发明、不重排。列举分页 / UI exact-match 实现在 **`corpus-lister/enumeration`**（Intake `enumeration/` 仅 re-export）。详见 [坑点 §2.8](./04-pitfalls.md#28-pathplan-统一编排-p0-28--2026-07)、[§2.10](./04-pitfalls.md#210-intake-档-b主路径规划--旁路纠偏-p0-31--2026-07)。
 
@@ -359,16 +359,15 @@ flowchart TD
 ### 4. FactChecker — 已删除
 
 主链 **FactChecker 模块与打回再检索环已移除**（`apps/brain-service/.../fact-checker/` 已删）。  
-失败槽补救改为 **`planSlotJoin` 后全局再规划 B**（≤1），见 [控制面 §6](./06-architecture-control-plane.md)。  
-`StepResult.fc` 仍为工人占位字段，兼容下游，不再表示真实核查。
+`StepResult.fc` 字段已删除。失败槽补救改为 **`planSlotJoin` 后全局再规划 B**（≤1），见 [控制面 §6](./06-architecture-control-plane.md)。
 
 ### 5. InformationAnalyst — 信息分析师 ✅
 
 **职责：** 据整理后的 `hits` 写终稿；无证据时 `insufficientEvidence`，禁止编造履历。
 
-**P0-12（2026-06-18）：** `hits.length===0` 或 `coverage==="none"` 时 **`shouldSkipAnalystLlm`** 不调 Ollama，直出 `buildFallbackAnswer`（日志 `rules_empty_hits_skip_llm`）。年龄/姓名单问空 hits 有字段化文案（2026-06）。**P0-18（2026-06）：** slot + 槽答案缓存命中时不再误走空 hits 兜底，见 [坑点 §2.5.4](./04-pitfalls.md#254-单问年龄--多轮-cache-p0-18--2026-06)。
+**P0-12（2026-06-18）：** `hits.length===0` 或 `coverage==="none"` 时 **`shouldSkipAnalystLlm`** 不调 Chat LLM，直出 `buildFallbackAnswer`（日志 `rules_empty_hits_skip_llm`）。年龄/姓名单问空 hits 有字段化文案（2026-06）。**P0-18（2026-06）：** slot + 槽答案缓存命中时不再误走空 hits 兜底，见 [坑点 §2.5.4](./04-pitfalls.md#254-单问年龄--多轮-cache-p0-18--2026-06)。
 
-**P0-15 composite（2026-06）：** `compositeSubResults.length ≥ 2` → **`stream-composite.ts`** 顺序分问 token 流式；槽答案缓存 命中 instant 回放；新 facet 写回 `composite-answer-cache`。≥2 槽跳过 FactChecker LLM。
+**P0-15 composite（2026-06）：** `compositeSubResults.length ≥ 2` → **`stream-composite.ts`** 顺序分问 token 流式；槽答案缓存 命中 instant 回放；新 facet 写回 `composite-answer-cache`。
 
 **P0-19 / P0-20（2026-06）：** 单问 `identity` / `enumeration` / `default` 走 **plain-text 流式**（与 composite 子问同路径，`think: false`），避免 JSON 解析失败退回「根据知识库摘录」体；hits 上限与 KM **queryProfile** 对齐（`analyst-recall-limits.ts`）；ContentOrganizer 按 profile 设 `maxHits`。详见 [坑点 §2.5.5](./04-pitfalls.md#255-analyst-纯文本流--enumeration-项目公司分流-p0-19--p0-20--p0-21--2026-06)。
 
@@ -537,7 +536,7 @@ flowchart LR
 | 步骤 | 做什么 | 文件 | 方法 |
 |------|--------|------|------|
 | 1 | 截断正文（≤12k 字） | `summarize.ts` | `summarizeContent()` |
-| 2 | Ollama + Zod | `schema.ts`, `prompt.ts` | `parseContentSummaryResult()` |
+| 2 | `completeChat` + Zod | `schema.ts`, `prompt.ts` | `parseContentSummaryResult()` |
 | 3 | 读文件 | `summarize-file.ts` | `summarizeMarkdownFile()` |
 | 4 | 编排 | `compile.ts` | `contentSummarizerNode()`；`buildSummarizeSourceText()` |
 | 5 | 展示 | `format-answer.ts` | `formatSummaryAsAnswer()` |
@@ -559,7 +558,7 @@ flowchart TD
   RT --> OUT[assistant：终稿 + 可选 CTA]
 ```
 
-**验证：** `pnpm run verify:content-summarizer`；`verify:agent-schemas`（含 `summarize_content` intent）；CLI 需 Ollama。
+**验证：** `pnpm run verify:content-summarizer`；`verify:agent-schemas`（含 `summarize_content` intent）；CLI 跟 `CHAT_PROVIDER`。
 
 ### 10. 实验触达 — MCP / Recall / Vercel AI ✅
 
@@ -567,7 +566,7 @@ flowchart TD
 
 | 实验 | 命令 | 作用 |
 |------|------|------|
-| MCP 列 vault | `pnpm run experiment:mcp-vault` | stdio MCP 工具 `list_vault_files` |
+| MCP 列 vault | `pnpm run experiment:mcp-vault` | stdio MCP 工具 `list_vault_files`（实验） |
 | Recall 对比 | `pnpm run experiment:recall-compare -- <userId> "query"` | Qdrant sparse vs `searchCorpusVectors` |
 | Sparse / Hybrid 自测 | `pnpm run verify:sparse-recall` / `verify:hybrid-recall` / `verify:recall-compare` | HY-01～07 |
 | Vercel AI SDK | `pnpm run experiment:vercel-ai -- "prompt"` | `streamText` + Ollama（主链仍自研 SSE） |
@@ -605,19 +604,32 @@ pnpm --filter @fambrain/brain-service run verify:user-memory-extract
 # Web：聊天助手消息下 👍👎 反馈按钮（非 Learning HITL）
 ```
 
-### 12. LangChain StructuredTool 层 ✅
+### 12. 工具层（catalog + invoke · 实验 StructuredTool）✅
 
-**定位：** 将已有 FamBrain 能力封装为 LangChain **`tool()`**（Zod schema），供实验性 `bindTools` / 外部 Agent 复用；**主聊天仍走 LangGraph 固定节点**，不由 LLM 自主选工具。
+**生产：** Intake 在 `pathPlan` 声明 `toolId` → `tools/catalog` 白名单 → `invokeTool` 分发。模型 **不** `tools/list` / ReAct / `bindTools`。
+
+| toolId | 实现 | 说明 |
+|--------|------|------|
+| `retrieve_corpus` / `list_corpus_entries` | KM / Lister | 检索与目录列举 |
+| `compute_age_from_hits` / `compute_tenure_from_hits` / `extract_identity_from_hits` | `tools/local/identity` | 确定性计算，Analyst 不推算 |
+| `extract_external_links_from_hits` | `tools/local/links` | 从 hits 抽对外 URL |
+| `compose_enumeration` | 列举成稿 | blocks + 分页文案 |
+| `search_web` | Tavily | 未配 key → disabled |
+| `translate_text` | 有道 | 无凭证 → disabled |
+| `synthesize_merge` | DAG 汇合 | MatchReport 四栏 |
+| `get_weather` | MCP Open-Meteo | `tools/mcp/server/weather` |
+
+**实验适配器：** 将部分能力封装为 LangChain **`tool()`**，供 `bindTools` / 外部 Agent 复用；**主聊天仍走 LangGraph 固定节点**。
 
 | Tool | 包装 | 说明 |
 |------|------|------|
 | `retrieve_corpus` | `retrieveKnowledge` | 语料 hybrid 检索，返回 JSON hits |
 | `remember_user_fact` | `addStructuredUserFact` | 结构化写入 Mem0 |
 | `recall_user_fact` | `searchUserFactMemories` | 跨会话召回 user_fact |
-| `list_vault_files` | `listVaultFiles` | vault 只读列举（同 MCP） |
-| `summarize_text` | `summarizeContent` | 正文摘要（需 Ollama） |
+| `list_vault_files` | `listVaultFiles` | vault 只读列举（实验 MCP 同名） |
+| `summarize_text` | `summarizeContent` | 正文摘要（跟 `CHAT_PROVIDER`） |
 
-调用前须 `runWithToolContext({ corpusUserId, actorUserId }, () => tool.invoke(...))` 注入上下文。
+调用实验 StructuredTool 前须 `runWithToolContext({ corpusUserId, actorUserId }, () => tool.invoke(...))` 注入上下文。
 
 **LangSmith：** `bootstrapBrainServiceRuntime()` → `configureLangSmithTracing()`；`graph.stream` 附带 `runName` / `metadata`（conversationId 等）。配 `LANGSMITH_API_KEY` 后在 [smith.langchain.com](https://smith.langchain.com) 查看 trace。
 
@@ -658,7 +670,7 @@ pnpm --filter @fambrain/brain-service run experiment:bind-tools -- "我的名字
 | `intent === "summarize_content"` 且需查库（`searchQuery` 非空） | `retrieval` → **contentSummarizer** | 摘要终稿（阅读已有语料，**不出闸**） |
 | `intent === "summarize_content"` 且无需查库（粘贴长文） | **contentSummarizer** → **fileHandoff** → persistTurnEnd → 文件子图 saveHitl | 摘要终稿 + 是否入库 |
 | `attachmentAction` 为 `summarize` / `translate` | 总结或翻译链 → **fileHandoff** → persistTurnEnd → 文件子图 | 终稿 + 是否入库（聊天附件不再 ingest） |
-| `intent` 为 `remember_user_fact` / `recall_user_fact` 且 Intake 填齐 schema | **userFact** → 终稿 | SSE：`user_fact`；**不经 KM / FC / Analyst** |
+| `intent` 为 `remember_user_fact` / `recall_user_fact` 且 Intake 填齐 schema | **userFact** → 终稿 | SSE：`user_fact`；**不经 KM / Analyst** |
 | `retrieve_and_answer` / composite 等需检索 | `planCacheResolve` → **planFanOut**（km/list/mem/tool/…）→ **contentOrganizer** → **Analyst** | 检索 + 分析终稿 |
 | Join 后结构失败槽 | **全局再规划 B**（≤1） | 改 query / 外搜补救；不再打回 FactChecker |
 | 其余 | `respondEarly` | 简短说明或请用户补充 |
@@ -671,7 +683,7 @@ pnpm --filter @fambrain/brain-service run experiment:bind-tools -- "我的名字
 | `step` | 编排进度：**`prepare_turn_start`** / `intake` / **`user_fact`** / `plan_fan_out` / `list_retrieve` / `km_retrieve` / **`content_summarizer`** / **`content_organizer`** / `analyst` / **`file_handoff`** / **`persist_turn_end`** / **`file_agent`**，`status` 为 `running` \| `done`；`done` 时可带 `durationMs`（无 `fact_checker`） |
 | `pipeline_timing` | SLO：本轮 `totalMs`、`ttftMs`、各节点 `nodes`（Agents → BFF 转发） |
 | `ready` | Pipeline 已出终稿、即将落库（BFF）；前端可提前解锁输入 |
-| `thinking` | 信息分析师推理流（若模型/Ollama 支持） |
+| `thinking` | 信息分析师推理流（若当前 Chat 提供商支持） |
 | `assistant` | 面向用户的正文增量（流结束后以 `answer` 写入 DB） |
 | `done` | 流结束，含 user/assistant 消息 id、终稿 `content`、可选 `timing`。生成停也走 `done`（半截稿即终稿） |
 | `paused` | 文件子线 HITL（工作台或写回闸门）：`kind=vault_wait`，**必须带 `jobId`** 才能 Resume；**不是**生成停 |

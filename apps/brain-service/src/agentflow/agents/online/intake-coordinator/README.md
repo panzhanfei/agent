@@ -12,7 +12,7 @@ Intake 是 Pipeline 的**第一个 LLM 在线 Agent**（图内位于 **`prepareT
 
 | 问题 | Intake 的解法 |
 |------|---------------|
-| 下游 KM / FC / Analyst 各自猜意图会冲突 | **单一决策点**：只在这里定 intent + searchQuery |
+| 下游 KM / Analyst 各自猜意图会冲突 | **单一决策点**：只在这里定 intent + searchQuery + pathPlan |
 | 纯 LLM 不稳定（闲聊乱称呼、指代误判） | **LLM 理解 + 轻量 guard**（指代/多槽语义终稿归 LLM；闲聊/schema 合法化/canonicalize） |
 | 多问并列难检索 | **pathPlan.steps[] → 派生 compositeSlots**，按序独立 KM/list |
 | 用户口述 QQ/微信不在简历里 | **userFact 分支**（routeMode=`userFact`，优先于 respondEarly），走 Mem0，不经 KM |
@@ -551,7 +551,7 @@ LLM 返回非 JSON / Zod 校验失败
 
 | 文件 | 职责 |
 |------|------|
-| `intake-node.ts` | 入口短路（社交/单字）→ 原文 LLM →（未消解则拼接重试 1×）→ `runIntakePipeline()` |
+| `intake-node`（包根 `index.ts`） | 入口短路（单字残缺 / UI exact-match / vault UI）→ `completeChat` →（JSON 格式修复 1×）→ `runIntakePipeline()` |
 
 > respondEarly / userFact 已迁出本目录：`../respond-early/`、`../user-fact/`。
 
@@ -561,7 +561,7 @@ LLM 返回非 JSON / Zod 校验失败
 |------|------|
 | `intake-continuation-guard.ts` | 恒 noop（指代归 LLM + node merge） |
 | `intake-link-lookup-guard.ts` | `external_link` harmonize；不发明 multipart 拆槽 |
-| `intake-chitchat-guard.ts` | chitchat 注入 briefReply；`applyPureSocialUtteranceGuard` 供 runIntakeNode / verify |
+| `intake-chitchat-guard.ts` | chitchat 注入 briefReply；`isPureSocialUtterance` stub 恒 false |
 | `intake-retrieval-plan-guard.ts` | schema 合法化 + facet 去重 + canonicalize（保留非空 searchQuery） |
 | `composite-route-guard.ts` | plan → slots；空 plan → clarify |
 | `enumeration-list-intent.ts` | 列举分页 intent（preview / continue / exhaustive） |

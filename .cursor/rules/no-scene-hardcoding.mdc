@@ -102,6 +102,6 @@ matchUiEnumerationPrompt(userQuestion);
 
 ## 相关文档
 
-- 坑点：[docs/04-pitfalls.md](../docs/04-pitfalls.md)（P0-30、P0-32、**P0-34** 猜意图兜底债 → Dify/换模型后删）
+- 坑点：[docs/04-pitfalls.md](../docs/04-pitfalls.md)（P0-30、P0-32、**P0-34 猜意图兜底已清**）
 - 流程：[docs/02-agent-flows.md](../docs/02-agent-flows.md)
-- 架构：[docs/05-architecture-v2-tool-orchestration.md](../docs/05-architecture-v2-tool-orchestration.md) §14 · [docs/06-architecture-control-plane.md](../docs/06-architecture-control-plane.md) 阶段 8
+- 架构：[docs/05-architecture-v2-tool-orchestration.md](../docs/05-architecture-v2-tool-orchestration.md) §14 · [docs/06-architecture-control-plane.md](../docs/06-architecture-control-plane.md) 阶段 8（Chat 可切换，**不接入 Dify**）

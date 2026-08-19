@@ -77,10 +77,10 @@ routeAfterIntake()                    pipeline/graph/routes.ts
     ├─ 纯 list（全部槽 executor=list_corpus）→ listRetriever（../corpus-lister/）
     │
     └─ 复合 / km / tool / dag → planCacheResolve（`agentflow/cache` 全量 facet+hits）
-          └─ planFanOut Send：kmRetrieve（读预置 cache + FC）/ listRetrieve / …
+          └─ planFanOut Send：kmRetrieve（读预置 cache）/ listRetrieve / …
                 pathPlan 派生 slots
-                  ├─ executor=km_retrieve → 预置 hits / facet 短路 + FC
-                  └─ executor=list_corpus → fetchListSlot（不经 FC）
+                  ├─ executor=km_retrieve → 预置 hits / facet 短路
+                  └─ executor=list_corpus → fetchListSlot
     │
     ▼
 planSlotJoin 混排 → planSlotPost(tools) → planMerge
@@ -95,7 +95,7 @@ contentOrganizer → analyst
 
 ### 3.2 单槽检索（每槽 Send）
 
-复合路径：`planCacheResolve` 预拼 `resolvedSub`；`slot/execute-sub`（retrieve + writeHitsCache）；`slot/index` FC。
+复合路径：`planCacheResolve` 预拼 `resolvedSub`；`slot/execute-sub`（retrieve + writeHitsCache）。
 
 ### 3.3 单问检索内部（`retrieveKnowledge`）
 

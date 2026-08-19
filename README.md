@@ -1,6 +1,8 @@
 # FamBrain
 
-基于 **Next.js（App Router）** 的家庭协作型对话应用：注册登录、成员审核、会话持久化，以及 **多 Agent 聊天闭环**（意图路由 → 知识库检索 → 归纳回答，SSE 流式）。
+基于 **Next.js（App Router）** 的家庭协作型对话应用：注册登录、成员审核、会话持久化，以及 **多 Agent 聊天闭环**（Intake 结构化工单 → PathPlan 并行取数 → 归纳回答，SSE 流式）。
+
+提示词、schema 与编排都在本仓库；**不接入 Dify**。在线 Chat 由 `CHAT_PROVIDER=ollama|openai` 显式切换（openai 默认 DeepSeek Flash），失败不会静默回落到本地 14b。embed / 图片 OCR / Mem0 向量仍走 Ollama。
 
 ## 快速开始
 
@@ -11,7 +13,8 @@ pnpm install
 cp .env.example .env
 pnpm run db:migrate
 pnpm run db:generate
-# 本地对话需 Ollama，例如：ollama pull qwen2.5:14b
+# Chat 用 openai（DeepSeek）时配 OPENAI_API_KEY 或 DEEPSEEK_API_KEY，并设 CHAT_PROVIDER=openai
+# embed / OCR 仍需 Ollama，例如：ollama pull nomic-embed-text
 # 本地 Qdrant：pnpm run qdrant:server（或 pnpm dev 自动 docker compose up qdrant）
 pnpm run dev    # 一键：Qdrant + Redis + Web + Brain Service
 ```
@@ -24,12 +27,14 @@ pnpm run dev    # 一键：Qdrant + Redis + Web + Brain Service
 
 | 文档 | 内容 |
 |------|------|
-| [01 · 项目简介与技术栈](docs/01-project-overview.md) | 快速开始、脚本、环境变量、代码结构 |
-| [02 · Agent 流程图](docs/02-agent-flows.md) | 全链路 / 在线编排 / 单 Agent 实现、SSE 契约 |
-| [03 · 坑点清单](docs/04-pitfalls.md) | 行业常见坑 + 本项目踩坑 + 调试 checklist |
-| [04 · 架构 v2 工具编排](docs/05-architecture-v2-tool-orchestration.md) | 四类数据源、ToolOrchestrator/DagExecutor、**代码布局演进**、**列举 per-slot** |
+| [01 · 项目简介与技术栈](docs/01-project-overview.md) | 现状、快速开始、脚本、环境变量、代码结构 |
+| [02 · Agent 流程图](docs/02-agent-flows.md) | 全链路 / 双图编排 / 单 Agent 实现、SSE 契约 |
+| [04 · 坑点清单](docs/04-pitfalls.md) | 行业常见坑 + 本项目踩坑 + 调试 checklist |
+| [05 · 架构 v2 工具编排](docs/05-architecture-v2-tool-orchestration.md) | 四类数据源、catalog `invokeTool`、PathPlan、P0-34 已清 |
+| [06 · 控制面](docs/06-architecture-control-plane.md) | 槽状态机、全局 B、文件 HITL、阶段 0～8（Chat 可切换，无 Dify） |
+| [KM 检索设计](docs/km-retrieval-design.md) | Qdrant hybrid RRF、queryProfile、`topics`→`docKind` |
 
-**测试：** `pnpm test:all`（依赖树校验 + 单元测试）· `pnpm test:unit` · `pnpm check:deps`
+**测试：** `pnpm test:all`（依赖树校验 + 单元测试）· `pnpm test:unit` · `pnpm check:deps` · Brain：`golden:regression`（G1～G5c + GMem）· `eval:run`
 
 ## 常用命令
 
@@ -44,7 +49,10 @@ pnpm run pack:deploy      # 本地构建并打 tar 部署包
 pnpm run docker:up        # Docker 一键启动 web + brain-service + qdrant + redis
 pnpm run index:corpus     # 离线语料入库（apps/brain-service）
 pnpm run summarize:document -- path/to.md   # 内容摘要师 CLI
-pnpm run experiment:mcp-vault             # MCP 只读列 vault
+# Brain 回归（需 Qdrant；Chat 跟 CHAT_PROVIDER）
+#   cd apps/brain-service && pnpm run golden:regression
+#   cd apps/brain-service && pnpm run eval:run
+pnpm run experiment:mcp-vault             # MCP 只读列 vault（实验）
 pnpm run experiment:recall-compare -- <userId> "query"
 pnpm run experiment:vercel-ai -- "prompt"
 pnpm run experiment:bind-tools -- "我的名字是什么？"
