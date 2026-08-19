@@ -5,7 +5,7 @@ import {
     extractTenureEntityHints,
     extractTenureFromHits,
     parseTenureRangesFromText,
-} from "@/agentflow/tools/identity";
+} from "@/agentflow/tools/local/identity";
 
 describe("parseTenureRangesFromText", () => {
     it("parses resume timeline table rows", () => {

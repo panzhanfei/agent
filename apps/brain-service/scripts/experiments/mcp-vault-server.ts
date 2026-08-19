@@ -4,6 +4,7 @@
  *   pnpm run experiment:mcp-vault
  *
  * Cursor / Claude Desktop 可配置 command 指向本脚本。
+ * 稳定后迁到 `@/agentflow/tools/mcp/server`（经 invoke 对外暴露）。
  */
 import { McpServer } from "@modelcontextprotocol/sdk/server/mcp.js";
 import { StdioServerTransport } from "@modelcontextprotocol/sdk/server/stdio.js";

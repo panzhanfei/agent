@@ -11,7 +11,7 @@ import {
     resolveAnalystQueryProfile,
     sliceHitsForAnalystStream,
 } from "../limits";
-import { resolveOrchestratedTool } from "@/agentflow/tools/orchestrated";
+import { resolveOrchestratedTool } from "@/agentflow/tools/local/orchestrated";
 import { pickToolResultForSubQuestion } from "../pick-tool-result";
 import {
     buildSubQuestionFallbackAnswer,

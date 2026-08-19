@@ -1,10 +1,10 @@
 import type { StructuredToolInterface } from "@langchain/core/tools";
-import { computeAgeFromHitsTool, getCurrentDateTool } from "./identity";
-import { listVaultFilesTool, retrieveCorpusTool } from "./corpus";
-import { searchWebTool } from "./web";
-import { translateTextTool } from "./translate";
-import { summarizeTextTool } from "./summarize";
-import { recallUserFactTool, rememberUserFactTool } from "./user-fact";
+import { computeAgeFromHitsTool, getCurrentDateTool } from "./local/identity";
+import { listVaultFilesTool, retrieveCorpusTool } from "./local/corpus";
+import { searchWebTool } from "./local/web";
+import { translateTextTool } from "./local/translate";
+import { summarizeTextTool } from "./local/summarize";
+import { recallUserFactTool, rememberUserFactTool } from "./local/user-fact";
 
 export {
   getToolContext,
@@ -12,12 +12,12 @@ export {
   type FambrainToolContext,
 } from "./context";
 
-export { retrieveCorpusTool, listVaultFilesTool } from "./corpus";
-export { rememberUserFactTool, recallUserFactTool } from "./user-fact";
-export { summarizeTextTool } from "./summarize";
-export { computeAgeFromHitsTool, getCurrentDateTool } from "./identity";
-export { searchWebTool } from "./web";
-export { translateTextTool } from "./translate";
+export { retrieveCorpusTool, listVaultFilesTool } from "./local/corpus";
+export { rememberUserFactTool, recallUserFactTool } from "./local/user-fact";
+export { summarizeTextTool } from "./local/summarize";
+export { computeAgeFromHitsTool, getCurrentDateTool } from "./local/identity";
+export { searchWebTool } from "./local/web";
+export { translateTextTool } from "./local/translate";
 
 export {
   ANALYST_FALLBACK_TOOL_IDS,
@@ -25,6 +25,7 @@ export {
   IDENTITY_FIELD_BY_ID,
   LANGCHAIN_TOOL_NAMES,
   PIPELINE_TOOL_IMPL,
+  PIPELINE_TOOL_TRANSPORT,
   POST_RETRIEVAL_TOOL_IDS,
   TOOL_RUN_IDS,
   isPostRetrievalToolId,
@@ -35,16 +36,23 @@ export {
   type LangchainToolName,
   type PostRetrievalToolId,
   type ToolRunId,
+  type ToolTransport,
 } from "./catalog";
 
 export { invokeTool, type InvokeToolContext } from "./invoke";
+
+export {
+  MCP_CLIENT_BINDINGS,
+  MCP_SERVER_EXPORTS,
+  callRegisteredMcpTool,
+} from "./mcp";
 
 export {
   ORCHESTRATED_TOOL_IDS,
   resolveOrchestratedTool,
   runOrchestratedSubQuestion,
   type OrchestratedToolId,
-} from "./orchestrated";
+} from "./local/orchestrated";
 
 export {
   buildAgeAnswer,
@@ -53,7 +61,7 @@ export {
   extractBirthOrAgeFromText,
   isAgeSubQuestion,
   type BirthDate,
-} from "./identity";
+} from "./local/identity";
 
 export {
   extractExternalLinksFromHits,
@@ -63,17 +71,17 @@ export {
   runExtractExternalLinksFromHits,
   type ExtractedLink,
   type ExternalLinkScope,
-} from "./links";
+} from "./local/links";
 
-export { runSearchWeb } from "./web";
-export { runTranslateText } from "./translate";
+export { runSearchWeb } from "./local/web";
+export { runTranslateText } from "./local/translate";
 export {
   runComputeAgeFromHits,
   runComputeTenureFromHits,
   runExtractIdentityFromHits,
-} from "./identity";
-export { runRetrieveCorpus } from "./corpus";
-export { runComposeEnumeration, runListCorpusEntries } from "./enumeration";
+} from "./local/identity";
+export { runRetrieveCorpus } from "./local/corpus";
+export { runComposeEnumeration, runListCorpusEntries } from "./local/enumeration";
 export {
   runSynthesizeMerge,
   invokeSynthesizeMerge,
@@ -82,7 +90,7 @@ export {
   MATCH_REPORT_HEADINGS,
   renderMatchReportMarkdown,
   matchReportToBlocks,
-} from "./synthesize";
+} from "./local/synthesize";
 
 /** FamBrain 在线能力对应的 LangChain StructuredTool（主 pipeline 仍走 invoke(toolId)） */
 export const createFambrainTools = (): StructuredToolInterface[] => [

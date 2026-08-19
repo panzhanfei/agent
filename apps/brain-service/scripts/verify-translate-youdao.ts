@@ -3,7 +3,7 @@
  *
  *   pnpm --filter @fambrain/brain-service run verify:translate
  */
-import { translateTextTool } from "../src/agentflow/tools/translate";
+import { translateTextTool } from "../src/agentflow/tools/local/translate";
 
 const main = async () => {
   const raw = await translateTextTool.invoke({

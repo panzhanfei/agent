@@ -9,6 +9,6 @@ export {
   matchReportToBlocks,
   parseMatchReport,
   renderMatchReportMarkdown,
-} from "@/agentflow/tools/synthesize";
+} from "@/agentflow/tools/local/synthesize";
 export { runToolOrchestratorNode } from "./tool-run";
 export { runToolRetrieveNode, runToolSlotWorker } from "./tool-retrieve";

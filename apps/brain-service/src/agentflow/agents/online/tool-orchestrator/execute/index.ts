@@ -3,20 +3,20 @@
  */
 import type { PipelineGraphState } from "@/agentflow/pipeline/graph/state";
 import { invokeTool } from "@/agentflow/tools/invoke";
-import { runRetrieveCorpus } from "@/agentflow/tools/corpus";
+import { runRetrieveCorpus } from "@/agentflow/tools/local/corpus";
 import {
   runComposeEnumeration,
   runListCorpusEntries,
-} from "@/agentflow/tools/enumeration";
+} from "@/agentflow/tools/local/enumeration";
 import {
   runComputeAgeFromHits,
   runComputeTenureFromHits,
   runExtractIdentityFromHits,
-} from "@/agentflow/tools/identity";
-import { runExtractExternalLinksFromHits } from "@/agentflow/tools/links";
-import { runSynthesizeMerge } from "@/agentflow/tools/synthesize";
-import { runTranslateText } from "@/agentflow/tools/translate";
-import { runSearchWeb } from "@/agentflow/tools/web";
+} from "@/agentflow/tools/local/identity";
+import { runExtractExternalLinksFromHits } from "@/agentflow/tools/local/links";
+import { runSynthesizeMerge } from "@/agentflow/tools/local/synthesize";
+import { runTranslateText } from "@/agentflow/tools/local/translate";
+import { runSearchWeb } from "@/agentflow/tools/local/web";
 import { resolveIdentityField } from "../catalog";
 import type {
   ExecutionPlanNode,

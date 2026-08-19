@@ -1,7 +1,7 @@
 import { tool } from "@langchain/core/tools";
 import { listVaultFiles } from "@fambrain/corpus";
 import { z } from "zod";
-import { getToolContext } from "../context";
+import { getToolContext } from "../../context";
 
 export const listVaultFilesTool = tool(
     async (input) => {

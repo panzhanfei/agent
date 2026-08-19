@@ -140,7 +140,7 @@ const main = async (): Promise<void> => {
         process.env.FAMBRAIN_DOC_ROOT_OVERRIDE = tmp;
         try {
             const { listVaultFilesTool } = await import(
-                "@/agentflow/tools/corpus"
+                "@/agentflow/tools/local/corpus"
             );
             const { runWithToolContext } = await import(
                 "@/agentflow/tools/context"

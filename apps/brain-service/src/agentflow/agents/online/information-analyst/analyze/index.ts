@@ -13,7 +13,7 @@ import type { IntakeIdentityField } from "@/agentflow/agents/online/intake-coord
 import {
   resolveOrchestratedTool,
   runOrchestratedSubQuestion,
-} from "@/agentflow/tools/orchestrated";
+} from "@/agentflow/tools/local/orchestrated";
 import type { PipelineToolResults } from "@/agentflow/agents/online/tool-orchestrator/interface";
 import {
   pickToolResultForSubQuestion,

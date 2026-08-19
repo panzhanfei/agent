@@ -1,7 +1,7 @@
 import { tool } from "@langchain/core/tools";
 import { z } from "zod";
 import { retrieveKnowledge } from "@/agentflow/agents/online/knowledge-manager";
-import { getToolContext } from "../context";
+import { getToolContext } from "../../context";
 
 const queryTypeSchema = z.enum([
     "identity",

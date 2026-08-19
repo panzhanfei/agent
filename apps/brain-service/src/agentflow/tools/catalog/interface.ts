@@ -48,7 +48,7 @@ export type LangchainToolName =
   | "translate_text"
   | "get_current_date";
 
-/** 实现所在 tools/ 子目录（一工具一入口，供盘点；invoke 按 toolId 调 run*） */
+/** 实现所在 tools/local/<name>（一工具一入口；invoke 按 toolId 调 run*） */
 export type PipelineToolFolder =
   | "corpus"
   | "enumeration"
@@ -57,6 +57,14 @@ export type PipelineToolFolder =
   | "web"
   | "translate"
   | "synthesize";
+
+/**
+ * 运输方式（不是第三份 tool 清单）：
+ * - local：本仓库 run*
+ * - http：直连外部 HTTP（有道 / Tavily / Open-Meteo）
+ * - mcp：invoke 经 mcp/client 调已登记 Server
+ */
+export type ToolTransport = "local" | "http" | "mcp";
 
 /** 声明式 identity 字段 → 工具映射（由 Intake identityField 索引） */
 export type IdentityFieldSpec = {

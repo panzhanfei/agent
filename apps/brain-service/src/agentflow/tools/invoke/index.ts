@@ -1,22 +1,23 @@
 /**
- * 生产路径唯一 dispatcher：按 toolId 调 `@/agentflow/tools/<folder>` 的 run*。
+ * 唯一分发：按 toolId 调领域 run*；transport=mcp 时走 mcp/client 已登记绑定。
  */
 import type { IntakeIdentityField } from "@/agentflow/agents/online/intake-coordinator/contract";
-import { runRetrieveCorpus } from "@/agentflow/tools/corpus";
+import { runRetrieveCorpus } from "@/agentflow/tools/local/corpus";
 import {
   runComposeEnumeration,
   runListCorpusEntries,
-} from "@/agentflow/tools/enumeration";
+} from "@/agentflow/tools/local/enumeration";
 import {
   runComputeAgeFromHits,
   runComputeTenureFromHits,
   runExtractIdentityFromHits,
-} from "@/agentflow/tools/identity";
-import { runExtractExternalLinksFromHits } from "@/agentflow/tools/links";
-import { runSynthesizeMerge } from "@/agentflow/tools/synthesize";
-import { runTranslateText } from "@/agentflow/tools/translate";
-import { runSearchWeb } from "@/agentflow/tools/web";
-import { IDENTITY_FIELD_BY_ID } from "@/agentflow/tools/catalog";
+} from "@/agentflow/tools/local/identity";
+import { runExtractExternalLinksFromHits } from "@/agentflow/tools/local/links";
+import { runSynthesizeMerge } from "@/agentflow/tools/local/synthesize";
+import { runTranslateText } from "@/agentflow/tools/local/translate";
+import { runSearchWeb } from "@/agentflow/tools/local/web";
+import { IDENTITY_FIELD_BY_ID, PIPELINE_TOOL_TRANSPORT } from "@/agentflow/tools/catalog";
+import { callRegisteredMcpTool } from "@/agentflow/tools/mcp/client";
 import type {
   ExecutionPlanNode,
   InvokeToolContext,
@@ -38,6 +39,27 @@ export const invokeTool = async (
   node: ExecutionPlanNode,
   ctx: InvokeToolContext
 ): Promise<ToolRunResult> => {
+  if (PIPELINE_TOOL_TRANSPORT[node.toolId] === "mcp") {
+    const called = await callRegisteredMcpTool({
+      toolId: node.toolId,
+      arguments: {
+        searchQuery: node.searchQuery ?? ctx.userQuestion,
+        webQuery: node.webQuery,
+        label: node.label,
+      },
+    });
+    return {
+      toolId: node.toolId,
+      label: node.label,
+      ok: called.ok,
+      answer: called.text,
+      citations: [],
+      hits: [],
+      insufficientEvidence: !called.ok,
+      confidence: called.ok ? 0.9 : 0.5,
+    };
+  }
+
   const hits = node.hitsOverride ?? ctx.hits;
 
   switch (node.toolId) {

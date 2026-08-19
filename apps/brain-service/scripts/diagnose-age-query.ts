@@ -145,7 +145,7 @@ const main = async () => {
     /年龄|出生|周岁|19\d{2}|20\d{2}/.test(h.excerpt)
   );
   const { runOrchestratedSubQuestion } = await import(
-    "../src/agentflow/tools/orchestrated"
+    "../src/agentflow/tools/local/orchestrated"
   );
   const orchestrated = await runOrchestratedSubQuestion({
     userQuestion: USER_QUESTION,

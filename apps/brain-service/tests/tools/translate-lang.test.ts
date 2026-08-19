@@ -2,7 +2,7 @@ import { describe, expect, it } from "vitest";
 import {
   legalizeYoudaoSourceLang,
   legalizeYoudaoTargetLang,
-} from "@/agentflow/tools/translate";
+} from "@/agentflow/tools/local/translate";
 import { normalizeStructuredFactValue } from "@fambrain/brain-memory";
 
 describe("legalizeYoudaoTargetLang", () => {

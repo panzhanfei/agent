@@ -141,7 +141,7 @@
 | 模块 | 密度 | 为什么还在 | 换模型后 |
 |------|------|------------|----------|
 | **Intake** `path-plan/from-llm.ts` · `pipeline/intake-pipeline.ts` · `contract/schema.ts` | **最密** | 小模型漏 `kind=mem` / 乱填 identityField / 空 plan；为过 eval 猜 LLM 本意 | **先砍这里**：亲友 searchQuery 改写、`km-qq`→mem、空 plan→remember、pathPlan 抬升 userFact |
-| **工具** `tools/identity/compute-age.ts` · `orchestrated/run-sub-question.ts` · `tools/links/extract-external-links.ts` | **次密** | 无 `identityField`/`toolId` 时用问句/label 口语兜底 | **随后砍**：只信 Intake 结构化字段；外链只对 excerpt 抽 URL |
+| **工具** `tools/local/identity/compute-age.ts` · `local/orchestrated/run-sub-question.ts` · `tools/local/links/extract-external-links.ts` | **次密** | 无 `identityField`/`toolId` 时用问句/label 口语兜底 | **随后砍**：只信 Intake 结构化字段；外链只对 excerpt 抽 URL |
 | **Mem0** `user-fact/mem-retrieve` | 薄 | 无 key 时 `normalizeFactKey(label)` 发明字段名 | 无 key → clarify，禁止发明 key |
 | KM / Analyst / plan-fanout | 几乎无 | — | 不必为「去硬编码」大改 |
 | `tool-orchestrator/catalog`、excerpt 表头、UI exact-match | **不是债** | schema→executor / 语料结构 / 按钮精确匹配 | **保留** |
@@ -182,7 +182,7 @@
 | **P1** | `contract/schema.ts` | intent/queryType 别名；`liftUserFactFieldsFromPathPlan`（params / `mem-*` id） | 别名可留极薄一层；**pathPlan 抬升尽量删** |
 | **P1** | `from-llm.ts` `ensureMemRecallStepFromTopUserFact` | 顶层 key 无 mem 步 → 注入 mem 步 | **删**；复合问须 LLM 写齐 mem 步 |
 | **P1** | `tools/.../run-sub-question.ts` + `compute-age.ts` | 问句 `/年龄\|多大\|几岁/` → 强行走 age 工具 | **删**口语；只信 `identityField`/`toolId` |
-| **P1** | `tools/links/extract-external-links.ts` | 对 label/问句剥离开源·GitHub 类口语 | **删**或仅保留对 **excerpt** 的 URL 抽取（允许 D） |
+| **P1** | `tools/local/links/extract-external-links.ts` | 对 label/问句剥离开源·GitHub 类口语 | **删**或仅保留对 **excerpt** 的 URL 抽取（允许 D） |
 | **P2** | `composite/repair-retrieval-plan.ts` | 缺 `listKind` 时用 topics 猜 project/experience | **收窄**；缺则 clarify 或丢步 |
 | **P2** | `guards/intake-link-lookup-guard.ts` | 按 plan 形状改写 `external_link` | 复盘后能删则删 |
 | **P2** | `user-fact/mem-retrieve` | 无 key：`normalizeFactKey(label) \|\| "user_fact"` | **删**发明 key |

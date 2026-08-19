@@ -34,7 +34,7 @@
 | Redis + BullMQ | `@fambrain/infra`：检索 hits 缓存（D5-2）、pipeline 异步队列（可选 `PIPELINE_QUEUE_ENABLED`） |
 | Mem0 | 跨会话语义记忆；向量落 **Qdrant** 独立 collection（`fambrain_user_memories`，dense-only），history 在 SQLite；**P0-16** 结构化 remember/recall 经 **userFact** |
 | LangMem | 单会话摘要压缩，落 **Prisma `Conversation.sessionSummary`**，配合 Message 历史裁剪 Intake 上下文 |
-| MCP SDK | 实验：`experiment:mcp-vault` 只读列 vault |
+| MCP SDK | 实验：`experiment:mcp-vault` 只读列 vault（以后迁 `tools/mcp/server`）；`tools/mcp/client` 绑定表接外部 |
 | Recall（Qdrant sparse） | 入库时写 BM25-style TF + `idf` modifier；在线 `searchCorpusSparse` / `recallKeywordRetrieve`（**不再**查询时扫盘建内存 BM25）；对比 `experiment:recall-compare` |
 | Vercel AI SDK | 实验：`experiment:vercel-ai`（主链仍自研 SSE） |
 

@@ -1,7 +1,7 @@
 import { dedupeCitations } from "@/agentflow/agents/online/content-organizer";
 import type { KnowledgeHit } from "@/agentflow/agents/online/knowledge-manager";
 import type { ToolRunResult } from "@/agentflow/agents/online/tool-orchestrator/interface";
-import { runWithToolContext } from "../context";
+import { runWithToolContext } from "../../context";
 import { computeAgeFromHitsTool } from "./compute-age-from-hits";
 
 export const runComputeAgeFromHits = async (input: {

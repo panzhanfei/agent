@@ -107,7 +107,7 @@ Intake（enrichedPlan / executionPlan）
 
 ### 4.3 向后兼容
 
-- `tools/orchestrated/run-sub-question.ts` **保留**：单测与未走 graph 的直调路径仍可用
+- `tools/local/orchestrated/run-sub-question.ts` **保留**：单测与未走 graph 的直调路径仍可用
 - Analyst `buildSubQuestionFallbackAnswer`：**先读 `toolResults`，再 fallback 到 orchestrated**
 
 ---
@@ -329,7 +329,7 @@ hybrid 汇合**不是**散文拼接材料包，而是固定契约：
 
 结论枚举仅：`适合` \| `谨慎` \| `信息不足`。`SYNTHESIZE_MATCH_LLM=0` 可关 LLM 填表（单测默认关）。
 
-实现：`agentflow/tools/synthesize/`。
+实现：`agentflow/tools/local/synthesize/`。
 
 ### 11.4 新 Pipeline 拓扑
 

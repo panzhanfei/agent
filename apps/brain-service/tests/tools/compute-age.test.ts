@@ -5,7 +5,7 @@ import {
     extractBirthOrAgeFromText,
     extractIdentityFieldFromHits,
     isAgeSubQuestion,
-} from "@/agentflow/tools/identity";
+} from "@/agentflow/tools/local/identity";
 
 describe("compute-age", () => {
     it("extracts birth date from resume table", () => {

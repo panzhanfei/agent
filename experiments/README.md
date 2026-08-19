@@ -4,7 +4,7 @@
 
 | 命令（仓库根目录） | 技术 | 说明 |
 |-------------------|------|------|
-| `pnpm run experiment:mcp-vault` | MCP SDK | stdio MCP Server，工具 `list_vault_files` 只读列 `vault/` |
+| `pnpm run experiment:mcp-vault` | MCP SDK | stdio MCP Server，工具 `list_vault_files` 只读列 `vault/`（实现稳定后迁 `tools/mcp/server`） |
 | `pnpm run experiment:recall-compare -- <userId> "query"` | dense vs sparse recall | 同 query 对比 Qdrant 向量检索与 sparse（入库 BM25 TF） |
 | `pnpm run experiment:vercel-ai -- "prompt"` | Vercel AI SDK | `streamText` + Ollama，主链仍用自研 SSE |
 | `pnpm run experiment:bind-tools -- "问法"` | LangChain bindTools | 实验性 ReAct：LLM 自主选 FamBrain StructuredTool（**不进主 pipeline**） |
