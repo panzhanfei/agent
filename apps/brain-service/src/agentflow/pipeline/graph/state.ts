@@ -20,6 +20,7 @@ import type {
     PlanSlotWorkerPatch,
     PlanSlotsPatch,
 } from "@/agentflow/agents/online/plan-fanout/interface";
+import type { FileHandoffState } from "@/agentflow/agents/sideline/file/interface";
 import type {
     RetryPolicy,
     SlotRuntimeState,
@@ -122,6 +123,11 @@ export const PipelineGraphAnnotation = Annotation.Root({
     pendingGlobalRebatchDagNodeIds: Annotation<string[]>({
         reducer: (_prev, next) => next,
         default: () => [],
+    }),
+    /** 主图交棒给文件子线的信封；runtime 建 FileJob。无 HITL。 */
+    fileEnvelope: Annotation<FileHandoffState | null>({
+        reducer: (_prev, next) => next,
+        default: () => null,
     }),
 });
 export type PipelineGraphState = typeof PipelineGraphAnnotation.State;

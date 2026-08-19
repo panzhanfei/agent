@@ -73,7 +73,10 @@ const intakeLive = async (
     console.log(`\n--- Intake live: ${label} ---`);
     console.log(`userQuestion=${JSON.stringify(userQuestion)}`);
     try {
-        const raw = await completeIntakeCoordinator({ userQuestion, history });
+        const raw = await completeIntakeCoordinator([
+            ...history,
+            { role: "user", content: userQuestion },
+        ]);
         const { decision, earlyExit } = await runIntakePipeline({
             intakeRaw: raw,
             userQuestion,

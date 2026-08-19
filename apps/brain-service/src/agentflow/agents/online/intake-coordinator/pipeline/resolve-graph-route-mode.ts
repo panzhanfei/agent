@@ -43,7 +43,7 @@ const hasPathPlanSteps = (decision: RoutedIntakeDecision): boolean => {
 /**
  * Intake 出口：算出图路由 routeMode。
  *
- * 优先级：纯 userFact → respondEarly → contentSummarizer → listRetriever → planFanOut。
+ * 优先级：vault_workspace → 纯 userFact → respondEarly → contentSummarizer → listRetriever → planFanOut。
  * 同轮 remember side-effect（retrieve + userFactKey/Value）→ planFanOut（不独占 userFact）。
  */
 export const resolveIntakeGraphRouteMode = (
@@ -53,6 +53,9 @@ export const resolveIntakeGraphRouteMode = (
     hasPathPlanSteps(decision) || intakeRequiresKmRetrieval(decision);
   const hasSideRemember = Boolean(routeUserFactSideEffect(decision));
 
+  if (decision.pathPlan?.steps?.some((s) => s.kind === "vault_workspace")) {
+    return "fileHandoff";
+  }
   // 纯 remember/recall；混有检索 steps / side-effect 时走 planFanOut
   if (isUserFactIntent(decision.intent) && !hasRetrievePlan) {
     return "userFact";

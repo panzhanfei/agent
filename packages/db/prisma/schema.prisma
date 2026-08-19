@@ -90,8 +90,35 @@ model Conversation {
 
   messages Message[]
   turnTraces TurnTrace[]
+  fileJobs FileJob[]
 
   @@index([userId, pinned, updatedAt])
+}
+
+/// 文件子线任务：独立 thread，与问答主图 lifecycle 分离
+model FileJob {
+  id                 String   @id @default(cuid())
+  conversationId     String
+  conversation       Conversation @relation(fields: [conversationId], references: [id], onDelete: Cascade)
+  corpusUserId       String
+  fileThreadId       String
+  fileGeneration     Int
+  sourceTurnId       String?
+  sourceMessageId    String?
+  followupMessageId  String?
+  /// workspace | save_offer
+  task               String
+  envelope           Json
+  /// pending | running | paused | completed | cancelled | superseded
+  status             String
+  result             Json?
+  pausedAnswer       String?
+  pausedBlocks       Json?
+  createdAt          DateTime @default(now())
+  updatedAt          DateTime @updatedAt
+
+  @@index([conversationId, status])
+  @@index([conversationId, createdAt])
 }
 
 /// 单轮 Pipeline 轨迹（耗时 + step + agent log）；以助手 messageId 为稳定键

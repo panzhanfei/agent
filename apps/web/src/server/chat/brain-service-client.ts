@@ -111,6 +111,7 @@ export async function* streamAgentPipeline(
         abortReason?: TurnAbortReason;
         paused?: boolean;
         pauseKind?: AgentPipelineResult["pauseKind"];
+        jobId?: string;
         turnId?: string;
       };
       return {
@@ -126,6 +127,7 @@ export async function* streamAgentPipeline(
         abortReason: payload.abortReason,
         paused: payload.paused,
         pauseKind: payload.pauseKind,
+        jobId: payload.jobId,
         turnId: payload.turnId,
       };
     }

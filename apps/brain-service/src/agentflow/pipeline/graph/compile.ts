@@ -26,8 +26,7 @@ import {
 import { runPlanCacheResolveNode } from "@/agentflow/agents/online/plan-fanout/cache-resolve";
 import { runPlanDagNode } from "@/agentflow/agents/online/dag-executor";
 import { runToolRetrieveNode } from "@/agentflow/agents/online/tool-orchestrator";
-import { runVaultWorkspaceNode } from "@/agentflow/agents/online/vault-write";
-import { runVaultSaveGateNode } from "@/agentflow/agents/online/vault-save-gate";
+import { runFileHandoffNode } from "@/agentflow/agents/online/file-handoff";
 import { getPipelineCheckpointer } from "@/agentflow/execution";
 import {
   runPreparePipelineMemory,
@@ -59,8 +58,8 @@ const als = withPipelineRunAls;
  *   km/list/mem/tool/summarize：扁平节点 + emitBudgetedSlotPatch
  *     → planSlotJoin →（可选全局 B 再批 Send ≤1）→ planSlotPost → planMerge
  *     → contentOrganizer → contentSummarizer? → analyst
- *   vaultWorkspace：独占单槽；interrupt 循环；点「结束」或缺槽 → persistTurnEnd
- *   vaultSaveGate：附件/粘贴新材料终稿一次确认入库 → persistTurnEnd；查库摘要不出闸
+ *   fileHandoff：主图只写信封；文件 HITL 在 sideline/file 独立图
+ *   persistTurnEnd 始终可达（主图不再 interrupt vault）
  */
 const buildPipelineGraph = () => {
   return new StateGraph(PipelineGraphAnnotation)
@@ -76,8 +75,7 @@ const buildPipelineGraph = () => {
     .addNode("memRetrieve", als(runMemRetrieveNode))
     .addNode("toolRetrieve", als(runToolRetrieveNode))
     .addNode("summarizeSlot", als(runSummarizeSlotNode))
-    .addNode("vaultWorkspace", als(runVaultWorkspaceNode))
-    .addNode("vaultSaveGate", als(runVaultSaveGateNode))
+    .addNode("fileHandoff", als(runFileHandoffNode))
     .addNode("planSlotJoin", als(runPlanSlotJoinNode))
     .addNode("planSlotPost", als(runPlanSlotPostNode))
     .addNode("planDag", als(runPlanDagNode))
@@ -103,7 +101,7 @@ const buildPipelineGraph = () => {
     .addEdge("memRetrieve", "planSlotJoin")
     .addEdge("toolRetrieve", "planSlotJoin")
     .addEdge("summarizeSlot", "planSlotJoin")
-    .addEdge("vaultWorkspace", "persistTurnEnd")
+    .addEdge("fileHandoff", "persistTurnEnd")
     .addEdge("userFactSide", "planSlotJoin")
     .addEdge("planDag", "planSlotJoin")
     .addConditionalEdges("planSlotJoin", routeAfterPlanSlotJoin)
@@ -112,7 +110,6 @@ const buildPipelineGraph = () => {
     .addConditionalEdges("contentOrganizer", routeAfterContentOrganizer)
     .addConditionalEdges("contentSummarizer", routeAfterContentSummarizer)
     .addConditionalEdges("analyst", routeAfterAnalyst)
-    .addEdge("vaultSaveGate", "persistTurnEnd")
     .addEdge("respondEarly", "persistTurnEnd")
     .addEdge("persistTurnEnd", END);
 };

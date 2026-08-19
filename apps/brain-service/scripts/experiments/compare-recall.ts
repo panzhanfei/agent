@@ -6,7 +6,7 @@
  * 需 Ollama embed + Qdrant 已入库。
  */
 import { recallSparseRetrieve, searchCorpusVectors } from "@fambrain/corpus";
-import { hybridRecall } from "../src/agentflow/agents/online/knowledge-manager/recall";
+import { hybridRecall } from "@/agentflow/agents/online/knowledge-manager";
 
 const printHits = (
     label: string,

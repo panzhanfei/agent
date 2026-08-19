@@ -4,7 +4,7 @@
  *   pnpm --filter @fambrain/brain-service run dev:worker
  */
 import { startPipelineWorker, stopPipelineWorker } from "@fambrain/infra";
-import { runPipelineStream } from "@/agentflow/pipeline";
+import { orchestrateAgentStream } from "@/agentflow/pipeline";
 import { bootstrapBrainServiceRuntime } from "@/config/index";
 
 await bootstrapBrainServiceRuntime();
@@ -12,8 +12,15 @@ await bootstrapBrainServiceRuntime();
 console.log("[pipeline-worker] 启动中…");
 
 startPipelineWorker(async (payload, emit) => {
-    const gen = runPipelineStream(payload.history, payload.context);
-    let result: { answer: string; retrievalCacheHit?: boolean } | undefined;
+    const gen = orchestrateAgentStream(payload.history, payload.context);
+    let result:
+        | {
+              answer: string;
+              retrievalCacheHit?: boolean;
+              paused?: boolean;
+              jobId?: string;
+          }
+        | undefined;
     while (true) {
         const next = await gen.next();
         if (next.done) {
@@ -35,11 +42,23 @@ startPipelineWorker(async (payload, emit) => {
             await emit({ type: "error", message: ev.message });
         } else if (ev.type === "retrieval_meta") {
             await emit({ type: "retrieval_meta", cacheHit: ev.cacheHit });
+        } else if (ev.type === "main_turn_complete") {
+            await emit({ type: "main_turn_complete", answer: ev.answer });
+        } else if (ev.type === "paused") {
+            await emit({
+                type: "paused",
+                turnId: ev.turnId,
+                kind: "vault_wait",
+                answer: ev.answer,
+                jobId: ev.jobId,
+            });
         }
     }
     return {
         answer: result?.answer ?? "",
         retrievalCacheHit: result?.retrievalCacheHit,
+        paused: result?.paused,
+        jobId: result?.jobId,
     };
 });
 

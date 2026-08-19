@@ -42,7 +42,6 @@ const { decision, earlyExit } = await runIntakePipeline({
     intakeRaw,
     userQuestion: USER_QUESTION,
     intakeHistory: history,
-    session: { conversationId: "diag-long-career", corpusUserId },
 });
 
 console.log("  intent:", decision.intent, "earlyExit:", earlyExit);

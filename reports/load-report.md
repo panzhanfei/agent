@@ -1,7 +1,7 @@
 # 压测报表（中档）
 
-- **结果**: PASS
-- **生成时间**: 2026-08-12T13:48:37.444Z
+- **结果**: FAIL
+- **生成时间**: 2026-08-19T10:24:40.843Z
 
 ### 覆盖说明
 
@@ -33,22 +33,22 @@
 | n | 200 |
 | errors | 0 |
 | errorRate | 0.00% |
-| avgMs | 64.34 |
-| p50Ms | 21 |
-| p95Ms | 296 |
-| p99Ms | 337 |
-| maxMs | 349 |
+| avgMs | 28.3 |
+| p50Ms | 15 |
+| p95Ms | 103 |
+| p99Ms | 122 |
+| maxMs | 126 |
 
 ### Corpus Queue
 
 | 指标 | 值 |
 |---|---|
 | materializeJobs | 80 |
-| digestMs | 8106 |
+| digestMs | 6088 |
 | peakBacklog | 80 |
-| materialize final | `{"waiting":0,"active":0,"delayed":0,"failed":0}` |
-| purge final | `{"waiting":0,"active":0,"delayed":0,"failed":0}` |
-| queueFailed | 0 |
+| materialize final | `{"waiting":0,"active":0,"delayed":0,"failed":2}` |
+| purge final | `{"waiting":0,"active":0,"delayed":0,"failed":2}` |
+| queueFailed | 4 |
 
 ### 对话全链路
 
@@ -59,15 +59,15 @@
 | emptyAnswers | 0 |
 | patternMiss | 0 |
 | chatErrorRate | 0.00% |
-| avgMs | 9003.6 |
-| p50Ms | 8810 |
-| p95Ms | 11177 |
-| p99Ms | 11177 |
-| maxMs | 11177 |
+| avgMs | 9131.6 |
+| p50Ms | 9138 |
+| p95Ms | 10745 |
+| p99Ms | 10745 |
+| maxMs | 10745 |
 
 ### 判定
 
 - health errorRate ≤ 5%: OK
-- queue failed = 0（若启用）: OK
+- queue failed = 0（若启用）: FAIL
 - chat error+empty ≤ 15%（若未跳过）: OK
 - chat pattern（仅 STRICT）: OK

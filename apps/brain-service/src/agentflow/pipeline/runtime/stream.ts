@@ -6,9 +6,10 @@
  * - brain-service/online/*：各节点业务实现
  * - 本目录：SSE 事件、步骤耗时、Pipeline 出去日志
  *
- * 对外入口：runPipelineStream()，由 HTTP routes / eval / golden 调用。
+ * 主图入口：runPipelineStream()（eval / golden QA）。HTTP 走 orchestrateAgentStream。
+ * 主图不 Command Resume 文件 HITL；Resume 只打文件子线。
  */
-import { Command, isGraphInterrupt } from "@langchain/langgraph";
+import { isGraphInterrupt } from "@langchain/langgraph";
 import { ensureBrainServiceRuntime } from "@/config";
 import {
   isPureSummarizeDecision,
@@ -18,7 +19,8 @@ import { isPureListDecision } from "@/agentflow/agents/online/corpus-lister";
 import { intakeRequiresKmRetrieval } from "@/agentflow/agents/online/intake-coordinator/pipeline";
 import { describeFanOutPlan } from "@/agentflow/agents/online/plan-fanout";
 import { isUserFactIntent } from "@/agentflow/agents/online/user-fact";
-import { shouldOfferVaultSaveGate } from "@/agentflow/agents/online/vault-save-gate";
+import { shouldRunFileAgent } from "@/agentflow/agents/sideline/file/decide";
+import { buildFileEnvelopeFromPipelineState } from "@/agentflow/agents/sideline/file/handoff";
 import { buildLangGraphRunConfig } from "@fambrain/brain-config/langsmith";
 import { logAgentOut } from "@fambrain/brain-shared/agent-log";
 import type {
@@ -367,18 +369,10 @@ async function* runPipelineStreamInner(
       actorUserId: context.actorUserId,
       userQuestion,
     });
-    const resumePayload = context.resume;
-    if (!resumePayload) {
-      discardPipelineTask(context.conversationId);
-    }
+    discardPipelineTask(context.conversationId);
     const threadId = pipelineThreadId(context.conversationId);
 
-    const streamInput = resumePayload
-      ? (new Command({ resume: resumePayload }) as Parameters<
-          typeof graph.stream
-        >[0])
-      : (input as Parameters<typeof graph.stream>[0]);
-    const stream = await graph.stream(streamInput, {
+    const stream = await graph.stream(input as Parameters<typeof graph.stream>[0], {
       streamMode: ["updates", "values", "custom"],
       signal: turnSignal,
       ...langsmithCfg,
@@ -565,6 +559,8 @@ async function* runPipelineStreamInner(
           yield* startStep("content_summarizer");
         } else if (decision && isPureListDecision(decision)) {
           yield* startStep("list_retrieve");
+        } else if (decision && decision.routeMode === "fileHandoff") {
+          yield* startStep("file_handoff");
         } else if (decision && decision.routeMode === "planFanOut") {
           yield* startStep("plan_cache_resolve");
         } else if (
@@ -575,7 +571,6 @@ async function* runPipelineStreamInner(
           const fan = describeFanOutPlan(finalState);
           if (fan.hasKm) yield* startStep("km_retrieve");
           if (fan.hasList) yield* startStep("list_retrieve");
-          if (fan.hasVaultWorkspace) yield* startStep("vault_workspace");
           if (fan.hasDag) yield* startStep("plan_dag");
           if (fan.hasSideRemember) yield* startStep("user_fact");
           if (fan.hasKm || fan.hasList || fan.hasSideRemember) {
@@ -589,7 +584,6 @@ async function* runPipelineStreamInner(
         const fan = describeFanOutPlan(finalState);
         if (fan.hasKm) yield* startStep("km_retrieve");
         if (fan.hasList) yield* startStep("list_retrieve");
-        if (fan.hasVaultWorkspace) yield* startStep("vault_workspace");
         if (fan.hasDag) yield* startStep("plan_dag");
         if (fan.hasSideRemember) yield* startStep("user_fact");
         if (fan.hasKm || fan.hasList || fan.hasSideRemember) {
@@ -633,18 +627,9 @@ async function* runPipelineStreamInner(
       if (nodeName === "listRetrieve") {
         continue;
       }
-      if (nodeName === "vaultWorkspace") {
-        if (nodePatch?.answer || nodePatch?.error) {
-          yield* finishStep("vault_workspace");
-          if (nodePatch.answer) {
-            timing.markFirstToken();
-            yield* emitAssistant(nodePatch.answer);
-          }
-          if (nodePatch.error) {
-            yield { type: "error", message: nodePatch.error };
-          }
-          yield* startStep("persist_turn_end");
-        }
+      if (nodeName === "fileHandoff") {
+        yield* finishStep("file_handoff");
+        yield* startStep("persist_turn_end");
         continue;
       }
       if (nodeName === "planSlotJoin") {
@@ -702,8 +687,9 @@ async function* runPipelineStreamInner(
       }
       if (nodeName === "contentSummarizer") {
         yield* finishStep("content_summarizer");
-        if (shouldOfferVaultSaveGate(finalState)) {
-          yield* startStep("vault_save_gate");
+        const envelope = buildFileEnvelopeFromPipelineState(finalState);
+        if (envelope && shouldRunFileAgent(envelope)) {
+          yield* startStep("file_handoff");
         } else if (finalState.exitEarly && finalState.answer) {
           timing.markFirstToken();
           yield* emitAssistant(finalState.answer);
@@ -727,20 +713,10 @@ async function* runPipelineStreamInner(
         if (finalState.error) {
           yield { type: "error", message: finalState.error };
         }
-        if (shouldOfferVaultSaveGate(finalState)) {
-          yield* startStep("vault_save_gate");
+        const envelope = buildFileEnvelopeFromPipelineState(finalState);
+        if (envelope && shouldRunFileAgent(envelope)) {
+          yield* startStep("file_handoff");
         } else {
-          yield* startStep("persist_turn_end");
-        }
-        continue;
-      }
-      if (nodeName === "vaultSaveGate") {
-        if (nodePatch?.answer || nodePatch?.assistantBlocks === null) {
-          yield* finishStep("vault_save_gate");
-          if (nodePatch.answer) {
-            timing.markFirstToken();
-            yield* emitAssistant(nodePatch.answer);
-          }
           yield* startStep("persist_turn_end");
         }
         continue;
@@ -807,8 +783,11 @@ async function* runPipelineStreamInner(
       timing.markFirstToken();
       yield* emitAssistant(finalState.answer);
     }
-    const answer = finalState.answer ?? "（未能生成回复，请稍后重试）";
-    if (!finalState.exitEarly && !finalState.answer) {
+    const handedOff = Boolean(finalState.fileEnvelope);
+    const answer = handedOff
+      ? (finalState.answer ?? "")
+      : (finalState.answer ?? "（未能生成回复，请稍后重试）");
+    if (!handedOff && !finalState.exitEarly && !finalState.answer) {
       timing.markFirstToken();
       yield* emitAssistant(answer);
     }
@@ -851,6 +830,7 @@ async function* runPipelineStreamInner(
       logs: [...collectedLogs],
       steps: [...collectedSteps],
       turnId,
+      fileHandoff: finalState.fileEnvelope ?? null,
     };
   } catch (e) {
     if (turnSignal.aborted) {

@@ -47,11 +47,11 @@
 
 ### 图任务 / HITL / 流式停（3）
 
-> 对话主路径只有停 / 换题（discard 开新轮）。Resume 只给原文库按钮。LangGraph `interrupt` 只管图光标，不管模型采样。
+> 对话主路径只有停 / 换题（discard 问答 thread 开新轮）。Resume 只给文件子线按钮，且必须带 `jobId`。LangGraph `interrupt` 只管图光标，不管模型采样。
 
-- [x] **#20 人等载荷认错** — **触发：** 图 `interrupt` 时 `streamMode: values` 常缺 `hits`/`decision`，编排器用这帧当用户可见答案或终态日志 → 列表没了、intent 变 null — **对策：** 给人看的 `answer`/`blocks` **只信 `interrupt(value)`**；`values` **合入**已有 channel，禁止整帧覆盖；完整态用 `graph.getState`
-- [x] **#21 生成停误当续采样** — **触发：** 以为 Pause / checkpointer 能从第 N 个 token 接着吐；做了「继续」等于再跑一遍生成，和半截稿重复 — **对策：** **Pause = 停**（豆包/ChatGPT）：半截稿即终稿，无「继续」；下一句新 invoke。`interrupt` 给人点按钮（原文库），**不是**给同一条 Ollama HTTP 续流。Checkpointer 接不住采样
-- [x] **#22 人等跳过轮次收尾** — **触发：** `interrupt` 挂起图，END 前 `persistTurnEnd` 不到 → 浏览列表 / 等人点按钮时不写 LangMem — **对策：** **预期。** 人等不是「一轮答完」；气泡仍落 Prisma `Message`。真问答走完图才写会话摘要。生成停同样不经本节点（半截稿由 BFF 落库）
+- [x] **#20 人等载荷认错** — **触发：** 图 `interrupt` 时 `streamMode: values` 常缺 channel，编排器用这帧当用户可见答案 → 列表没了 — **对策：** 给人看的 `answer`/`blocks` **只信 `interrupt(value)`**；`values` **合入**已有 channel，禁止整帧覆盖；完整态用 `graph.getState`（现网在 **文件子图**）
+- [x] **#21 生成停误当续采样** — **触发：** 以为 Pause / checkpointer 能从第 N 个 token 接着吐；做了「继续」等于再跑一遍生成，和半截稿重复 — **对策：** **Pause = 停**（豆包/ChatGPT）：半截稿即终稿，无「继续」；下一句新 invoke。`interrupt` 给人点按钮（文件子线），**不是**给同一条 Ollama HTTP 续流。Checkpointer 接不住采样
+- [x] **#22 人等跳过轮次收尾** — **触发（旧）：** 主图 interrupt 挂起则 `persistTurnEnd` 不到。**现网：** 文件 HITL 已拆到平级子图，主图 `fileHandoff` → `persistTurnEnd` **会跑**；文件图 END 不写 LangMem。生成停仍不经 `persistTurnEnd`（半截稿由 BFF 落库） — **对策：** 不要为 list/CTA 在文件图硬跑记忆写入；真问答走完主图才写会话摘要
 
 ---
 
@@ -75,7 +75,7 @@
 | **工具 / 确定性编排** | 年龄不计算、公司年限答成总从业、列举 blocks、联网 | P0-23、**P0-32**、P0-24、P0-22 | §2.5.6、§2.5.7、**§2.5.11**、[架构 v2 §11](./05-architecture-v2-tool-orchestration.md#11-pathplan-统一执行计划-2026-07) |
 | **Intake 架构（档 B）** | 代码二次规划、散文触发指代、复盘难 | **P0-30**、**P0-31** | **§2.9**、**§2.10** · [架构 v2 §12–13](./05-architecture-v2-tool-orchestration.md#12-intake-llm-主导--schema-兜底2026-07--去问句硬编码) |
 | **猜模型意图兜底债** | pathPlan/userFact 抬升、亲友改写、口语工具 fallback；换模型后应删 | **P0-34** | **§2.11** · [架构 v2 §14](./05-architecture-v2-tool-orchestration.md#14-猜模型意图兜底债--dify换模型后删除-p0-34--2026-08) |
-| **图任务 / HITL / 流式停** | 残缺 values 当终稿、生成停误当续 token、interrupt 不写 LangMem | **P0-35～37** | **§2.12** · [流程 · 原文库](./02-agent-flows.md) · [控制面 §4](./06-architecture-control-plane.md) |
+| **图任务 / HITL / 流式停** | 残缺 values 当终稿、生成停误当续 token | **P0-35～36** | **§2.12** · [流程 · 原文库](./02-agent-flows.md) · [控制面 §4](./06-architecture-control-plane.md) |
 
 ### Agent 职责边界（合同）
 
@@ -127,9 +127,8 @@
 | P0-21 | Intake / KM / Analyst | composite 槽 label「**具体项目名称**」→ 答 **云联智慧/友谊时光** 等公司 | 所有 enumeration 共用 **experience fill**；Intake 误标 `topics:experience` → canonical 到 employers | **`resolveEnumerationTarget`**（label 优先）+ KM **projects/** 专扫 + Analyst project prompt | ✅ **已解决**（2026-06）← §2.5.5 |
 | **P0-33** | HITL / 语料写盘 | 直接改 `corpus/**/*.md` + 软清空 `<!-- fambrain:cleared -->`；用户难记 path | 编辑面与检索产物耦合；软删仍占向量 path | **模型 A**：只 CRUD `vault/originals/workspace/*.txt`；`vault_workspace` list/CRUD；语料化 md+向量；**硬删**级联；`corpus_edit` 已删除 | ✅ **已解决**（2026-08）← [流程 · 原文库](./02-agent-flows.md) |
 | **P0-34** | Intake / Tool / Mem0 | 小模型 pathPlan 不稳 → 代码「猜 LLM 本意」抬升/改写（亲友 searchQuery、`km-qq`→mem、空 plan→remember、年龄口语 regex 等） | 本地小模型 JSON 纪律弱；为过 eval 叠加结构兜底，复盘时难分「模型工单错」vs「代码又规划」 | **暂留（现在不删）**；债 **主要在 Intake，工具层次之**；与 **Dify 抽离 + 换更强 Intake 模型** 同批验证；绿后按 §2.11 模块账本删除 | ⬜ **待清理** ← **§2.11** · [架构 v2 §14](./05-architecture-v2-tool-orchestration.md#14-猜模型意图兜底债--dify换模型后删除-p0-34--2026-08) |
-| **P0-35** | Pipeline / HITL | 原文库 `interrupt` 时 `values` 缺 `hits`/`decision`，出去日志 `intent: null`；若拿这帧当终稿则列表没了 | LangGraph HITL 时 values 常是不完整快照；曾整帧覆盖 `finalState` | 给人看的 list/CTA **只信 `interrupt({ answer, blocks })`**；`values` **合入**已有 channel | ✅ **已解决**（2026-08）← **§2.12** · [控制面 §4](./06-architecture-control-plane.md) |
-| **P0-36** | Analyst / 产品 | 生成「暂停」后点「继续」会从头再生成一篇，不能从半截 token 接着写 | Checkpointer 只管图光标；Ollama HTTP 流一断就没了；`interrupt` 不是给采样续流用的 | **Pause = 停**（豆包/ChatGPT）：半截稿即终稿，discard 图任务，无「继续」；下一句新 invoke。原文库仍 `vault_wait` Resume | ✅ **已解决**（2026-08）← **§2.12** · [流程 · 原文库](./02-agent-flows.md) |
-| **P0-37** | persistTurnEnd / LangMem | 原文库 Pause 到不了 `persistTurnEnd`，浏览列表不写会话摘要；生成停同样跳过 | `interrupt` 挂起图，END 前收尾节点不跑 | **预期。** 人等 / 生成停不是「一轮答完」；气泡仍落 Prisma。真问答走完图才写 LangMem | ✅ **已定型**（2026-08）← **§2.12** |
+| **P0-35** | Pipeline / HITL | 原文库 `interrupt` 时 `values` 缺 channel，若拿这帧当终稿则列表没了 | LangGraph HITL 时 values 常是不完整快照；曾整帧覆盖 `finalState` | 给人看的 list/CTA **只信 `interrupt({ answer, blocks })`**；`values` **合入**已有 channel。现网 HITL 在文件子图 | ✅ **已解决**（2026-08）← **§2.12** · [控制面 §4](./06-architecture-control-plane.md) |
+| **P0-36** | Analyst / 产品 | 生成「暂停」后点「继续」会从头再生成一篇，不能从半截 token 接着写 | Checkpointer 只管图光标；Ollama HTTP 流一断就没了；`interrupt` 不是给采样续流用的 | **Pause = 停**（豆包/ChatGPT）：半截稿即终稿，discard 问答 thread，无「继续」；下一句新 invoke。文件子线仍 `vault_wait` Resume（须 `jobId`） | ✅ **已解决**（2026-08）← **§2.12** · [流程 · 原文库](./02-agent-flows.md) |
 
 ### 2.11 猜模型意图兜底债（⬜ P0-34 · 与 Dify 抽离同批 · 2026-08）
 
@@ -210,15 +209,16 @@ pnpm --filter @fambrain/brain-service run eval:run   # 全量
 
 详见 [架构 v2 §14](./05-architecture-v2-tool-orchestration.md#14-猜模型意图兜底债--dify换模型后删除-p0-34--2026-08)、[控制面阶段 8](./06-architecture-control-plane.md#8-实现阶段)。
 
-### 2.12 图任务 HITL / 生成停（✅ P0-35～37 · 2026-08）
+### 2.12 图任务 HITL / 生成停（✅ P0-35～36 · 双图 2026-08）
 
-> **口径：** 流程只两件事——问答 **停/换题 = discard 开新轮**；**Resume 只给原文库按钮**。模式齐（discard + 唯一 Resume），聊天侧不再套 Pause/Checkpointer/Resume。踩坑见下：人等看哪份载荷、生成停不能续 token、挂起时不写 LangMem。
+> **口径：** 流程只两件事——问答 **停/换题 = discard 问答 thread 开新轮**；**Resume 只给文件子线按钮且必须 `jobId`**。主图不再 interrupt 原文库。踩坑见下：人等看哪份载荷、生成停不能续 token。
+>
+> **已删除 P0-37：** 旧坑是「主图 vault interrupt 到不了 persistTurnEnd」。文件 HITL 拆到平级子图后，主图 `fileHandoff` → `persistTurnEnd` **会跑**。文件图 END 故意不写 LangMem；生成停仍不经该节点。这不再是坑，而是双图边界。
 
 | ID | 典型现象 | 根因 | 对策 |
 |----|----------|------|------|
-| **P0-35**（#20） | `interrupt` 时 `values` 缺 `hits`/`decision`，出去日志 `intent: null`；若当终稿则列表没了 | HITL 的 values 常是不完整快照；曾整帧覆盖 `finalState` | 给人看的 list/CTA **只信 `interrupt({ answer, blocks })`**。`runtime/stream.ts` 对 `values` **合入**已有 channel，禁止整帧覆盖。完整态用 `graph.getState` |
-| **P0-36**（#21） | 点「继续」从头再生成一篇，不能从半截 token 接着写 | Checkpointer 存图光标，不存 Ollama HTTP 采样。Resume 该节点 = 再调一次模型 | **Pause = 停**：半截稿即终稿，discard，无「继续」。下一句新 invoke。原文库仍 `Command({ resume: vault_action })`。`interrupt` 给人点按钮，不是给采样续流 |
-| **P0-37**（#22） | 浏览原文库 / 生成停到不了 `persistTurnEnd`，不写 LangMem | `interrupt` 挂起图，END 前收尾不跑 | **预期。** 人等不是「一轮答完」。气泡仍落 Prisma `Message`。真问答走完图才写会话摘要。不要为 list/CTA 硬跑记忆写入 |
+| **P0-35**（#20） | `interrupt` 时 `values` 缺 channel；若当终稿则列表没了 | HITL 的 values 常是不完整快照；曾整帧覆盖 | 给人看的 list/CTA **只信 `interrupt({ answer, blocks })`**。文件子图 `orchestrate.ts` 取 interrupt 载荷。完整态用 `graph.getState` |
+| **P0-36**（#21） | 点「继续」从头再生成一篇，不能从半截 token 接着写 | Checkpointer 存图光标，不存 Ollama HTTP 采样 | **Pause = 停**：半截稿即终稿，discard 问答 thread，无「继续」。下一句新 invoke。文件子线 `Command({ resume: vault_action })` 须带 `jobId` |
 
 **对照（别混）：**
 
@@ -226,7 +226,6 @@ pnpm --filter @fambrain/brain-service run eval:run   # 全量
 |--|--|--|--|
 | P0-35 | 一帧图 **channel** | 管（完整态在 checkpoint / getState） | interrupt 载荷里的 list/CTA |
 | P0-36 | **这一次采样** | 不管 | 半截稿落成普通助手消息 |
-| P0-37 | **轮次收尾副作用**（LangMem） | 图还挂着 | 聊天气泡在；会话摘要等真问答走完再写 |
 
 详见 [流程 · 原文库](./02-agent-flows.md)、[控制面 §4 Turn / 取消](./06-architecture-control-plane.md)。
 
@@ -1251,7 +1250,6 @@ pnpm run verify:agent-schemas
 | **P0-34** | #1 意图误判 / #2 任务拆分（代码猜 LLM pathPlan/userFact）；与 Dify 抽离同批删兜底 | ⬜ §2.11 |
 | **P0-35** | #20 人等载荷认错（残缺 values 当终稿） | ✅ §2.12 |
 | **P0-36** | #21 生成停误当续采样（Pause=停） | ✅ §2.12 |
-| **P0-37** | #22 人等跳过轮次收尾（浏览不写 LangMem，预期） | ✅ §2.12 |
 | **P0-32** | #5 工具选择/语义错误（公司年限误用总从业工具）；#11 过度自信（复合甩推算文案） | ✅ §2.5.11 |
 | **P0-28** | #2 任务拆分不合理；#4 计划漂移（多槽互斥） | ✅ §2.8 · 架构 v2 §11 |
 | P0-14 | #9 信息捏造；#16 Mem0 vs corpus 同句矛盾 | ✅ KM 优化 |
@@ -1288,6 +1286,5 @@ pnpm run verify:agent-schemas
 - [x] **综合履历 → 编号子问**（同会话）：编号「1. 我在哪几家公司…」仍 **4 家** ← R6-3 ✅ · `verify:r6-no-cache`
 - [x] **格式化追问**（「用表格列出来」）：表格追问仍保留已确认公司 ← R6-2 ✅ · `verify:r6-no-cache`
 - [x] **跨会话 userFact**（A 记 QQ → B 问）：step 为 `user_fact`；answer 含完整号码；Mem0 行 `QQ号是…` 勿误提取「码」← P0-16 ✅ · `verify:user-fact`
-- [x] **原文库 HITL**：给人看的 list/CTA 来自 `interrupt` 载荷，不是残缺 `values` ← **P0-35** ✅ · §2.12
+- [x] **原文库 HITL**：给人看的 list/CTA 来自 `interrupt` 载荷，不是残缺 `values`；Resume 须 `jobId` ← **P0-35** ✅ · §2.12
 - [x] **生成停**：半截稿即终稿，无「继续」；下一句新 invoke ← **P0-36** ✅ · §2.12
-- [x] **vault_wait / 生成停** 不经 `persistTurnEnd`（浏览不写 LangMem）属预期 ← **P0-37** ✅ · §2.12

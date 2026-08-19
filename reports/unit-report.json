@@ -2,12 +2,12 @@
   "kind": "unit",
   "title": "单元测试报表",
   "pass": true,
-  "generatedAt": "2026-08-12T13:42:16.124Z",
+  "generatedAt": "2026-08-19T10:19:10.677Z",
   "exitCode": 0,
-  "numTotalTests": 185,
-  "numPassedTests": 185,
+  "numTotalTests": 227,
+  "numPassedTests": 227,
   "numFailedTests": 0,
   "numPendingTests": 0,
-  "elapsedMs": 55496,
+  "elapsedMs": 35510,
   "success": true
 }

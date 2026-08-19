@@ -26,6 +26,7 @@ export type ChatMessage = {
   citations?: Citation[];
   taskPaused?: boolean;
   pauseKind?: "vault_wait";
+  fileJobId?: string;
 };
 
 export type PatchConversationOk = {

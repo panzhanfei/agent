@@ -9,6 +9,7 @@ export default defineConfig({
   testDir: "./e2e",
   timeout: 120_000,
   fullyParallel: false,
+  workers: 1,
   forbidOnly: !!process.env.CI,
   retries: 0,
   outputDir: path.join(reportDir, "test-results"),

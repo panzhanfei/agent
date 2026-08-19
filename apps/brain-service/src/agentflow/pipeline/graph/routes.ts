@@ -5,7 +5,7 @@ import {
   fanOutPlanWorkers,
   routeAfterPlanSlotJoin,
 } from "@/agentflow/agents/online/plan-fanout";
-import { shouldOfferVaultSaveGate } from "@/agentflow/agents/online/vault-save-gate";
+import { shouldHandoffFromPipelineState } from "@/agentflow/agents/sideline/file/handoff";
 import type { PipelineGraphState } from "./state";
 
 export { routeAfterPlanSlotJoin };
@@ -71,20 +71,23 @@ export const routeAfterContentOrganizer = (
   return "analyst";
 };
 
-/** contentSummarizer 之后：附件/粘贴摘要进写回闸门；查库摘要 respondEarly / analyst */
+const shouldHandoffFile = (state: PipelineGraphState): boolean =>
+  shouldHandoffFromPipelineState(state);
+
+/** contentSummarizer 之后：新材料终稿交文件子线；查库摘要 respondEarly / analyst */
 export const routeAfterContentSummarizer = (
   state: PipelineGraphState
-): "vaultSaveGate" | "respondEarly" | "analyst" => {
+): "fileHandoff" | "respondEarly" | "analyst" => {
   if (state.error) return "respondEarly";
-  if (shouldOfferVaultSaveGate(state)) return "vaultSaveGate";
+  if (shouldHandoffFile(state)) return "fileHandoff";
   if (state.exitEarly) return "respondEarly";
   return "analyst";
 };
 
-/** Analyst 之后：附件翻译终稿进写回闸门；普通 QA / 查库摘要直接收尾 */
+/** Analyst 之后：有文件任务则交棒；否则直接收尾 */
 export const routeAfterAnalyst = (
   state: PipelineGraphState
-): "vaultSaveGate" | "persistTurnEnd" => {
-  if (shouldOfferVaultSaveGate(state)) return "vaultSaveGate";
+): "fileHandoff" | "persistTurnEnd" => {
+  if (shouldHandoffFile(state)) return "fileHandoff";
   return "persistTurnEnd";
 };

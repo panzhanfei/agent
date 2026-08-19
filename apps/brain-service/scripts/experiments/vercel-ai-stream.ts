@@ -15,7 +15,7 @@ const main = async () => {
     console.log(`model=${modelId}`);
     console.log(`prompt=${prompt}\n---\n`);
     const result = streamText({
-        model,
+        model: model as never,
         prompt,
     });
     let chars = 0;

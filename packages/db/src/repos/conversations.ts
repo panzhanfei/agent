@@ -137,10 +137,18 @@ const isActionBlock = (b: unknown): b is ActionBlock =>
 
 /** 纯函数：把 metadata.blocks 里所有 actions 标 disabled，并清 taskPaused */
 export const disableActionsInMetadata = (
-  metadata: unknown
+  metadata: unknown,
+  opts?: { keepFileJobId?: string | null }
 ): { next: Record<string, unknown>; changed: boolean } | null => {
   if (!metadata || typeof metadata !== "object") return null;
   const meta = metadata as Record<string, unknown>;
+  if (
+    opts?.keepFileJobId &&
+    typeof meta.fileJobId === "string" &&
+    meta.fileJobId === opts.keepFileJobId
+  ) {
+    return null;
+  }
   const blocks = meta.blocks;
   if (!Array.isArray(blocks)) {
     if (meta.taskPaused) {
@@ -167,14 +175,24 @@ export const disableActionsInMetadata = (
 
 /** 会话内已有助手消息的按钮全部作废（后端为 source of truth） */
 export const disableConversationActionBlocks = async (
-  conversationId: string
+  conversationId: string,
+  opts?: { keepFileJobIds?: readonly string[] }
 ): Promise<number> => {
+  const keep = new Set(opts?.keepFileJobIds ?? []);
   const rows = await prisma.message.findMany({
     where: { conversationId, role: ChatRole.assistant },
     select: { id: true, metadata: true },
   });
   let n = 0;
   for (const row of rows) {
+    const fileJobId =
+      row.metadata &&
+      typeof row.metadata === "object" &&
+      "fileJobId" in row.metadata &&
+      typeof (row.metadata as { fileJobId?: unknown }).fileJobId === "string"
+        ? (row.metadata as { fileJobId: string }).fileJobId
+        : null;
+    if (fileJobId && keep.has(fileJobId)) continue;
     const patched = disableActionsInMetadata(row.metadata);
     if (!patched) continue;
     await prisma.message.update({
@@ -184,6 +202,23 @@ export const disableConversationActionBlocks = async (
     n += 1;
   }
   return n;
+};
+
+export const updateAssistantMessage = async (
+  messageId: string,
+  content: string,
+  metadata?: Record<string, unknown>
+): Promise<{ id: string; role: string; content: string }> => {
+  return prisma.message.update({
+    where: { id: messageId },
+    data: {
+      content,
+      ...(metadata
+        ? { metadata: metadata as Prisma.InputJsonValue }
+        : {}),
+    },
+    select: { id: true, role: true, content: true },
+  });
 };
 const CONVERSATION_TITLE_MAX_LEN = 20;
 

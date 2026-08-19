@@ -3,8 +3,11 @@ import { expect, test } from "@playwright/test";
 const user = process.env.E2E_USER ?? "panzhanfei";
 const password = process.env.E2E_PASSWORD ?? "12345678";
 
-const readSseAnswer = (text: string): string => {
+const readSse = (
+  text: string
+): { answer: string; jobId?: string } => {
   let answer = "";
+  let jobId: string | undefined;
   let err: string | null = null;
   for (const line of text.split("\n")) {
     if (!line.startsWith("data:")) continue;
@@ -14,18 +17,24 @@ const readSseAnswer = (text: string): string => {
       const ev = JSON.parse(payload) as {
         type?: string;
         text?: string;
+        answer?: string;
         error?: string;
+        jobId?: string;
       };
       if (ev.type === "assistant" && typeof ev.text === "string") {
         answer += ev.text;
       }
+      if (typeof ev.answer === "string" && ev.answer.trim()) {
+        answer = ev.answer;
+      }
+      if (typeof ev.jobId === "string" && ev.jobId) jobId = ev.jobId;
       if (typeof ev.error === "string") err = ev.error;
     } catch {
       /* ignore */
     }
   }
   if (!answer && err) throw new Error(`pipeline error: ${err}`);
-  return answer;
+  return { answer, jobId };
 };
 
 test.describe("vault workspace UI", () => {
@@ -54,9 +63,11 @@ test.describe("vault workspace UI", () => {
         headers: { Origin: origin },
       }
     );
-    expect(msgRes.ok()).toBeTruthy();
-    const answer = readSseAnswer(await msgRes.text());
-    expect(answer.length).toBeGreaterThan(0);
+    const sseText = await msgRes.text();
+    expect(msgRes.ok(), sseText.slice(0, 400)).toBeTruthy();
+    const listed = readSse(sseText);
+    expect(listed.answer.length, sseText.slice(0, 400)).toBeGreaterThan(0);
+    expect(listed.jobId, "list pause jobId").toBeTruthy();
 
     await page.goto("/");
     await expect(page.getByText(title).first()).toBeVisible({
@@ -70,22 +81,38 @@ test.describe("vault workspace UI", () => {
       timeout: 20_000,
     });
 
-    // 点「新建 txt」：旧消息按钮会 stale；新回复 blocks 含「已新建」+ 可点删除
     await page
       .getByRole("button", { name: /新建 txt/i, disabled: false })
       .last()
       .click();
-    await expect(
-      page.getByText(/已新建|Created|同步|入队/i).first()
-    ).toBeVisible({ timeout: 90_000 });
+    const created = page.getByText(/已新建\s+\S+\.txt|Created\s+\S+\.txt/i).first();
+    await expect(created).toBeVisible({ timeout: 90_000 });
+    await expect(page.getByRole("button", { name: "停止" })).toHaveCount(0, {
+      timeout: 60_000,
+    });
 
-    const deleteBtn = page
-      .getByRole("button", { name: /删除 .+\.txt/i, disabled: false })
-      .last();
-    await expect(deleteBtn).toBeEnabled({ timeout: 90_000 });
-    await deleteBtn.click();
-    await expect(
-      page.getByText(/已硬删除|Hard-deleted|入队硬删/i).first()
-    ).toBeVisible({ timeout: 90_000 });
+    const createdText = (await created.innerText()).trim();
+    const fileRel = createdText.match(/已新建\s+(\S+\.txt)/i)?.[1]
+      ?? createdText.match(/Created\s+(\S+\.txt)/i)?.[1];
+    expect(fileRel, createdText).toBeTruthy();
+    const delPrompt = `__FAMBRAIN_VAULT_WS_DELETE_FILE__:${fileRel}`;
+    const delRes = await page.request.post(
+      `/api/conversations/${conv.id}/messages`,
+      {
+        data: {
+          content: `删除 ${fileRel}`,
+          routingContent: delPrompt,
+          resume: {
+            kind: "vault_action",
+            jobId: listed.jobId,
+            prompt: delPrompt,
+          },
+        },
+        headers: { Origin: origin },
+      }
+    );
+    const delSse = readSse(await delRes.text());
+    expect(delRes.ok(), delSse.answer.slice(0, 400)).toBeTruthy();
+    expect(delSse.answer).toMatch(/已硬删除|Hard-deleted|入队硬删/);
   });
 });

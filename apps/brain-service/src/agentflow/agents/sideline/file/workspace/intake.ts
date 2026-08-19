@@ -1,5 +1,5 @@
 /**
- * UI exact-match：路由至 vault_workspace 工人，不在 Intake 执行 CRUD。
+ * UI exact-match：产出 vault_workspace 决策，主图走 fileHandoff，不在 Intake 执行 CRUD。
  */
 import type { RoutedIntakeDecision } from "@/agentflow/agents/online/intake-coordinator/guards/interface";
 import {
@@ -18,11 +18,15 @@ import {
   VAULT_WORKSPACE_ACTION,
   VAULT_WORKSPACE_UI_ENTRY,
   vaultWorkspaceDoneReply,
-} from "../actions";
-import type { VaultWorkspaceParams } from "../interface";
-import type { VaultResumeNext, VaultWsFileAction, VaultWsUiAction } from "./interface";
+} from "../vault";
+import type { VaultWorkspaceParams } from "../vault";
+import type {
+  VaultResumeNext,
+  VaultWsFileAction,
+  VaultWsUiAction,
+} from "./intake-interface";
 
-export type { VaultResumeNext } from "./interface";
+export type { VaultResumeNext } from "./intake-interface";
 
 export const toVaultWorkspaceParams = (
   action: VaultWsFileAction
@@ -53,6 +57,10 @@ export const toVaultWorkspaceParams = (
         targetPath: action.folderRel,
         recursive: true,
       };
+    default: {
+      const _exhaustive: never = action;
+      return _exhaustive;
+    }
   }
 };
 

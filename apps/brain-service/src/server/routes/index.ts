@@ -113,6 +113,7 @@ export const handlePipelineStream = async (req: IncomingMessage, res: ServerResp
             abortReason?: "cancelled" | "superseded";
             paused?: boolean;
             pauseKind?: "vault_wait";
+            jobId?: string;
             turnId?: string;
             logs?: import("@fambrain/brain-types").PipelineLogEntry[];
             steps?: import("@fambrain/brain-types").TurnStepEvent[];
@@ -139,6 +140,7 @@ export const handlePipelineStream = async (req: IncomingMessage, res: ServerResp
         abortReason: pipelineResult?.abortReason,
         paused: pipelineResult?.paused,
         pauseKind: pipelineResult?.pauseKind,
+        jobId: pipelineResult?.jobId,
         turnId: pipelineResult?.turnId ?? turnId,
         });
     }

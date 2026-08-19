@@ -20,8 +20,8 @@
 | **`DagExecutor`** | **DAG 执行器** | `agents/online/dag-executor`：`runDagExecutorNode` + **`runPlanDagNode`**（fan-out hybrid DAG 工人；拓扑/seed/闭包，不跑具体 tool switch） |
 | **`UserFact`** | **用户记忆** | `userFactNode`（纯 remember/recall）+ **`runUserFactSideNode`**（复合并行 side-effect） |
 | `InformationAnalyst` | 信息分析师 | 消费 `stepResults` + `toolResults` + 整理后的 `hits` 写终稿；可并入同轮 remember side-effect |
-| **`VaultWrite`** | **原文库工作台** | `kind=vault_workspace`：两层 list + `.txt`/文件夹 CRUD；语料化写入 `corpus/personal/imports/workspace/**/*.md` + 向量；**硬删**级联；**禁止**直接 HITL 改 corpus md |
-| **`VaultSaveGate`** | **写回闸门** | 独立图节点 `vaultSaveGate`：附件总结/翻译或粘贴长文终稿一次 HITL；确认后走 VaultWrite `create_file` + materialize。查库摘要与普通 QA 不出闸 |
+| **`FileAgent`** | **文件子线** | 平级图 `agents/sideline/file`：工作台 CRUD + 写回闸门 HITL。主图只 `fileHandoff` 写信封；runtime 建 FileJob 后跑本图。**禁止**直接 HITL 改 corpus md |
+
 
 **链路：** 用户提问 → **轮次开始** → 意图识别 → **PathPlan fan-out**（按 `steps[]` 并行工人 → Join，可选全局 B）→ **内容整理** → **Compose**（qa / composite / summarize）→ 回答 → **轮次结束**。跨轮 cache 见 [坑点 §2.2](./04-pitfalls.md)。
 
@@ -35,13 +35,14 @@
 
 - **未指定 path**：`operation=list`（或 UI exact-match「我的原文库」/ `__FAMBRAIN_VAULT_WS_*__`）→ 两层 list + 新建 CTA。
 - **队列（可选）**：`CORPUS_QUEUE_ENABLED=1` 时 `corpus.materialize` / `corpus.purge` 入 BullMQ；worker：`pnpm --filter @fambrain/brain-service run corpus-worker`。未开队列则 **fire-and-forget** 语料化（图只提交，不等 embed；丢弃图任务不中止已提交的入库）。
-- **图任务两模式（简单、齐）：** 问答主路径只有 **停 / 换题 = discard + 新一轮**，不用 Resume。真正 Resume **只给原文库 HITL 按钮**（工作台 CRUD / 写回闸门；同一 thread `Command({ resume: vault_action })`）。Checkpointer 是给这件事撑着的，不是给聊天暂停续写用的。
-- **原文库人等：** 每次 list/CRUD 后 `interrupt({ kind: vault_wait })`；点按钮才 Resume。对人可见的 list/CTA 以 **interrupt 载荷** 为准（`answer`/`blocks`）；stream `values` 在 interrupt 时可能缺 channel，**合入**已有 `hits`/`decision`/`answer`，禁止整帧覆盖。
-- **写回闸门（`vaultSaveGate`）：** Analyst / ContentSummarizer 之后、`persistTurnEnd` 之前一次 interrupt。出闸只给**新材料**：`attachmentAction` 为 `summarize`/`translate`，或粘贴长文总结（`composeMode=summarize` / `intent=summarize_content` 且无 `searchQuery`、无 pathPlan 步）。**查库摘要、普通 QA、extract 不出闸。** 聊天按钮 **确定入库** | **取消**；确定入库 = `clientHandler: vault_save_name` → **文件名弹窗**（确认才 Resume，关闭弹窗不 Resume）；取消 = Resume 不写盘。写入 workspace 根目录 `.txt` + materialize（图不等 embed）。**不与工作台 fan-out 混用。**
+- **图任务两模式：** 问答主路径只有 **停 / 换题 = discard 问答 thread + 新一轮**，不用 Resume。真正 Resume **只给文件子线 HITL 按钮**（工作台 CRUD / 写回闸门；`fambrain-file:{conv}:{fileGen}` 上 `Command({ resume: vault_action })`，**必须带 `jobId`**）。Checkpointer 是给这件事撑着的，不是给聊天暂停续写用的。
+- **原文库人等：** 在 **文件子图** 每次 list/CRUD 后 `interrupt({ kind: vault_wait })`；点按钮才 Resume。对人可见的 list/CTA 以 **interrupt 载荷** 为准（`answer`/`blocks`）；stream `values` 在 interrupt 时可能缺 channel，**合入**已有 `answer`/`blocks`，禁止整帧覆盖。
+- **写回闸门：** 主图 Analyst / ContentSummarizer 之后 → `fileHandoff`（只写信封）→ **`persistTurnEnd`（会跑）** → END。runtime 再开文件图 `saveHitl` 一次 interrupt。出闸只给**新材料**：`attachmentAction` 为 `summarize`/`translate`，或粘贴长文总结（`composeMode=summarize` / `intent=summarize_content` 且无 `searchQuery`、无 pathPlan 步）。**查库摘要、普通 QA、extract 不出闸。** 聊天是 **两条助手消息**：主图终稿 `done`，再短 CTA + 按钮 `paused`。确定入库 = `clientHandler: vault_save_name` → **文件名弹窗**（确认才 Resume，关闭弹窗不 Resume）；取消 = Resume 不写盘。写入 workspace 根目录 `.txt` + materialize（图不等 embed）。
+- **新问 vs HITL：** 新 QA **不**作废 save_offer 按钮；**会**顶替 workspace HITL。同会话一个活跃 FileJob；新文件任务 supersede 旧文件 thread。TTL 30min → job `cancelled` + `discardFileTask`。同问短路不启动文件子线。Resume 无 `jobId` → HTTP 400。
 - **三条写路径勿混：** ① 语料页批量 `ingestDocumentBatch`（原件→corpus）；② 工作台 CRUD（用户编辑 txt）；③ 写回闸门（本轮终稿→txt）。**聊天附件不再 ingest**；LLM 若仍输出 `ingest`，schema 合法化为 `summarize`，走总结后再出闸门。
-- **生成停：** 流式中点「停止」→ 半截稿即终稿，**discard**。无「继续」。不接同一条 Ollama 采样。
-- **丢弃：** 新问题 / 编辑重跑 / 显式停止 / 生成停 = discard。点「确定入库」后改问：丢弃图任务，**不中止**已提交的语料化。
-- **UI 按钮：** 启用/禁用以后端 Prisma `Message.metadata.blocks[].actions[].disabled` 为准；新问或原文库 Resume 前作废旧按钮。
+- **生成停：** 流式中点「停止」→ 半截稿即终稿，**discard 问答 thread**。无「继续」。不接同一条 Ollama 采样。
+- **丢弃：** 新问题 / 编辑重跑 / 显式停止 / 生成停 = discard **问答** thread。文件 thread 仅在新文件任务 / workspace 被非原文库问顶替 / TTL 时 discard。点「确定入库」后改问：丢弃文件任务，**不中止**已提交的语料化。
+- **UI 按钮：** 启用/禁用以后端 Prisma `Message.metadata.blocks[].actions[].disabled` 为准；新问作废 workspace 按钮但 **保留** save_offer（`keepFileJobIds`）。
 - **写路径**：`kind=vault_workspace` CRUD `vault/originals/workspace/*.txt`；语料化 md+向量；硬删级联。不再直接改 corpus md。
 - **UI stale：** 列表/打开/删除按 `vault:cwd:<folder>` 分组；**新建 txt/文件夹**走 `vault:create:<cwd>`；写回闸门按钮走 `vault:save`（`apps/web/src/lib/chat/action-lifecycle.ts`）。
 
@@ -51,8 +52,9 @@
 
 | 线 | 目录 | 编排 |
 |----|------|------|
-| **在线 Agent 实现** | `agentflow/agents/online/`（含 `tool-orchestrator/`） | 各 `*-node.ts` 图节点 |
-| **编排骨架 + SSE** | `agentflow/pipeline/` | LangGraph `graph/` + `runtime/` |
+| **在线 Agent 实现** | `agentflow/agents/online/`（含 `tool-orchestrator/`） | 各 Agent 图节点；`file-handoff/` 只写信封 |
+| **文件子线（平级图）** | `agentflow/agents/sideline/file/` | 独立 compile `fambrain-file`；runtime `orchestrateAgentStream` 调用 |
+| **编排骨架 + SSE** | `agentflow/pipeline/` | 主图 `graph/` + `runtime/stream.ts`；双图编排 `runtime/orchestrate.ts` |
 | **离线** | `agentflow/agents/offline/` | 手动脚本：Indexer / DocParser 等 |
 | **工具定义** | `agentflow/tools/` | LangChain StructuredTool（被 tool-orchestrator 调用） |
 
@@ -91,16 +93,21 @@ flowchart TB
     P -->|clarify / chitchat| R1[respondEarly]
     P -->|summarize_content| SUM[ContentSummarizer]
     P -->|retrieve_and_answer| PCR[planCacheResolve]
-    PCR --> PE[planFanOut<br/>km/list/mem/tool/summarize/vault/dag]
+    PCR --> PE[planFanOut<br/>km/list/mem/tool/summarize/dag]
     PE --> CO[ContentOrganizer]
     CO --> IA[InformationAnalyst<br/>composeMode]
-    IA --> GATE{写回闸门?}
+    IA --> GATE{新材料终稿?}
     SUM --> GATE
-    GATE -->|附件/粘贴终稿| VSG[vaultSaveGate]
-    GATE -->|普通 QA / 查库摘要| OUT[assistant 入库]
-    VSG --> OUT
-    UF --> OUT
-    R1 --> OUT
+    GATE -->|附件/粘贴| FH[fileHandoff 信封]
+    GATE -->|普通 QA / 查库摘要| PST[persistTurnEnd]
+    FH --> PST
+    UF --> PST
+    R1 --> PST
+    PST --> END_MAIN[主图 END]
+    END_MAIN --> RT[orchestrateAgentStream]
+    RT -->|有信封| FG[文件子图 workspace/saveHitl]
+    RT -->|无| OUT[assistant 入库]
+    FG --> OUT
   end
 
   QD -.->|hybrid hits| PE
@@ -121,7 +128,7 @@ flowchart TB
 | `tools/` | LangChain 工具定义 | `retrieve-corpus.ts`、`search-web.ts` 等 |
 | `utils/` | 跨 Agent 小工具 | `json-parse.ts`、`zod-utils.ts` |
 
-实现：`pipeline/graph/compile.ts`（只注册节点 + 连边）· `pipeline/runtime/stream.ts` → `runPipelineStream()`（SSE + 步骤耗时；**不含** Agent 业务逻辑）。
+实现：`pipeline/graph/compile.ts`（只注册节点 + 连边）· `pipeline/runtime/stream.ts` → `runPipelineStream()`（主图 SSE）· `runtime/orchestrate.ts` → HTTP `runAgentStream`（主图 END 后可选文件子图）。
 
 **`runtime/stream.ts` 仅负责：** SSE 推送、`PipelineTimingTracker`、Pipeline 出去日志；**不**含 Mem0 读写或检索 cache 业务。interrupt 时 HITL 正文取 interrupt 载荷；`values` 合入已有 channel，不整帧覆盖。
 
@@ -152,15 +159,18 @@ flowchart TD
   PE -->|composeMode=summarize| CS
   PE -->|qa / composite| CO[ContentOrganizer]
   CO --> G[InformationAnalyst]
-  G --> GATE{写回闸门?}
+  G --> GATE{新材料终稿?}
   CS --> GATE
-  GATE -->|附件/粘贴| VSG[vaultSaveGate]
+  GATE -->|附件/粘贴| FH[fileHandoff]
   GATE -->|否| PST[TurnEnd]
-  VSG --> PST
+  FH --> PST
   D --> PST
   UF --> PST
   D0 --> PST
-  PST --> END_NODE[END]
+  PST --> END_NODE[主图 END]
+  END_NODE --> RT[runtime 文件子图?]
+  RT -->|workspace / save_offer| FG[sideline/file interrupt]
+  RT -->|否| DONE[SSE done]
 ```
 
 ## 单 Agent 实现流程
@@ -269,7 +279,7 @@ flowchart TD
 - **`external_link`**：GitHub、仓库、对外 URL；与 KM `queryProfile` 同名，**不走** enumeration projects fill。外链抽取工具 `extract_external_links_from_hits` 在 **tools 层**；Intake 只声明 `queryType=external_link` + `toolId`。
 - **`relations`**：语料亲友名册。槽 `topics` 含 `"family"` 时 `from-llm` 落 `queryType=relations` 并清 `identityField`（**只信槽字段，不扫问句「哥哥」**）；KM 只滤 `docKind=relations`。**不是** `identityField=name`、**不是** mem。`identity`+`name` 且无 family → 仍只搜档案。详见 [km-retrieval-design §六](./km-retrieval-design.md#六queryprofile-参数表)。
 
-**单问 / 多问统一路由：** Intake 出口 `resolveIntakeGraphRouteMode` 写入 **`routeMode`（与图节点 1:1）**；`routes.ts` 只读分发。优先级：**userFact → respondEarly → …**（remember/recall 进 **userFact**；**仅一步 mem** 结构折叠为 recall 早退）。km/list/mem/tool/summarize/**vault_workspace**/dag 并存 → `planFanOut`。空 pathPlan → `respondEarly`（clarify）。dag **仅** `hybrid_multi_source`。独立工具（如 `search_web`）→ `toolRetrieve`；扩展天气等同族只需加 `TOOL_RUN_IDS` + execute，无需新 PathKind。原文库 CRUD → Send `vaultWorkspace`。
+**单问 / 多问统一路由：** Intake 出口 `resolveIntakeGraphRouteMode` 写入 **`routeMode`（与图节点 1:1）**；`routes.ts` 只读分发。优先级：**vault_workspace → fileHandoff**；其余 **userFact → respondEarly → …**（remember/recall 进 **userFact**；**仅一步 mem** 结构折叠为 recall 早退）。km/list/mem/tool/summarize/dag 并存 → `planFanOut`。空 pathPlan → `respondEarly`（clarify）。dag **仅** `hybrid_multi_source`。独立工具（如 `search_web`）→ `toolRetrieve`；扩展天气等同族只需加 `TOOL_RUN_IDS` + execute，无需新 PathKind。原文库 CRUD **不进 fan-out**，主图 `fileHandoff` → persistTurnEnd，HITL 在文件子图。
 
 **外链 / 混合：** `applyIntakeLinkLookupGuard` 仅做 **harmonize**。编号拆槽、混合步序由 **LLM 写齐 `pathPlan.steps[]`**（数组顺序即答序），代码不发明、不重排。列举分页 / UI exact-match 实现在 **`corpus-lister/enumeration`**（Intake `enumeration/` 仅 re-export）。详见 [坑点 §2.8](./04-pitfalls.md#28-pathplan-统一编排-p0-28--2026-07)、[§2.10](./04-pitfalls.md#210-intake-档-b主路径规划--旁路纠偏-p0-31--2026-07)。
 
@@ -277,9 +287,9 @@ flowchart TD
 
 直接改 `corpus/**/*.md` 的 HITL `corpus_edit` 已删除。用户可编辑源只走 `vault_workspace`（`vault/originals/workspace/*.txt`）；语料 md + 向量由 materialize/purge 级联。见上文「原文库」。
 
-**工作台：** `kind=vault_workspace` 独占单槽 → `vaultWorkspace` → `persistTurnEnd`（不进 Join）。HITL「结束」exact-match `__FAMBRAIN_VAULT_WS_DONE__`。
+**工作台：** `kind=vault_workspace` 独占单槽 → 主图 `fileHandoff` → `persistTurnEnd`（不进 Join / fan-out）。文件子图 `workspace` interrupt 循环。HITL「结束」exact-match `__FAMBRAIN_VAULT_WS_DONE__`。列表覆写同一条 followup 消息。
 
-**写回闸门：** 独立 Agent 包 `vault-save-gate/`，图节点 `vaultSaveGate`。附件 summarize/translate 或粘贴长文总结终稿 → 一次 `interrupt(vault_wait)` → 确定入库（文件名弹窗）写 txt + materialize，或取消不写盘。查库摘要当阅读，不出闸。写盘复用 VaultWrite op。Eval：`golden.json` → `vaultWorkspaceProbe` 含 `save_gate_*`。
+**写回闸门：** 文件子图节点 `saveHitl`（包 `sideline/file/save-hitl/`）。附件 summarize/translate 或粘贴长文总结终稿 → 主图先 `persistTurnEnd`，再文件图一次 `interrupt(vault_wait)` → 确定入库（文件名弹窗）写 txt + materialize，或取消不写盘。查库摘要当阅读，不出闸。写盘复用 `sideline/file/vault` op。Eval：`golden.json` → `vaultWorkspaceProbe` 含 `save_gate_*` / `resume_requires_jobid`。
 
 ### 2.5 跨会话用户事实 userFact — P0-16 ✅
 
@@ -485,7 +495,7 @@ flowchart TD
 | Mem0 向量 | Qdrant collection `fambrain_user_memories`（`MEM0_QDRANT_COLLECTION`） |
 | Mem0 流水 | `data/memory/mem0/history.db` |
 | LangMem | Prisma `Conversation.sessionSummary` / `sessionSummaryAt` |
-| 图任务 checkpointer | 官方 `SqliteSaver` → `data/memory/langgraph/checkpoints.db`（可用 `LANGGRAPH_CHECKPOINT_PATH` 覆盖）。**问答 = discard 开新轮**；**Resume 只给原文库按钮**（`interrupt(vault_wait)` → `Command({ resume: vault_action })`）。生成停 / 新问 / 停止 = 世代 + `deleteThread`。HITL 正文以 interrupt 载荷为准。单测走 MemorySaver。 |
+| 图任务 checkpointer | 官方 `SqliteSaver` → `data/memory/langgraph/checkpoints.db`（可用 `LANGGRAPH_CHECKPOINT_PATH` 覆盖）。**问答 thread** = `fambrain:{conv}:{qaGen}`，新问 discard。**文件 thread** = `fambrain-file:{conv}:{fileGen}`，Resume 只打这一条（`interrupt(vault_wait)` → `Command({ resume: vault_action, jobId })`）。生成停 / 新问 / 停止 = 问答世代 + `deleteThread`。HITL 正文以 interrupt 载荷为准。单测走 MemorySaver。 |
 
 BFF 请求体须带 `conversationId`（`packages/brain-types`）。
 
@@ -542,9 +552,11 @@ flowchart TD
   R -->|false| CS[ContentSummarizer]
   KM --> CS
   CS --> GATE{新材料?}
-  GATE -->|附件/粘贴| VSG[vaultSaveGate]
-  GATE -->|查库摘要| OUT[assistant 终稿]
-  VSG --> OUT
+  GATE -->|附件/粘贴| FH[fileHandoff → persistTurnEnd]
+  GATE -->|查库摘要| PST[persistTurnEnd]
+  FH --> RT[文件子图 saveHitl]
+  PST --> RT
+  RT --> OUT[assistant：终稿 + 可选 CTA]
 ```
 
 **验证：** `pnpm run verify:content-summarizer`；`verify:agent-schemas`（含 `summarize_content` intent）；CLI 需 Ollama。
@@ -644,8 +656,8 @@ pnpm --filter @fambrain/brain-service run experiment:bind-tools -- "我的名字
 | `intent === "clarify"` 且 `clarifyingQuestion` 有值 | `respondEarly` | 澄清提问 |
 | `intent` 为 `chitchat` / `out_of_scope` 且 `briefReply` 有值 | `respondEarly` | 简短回复 |
 | `intent === "summarize_content"` 且需查库（`searchQuery` 非空） | `retrieval` → **contentSummarizer** | 摘要终稿（阅读已有语料，**不出闸**） |
-| `intent === "summarize_content"` 且无需查库（粘贴长文） | **contentSummarizer** → **vaultSaveGate** | 摘要终稿 + 是否入库 |
-| `attachmentAction` 为 `summarize` / `translate` | 总结或翻译链 → **vaultSaveGate** | 终稿 + 是否入库（聊天附件不再 ingest） |
+| `intent === "summarize_content"` 且无需查库（粘贴长文） | **contentSummarizer** → **fileHandoff** → persistTurnEnd → 文件子图 saveHitl | 摘要终稿 + 是否入库 |
+| `attachmentAction` 为 `summarize` / `translate` | 总结或翻译链 → **fileHandoff** → persistTurnEnd → 文件子图 | 终稿 + 是否入库（聊天附件不再 ingest） |
 | `intent` 为 `remember_user_fact` / `recall_user_fact` 且 Intake 填齐 schema | **userFact** → 终稿 | SSE：`user_fact`；**不经 KM / FC / Analyst** |
 | `retrieve_and_answer` / composite 等需检索 | `planCacheResolve` → **planFanOut**（km/list/mem/tool/…）→ **contentOrganizer** → **Analyst** | 检索 + 分析终稿 |
 | Join 后结构失败槽 | **全局再规划 B**（≤1） | 改 query / 外搜补救；不再打回 FactChecker |
@@ -656,11 +668,12 @@ pnpm --filter @fambrain/brain-service run experiment:bind-tools -- "我的名字
 | `event` | 含义 |
 |---------|------|
 | `meta` | 用户消息已落库（含真实 `id`） |
-| `step` | 编排进度：**`prepare_turn_start`** / `intake` / **`user_fact`** / `plan_fan_out` / `list_retrieve` / `km_retrieve` / **`content_summarizer`** / **`content_organizer`** / `analyst` / **`vault_save_gate`** / **`persist_turn_end`**，`status` 为 `running` \| `done`；`done` 时可带 `durationMs`（无 `fact_checker`） |
+| `step` | 编排进度：**`prepare_turn_start`** / `intake` / **`user_fact`** / `plan_fan_out` / `list_retrieve` / `km_retrieve` / **`content_summarizer`** / **`content_organizer`** / `analyst` / **`file_handoff`** / **`persist_turn_end`** / **`file_agent`**，`status` 为 `running` \| `done`；`done` 时可带 `durationMs`（无 `fact_checker`） |
 | `pipeline_timing` | SLO：本轮 `totalMs`、`ttftMs`、各节点 `nodes`（Agents → BFF 转发） |
 | `ready` | Pipeline 已出终稿、即将落库（BFF）；前端可提前解锁输入 |
 | `thinking` | 信息分析师推理流（若模型/Ollama 支持） |
 | `assistant` | 面向用户的正文增量（流结束后以 `answer` 写入 DB） |
 | `done` | 流结束，含 user/assistant 消息 id、终稿 `content`、可选 `timing`。生成停也走 `done`（半截稿即终稿） |
-| `paused` | 原文库 HITL（工作台或写回闸门）：`kind=vault_wait`，thread 可 Resume；**不是**生成停 |
+| `paused` | 文件子线 HITL（工作台或写回闸门）：`kind=vault_wait`，**必须带 `jobId`** 才能 Resume；**不是**生成停 |
+| `main_turn_complete` | 主图已 END（终稿可先落库）；随后可能再出文件 CTA |
 | `error` | 模型或编排失败 |

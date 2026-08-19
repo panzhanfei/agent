@@ -65,5 +65,6 @@ export const buildInitialState = (
         pendingGlobalRebatchSlotIds: [],
         pendingGlobalRebatchDag: false,
         pendingGlobalRebatchDagNodeIds: [],
+        fileEnvelope: null,
     };
 };

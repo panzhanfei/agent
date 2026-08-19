@@ -12,7 +12,6 @@ intake → planCacheResolve（agentflow/cache）
 ├── memRetrieve     PathKind=mem      dataSource=mem0
 ├── toolRetrieve    PathKind=tool     dataSource=web|…
 ├── summarizeSlot   PathKind=summarize dataSource=user_text
-├── vaultWorkspace  PathKind=vault_workspace（独占；interrupt 循环；不进 Join）
 ├── userFactSide    remember side-effect
 └── planDag         PathKind=dag（与槽同一 Join）
 
@@ -20,7 +19,7 @@ intake → planCacheResolve（agentflow/cache）
         ↓ 全局 B?（结构可救槽/节点 → 一次 LLM 补丁 → 再批 Send ≤1）
         ↓ planSlotPost     ← 仅 post-retrieval toolId
         ↓ planMerge
-        ↓ contentOrganizer → contentSummarizer? → analyst
+        ↓ contentOrganizer → contentSummarizer? → analyst → fileHandoff? → persistTurnEnd
 ```
 
 ## 扩展独立工具
@@ -29,7 +28,7 @@ intake → planCacheResolve（agentflow/cache）
 2. `runExecutionPlanNode` switch 增加 case  
 3. **不要**加入 `POST_RETRIEVAL_TOOL_IDS` → 自动走 `toolRetrieve`  
 
-独立工具一般无需新 PathKind。原文库 CRUD 走 `vault_workspace` → Send `vaultWorkspace`（节点内 interrupt，不经预算槽工人）。
+独立工具一般无需新 PathKind。原文库 CRUD 走 `kind=vault_workspace` → 主图 `fileHandoff`（不进 fan-out）；HITL 在 `agents/sideline/file`。
 
 ## 结构归一（无字段名表）
 

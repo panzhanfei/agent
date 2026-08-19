@@ -13,9 +13,28 @@ export type PipelineJobStreamEvent =
     | { type: "assistant"; text: string }
     | { type: "error"; message: string }
     | { type: "retrieval_meta"; cacheHit: boolean }
-    | { type: "pipeline_done"; answer: string; retrievalCacheHit?: boolean };
+    | {
+          type: "main_turn_complete";
+          answer: string;
+      }
+    | {
+          type: "paused";
+          turnId: string;
+          kind: "vault_wait";
+          answer: string;
+          jobId?: string;
+      }
+    | {
+          type: "pipeline_done";
+          answer: string;
+          retrievalCacheHit?: boolean;
+          paused?: boolean;
+          jobId?: string;
+      };
 
 export type PipelineJobResult = {
     answer: string;
     retrievalCacheHit?: boolean;
+    paused?: boolean;
+    jobId?: string;
 };

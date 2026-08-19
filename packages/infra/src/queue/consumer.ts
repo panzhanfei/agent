@@ -34,6 +34,8 @@ export const startPipelineWorker = (
                 type: "pipeline_done",
                 answer: result.answer,
                 retrievalCacheHit: result.retrievalCacheHit,
+                paused: result.paused,
+                jobId: result.jobId,
             });
             return result;
         },

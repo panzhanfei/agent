@@ -47,6 +47,7 @@ export const postConversationMessageBodySchema = z.object({
     resume: z
         .object({
             kind: z.enum(["vault_action"]),
+            jobId: z.string().min(1),
             prompt: z.string().optional(),
             name: z.string().max(120).optional(),
         })

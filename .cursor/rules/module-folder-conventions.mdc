@@ -49,13 +49,13 @@ import { applyIntakeChitchatGuard } from "@/agentflow/.../guards/intake-chitchat
 **`index.ts` 排版：** 先 `import` + barrel `export { … } from "./…"`；**LangGraph 节点实现（`runXxxNode`）放在文件最下方**。纯节点子目录（仅一个 `runXxxNode`）可只有 import + 底部实现。
 
 ```text
-corpus-lister/                    plan-fanout/
-├── index.ts    ← runListRetrieverNode + barrel   ├── index.ts           ← 只聚合
-├── interface.ts                                  ├── interface.ts
-├── list/                                         ├── fan-out/index.ts
-└── slot/                                         ├── plan-slot-join/index.ts
-                                                  ├── plan-slot-post/index.ts
-                                                  └── plan-merge/index.ts
+corpus-lister/                    plan-fanout/                         sideline/file/
+├── index.ts    ← runListRetrieverNode + barrel   ├── index.ts  ← 只聚合     ├── index.ts  ← 只聚合
+├── interface.ts                                  ├── interface.ts           ├── interface.ts
+├── list/                                         ├── fan-out/index.ts       ├── graph/compile.ts  ← 平级图
+└── slot/                                         ├── plan-slot-join/        ├── workspace/
+                                                  ├── plan-slot-post/        ├── save-hitl/
+                                                  └── plan-merge/            └── vault/
 
 knowledge-manager/
 ├── index.ts    ← runKmRetrieveNode + barrel
@@ -74,7 +74,9 @@ import { runPlanSlotJoinNode, fanOutPlanWorkers } from "@/agentflow/agents/onlin
 // ❌ 禁止 node/ 子目录（已废弃）
 ```
 
-**PlanFanOut 边界：** 只拥有 `fan-out` → `planSlotJoin` → `planSlotPost` → `planMerge`；`kmRetrieve`→KM；`listRetrieve`→Lister；`memRetrieve`→user-fact；`toolRetrieve`→tool-orchestrator；`planDag`→dag-executor；`summarizeSlot`→content-summarizer；`runUserFactSideNode`→user-fact/side。
+**PlanFanOut 边界：** 只拥有 `fan-out` → `planSlotJoin` → `planSlotPost` → `planMerge`；`kmRetrieve`→KM；`listRetrieve`→Lister；`memRetrieve`→user-fact；`toolRetrieve`→tool-orchestrator；`planDag`→dag-executor；`summarizeSlot`→content-summarizer；`runUserFactSideNode`→user-fact/side。**不拥有** vault / 文件 HITL（→ `agents/sideline/file`，主图只 `fileHandoff`）。
+
+**平级子线（sideline，不是 nested subgraph）：** `agents/sideline/<line>/` 各自 compile；runtime 在主图 END 后调用。禁止 `parent.addNode(compiledSubgraph)`。主图节点名不得与 state channel 同名（信封 channel 用 `fileEnvelope`，节点用 `fileHandoff`）。
 
 ## 新建 / 改动检查
 

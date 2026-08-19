@@ -1,6 +1,7 @@
 /**
  * 每会话一个进行中 pipeline thread：Checkpointer + generation。
- * 无 resume 的新请求会 discard（generation +1）。仅 vault_wait 在同一 thread 上 Resume。
+ * 无 resume 的新问答会 discard QA thread（generation +1）。
+ * 文件子线有独立 generation / thread_id；Resume 只打文件 thread。
  *
  * 生产：SqliteSaver → `data/memory/langgraph/checkpoints.db`
  * 单测：MemorySaver（VITEST 或 resetPipelineCheckpointForTests）
@@ -24,7 +25,9 @@ type SqliteDb = SqliteSaver["db"];
 type GenerationRow = { generation: number };
 
 const generationByConversation = new Map<string, number>();
+const fileGenerationByConversation = new Map<string, number>();
 const discardHooks: Array<(conversationId: string) => void> = [];
+const fileDiscardHooks: Array<(conversationId: string) => void> = [];
 
 let saver: BaseCheckpointSaver | null = null;
 let sqliteDb: SqliteDb | null = null;
@@ -52,6 +55,10 @@ const resolveCheckpointDbPath = (): string => {
 const ensureGenerationTable = (db: SqliteDb): void => {
   db.exec(`
     CREATE TABLE IF NOT EXISTS pipeline_thread_generation (
+      conversation_id TEXT PRIMARY KEY,
+      generation INTEGER NOT NULL
+    );
+    CREATE TABLE IF NOT EXISTS file_thread_generation (
       conversation_id TEXT PRIMARY KEY,
       generation INTEGER NOT NULL
     );
@@ -111,16 +118,63 @@ const currentGeneration = (conversationId: string): number => {
   return gen;
 };
 
+const writeFileGenerationToSqlite = (
+  conversationId: string,
+  generation: number
+): void => {
+  if (!sqliteDb) return;
+  sqliteDb
+    .prepare(
+      `INSERT INTO file_thread_generation (conversation_id, generation)
+       VALUES (?, ?)
+       ON CONFLICT(conversation_id) DO UPDATE SET generation = excluded.generation`
+    )
+    .run(conversationId, generation);
+};
+
+const readFileGenerationFromSqlite = (
+  conversationId: string
+): number | null => {
+  if (!sqliteDb) return null;
+  const row = sqliteDb
+    .prepare(
+      "SELECT generation FROM file_thread_generation WHERE conversation_id = ?"
+    )
+    .get(conversationId) as GenerationRow | undefined;
+  return row ? row.generation : null;
+};
+
+const currentFileGeneration = (conversationId: string): number => {
+  const cached = fileGenerationByConversation.get(conversationId);
+  if (cached !== undefined) return cached;
+  const persisted = readFileGenerationFromSqlite(conversationId);
+  const gen = persisted ?? 0;
+  fileGenerationByConversation.set(conversationId, gen);
+  return gen;
+};
+
 export const registerPipelineDiscardHook = (
   hook: (conversationId: string) => void
 ): void => {
   discardHooks.push(hook);
 };
 
+export const registerFileDiscardHook = (
+  hook: (conversationId: string) => void
+): void => {
+  fileDiscardHooks.push(hook);
+};
+
 export const pipelineThreadId = (conversationId: string): string => {
   ensureSaver();
   const gen = currentGeneration(conversationId);
   return `fambrain:${conversationId}:${gen}`;
+};
+
+export const fileThreadId = (conversationId: string): string => {
+  ensureSaver();
+  const gen = currentFileGeneration(conversationId);
+  return `fambrain-file:${conversationId}:${gen}`;
 };
 
 const deleteThreadSafe = (threadId: string): void => {
@@ -144,6 +198,18 @@ export const discardPipelineTask = (conversationId: string): string => {
   deleteThreadSafe(prevId);
   for (const hook of discardHooks) hook(conversationId);
   return pipelineThreadId(conversationId);
+};
+
+/** 提升文件子线 generation 并删除旧 file thread。 */
+export const discardFileTask = (conversationId: string): string => {
+  ensureSaver();
+  const prevId = fileThreadId(conversationId);
+  const next = currentFileGeneration(conversationId) + 1;
+  fileGenerationByConversation.set(conversationId, next);
+  writeFileGenerationToSqlite(conversationId, next);
+  deleteThreadSafe(prevId);
+  for (const hook of fileDiscardHooks) hook(conversationId);
+  return fileThreadId(conversationId);
 };
 
 export const getPipelineCheckpointer = (): BaseCheckpointSaver => ensureSaver();
@@ -195,6 +261,7 @@ export const extractPipelinePauseValue = (
 
 export const resetPipelineCheckpointForTests = (): void => {
   generationByConversation.clear();
+  fileGenerationByConversation.clear();
   if (sqliteDb) {
     try {
       sqliteDb.close();
@@ -209,6 +276,7 @@ export const resetPipelineCheckpointForTests = (): void => {
 /** 单测：用临时 sqlite 验证 generation 落盘（与生产同一套表） */
 export const useSqliteCheckpointerForTests = (dbPath: string): void => {
   generationByConversation.clear();
+  fileGenerationByConversation.clear();
   if (sqliteDb) {
     try {
       sqliteDb.close();

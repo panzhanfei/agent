@@ -1,6 +1,6 @@
 /**
  * Intake 之后：每槽 Send（km/list/mem/tool/summarize）∥ planDag ∥ userFactSide。
- * vault_workspace 独占：只 Send 该工人，不与其它槽 / dag / side 并行。
+ * vault_workspace 已交文件子线，不进 fan-out。
  * 全部 → planSlotJoin →（可选全局 B 再批）→ planSlotPost → planMerge。
  * 工人内无 FC；改 query / 外搜再试只在 Join 全局 B。
  */
@@ -25,8 +25,7 @@ const sendTargetForExecutor = (
   | "listRetrieve"
   | "memRetrieve"
   | "toolRetrieve"
-  | "summarizeSlot"
-  | "vaultWorkspace" => {
+  | "summarizeSlot" => {
   switch (executor) {
     case "list_corpus":
       return "listRetrieve";
@@ -36,18 +35,9 @@ const sendTargetForExecutor = (
       return "toolRetrieve";
     case "summarize_slot":
       return "summarizeSlot";
-    case "vault_workspace":
-      return "vaultWorkspace";
     default:
       return "kmRetrieve";
   }
-};
-
-const exclusiveVaultFanOutSlots = <T extends { executor?: string }>(
-  slots: T[]
-): T[] => {
-  const vault = slots.find((s) => s.executor === "vault_workspace");
-  return vault ? [vault] : slots;
 };
 
 export const fanOutPlanWorkers = (state: PipelineGraphState): Send[] => {
@@ -57,18 +47,19 @@ export const fanOutPlanWorkers = (state: PipelineGraphState): Send[] => {
     return [new Send("planMerge", state)];
   }
 
-  const slots = exclusiveVaultFanOutSlots(decision.compositeSlots ?? []);
-  const vaultOnly = slots.length === 1 && slots[0]?.executor === "vault_workspace";
+  const slots = (decision.compositeSlots ?? []).filter(
+    (s) => s.executor !== "vault_workspace"
+  );
   for (const slot of slots) {
     const payload = { ...state, activeSlotId: String(slot.id) };
     const target = sendTargetForExecutor(slot.executor);
     sends.push(new Send(target, payload));
   }
 
-  if (!vaultOnly && pathHasHybridDag(state)) {
+  if (pathHasHybridDag(state)) {
     sends.push(new Send("planDag", state));
   }
-  if (!vaultOnly && routeUserFactSideEffect(decision)) {
+  if (routeUserFactSideEffect(decision)) {
     sends.push(new Send("userFactSide", state));
   }
 
@@ -116,9 +107,9 @@ export const describeFanOutPlan = (
       vaultWorkspaceCount: 0,
     };
   }
-  const slots = exclusiveVaultFanOutSlots(decision.compositeSlots ?? []);
-  const vaultOnly =
-    slots.length === 1 && slots[0]?.executor === "vault_workspace";
+  const slots = (decision.compositeSlots ?? []).filter(
+    (s) => s.executor !== "vault_workspace"
+  );
   const kmCount = slots.filter(
     (s) => !s.executor || s.executor === "km_retrieve"
   ).length;
@@ -128,25 +119,20 @@ export const describeFanOutPlan = (
   const summarizeCount = slots.filter(
     (s) => s.executor === "summarize_slot"
   ).length;
-  const vaultWorkspaceCount = slots.filter(
-    (s) => s.executor === "vault_workspace"
-  ).length;
   return {
     hasKm: kmCount > 0,
     hasList: listCount > 0,
     hasMem: memCount > 0,
     hasTool: toolCount > 0,
     hasSummarize: summarizeCount > 0,
-    hasVaultWorkspace: vaultWorkspaceCount > 0,
-    hasDag: vaultOnly ? false : pathHasHybridDag(state),
-    hasSideRemember: vaultOnly
-      ? false
-      : Boolean(routeUserFactSideEffect(decision)),
+    hasVaultWorkspace: false,
+    hasDag: pathHasHybridDag(state),
+    hasSideRemember: Boolean(routeUserFactSideEffect(decision)),
     kmCount,
     listCount,
     memCount,
     toolCount,
     summarizeCount,
-    vaultWorkspaceCount,
+    vaultWorkspaceCount: 0,
   };
 };

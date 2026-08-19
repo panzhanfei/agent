@@ -31,4 +31,5 @@ export type UiChatMessage = {
   citations?: Citation[];
   taskPaused?: boolean;
   pauseKind?: "vault_wait";
+  fileJobId?: string;
 };

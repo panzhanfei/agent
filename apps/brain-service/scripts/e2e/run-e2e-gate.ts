@@ -99,6 +99,16 @@ const main = async () => {
     )
   );
 
+  steps.push(
+    await run(
+      "api-file-hitl",
+      "API E2E 文件 HITL（jobId / save_offer / 新 QA）",
+      "pnpm",
+      ["run", "e2e:api:file-hitl"],
+      brain
+    )
+  );
+
   const pwReportDir = path.join(reportsDir(), "playwright");
   await mkdir(pwReportDir, { recursive: true });
   steps.push(
@@ -120,6 +130,7 @@ const main = async () => {
     "",
     "- **vault**：原文库 CRUD 冒烟（inprocess / API / Playwright）",
     "- **对话主链**：Web 登录 → 会话 → 多轮问答 → brain pipeline（API + Playwright）",
+    "- **文件 HITL**：Resume 缺 jobId 400、新 QA 顶替 workspace、附件总结出闸 / 保留 save_offer / 取消（API + Playwright 弹窗）",
     "",
     "### 步骤总览",
     "",

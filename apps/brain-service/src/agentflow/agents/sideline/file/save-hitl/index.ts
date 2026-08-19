@@ -1,6 +1,5 @@
 /**
- * VaultSaveGate：附件/粘贴新材料终稿一次 interrupt。
- * 弹窗确认后走 VaultWrite create_file + materialize；取消不写盘。不进 Join。
+ * save HITL：一次 interrupt；确认写盘或取消。
  */
 import { interrupt } from "@langchain/langgraph";
 import { logAgentOut } from "@fambrain/brain-shared/agent-log";
@@ -8,8 +7,8 @@ import {
   rememberVaultWorkspaceOp,
   runVaultWorkspaceOp,
   takeCachedVaultWorkspaceOp,
-} from "@/agentflow/agents/online/vault-write";
-import type { PipelineGraphState } from "@/agentflow/pipeline/graph/state";
+} from "../vault";
+import type { FileGraphState } from "../graph/state";
 import { sanitizeVaultSaveBasename } from "./filename";
 import type { VaultSaveGateBlocks, VaultSaveResume } from "./interface";
 import {
@@ -26,28 +25,6 @@ export {
   sanitizeVaultSaveBasename,
   suggestedVaultSaveBasename,
 } from "./filename";
-
-/** 新材料终稿才出闸：附件总结/翻译、粘贴长文总结。查库摘要与普通 QA 不出。 */
-export const shouldOfferVaultSaveGate = (
-  state: Pick<PipelineGraphState, "answer" | "error" | "decision">
-): boolean => {
-  if (state.error) return false;
-  if (!state.answer?.trim()) return false;
-  const d = state.decision;
-  if (!d) return false;
-  if (
-    d.attachmentAction === "translate" ||
-    d.attachmentAction === "summarize"
-  ) {
-    return true;
-  }
-  const isSummarize =
-    d.composeMode === "summarize" || d.intent === "summarize_content";
-  if (!isSummarize) return false;
-  const hasPathSteps = (d.pathPlan?.steps?.length ?? 0) > 0;
-  const hasSearchQuery = Boolean(d.searchQuery?.trim());
-  return !hasPathSteps && !hasSearchQuery;
-};
 
 export const parseVaultSaveResume = (resume: unknown): VaultSaveResume => {
   if (!resume || typeof resume !== "object") return { kind: "unknown" };
@@ -71,17 +48,16 @@ export const parseVaultSaveResume = (resume: unknown): VaultSaveResume => {
 };
 
 export const buildVaultSaveGateBlocks = (input: {
-  draft: string;
   language?: "zh" | "en";
 }): VaultSaveGateBlocks => {
   const zh = input.language !== "en";
   const hint = zh
-    ? `${input.draft.trim()}\n\n可将本轮终稿写入原文库（.txt）。点「确定入库」后填写文件名。`
-    : `${input.draft.trim()}\n\nSave this draft to the workspace as a .txt file.`;
+    ? "可将本轮终稿写入原文库（.txt）。点「确定入库」后填写文件名。"
+    : "Save this draft to the workspace as a .txt file.";
   return {
     answer: hint,
     blocks: [
-      { type: "text", markdown: input.draft.trim() },
+      { type: "text", markdown: hint },
       {
         type: "actions",
         actions: [
@@ -104,21 +80,19 @@ export const buildVaultSaveGateBlocks = (input: {
   };
 };
 
-/**
- * vaultSaveGate 节点：一次 interrupt；确认写盘或取消后 → persistTurnEnd。
- * Resume 从节点入口重跑，写操作依赖 VaultWrite op-cache 避免重复执行。
- */
-export const runVaultSaveGateNode = async (
-  state: PipelineGraphState
-): Promise<Partial<PipelineGraphState>> => {
-  logAgentOut("VaultSaveGate", "进入", { via: "vaultSaveGate" });
-  const draft = state.answer?.trim() ?? "";
+export const runSaveHitlNode = async (
+  state: FileGraphState
+): Promise<Partial<FileGraphState>> => {
+  logAgentOut("FileAgent", "进入 save HITL", { via: "saveHitl" });
+  const draft = state.envelope.draft.trim();
   if (!draft) {
-    return {};
+    return {
+      result: { action: "noop", answer: "" },
+    };
   }
-  const language = state.decision?.language === "en" ? "en" : "zh";
-  const built = buildVaultSaveGateBlocks({ draft, language });
-  const conversationId = state.context.conversationId;
+  const language = state.language;
+  const built = buildVaultSaveGateBlocks({ language });
+  const conversationId = state.conversationId;
 
   for (;;) {
     const resume: unknown = interrupt({
@@ -128,8 +102,12 @@ export const runVaultSaveGateNode = async (
     });
     const parsed = parseVaultSaveResume(resume);
     if (parsed.kind === "cancel") {
-      logAgentOut("VaultSaveGate", "写回取消", { via: "vaultSaveGate" });
-      return { answer: draft, assistantBlocks: null };
+      logAgentOut("FileAgent", "写回取消", { via: "saveHitl" });
+      return {
+        answer: built.answer,
+        assistantBlocks: null,
+        result: { action: "cancelled", answer: built.answer },
+      };
     }
     if (parsed.kind === "confirm") {
       const fileName = `${parsed.name}.txt`;
@@ -139,28 +117,33 @@ export const runVaultSaveGateNode = async (
         name: fileName,
         afterContent: draft,
       };
-      let result = takeCachedVaultWorkspaceOp(conversationId, params);
-      if (!result) {
-        result = await runVaultWorkspaceOp({
-          corpusUserId: state.context.corpusUserId,
+      let opResult = takeCachedVaultWorkspaceOp(conversationId, params);
+      if (!opResult) {
+        opResult = await runVaultWorkspaceOp({
+          corpusUserId: state.corpusUserId,
           params,
           language,
         });
-        rememberVaultWorkspaceOp(conversationId, params, result);
+        rememberVaultWorkspaceOp(conversationId, params, opResult);
       }
-      const note = result.ok
+      const note = opResult.ok
         ? language === "en"
-          ? `Saved as ${fileName}. ${result.syncNote ?? ""}`.trim()
-          : `已入库为 ${fileName}。${result.syncNote ?? ""}`.trim()
-        : result.answer;
-      logAgentOut("VaultSaveGate", "写回完成", {
-        via: "vaultSaveGate",
-        ok: result.ok,
+          ? `Saved as ${fileName}. ${opResult.syncNote ?? ""}`.trim()
+          : `已入库为 ${fileName}。${opResult.syncNote ?? ""}`.trim()
+        : opResult.answer;
+      logAgentOut("FileAgent", "写回完成", {
+        via: "saveHitl",
+        ok: opResult.ok,
         name: fileName,
       });
       return {
-        answer: `${draft}\n\n${note}`,
+        answer: note,
         assistantBlocks: null,
+        result: {
+          action: opResult.ok ? "saved" : "error",
+          answer: note,
+          savedPath: opResult.ok ? fileName : undefined,
+        },
       };
     }
   }

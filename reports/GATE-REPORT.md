@@ -1,8 +1,8 @@
 # FamBrain 工程门禁总报表
 
 - **汇总状态**: FAIL
-- **分项**: unit:PASS · eval:FAIL · load:PASS · e2e:FAIL
-- **最后更新**: 2026-08-17T16:11:07.153Z
+- **分项**: unit:PASS · eval:FAIL · load:FAIL · e2e:PASS
+- **最后更新**: 2026-08-19T10:44:03.318Z
 - **目录**: `reports/`
 - **机器可读**: `reports/{unit,eval,load,e2e}-report.json`
 - **写入策略**: 分项覆盖；GATE 按段覆盖合并（非历史累加）
@@ -14,68 +14,77 @@
 # 单元测试
 
 - **结果**: PASS
-- **生成时间**: 2026-08-12T13:42:16.124Z
+- **生成时间**: 2026-08-19T10:19:10.677Z
 
 ### 汇总
 
 | 指标 | 值 |
 |---|---|
 | exitCode | 0 |
-| total | 185 |
-| passed | 185 |
+| total | 227 |
+| passed | 227 |
 | failed | 0 |
 | pending | 0 |
-| elapsedMs | 55496 |
+| elapsedMs | 35510 |
 
 ### 按文件
 
 | 文件 | passed | failed | total |
 |---|---:|---:|---:|
 | `packages/auth/src/national-id.test.ts` | 3 | 0 | 3 |
-| `packages/corpus/src/bm25.test.ts` | 2 | 0 | 2 |
-| `packages/corpus/src/recall-tokenize.test.ts` | 3 | 0 | 3 |
-| `packages/corpus/src/workspace-fs.test.ts` | 3 | 0 | 3 |
-| `packages/corpus/src/workspace-paths.test.ts` | 3 | 0 | 3 |
 | `packages/test-kit/src/check-dependency-tree.test.ts` | 3 | 0 | 3 |
-| `packages/infra/src/cache/keys.test.ts` | 2 | 0 | 2 |
-| `packages/db/src/repos/conversations-edit.test.ts` | 4 | 0 | 4 |
-| `apps/brain-service/tests/execution/control-plane.test.ts` | 11 | 0 | 11 |
-| `apps/brain-service/tests/execution/dag-partial-reexec.test.ts` | 5 | 0 | 5 |
-| `apps/brain-service/tests/execution/empty-policy.test.ts` | 5 | 0 | 5 |
-| `apps/brain-service/tests/execution/global-rebatch.test.ts` | 9 | 0 | 9 |
-| `apps/brain-service/tests/execution/slot-subgraph-shell.test.ts` | 2 | 0 | 2 |
-| `apps/brain-service/tests/content-summarizer/build-source-text.test.ts` | 1 | 0 | 1 |
-| `apps/brain-service/tests/content-summarizer/summarize-route.test.ts` | 2 | 0 | 2 |
 | `apps/brain-service/tests/corpus-lister/flatten-list-retrieval.test.ts` | 2 | 0 | 2 |
 | `apps/brain-service/tests/corpus-lister/pure-list-route.test.ts` | 2 | 0 | 2 |
+| `apps/brain-service/tests/content-summarizer/build-source-text.test.ts` | 1 | 0 | 1 |
+| `apps/brain-service/tests/content-summarizer/summarize-route.test.ts` | 2 | 0 | 2 |
 | `apps/brain-service/tests/doc-parser/parse-image-ocr-error.test.ts` | 1 | 0 | 1 |
-| `apps/brain-service/tests/knowledge-manager/entry-time-window.test.ts` | 4 | 0 | 4 |
-| `apps/brain-service/tests/knowledge-manager/facet-key-pagination.test.ts` | 4 | 0 | 4 |
-| `apps/brain-service/tests/intake-coordinator/apply-attachment-action.test.ts` | 6 | 0 | 6 |
-| `apps/brain-service/tests/intake-coordinator/compile-path-plan.test.ts` | 12 | 0 | 12 |
+| `apps/brain-service/tests/execution/control-plane.test.ts` | 10 | 0 | 10 |
+| `apps/brain-service/tests/execution/dag-partial-reexec.test.ts` | 5 | 0 | 5 |
+| `apps/brain-service/tests/execution/empty-policy.test.ts` | 5 | 0 | 5 |
+| `apps/brain-service/tests/execution/file-thread.test.ts` | 1 | 0 | 1 |
+| `apps/brain-service/tests/execution/global-rebatch.test.ts` | 9 | 0 | 9 |
+| `apps/brain-service/tests/execution/pipeline-graph-compile.test.ts` | 1 | 0 | 1 |
+| `apps/brain-service/tests/execution/pipeline-pause-resume.test.ts` | 8 | 0 | 8 |
+| `apps/brain-service/tests/information-analyst/slice-hits-for-analyst-stream.test.ts` | 2 | 0 | 2 |
+| `apps/brain-service/tests/intake-coordinator/apply-attachment-action.test.ts` | 7 | 0 | 7 |
+| `apps/brain-service/tests/intake-coordinator/compile-path-plan.test.ts` | 15 | 0 | 15 |
 | `apps/brain-service/tests/intake-coordinator/effective-intake-question.test.ts` | 8 | 0 | 8 |
 | `apps/brain-service/tests/intake-coordinator/enumeration-target.test.ts` | 4 | 0 | 4 |
 | `apps/brain-service/tests/intake-coordinator/parse-user-fact-lift.test.ts` | 3 | 0 | 3 |
-| `apps/brain-service/tests/intake-coordinator/repair-retrieval-plan.test.ts` | 7 | 0 | 7 |
+| `apps/brain-service/tests/intake-coordinator/repair-retrieval-plan.test.ts` | 9 | 0 | 9 |
 | `apps/brain-service/tests/intake-coordinator/resolve-enumeration-pagination.test.ts` | 4 | 0 | 4 |
 | `apps/brain-service/tests/intake-coordinator/resolve-route-mode.test.ts` | 5 | 0 | 5 |
-| `apps/brain-service/tests/hitl-write/compose-and-lifecycle.test.ts` | 7 | 0 | 7 |
-| `apps/brain-service/tests/hitl-write/path-plan-corpus-edit.test.ts` | 1 | 0 | 1 |
-| `apps/brain-service/tests/hitl-write/paths-and-actions.test.ts` | 3 | 0 | 3 |
-| `apps/brain-service/tests/hitl-write/propose-abc.test.ts` | 5 | 0 | 5 |
+| `apps/brain-service/tests/knowledge-manager/entry-time-window.test.ts` | 4 | 0 | 4 |
+| `apps/brain-service/tests/knowledge-manager/facet-key-pagination.test.ts` | 7 | 0 | 7 |
+| `apps/brain-service/tests/knowledge-manager/recall-doc-kinds.test.ts` | 8 | 0 | 8 |
+| `apps/brain-service/tests/server/pipeline-stream-schema.test.ts` | 1 | 0 | 1 |
+| `apps/brain-service/tests/pipeline/orchestrate-resume.test.ts` | 1 | 0 | 1 |
+| `apps/brain-service/tests/pipeline/routes-after-organizer.test.ts` | 2 | 0 | 2 |
+| `apps/brain-service/tests/plan-fanout/merge-composite-dag.test.ts` | 2 | 0 | 2 |
+| `apps/brain-service/tests/sideline-file/decide.test.ts` | 2 | 0 | 2 |
 | `apps/brain-service/tests/tool-orchestrator/enrich-plan.test.ts` | 2 | 0 | 2 |
-| `apps/brain-service/tests/tool-orchestrator/field-catalog.test.ts` | 4 | 0 | 4 |
+| `apps/brain-service/tests/tool-orchestrator/field-catalog.test.ts` | 5 | 0 | 5 |
 | `apps/brain-service/tests/tool-orchestrator/match-report.test.ts` | 4 | 0 | 4 |
-| `apps/brain-service/tests/tools/compute-age.test.ts` | 4 | 0 | 4 |
-| `apps/brain-service/tests/tools/compute-tenure.test.ts` | 3 | 0 | 3 |
+| `apps/brain-service/tests/user-memory-extract/legalize.test.ts` | 2 | 0 | 2 |
+| `apps/brain-service/tests/vault-save-gate/save-gate.test.ts` | 6 | 0 | 6 |
+| `apps/brain-service/tests/tools/compute-age.test.ts` | 6 | 0 | 6 |
+| `apps/brain-service/tests/tools/compute-tenure.test.ts` | 5 | 0 | 5 |
 | `apps/brain-service/tests/tools/external-link-query-regression.test.ts` | 4 | 0 | 4 |
 | `apps/brain-service/tests/tools/extract-tools.test.ts` | 11 | 0 | 11 |
 | `apps/brain-service/tests/tools/translate-lang.test.ts` | 4 | 0 | 4 |
-| `apps/brain-service/tests/pipeline/routes-after-organizer.test.ts` | 2 | 0 | 2 |
-| `apps/brain-service/tests/information-analyst/slice-hits-for-analyst-stream.test.ts` | 2 | 0 | 2 |
-| `apps/brain-service/tests/vault-write/path-plan-vault-workspace.test.ts` | 5 | 0 | 5 |
-| `apps/brain-service/tests/user-memory-extract/legalize.test.ts` | 2 | 0 | 2 |
-| `apps/brain-service/tests/plan-fanout/merge-composite-dag.test.ts` | 2 | 0 | 2 |
+| `apps/brain-service/tests/vault-write/action-lifecycle.test.ts` | 3 | 0 | 3 |
+| `apps/brain-service/tests/vault-write/path-plan-vault-workspace.test.ts` | 9 | 0 | 9 |
+| `packages/corpus/src/paths/corpus-noise.test.ts` | 1 | 0 | 1 |
+| `packages/corpus/src/vector/bm25.test.ts` | 2 | 0 | 2 |
+| `packages/corpus/src/workspace/workspace-fs.test.ts` | 3 | 0 | 3 |
+| `packages/corpus/src/workspace/workspace-paths.test.ts` | 3 | 0 | 3 |
+| `packages/corpus/src/qdrant/qdrant-sparse.test.ts` | 2 | 0 | 2 |
+| `packages/corpus/src/qdrant/recall-tokenize.test.ts` | 3 | 0 | 3 |
+| `packages/infra/src/cache/keys.test.ts` | 2 | 0 | 2 |
+| `packages/db/src/repos/conversations-edit.test.ts` | 4 | 0 | 4 |
+| `packages/db/src/repos/conversations-keep-file-jobs.test.ts` | 1 | 0 | 1 |
+| `packages/db/src/repos/file-jobs.test.ts` | 2 | 0 | 2 |
+| `packages/corpus/src/vector/doc-kind/doc-kind.test.ts` | 6 | 0 | 6 |
 
 ### 失败用例
 
@@ -84,59 +93,58 @@ _无_
 ### 终端尾部
 
 ```
-ct/own/fambrain-agents
+s) 64ms
+ ✓ apps/brain-service/tests/intake-coordinator/resolve-enumeration-pagination.test.ts (4 tests) 8ms
+ ✓ apps/brain-service/tests/execution/control-plane.test.ts (10 tests) 58ms
+ ✓ packages/corpus/src/qdrant/recall-tokenize.test.ts (3 tests) 19ms
+ ✓ apps/brain-service/tests/tools/translate-lang.test.ts (4 tests) 9ms
+ ✓ packages/test-kit/src/check-dependency-tree.test.ts (3 tests) 30ms
+ ✓ apps/brain-service/tests/execution/global-rebatch.test.ts (9 tests) 18ms
+ ✓ apps/brain-service/tests/intake-coordinator/repair-retrieval-plan.test.ts (9 tests) 15ms
+ ✓ apps/brain-service/tests/intake-coordinator/compile-path-plan.test.ts (15 tests) 26ms
+ ✓ apps/brain-service/tests/execution/empty-policy.test.ts (5 tests) 12ms
+ ✓ apps/brain-service/tests/tools/external-link-query-regression.test.ts (4 tests) 19ms
+ ✓ apps/brain-service/tests/tools/extract-tools.test.ts (11 tests) 31ms
+ ✓ apps/brain-service/tests/vault-write/path-plan-vault-workspace.test.ts (9 tests) 28ms
+ ✓ apps/brain-service/tests/tools/compute-tenure.test.ts (5 tests) 19ms
+ ✓ apps/brain-service/tests/vault-save-gate/save-gate.test.ts (6 tests) 22ms
+ ✓ apps/brain-service/tests/execution/pipeline-graph-compile.test.ts (1 test) 21ms
+ ✓ apps/brain-service/tests/corpus-lister/flatten-list-retrieval.test.ts (2 tests) 8ms
+ ✓ apps/brain-service/tests/execution/pipeline-pause-resume.test.ts (8 tests) 120ms
+ ✓ apps/brain-service/tests/intake-coordinator/parse-user-fact-lift.test.ts (3 tests) 26ms
+ ✓ apps/brain-service/tests/tool-orchestrator/match-report.test.ts (4 tests) 26ms
+ ✓ packages/corpus/src/vector/bm25.test.ts (2 tests) 7ms
+ ✓ apps/brain-service/tests/knowledge-manager/entry-time-window.test.ts (4 tests) 9ms
+ ✓ packages/corpus/src/workspace/workspace-paths.test.ts (3 tests) 8ms
+ ✓ apps/brain-service/tests/knowledge-manager/facet-key-pagination.test.ts (7 tests) 12ms
+ ✓ apps/brain-service/tests/information-analyst/slice-hits-for-analyst-stream.test.ts (2 tests) 9ms
+ ✓ apps/brain-service/tests/vault-write/action-lifecycle.test.ts (3 tests) 10ms
+ ✓ packages/corpus/src/qdrant/qdrant-sparse.test.ts (2 tests) 17ms
+ ✓ apps/brain-service/tests/doc-parser/parse-image-ocr-error.test.ts (1 test) 7ms
+ ✓ apps/brain-service/tests/execution/dag-partial-reexec.test.ts (5 tests) 13ms
+ ✓ packages/corpus/src/paths/corpus-noise.test.ts (1 test) 6ms
+ ✓ apps/brain-service/tests/knowledge-manager/recall-doc-kinds.test.ts (8 tests) 15ms
+ ✓ apps/brain-service/tests/execution/file-thread.test.ts (1 test) 8ms
+ ✓ packages/infra/src/cache/keys.test.ts (2 tests) 7ms
+ ✓ apps/brain-service/tests/user-memory-extract/legalize.test.ts (2 tests) 14ms
+ ✓ apps/brain-service/tests/tool-orchestrator/enrich-plan.test.ts (2 tests) 50ms
+ ✓ apps/brain-service/tests/intake-coordinator/effective-intake-question.test.ts (8 tests) 82ms
+ ✓ apps/brain-service/tests/intake-coordinator/apply-attachment-action.test.ts (7 tests) 90ms
+ ✓ apps/brain-service/tests/corpus-lister/pure-list-route.test.ts (2 tests) 23ms
+ ✓ apps/brain-service/tests/plan-fanout/merge-composite-dag.test.ts (2 tests) 16ms
+ ✓ apps/brain-service/tests/tools/compute-age.test.ts (6 tests) 16ms
+ ✓ apps/brain-service/tests/intake-coordinator/resolve-route-mode.test.ts (5 tests) 14ms
+ ✓ apps/brain-service/tests/tool-orchestrator/field-catalog.test.ts (5 tests) 14ms
+ ✓ apps/brain-service/tests/pipeline/routes-after-organizer.test.ts (2 tests) 15ms
+ ✓ apps/brain-service/tests/intake-coordinator/enumeration-target.test.ts (4 tests) 15ms
+ ✓ apps/brain-service/tests/sideline-file/decide.test.ts (2 tests) 8ms
+ ✓ apps/brain-service/tests/content-summarizer/summarize-route.test.ts (2 tests) 17ms
+ ✓ apps/brain-service/tests/pipeline/orchestrate-resume.test.ts (1 test) 8ms
 
- ✓ packages/corpus/src/recall-tokenize.test.ts (3 tests) 13ms
- ✓ packages/test-kit/src/check-dependency-tree.test.ts (3 tests) 40ms
- ✓ packages/db/src/repos/conversations-edit.test.ts (4 tests) 626ms
-   ✓ editRegenerateMessageBodySchema > accepts content and optional turnId  437ms
- ✓ apps/brain-service/tests/execution/control-plane.test.ts (11 tests) 62ms
- ✓ apps/brain-service/tests/tools/extract-tools.test.ts (11 tests) 60ms
- ✓ apps/brain-service/tests/intake-coordinator/resolve-enumeration-pagination.test.ts (4 tests) 13ms
- ✓ packages/corpus/src/workspace-fs.test.ts (3 tests) 203ms
- ✓ apps/brain-service/tests/hitl-write/compose-and-lifecycle.test.ts (7 tests) 108ms
- ✓ apps/brain-service/tests/hitl-write/propose-abc.test.ts (5 tests) 30ms
- ✓ apps/brain-service/tests/execution/global-rebatch.test.ts (9 tests) 70ms
- ✓ apps/brain-service/tests/intake-coordinator/parse-user-fact-lift.test.ts (3 tests) 58ms
- ✓ apps/brain-service/tests/tools/compute-age.test.ts (4 tests) 49ms
- ✓ apps/brain-service/tests/tools/translate-lang.test.ts (4 tests) 35ms
- ✓ apps/brain-service/tests/tool-orchestrator/match-report.test.ts (4 tests) 28ms
- ✓ apps/brain-service/tests/execution/dag-partial-reexec.test.ts (5 tests) 24ms
- ✓ apps/brain-service/tests/execution/empty-policy.test.ts (5 tests) 27ms
- ✓ apps/brain-service/tests/intake-coordinator/apply-attachment-action.test.ts (6 tests) 22ms
- ✓ apps/brain-service/tests/vault-write/path-plan-vault-workspace.test.ts (5 tests) 36ms
- ✓ apps/brain-service/tests/intake-coordinator/repair-retrieval-plan.test.ts (7 tests) 39ms
- ✓ apps/brain-service/tests/intake-coordinator/compile-path-plan.test.ts (12 tests) 171ms
- ✓ apps/brain-service/tests/intake-coordinator/effective-intake-question.test.ts (8 tests) 43ms
- ✓ apps/brain-service/tests/execution/slot-subgraph-shell.test.ts (2 tests) 45ms
- ✓ apps/brain-service/tests/information-analyst/slice-hits-for-analyst-stream.test.ts (2 tests) 18ms
- ✓ apps/brain-service/tests/tools/external-link-query-regression.test.ts (4 tests) 76ms
- ✓ packages/corpus/src/bm25.test.ts (2 tests) 16ms
- ✓ apps/brain-service/tests/tool-orchestrator/enrich-plan.test.ts (2 tests) 18ms
- ✓ apps/brain-service/tests/user-memory-extract/legalize.test.ts (2 tests) 49ms
- ✓ packages/infra/src/cache/keys.test.ts (2 tests) 19ms
- ✓ apps/brain-service/tests/hitl-write/paths-and-actions.test.ts (3 tests) 33ms
- ✓ apps/brain-service/tests/content-summarizer/build-source-text.test.ts (1 test) 18ms
- ✓ apps/brain-service/tests/corpus-lister/flatten-list-retrieval.test.ts (2 tests) 37ms
- ✓ packages/auth/src/national-id.test.ts (3 tests) 20ms
- ✓ apps/brain-service/tests/intake-coordinator/resolve-route-mode.test.ts (5 tests) 19ms
- ✓ apps/brain-service/tests/doc-parser/parse-image-ocr-error.test.ts (1 test) 23ms
- ✓ apps/brain-service/tests/knowledge-manager/entry-time-window.test.ts (4 tests) 28ms
- ✓ packages/corpus/src/workspace-paths.test.ts (3 tests) 37ms
- ✓ apps/brain-service/tests/tools/compute-tenure.test.ts (3 tests) 20ms
- ✓ apps/brain-service/tests/knowledge-manager/facet-key-pagination.test.ts (4 tests) 19ms
- ✓ apps/brain-service/tests/corpus-lister/pure-list-route.test.ts (2 tests) 20ms
- ✓ apps/brain-service/tests/intake-coordinator/enumeration-target.test.ts (4 tests) 62ms
- ✓ apps/brain-service/tests/hitl-write/path-plan-corpus-edit.test.ts (1 test) 76ms
- ✓ apps/brain-service/tests/plan-fanout/merge-composite-dag.test.ts (2 tests) 26ms
- ✓ apps/brain-service/tests/tool-orchestrator/field-catalog.test.ts (4 tests) 15ms
- ✓ apps/brain-service/tests/content-summarizer/summarize-route.test.ts (2 tests) 11ms
- ✓ apps/brain-service/tests/pipeline/routes-after-organizer.test.ts (2 tests) 10ms
-
- Test Files  45 passed (45)
-      Tests  185 passed (185)
-   Start at  21:41:22
-   Duration  53.25s (transform 15.01s, setup 0ms, collect 571.62s, tests 2.47s, environment 52ms, prepare 41.08s)
+ Test Files  54 passed (54)
+      Tests  227 passed (227)
+   Start at  18:18:36
+   Duration  33.96s (transform 6.76s, setup 0ms, collect 388.87s, tests 1.52s, environment 22ms, prepare 18.21s)
 
 JSON report written to /Users/panzhanfei/Desktop/个人/project/own/fambrain-agents/reports/vitest-raw.json
 
@@ -147,11 +155,11 @@ JSON report written to /Users/panzhanfei/Desktop/个人/project/own/fambrain-age
 # Eval（Golden / Probe）
 
 - **结果**: FAIL
-- **生成时间**: 2026-08-17T16:11:07.153Z
+- **生成时间**: 2026-08-19T10:23:53.917Z
 
 # Eval 报告
 
-- 时间：2026-08-17T16:11:07.150Z
+- 时间：2026-08-19T10:23:53.912Z
 - corpusUserId：cmp9ihokn00000mbmhwh6gn0b
 - Qdrant：在线
 
@@ -159,120 +167,129 @@ JSON report written to /Users/panzhanfei/Desktop/个人/project/own/fambrain-age
 
 | 指标 | 值 |
 |------|-----|
-| Golden 通过率 | **23/27** (85.2%) |
-| candidates>0 但 hits=0 | **0/7** (0.0%) |
+| Golden 通过率 | **25/29** (86.2%) |
+| candidates>0 但 hits=0 | **0/8** (0.0%) |
 | cache 命中率 | 1/1 (100.0%) |
-| 端到端 latency p95 | **13087ms** (avg 4944ms) |
-| Token（pipeline） | **avg 3145** / p95 5860（n=18） |
+| 端到端 latency p95 | **12509ms** (avg 4200ms) |
+| Token（pipeline） | **avg 2814** / p95 4233（n=19） |
 
 > cache：已命中 L1 同问短路或 L2 检索 hits cache
 
-> Token 按节点（avg）：intake=2611 · analyst=496 · global_rebatch=38
+> Token 按节点（avg）：intake=2364 · analyst=423 · global_rebatch=27
 
 ## 用例
 
 | ID | 层 | 结果 | latency | tokens | 说明 |
 |----|-----|------|---------|--------|------|
-| G1 | pipeline | ✅ | 3746ms | — | ok |
-| G2 | pipeline | ✅ | 7319ms | 3024 | ok |
-| G2b | pipeline | ✅ | 6634ms | 3026 | ok |
-| G2c | pipeline | ✅ | 6611ms | 3026 | ok |
-| G3 | pipeline | ✅ | 6250ms | 2298 | ok |
-| G4 | pipeline | ✅ | 6680ms | 3252 | ok |
-| G5 | pipeline | ✅ | 5491ms | 4290 | ok |
-| G5b | pipeline | ❌ | 5478ms | 4268 | 缺少 step（任一即可）: km_retrieve \| list_retrieve \| plan_slot_join \| plan_merge \| retrieval \| plan_executor; answer 未匹配 /城管\|城市管理\|React\|UniApp\|TypeScript\|Vite/; answer 不应匹配 /哪\|哪个\|请说明\|指的是\|哪一段\|哪一家\|什么项目\|能否说明/ |
-| G5c | pipeline | ✅ | 6082ms | 3344 | ok（retry） |
-| K1 | km | ✅ | 95ms | — | ok (hybrid, candidates=9) |
-| K2 | km | ✅ | 104ms | — | ok (hybrid, candidates=9) |
-| K2b | km | ✅ | 73ms | — | ok (hybrid, candidates=9) |
-| K-family-brother | km | ✅ | 77ms | — | ok (hybrid, candidates=12) |
-| K-family-sil | km | ✅ | 71ms | — | ok (hybrid, candidates=12) |
-| L3 | list | ✅ | 10ms | — | ok (list_corpus, total=5, hits=5) |
-| K4 | km | ✅ | 102ms | — | ok (hybrid, candidates=16) |
-| K5 | km | ✅ | 75ms | — | ok (hybrid, candidates=12) |
-| E2E-identity | pipeline | ✅ | 5325ms | 3026 | ok |
-| E2E-age | pipeline | ✅ | 3282ms | 2195 | ok |
-| E2E-phone | pipeline | ✅ | 3970ms | 3034 | ok |
-| E2E-brother | pipeline | ❌ | 4074ms | 3048 | answer 未匹配 /潘小强/ |
-| E2E-sister-in-law | pipeline | ✅ | 4194ms | 2612 | ok |
-| E2E-family-tri | pipeline | ❌ | 15877ms | 3048 | answer 未匹配 /乔乔\|乔/; answer 缺少「潘小强」 |
-| E2E-enumeration | pipeline | ✅ | 5931ms | 2201 | ok |
-| E2E-dual-list | pipeline | ❌ | 13087ms | 5860 | 缺少 step: list_retrieve; 不应有 step: plan_merge |
-| E2E-five-composite | pipeline | ✅ | 11908ms | 2461 | ok |
-| E2E-six-composite-qq-phone | pipeline | ✅ | 10934ms | 2599 | ok |
+| G1 | pipeline | ✅ | 1778ms | — | ok |
+| G2 | pipeline | ✅ | 4814ms | 3024 | ok |
+| G2b | pipeline | ✅ | 4426ms | 3027 | ok |
+| G2c | pipeline | ✅ | 4424ms | 3025 | ok |
+| G3 | pipeline | ✅ | 12576ms | 2785 | ok |
+| G4 | pipeline | ❌ | 5043ms | 2213 | 缺少 step: content_organizer; 缺少 step: analyst; 缺少 step（任一即可）: km_retrieve \| list_retrieve \| plan_slot_join \| plan_merge \| retrieval \| plan_executor |
+| G5 | pipeline | ✅ | 4194ms | 4233 | ok |
+| G5b | pipeline | ❌ | 8700ms | 2389 | answer 未匹配 /城管\|城市管理\|React\|UniApp\|TypeScript\|Vite/ |
+| G5c | pipeline | ✅ | 6381ms | 3155 | ok |
+| K1 | km | ✅ | 84ms | — | ok (hybrid, candidates=9) |
+| K2 | km | ✅ | 107ms | — | ok (hybrid, candidates=9) |
+| K2b | km | ✅ | 101ms | — | ok (hybrid, candidates=9) |
+| K-family-brother | km | ✅ | 94ms | — | ok (hybrid, candidates=12) |
+| K-family-sil | km | ✅ | 87ms | — | ok (hybrid, candidates=12) |
+| L3 | list | ✅ | 5ms | — | ok (list_corpus, total=5, hits=5) |
+| K4 | km | ✅ | 83ms | — | ok (hybrid, candidates=16) |
+| K5 | km | ❌ | 79ms | — | Top1 path 未匹配 /experience\|奥卡云/ |
+| K-external-link | km | ✅ | 83ms | — | ok (hybrid, candidates=12) |
+| E2E-external-link | pipeline | ✅ | 6167ms | 2228 | ok |
+| E2E-identity | pipeline | ✅ | 5762ms | 3026 | ok |
+| E2E-age | pipeline | ✅ | 3299ms | 2195 | ok |
+| E2E-phone | pipeline | ✅ | 3959ms | 3034 | ok |
+| E2E-brother | pipeline | ❌ | 3904ms | 3038 | answer 未匹配 /潘小强/ |
+| E2E-sister-in-law | pipeline | ✅ | 4005ms | 2602 | ok（retry） |
+| E2E-family-tri | pipeline | ✅ | 7271ms | 4009 | ok |
+| E2E-enumeration | pipeline | ✅ | 5000ms | 2202 | ok |
+| E2E-dual-list | pipeline | ✅ | 5436ms | 2293 | ok |
+| E2E-five-composite | pipeline | ✅ | 11415ms | 2459 | ok |
+| E2E-six-composite-qq-phone | pipeline | ✅ | 12509ms | 2532 | ok |
 
 ## Cache 探测
 
-- CACHE-G4-repeat-t1: ⚠️ 缺少 step（任一即可）: km_retrieve | list_retrieve | plan_slot_join | plan_merge | retrieval | plan_executor (4427ms · 2185 tok)
-- CACHE-G4-repeat-t2: ✅ ok（L1 同问短路） (22ms)
+- CACHE-G4-repeat-t1: ✅ ok (4498ms · 3512 tok)
+- CACHE-G4-repeat-t2: ✅ ok（L1 同问短路） (27ms)
 
 ## Mem 探测（GMem / P0-16）
 
-- GMem-t1: ✅ ok (9539ms · 2293 tok)
-- GMem-t2: ✅ ok (3577ms · 2202 tok)
+- GMem-t1: ✅ ok (9023ms · 4339 tok)
+- GMem-t2: ✅ ok (3341ms · 2188 tok)
 
 ## Profile 探测（R6-3）
 
-- G-履历综合-t1: ✅ ok (8265ms · 2441 tok)
+- G-履历综合-t1: ✅ ok (21897ms · 5034 tok)
 - G-履历综合-t2: ✅ ok（同问短路：hit） (20ms)
-- G-履历综合-t3: ✅ ok (5457ms · 2199 tok)
-- G-履历综合-t4: ✅ ok (4636ms · 2297 tok)
+- G-履历综合-t3: ✅ ok (4448ms · 2201 tok)
+- G-履历综合-t4: ✅ ok (4589ms · 2298 tok)
 
 ## 列举分页探测
 
-- E2E-list-pagination-t1: ✅ ok (1903ms)
-- E2E-list-pagination-t2: ✅ ok (392ms)
+- E2E-list-pagination-t1: ✅ ok (1653ms)
+- E2E-list-pagination-t2: ✅ ok (386ms)
 
 ## 双槽列举续页探测
 
-- E2E-dual-list-pagination-t1: ✅ ok (4475ms · 2262 tok)
-- E2E-dual-list-pagination-t2: ✅ ok (2212ms)
+- E2E-dual-list-pagination-t1: ✅ ok (4712ms · 2277 tok)
+- E2E-dual-list-pagination-t2: ✅ ok (873ms)
 
 ## 五连问探测
 
-- E2E-five-composite-probe-t1: ✅ ok (6408ms · 2272 tok)
-- E2E-five-composite-probe-t2: ✅ ok (8107ms · 2431 tok)
+- E2E-five-composite-probe-t1: ✅ ok (9451ms · 4341 tok)
+- E2E-five-composite-probe-t2: ✅ ok (8310ms · 2433 tok)
 
 ## 六连问 QQ+手机探测
 
-- E2E-six-composite-qq-phone-probe-t1: ✅ ok (12760ms · 4329 tok)
-- E2E-six-composite-qq-phone-probe-t2: ✅ ok (15431ms · 4703 tok)
+- E2E-six-composite-qq-phone-probe-t1: ✅ ok (4643ms · 2166 tok)
+- E2E-six-composite-qq-phone-probe-t2: ✅ ok (16869ms · 4769 tok)
 
 ## 个人档案 / 亲友探测
 
-- G-个人档案-亲友-t1: ✅ ok (4479ms · 3026 tok)
-- G-个人档案-亲友-t2: ✅ ok (8846ms · 5092 tok)
+- G-个人档案-亲友-t1: ✅ ok (5432ms · 3027 tok)
+- G-个人档案-亲友-t2: ✅ ok (7393ms · 4004 tok)
 
 ## vault_workspace 探测
 
 - V-list-pathplan: ✅ pathPlan list ok (1ms)
-- V-ui-prompts: ✅ ui prompts ok (1ms)
+- V-ui-prompts: ✅ ui prompts ok (0ms)
 - V-ui-crud-prompts: ✅ ui crud prompts ok (0ms)
-- V-crud-materialize: ✅ crud+materialize+purge ok (32ms)
-- V-nested-folder: ✅ nested path ok (13ms)
+- V-crud-materialize: ✅ crud+materialize+purge ok (20ms)
+- V-nested-folder: ✅ nested path ok (12ms)
 - V-update-body: ✅ update+rematerialize ok (13ms)
-- V-pipeline-list: ✅ pipeline list pause ok (原文库「(根目录)」暂无文件或文件夹。可新建文件夹（自行分类）或新建 txt。) (2971ms)
+- V-pipeline-list: ✅ file list pause ok jobId=cmszy1r500001yibmybvcckhf (原文库「(根目录)」共 1 项： 📁 folder-mszxi4zv/) (929ms)
+- V-resume-requires-jobid: ✅ resume without jobId rejected (1ms)
+- V-file-thread-independent: ✅ qa=fambrain:eval-file-thread-1787135020486:1 file0=fambrain-file:eval-file-thread-1787135020486:0 file1=fambrain-file:eval-file-thread-1787135020486:1 (3ms)
 - V-save-gate-sanitize: ✅ save-gate sanitize/resume ok (0ms)
 - V-save-gate-offer: ✅ offer rules ok (0ms)
-- V-save-gate-prompts: ✅ save-gate prompts ok (1ms)
+- V-save-gate-prompts: ✅ save-gate prompts ok (0ms)
+- V-qa-no-save-offer: ✅ qa/chitchat did not start file line (351ms)
+- V-save-offer-attachments: ✅ save_offer + cancel ok jobId=cmszy1vww0004yibmx8wgtdao (5826ms)
+- V-workspace-superseded-by-qa: ✅ workspace superseded by QA job=cmszy1x0s0006yibmuyab8ean (5843ms)
+- V-save-offer-survives-qa: ✅ save_offer kept across QA job=cmszy20g30008yibm26p82mjb (1387ms)
+- V-file-job-ttl: ✅ ttl expired job=cmszy21il000ayibmu9hgp5rg (14ms)
 
 ## 匹配结构化探测（MatchReport）
 
-- G-匹配结构化: ✅ ok (7ms)
+- G-匹配结构化: ✅ ok (4ms)
 
 ## 失败明细
 
-- G5b: 缺少 step（任一即可）: km_retrieve | list_retrieve | plan_slot_join | plan_merge | retrieval | plan_executor; answer 未匹配 /城管|城市管理|React|UniApp|TypeScript|Vite/; answer 不应匹配 /哪|哪个|请说明|指的是|哪一段|哪一家|什么项目|能否说明/
+- G4: 缺少 step: content_organizer; 缺少 step: analyst; 缺少 step（任一即可）: km_retrieve | list_retrieve | plan_slot_join | plan_merge | retrieval | plan_executor
+- G5b: answer 未匹配 /城管|城市管理|React|UniApp|TypeScript|Vite/
+- K5: Top1 path 未匹配 /experience|奥卡云/
 - E2E-brother: answer 未匹配 /潘小强/
-- E2E-family-tri: answer 未匹配 /乔乔|乔/; answer 缺少「潘小强」
-- E2E-dual-list: 缺少 step: list_retrieve; 不应有 step: plan_merge
 
 <!-- GATE-SECTION:load -->
 
 # 压测（Load）
 
-- **结果**: PASS
-- **生成时间**: 2026-08-12T13:48:37.444Z
+- **结果**: FAIL
+- **生成时间**: 2026-08-19T10:24:40.843Z
 
 ### 覆盖说明
 
@@ -304,22 +321,22 @@ JSON report written to /Users/panzhanfei/Desktop/个人/project/own/fambrain-age
 | n | 200 |
 | errors | 0 |
 | errorRate | 0.00% |
-| avgMs | 64.34 |
-| p50Ms | 21 |
-| p95Ms | 296 |
-| p99Ms | 337 |
-| maxMs | 349 |
+| avgMs | 28.3 |
+| p50Ms | 15 |
+| p95Ms | 103 |
+| p99Ms | 122 |
+| maxMs | 126 |
 
 ### Corpus Queue
 
 | 指标 | 值 |
 |---|---|
 | materializeJobs | 80 |
-| digestMs | 8106 |
+| digestMs | 6088 |
 | peakBacklog | 80 |
-| materialize final | `{"waiting":0,"active":0,"delayed":0,"failed":0}` |
-| purge final | `{"waiting":0,"active":0,"delayed":0,"failed":0}` |
-| queueFailed | 0 |
+| materialize final | `{"waiting":0,"active":0,"delayed":0,"failed":2}` |
+| purge final | `{"waiting":0,"active":0,"delayed":0,"failed":2}` |
+| queueFailed | 4 |
 
 ### 对话全链路
 
@@ -330,16 +347,16 @@ JSON report written to /Users/panzhanfei/Desktop/个人/project/own/fambrain-age
 | emptyAnswers | 0 |
 | patternMiss | 0 |
 | chatErrorRate | 0.00% |
-| avgMs | 9003.6 |
-| p50Ms | 8810 |
-| p95Ms | 11177 |
-| p99Ms | 11177 |
-| maxMs | 11177 |
+| avgMs | 9131.6 |
+| p50Ms | 9138 |
+| p95Ms | 10745 |
+| p99Ms | 10745 |
+| maxMs | 10745 |
 
 ### 判定
 
 - health errorRate ≤ 5%: OK
-- queue failed = 0（若启用）: OK
+- queue failed = 0（若启用）: FAIL
 - chat error+empty ≤ 15%（若未跳过）: OK
 - chat pattern（仅 STRICT）: OK
 
@@ -347,22 +364,24 @@ JSON report written to /Users/panzhanfei/Desktop/个人/project/own/fambrain-age
 
 # E2E（API + Inprocess + Playwright）
 
-- **结果**: FAIL
-- **生成时间**: 2026-08-14T13:01:55.158Z
+- **结果**: PASS
+- **生成时间**: 2026-08-19T10:44:03.318Z
 
 ### 覆盖说明
 
 - **vault**：原文库 CRUD 冒烟（inprocess / API / Playwright）
 - **对话主链**：Web 登录 → 会话 → 多轮问答 → brain pipeline（API + Playwright）
+- **文件 HITL**：Resume 缺 jobId 400、新 QA 顶替 workspace、附件总结出闸 / 保留 save_offer / 取消（API + Playwright 弹窗）
 
 ### 步骤总览
 
 | 步骤 | 结果 | exit | 耗时 |
 |---|---|---:|---:|
-| Inprocess vault list（pipeline 旁路） | PASS | 0 | 27938ms |
-| API E2E vault list/create/open/delete | PASS | 0 | 14967ms |
-| API E2E 对话主链（姓名/年龄/手机） | PASS | 0 | 20253ms |
-| Playwright（vault UI + 对话主链） | FAIL | 1 | 107729ms |
+| Inprocess vault list（pipeline 旁路） | PASS | 0 | 9750ms |
+| API E2E vault list/create/open/delete | PASS | 0 | 2361ms |
+| API E2E 对话主链（姓名/年龄/手机） | PASS | 0 | 20488ms |
+| API E2E 文件 HITL（jobId / save_offer / 新 QA） | PASS | 0 | 23059ms |
+| Playwright（vault UI + 对话主链） | PASS | 0 | 27972ms |
 
 ### 环境
 
@@ -387,49 +406,10 @@ _通过_
 
 _通过_
 
+#### API E2E 文件 HITL（jobId / save_offer / 新 QA）
+
+_通过_
+
 #### Playwright（vault UI + 对话主链）
 
-```
-
-Running 2 tests using 2 workers
-
-(node:36977) Warning: The 'NO_COLOR' env is ignored due to the 'FORCE_COLOR' env being set.
-(Use `node --trace-warnings ...` to show where the warning was created)
-(node:36978) Warning: The 'NO_COLOR' env is ignored due to the 'FORCE_COLOR' env being set.
-(Use `node --trace-warnings ...` to show where the warning was created)
-(node:36977) Warning: The 'NO_COLOR' env is ignored due to the 'FORCE_COLOR' env being set.
-(Use `node --trace-warnings ...` to show where the warning was created)
-(node:36978) Warning: The 'NO_COLOR' env is ignored due to the 'FORCE_COLOR' env being set.
-(Use `node --trace-warnings ...` to show where the warning was created)
-  ✓  1 [chromium] › e2e/chat-chain.spec.ts:34:7 › chat dialogue chain › login → 姓名 → 年龄 → 手机（对话主链） (21.2s)
-  ✘  2 [chromium] › e2e/vault-workspace.spec.ts:32:7 › vault workspace UI › login → list → 点击新建 txt → 删除 (1.7m)
-
-  1) [chromium] › e2e/vault-workspace.spec.ts:32:7 › vault workspace UI › login → list → 点击新建 txt → 删除 
-
-    Error: [2mexpect([22m[31mlocator[39m[2m).[22mtoBeEnabled[2m([22m[2m)[22m failed
-
-    Locator: getByRole('button', { name: /删除 .+\.txt/i, disabled: false }).last()
-    Expected: enabled
-    Timeout: 90000ms
-    Error: element(s) not found
-
-    Call log:
-    [2m  - Expect "toBeEnabled" with timeout 90000ms[22m
-    [2m  - waiting for getByRole('button', { name: /删除 .+\.txt/i, disabled: false }).last()[22m
-
-      83 |       .getByRole("button", { name: /删除 .+\.txt/i, disabled: false })
-      84 |       .last();
-    > 85 |     await expect(deleteBtn).toBeEnabled({ timeout: 90_000 });
-         |                             ^
-      86 |     await deleteBtn.click();
-      87 |     await expect(
-      88 |       page.getByText(/已硬删除|Hard-deleted|入队硬删/i).first()
-        at /Users/panzhanfei/Desktop/个人/project/own/fambrain-agents/apps/web/e2e/vault-workspace.spec.ts:85:29
-
-    Error Context: ../../reports/playwright/test-results/vault-workspace-vault-work-151ca-ogin-→-list-→-点击新建-txt-→-删除-chromium/error-context.md
-
-  1 failed
-    [chromium] › e2e/vault-workspace.spec.ts:32:7 › vault workspace UI › login → list → 点击新建 txt → 删除 
-  1 passed (1.7m)
-
-```
+_通过_

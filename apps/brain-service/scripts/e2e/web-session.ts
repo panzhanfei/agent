@@ -2,9 +2,32 @@
  * Web BFF 会话辅助：登录 → 建会话 → SSE 发消息。
  * 供 API E2E / 全链路压测复用。
  */
+export type ChatSseResult = {
+  answer: string;
+  jobId?: string;
+  paused: boolean;
+  sawMainComplete: boolean;
+  status: number;
+  text: string;
+};
+
+export type PostChatOptions = {
+  resume?: { jobId?: string; prompt?: string; name?: string };
+  routingContent?: string;
+  attachmentBatchId?: string;
+};
+
 export type WebSession = {
   base: string;
   postChat: (convId: string, content: string) => Promise<string>;
+  postChatSse: (
+    convId: string,
+    content: string,
+    opts?: PostChatOptions
+  ) => Promise<ChatSseResult>;
+  extractTextFile: (fileName: string, text: string) => Promise<string>;
+  extractPdfFile: (fileName: string, pdf: Buffer) => Promise<string>;
+  listMessages: (convId: string) => Promise<unknown[]>;
   createConversation: (title: string) => Promise<string>;
   jsonFetch: (
     path: string,
@@ -12,8 +35,13 @@ export type WebSession = {
   ) => Promise<{ res: Response; body: unknown; text: string }>;
 };
 
-export const readSseAnswer = (text: string): string => {
+export const readSseAnswer = (text: string): string => readSseChat(text).answer;
+
+export const readSseChat = (text: string): ChatSseResult => {
   let answer = "";
+  let jobId: string | undefined;
+  let paused = false;
+  let sawMainComplete = false;
   let err: string | null = null;
   for (const line of text.split("\n")) {
     if (!line.startsWith("data:")) continue;
@@ -25,18 +53,23 @@ export const readSseAnswer = (text: string): string => {
         text?: string;
         answer?: string;
         error?: string;
+        jobId?: string;
+        paused?: boolean;
       };
       if (ev.type === "assistant" && typeof ev.text === "string") {
         answer += ev.text;
       }
+      if (ev.type === "main_turn_complete") sawMainComplete = true;
       if (typeof ev.answer === "string") answer = ev.answer;
+      if (typeof ev.jobId === "string" && ev.jobId) jobId = ev.jobId;
+      if (ev.type === "paused" || ev.paused) paused = true;
       if (typeof ev.error === "string") err = ev.error;
     } catch {
       /* ignore */
     }
   }
   if (!answer && err) throw new Error(`pipeline error: ${err}`);
-  return answer;
+  return { answer, jobId, paused, sawMainComplete, status: 200, text };
 };
 
 export const createWebSession = async (opts?: {
@@ -69,7 +102,11 @@ export const createWebSession = async (opts?: {
     init?: RequestInit
   ): Promise<{ res: Response; body: unknown; text: string }> => {
     const headers = new Headers(init?.headers);
-    if (!headers.has("Content-Type") && init?.body) {
+    if (
+      !headers.has("Content-Type") &&
+      init?.body &&
+      !(init.body instanceof FormData)
+    ) {
       headers.set("Content-Type", "application/json");
     }
     const c = cookieHeader();
@@ -108,6 +145,44 @@ export const createWebSession = async (opts?: {
     return convId;
   };
 
+  const postChatSse = async (
+    convId: string,
+    content: string,
+    opts?: PostChatOptions
+  ): Promise<ChatSseResult> => {
+    const resume = opts?.resume;
+    const { res, text } = await jsonFetch(`/api/conversations/${convId}/messages`, {
+      method: "POST",
+      body: JSON.stringify({
+        content,
+        ...(opts?.routingContent ? { routingContent: opts.routingContent } : {}),
+        ...(opts?.attachmentBatchId
+          ? { attachmentBatchId: opts.attachmentBatchId }
+          : {}),
+        ...(resume
+          ? {
+              resume: {
+                kind: "vault_action",
+                ...(resume.jobId !== undefined ? { jobId: resume.jobId } : {}),
+                ...(resume.prompt ? { prompt: resume.prompt } : {}),
+                ...(resume.name ? { name: resume.name } : {}),
+              },
+            }
+          : {}),
+      }),
+    });
+    if (!res.ok) {
+      return {
+        answer: "",
+        paused: false,
+        sawMainComplete: false,
+        status: res.status,
+        text,
+      };
+    }
+    return { ...readSseChat(text), status: res.status, text };
+  };
+
   const postChat = async (convId: string, content: string): Promise<string> => {
     const { res, text } = await jsonFetch(`/api/conversations/${convId}/messages`, {
       method: "POST",
@@ -119,5 +194,62 @@ export const createWebSession = async (opts?: {
     return readSseAnswer(text);
   };
 
-  return { base, jsonFetch, createConversation, postChat };
+  const extractFile = async (
+    fileName: string,
+    bytes: Buffer,
+    mimeType: string
+  ): Promise<string> => {
+    const form = new FormData();
+    form.append(
+      "files",
+      new Blob([new Uint8Array(bytes)], { type: mimeType }),
+      fileName
+    );
+    const { res, body, text: raw } = await jsonFetch("/api/documents/extract", {
+      method: "POST",
+      body: form,
+    });
+    if (!res.ok) {
+      throw new Error(`extract ${res.status}: ${raw.slice(0, 400)}`);
+    }
+    const batchId = (body as { batchId?: string }).batchId;
+    if (!batchId) {
+      throw new Error(`extract missing batchId: ${raw.slice(0, 400)}`);
+    }
+    return batchId;
+  };
+
+  const extractTextFile = async (
+    fileName: string,
+    text: string
+  ): Promise<string> => extractFile(fileName, Buffer.from(text, "utf8"), "text/plain");
+
+  const extractPdfFile = async (
+    fileName: string,
+    pdf: Buffer
+  ): Promise<string> => extractFile(fileName, pdf, "application/pdf");
+
+  const listMessages = async (convId: string): Promise<unknown[]> => {
+    const { res, body, text } = await jsonFetch(
+      `/api/conversations/${convId}/messages`
+    );
+    if (!res.ok) {
+      throw new Error(`list messages ${res.status}: ${text.slice(0, 400)}`);
+    }
+    if (!Array.isArray(body)) {
+      throw new Error("list messages: expected array");
+    }
+    return body;
+  };
+
+  return {
+    base,
+    jsonFetch,
+    createConversation,
+    postChat,
+    postChatSse,
+    extractTextFile,
+    extractPdfFile,
+    listMessages,
+  };
 };

@@ -15,7 +15,7 @@ import {
   vaultWsDonePrompt,
   vaultWsListPrompt,
   withVaultHitlDone,
-} from "@/agentflow/agents/online/vault-write";
+} from "@/agentflow/agents/sideline/file";
 
 describe("pathPlan vault_workspace", () => {
   it("legalizes list with empty targetPath", () => {

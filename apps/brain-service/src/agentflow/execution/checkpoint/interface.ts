@@ -11,9 +11,10 @@ export type PipelinePauseValue = {
   blocks: import("@fambrain/brain-types").AssistantMessageBlock[];
 };
 
-/** vault_wait 的 Resume 载荷；gen_pause 不使用 Command。 */
+/** 文件子线 vault_wait 的 Resume；必须带 jobId。gen_pause 不使用 Command。 */
 export type PipelineResumePayload = {
   kind: "vault_action";
+  jobId: string;
   prompt: string;
   name?: string;
 };

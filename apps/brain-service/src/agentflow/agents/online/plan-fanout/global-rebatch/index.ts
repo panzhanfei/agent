@@ -34,8 +34,7 @@ const sendTargetForExecutor = (
   | "listRetrieve"
   | "memRetrieve"
   | "toolRetrieve"
-  | "summarizeSlot"
-  | "vaultWorkspace" => {
+  | "summarizeSlot" => {
   switch (executor) {
     case "list_corpus":
       return "listRetrieve";
@@ -45,8 +44,6 @@ const sendTargetForExecutor = (
       return "toolRetrieve";
     case "summarize_slot":
       return "summarizeSlot";
-    case "vault_workspace":
-      return "vaultWorkspace";
     default:
       return "kmRetrieve";
   }

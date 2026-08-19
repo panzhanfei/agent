@@ -52,8 +52,12 @@ const jsonFetch = async (
   return { res, body, text };
 };
 
-const readSseAnswer = (text: string): string => {
+const readSseChat = (
+  text: string
+): { answer: string; jobId?: string; paused: boolean } => {
   let answer = "";
+  let jobId: string | undefined;
+  let paused = false;
   let err: string | null = null;
   for (const line of text.split("\n")) {
     if (!line.startsWith("data:")) continue;
@@ -65,32 +69,51 @@ const readSseAnswer = (text: string): string => {
         text?: string;
         answer?: string;
         error?: string;
+        jobId?: string;
+        paused?: boolean;
       };
       if (ev.type === "assistant" && typeof ev.text === "string") {
         answer += ev.text;
       }
       if (typeof ev.answer === "string") answer = ev.answer;
+      if (typeof ev.jobId === "string" && ev.jobId) jobId = ev.jobId;
+      if (ev.type === "paused" || ev.paused) paused = true;
       if (typeof ev.error === "string") err = ev.error;
     } catch {
       /* ignore */
     }
   }
   if (!answer && err) throw new Error(`pipeline error: ${err}`);
-  return answer;
+  return { answer, jobId, paused };
 };
 
-const postChat = async (convId: string, content: string): Promise<string> => {
+const postChat = async (
+  convId: string,
+  content: string,
+  resume?: { jobId: string }
+): Promise<{ answer: string; jobId?: string; paused: boolean }> => {
   const { res, text } = await jsonFetch(
     `/api/conversations/${convId}/messages`,
     {
       method: "POST",
-      body: JSON.stringify({ content }),
+      body: JSON.stringify({
+        content,
+        ...(resume
+          ? {
+              resume: {
+                kind: "vault_action",
+                jobId: resume.jobId,
+                prompt: content,
+              },
+            }
+          : {}),
+      }),
     }
   );
   if (!res.ok) {
     throw new Error(`post message ${res.status}: ${text.slice(0, 400)}`);
   }
-  return readSseAnswer(text);
+  return readSseChat(text);
 };
 
 const assertMatch = (label: string, answer: string, re: RegExp) => {
@@ -141,63 +164,81 @@ const main = async () => {
     }
   };
 
-  // 1) 根 list
+  // 1) 根 list → FileJob + 文件子线 Pause
   const list1 = await postChat(convId, "我的原文库");
-  track("list-root", list1, /原文库|Workspace|暂无文件|项：|新建/);
+  track("list-root", list1.answer, /原文库|Workspace|暂无文件|项：|新建/);
+  if (!list1.jobId || !list1.paused) {
+    throw new Error(`list-root missing jobId/paused jobId=${list1.jobId} paused=${list1.paused}`);
+  }
+  let jobId = list1.jobId;
+  const resume = { jobId };
+  console.log(`[e2e:api] jobId=${jobId}`);
 
-  // 2) 空文件夹 list（旁路）
-  const listEmpty = await postChat(convId, `__FAMBRAIN_VAULT_WS_LIST__:`);
-  track("list-prefix", listEmpty, /原文库|Workspace|暂无文件|项：|新建|文件夹/);
+  // 2) 空文件夹 list（Resume 同一 FileJob）
+  const listEmpty = await postChat(
+    convId,
+    `__FAMBRAIN_VAULT_WS_LIST__:`,
+    resume
+  );
+  track("list-prefix", listEmpty.answer, /原文库|Workspace|暂无文件|项：|新建|文件夹/);
+  jobId = listEmpty.jobId ?? jobId;
 
   // 3) create folder（根）
   const createFolderPrompt = `__FAMBRAIN_VAULT_WS_CREATE_FOLDER__:`;
-  const createdFolderAns = await postChat(convId, createFolderPrompt);
-  track("create-folder", createdFolderAns, /已新建|Created|文件夹|folder|入队|同步/i);
+  const createdFolder = await postChat(convId, createFolderPrompt, { jobId });
+  track("create-folder", createdFolder.answer, /已新建|Created|文件夹|folder|入队|同步/i);
+  jobId = createdFolder.jobId ?? jobId;
 
   // 4) create_file 在根
   const createFilePrompt = `__FAMBRAIN_VAULT_WS_CREATE_FILE__:`;
-  const createAns = await postChat(convId, createFilePrompt);
-  track("create-file", createAns, /已新建|Created|同步|入队/);
+  const createdFile = await postChat(convId, createFilePrompt, { jobId });
+  track("create-file", createdFile.answer, /已新建|Created|同步|入队/);
+  jobId = createdFile.jobId ?? jobId;
 
-  const createdMatch = createAns.match(/([A-Za-z0-9_\-./]+\.txt)/);
+  const createdMatch = createdFile.answer.match(/([A-Za-z0-9_\-./]+\.txt)/);
   const createdRel = (createdMatch?.[1] ?? "").trim();
   if (!createdRel.endsWith(".txt")) {
-    throw new Error(`cannot parse created path from: ${createAns.slice(0, 200)}`);
+    throw new Error(`cannot parse created path from: ${createdFile.answer.slice(0, 200)}`);
   }
   console.log(`[e2e:api] created=${createdRel}`);
 
   // 5) open
   const openAns = await postChat(
     convId,
-    `__FAMBRAIN_VAULT_WS_OPEN__:${createdRel}`
+    `__FAMBRAIN_VAULT_WS_OPEN__:${createdRel}`,
+    { jobId }
   );
   track(
     "open",
-    openAns,
+    openAns.answer,
     new RegExp(createdRel.replace(/\./g, "\\.") + "|```txt")
   );
+  jobId = openAns.jobId ?? jobId;
 
   // 6) list 后应能看到文件名线索
-  const listMid = await postChat(convId, "我的原文库");
-  track("list-mid", listMid, /原文库|Workspace|项：|新建|\.txt/);
+  const listMid = await postChat(convId, "我的原文库", { jobId });
+  track("list-mid", listMid.answer, /原文库|Workspace|项：|新建|\.txt/);
+  jobId = listMid.jobId ?? jobId;
 
   // 7) delete
   const delAns = await postChat(
     convId,
-    `__FAMBRAIN_VAULT_WS_DELETE_FILE__:${createdRel}`
+    `__FAMBRAIN_VAULT_WS_DELETE_FILE__:${createdRel}`,
+    { jobId }
   );
-  track("delete", delAns, /已硬删除|Hard-deleted|入队硬删|硬删/);
+  track("delete", delAns.answer, /已硬删除|Hard-deleted|入队硬删|硬删/);
+  jobId = delAns.jobId ?? jobId;
 
   // 8) list 再次
-  const list2 = await postChat(convId, "我的原文库");
-  track("list-after-delete", list2, /原文库|Workspace|暂无文件|项：|新建/);
-  if (list2.includes(createdRel) && /打开|```txt/.test(list2)) {
+  const list2 = await postChat(convId, "我的原文库", { jobId });
+  track("list-after-delete", list2.answer, /原文库|Workspace|暂无文件|项：|新建/);
+  if (list2.answer.includes(createdRel) && /打开|```txt/.test(list2.answer)) {
     throw new Error("deleted file still appears as opened content");
   }
 
   // 9) 再 list 指定前缀（回归）
   try {
-    await postChat(convId, `__FAMBRAIN_VAULT_WS_LIST__:`);
+    await postChat(convId, `__FAMBRAIN_VAULT_WS_LIST__:`, { jobId });
     steps.push({ id: "list-prefix-final", ok: true, detail: "ok" });
   } catch (e) {
     steps.push({

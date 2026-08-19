@@ -43,7 +43,6 @@ const { decision, earlyExit } = await runIntakePipeline({
     intakeRaw,
     userQuestion: USER_QUESTION,
     intakeHistory: history,
-    session: { conversationId: "diag-composite", corpusUserId },
 });
 
 console.log("  intent:", decision.intent);
@@ -88,13 +87,11 @@ while (true) {
     if (next.done) {
         answer = next.value.answer;
         pipelineMeta = {
-            intent: next.value.intent,
-            composeMode: next.value.composeMode,
-            pathPlanCounts: next.value.pathPlanCounts,
-            hitCount: next.value.hitCount,
-            coverage: next.value.coverage,
-            totalMs: next.value.totalMs,
-            error: next.value.error,
+            timing: next.value.timing,
+            steps: next.value.steps,
+            retrievalPaths: next.value.retrievalPaths,
+            aborted: next.value.aborted,
+            paused: next.value.paused,
         };
         break;
     }

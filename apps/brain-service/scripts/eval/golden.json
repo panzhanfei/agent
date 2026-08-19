@@ -266,6 +266,34 @@
       }
     },
     {
+      "id": "K-external-link",
+      "tier": "km",
+      "label": "开源 GitHub（external_link 单槽检索）",
+      "km": {
+        "searchQuery": "个人简介 简历 Sentinel 项目 GitHub 仓库 对外链接",
+        "queryType": "external_link",
+        "topics": ["personal", "resume", "project"],
+        "subTasks": []
+      },
+      "assert": {
+        "expectProfile": "external_link",
+        "minHits": 1,
+        "excerptAnyRe": "github\\.com"
+      }
+    },
+    {
+      "id": "E2E-external-link",
+      "tier": "pipeline",
+      "label": "单槽开源链接：Sentinel GitHub",
+      "question": "Sentinel 项目的 GitHub 链接是什么？",
+      "assert": {
+        "mustIncludeAnySteps": [["km_retrieve", "list_retrieve", "plan_slot_join", "plan_merge", "retrieval", "plan_executor"]],
+        "mustIncludeSteps": ["analyst"],
+        "answerRe": "github\\.com",
+        "answerMustNotRe": "再说清楚|哪一方面|请明确|模型未返回|未能生成回复"
+      }
+    },
+    {
       "id": "E2E-identity",
       "tier": "pipeline",
       "label": "全链路姓名",
@@ -540,7 +568,7 @@
   },
   "vaultWorkspaceProbe": {
     "id": "G-vault-workspace",
-    "label": "vault_workspace：pathPlan · UI · CRUD · nested · pipeline list · save-gate",
+    "label": "vault_workspace：pathPlan · UI · CRUD · nested · 文件子线 list · save-gate · jobId Resume · 出闸/TTL",
     "cases": [
       {
         "id": "V-list-pathplan",
@@ -574,8 +602,18 @@
       },
       {
         "id": "V-pipeline-list",
-        "label": "pipeline「我的原文库」interrupt list（Pause/Resume）",
+        "label": "orchestrate「我的原文库」文件子线 interrupt list（Pause + jobId）",
         "mode": "pipeline_list"
+      },
+      {
+        "id": "V-resume-requires-jobid",
+        "label": "文件子线 Resume 必须带 jobId，空则拒绝",
+        "mode": "resume_requires_jobid"
+      },
+      {
+        "id": "V-file-thread-independent",
+        "label": "文件 thread 与问答 thread 世代独立",
+        "mode": "file_thread_independent"
       },
       {
         "id": "V-save-gate-sanitize",
@@ -591,6 +629,31 @@
         "id": "V-save-gate-prompts",
         "label": "写回闸门：确定入库/取消 exact-match + 文件名弹窗",
         "mode": "save_gate_prompts"
+      },
+      {
+        "id": "V-qa-no-save-offer",
+        "label": "闲聊/普通 QA 不启动文件子线、不出写回闸",
+        "mode": "qa_no_save_offer"
+      },
+      {
+        "id": "V-save-offer-attachments",
+        "label": "附件总结出闸：main_turn_complete + paused + jobId，取消 Resume 结束任务",
+        "mode": "save_offer_from_attachments"
+      },
+      {
+        "id": "V-workspace-superseded-by-qa",
+        "label": "新 QA 顶替 workspace HITL（FileJob superseded）",
+        "mode": "workspace_superseded_by_qa"
+      },
+      {
+        "id": "V-save-offer-survives-qa",
+        "label": "新 QA 保留 paused save_offer，不作废写回闸按钮",
+        "mode": "save_offer_survives_qa"
+      },
+      {
+        "id": "V-file-job-ttl",
+        "label": "FileJob 超过 TTL → cancelled",
+        "mode": "file_job_ttl_expire"
       }
     ]
   },

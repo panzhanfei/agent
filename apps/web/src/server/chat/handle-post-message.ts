@@ -10,8 +10,12 @@ import { encodeSseEvent, sseResponse } from "@/lib/chat/sse";
 import {
   appendAssistantMessage,
   appendUserMessage,
+  attachFileJobFollowup,
   disableConversationActionBlocks,
+  getFileJob,
   maybeUpdateConversationTitle,
+  pausedSaveOfferJobIds,
+  updateAssistantMessage,
   upsertTurnTrace,
 } from "@fambrain/db";
 import { streamAgentPipeline } from "./brain-service-client";
@@ -122,7 +126,14 @@ const runTurnPipeline = async (input: {
   const resume = options.resume;
 
   try {
-    await disableConversationActionBlocks(options.conversationId);
+    if (!resume) {
+      const keepIds = await pausedSaveOfferJobIds(options.conversationId);
+      await disableConversationActionBlocks(options.conversationId, {
+        keepFileJobIds: keepIds,
+      });
+    } else {
+      await disableConversationActionBlocks(options.conversationId);
+    }
   } catch (e) {
     console.error("disableConversationActionBlocks failed", e);
   }
@@ -173,6 +184,9 @@ const runTurnPipeline = async (input: {
 
   let pipelineResult: AgentPipelineResult | undefined;
   let sawAborted = false;
+  let mainCommitted = false;
+  let followupCommitted = false;
+  let followupRowId: string | null = null;
   while (true) {
     if (inflight.finalized) break;
     const next = await gen.next();
@@ -211,8 +225,62 @@ const runTurnPipeline = async (input: {
       });
       continue;
     }
+    if (ev.type === "main_turn_complete") {
+      const draft = ev.answer?.trim() ?? "";
+      if (draft && !mainCommitted) {
+        const row = await appendAssistantMessage(options.conversationId, draft, {
+          ...(ev.blocks?.length ? { blocks: ev.blocks } : {}),
+          ...(ev.citations?.length ? { citations: ev.citations } : {}),
+        });
+        mainCommitted = true;
+        send("main_turn_complete", {
+          ...ev,
+          assistantMessage: {
+            id: row.id,
+            role: "assistant",
+            content: draft,
+            blocks: ev.blocks,
+            citations: ev.citations,
+          },
+        });
+      } else {
+        send("main_turn_complete", ev);
+      }
+      continue;
+    }
     if (ev.type === "paused") {
       send("paused", ev);
+      const jobId = ev.jobId;
+      if (jobId && !followupCommitted) {
+        const existing = await getFileJob(jobId);
+        const meta = {
+          taskPaused: true,
+          pauseKind: "vault_wait" as const,
+          fileJobId: jobId,
+          ...(ev.blocks?.length ? { blocks: ev.blocks } : {}),
+        };
+        if (existing?.followupMessageId) {
+          await updateAssistantMessage(
+            existing.followupMessageId,
+            ev.answer,
+            meta
+          );
+          followupRowId = existing.followupMessageId;
+        } else {
+          const row = await appendAssistantMessage(
+            options.conversationId,
+            ev.answer,
+            meta
+          );
+          followupRowId = row.id;
+          try {
+            await attachFileJobFollowup(jobId, row.id);
+          } catch (e) {
+            console.error("attachFileJobFollowup failed", e);
+          }
+        }
+        followupCommitted = true;
+      }
       continue;
     }
     send(streamEventName(ev), ev);
@@ -271,6 +339,38 @@ const runTurnPipeline = async (input: {
   }
 
   const isPaused = Boolean(pipelineResult?.paused);
+  if (followupCommitted && followupRowId) {
+    inflight.finalized = true;
+    send("ready", {
+      answer: pipelineResult?.answer ?? "",
+      timing: pipelineResult?.timing,
+      paused: isPaused,
+      pauseKind: pipelineResult?.pauseKind,
+      jobId: pipelineResult?.jobId,
+    });
+    send("done", {
+      turnId,
+      paused: isPaused,
+      pauseKind: pipelineResult?.pauseKind,
+      jobId: pipelineResult?.jobId,
+      userMessage: {
+        id: userRow.id,
+        role: mapRole(userRow.role),
+        content: userRow.content,
+      },
+      assistantMessage: {
+        id: followupRowId,
+        role: "assistant" as const,
+        content: pipelineResult?.answer ?? "",
+        blocks: pipelineResult?.blocks,
+        taskPaused: isPaused,
+        pauseKind: pipelineResult?.pauseKind,
+        fileJobId: pipelineResult?.jobId,
+      },
+      timing: pipelineResult?.timing,
+    });
+    return;
+  }
   const finalContent =
     pipelineResult?.answer?.trim() ||
     (isPaused

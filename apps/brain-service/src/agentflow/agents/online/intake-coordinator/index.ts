@@ -8,7 +8,7 @@ import {
   matchUiEnumerationPrompt,
   resolveEnumerationPagination,
 } from "@/agentflow/agents/online/corpus-lister/enumeration";
-import { resolveVaultWorkspaceUiBypass } from "@/agentflow/agents/online/vault-write";
+import { resolveVaultWorkspaceUiBypass } from "@/agentflow/agents/sideline/file/workspace";
 import {
   applyAttachmentAction,
   buildEnumerationListDecision,

@@ -5,13 +5,17 @@
  */
 import path from "node:path";
 import { listCorpusScanRoots, listMarkdownFiles, toRepoPath } from "@fambrain/corpus";
-import { PROJECTS_SLOT } from "../src/agentflow/agents/online/intake-coordinator";
-import { organizeKnowledge } from "../src/agentflow/agents/online/content-organizer/organize";
-import { maxAnalystHitsForProfile } from "../src/agentflow/agents/online/information-analyst/limits";
-import { buildSubQuestionFallbackAnswer } from "../src/agentflow/agents/online/information-analyst/analyze";
-import { isProjectEntryPath } from "../src/agentflow/agents/online/knowledge-manager/recall-helpers";
-import { retrieveKnowledge } from "../src/agentflow/agents/online/knowledge-manager/recall";
-import { listCorpusUserIds } from "../src/agentflow/agents/offline/knowledge-indexer/list-corpus-users";
+import { PROJECTS_SLOT } from "@/agentflow/agents/online/intake-coordinator";
+import { organizeKnowledge } from "@/agentflow/agents/online/content-organizer";
+import {
+    buildSubQuestionFallbackAnswer,
+    maxAnalystHitsForProfile,
+} from "@/agentflow/agents/online/information-analyst";
+import {
+    isProjectEntryPath,
+    retrieveKnowledge,
+} from "@/agentflow/agents/online/knowledge-manager";
+import { listCorpusUserIds } from "@/agentflow/agents/offline/knowledge-indexer";
 
 const resolveCorpusUserId = async (): Promise<string> => {
     const fromEnv = process.env.FAMBRAIN_CORPUS_USER_ID?.trim();

@@ -83,6 +83,7 @@ export const listUiMessages = async (
             citations?: Array<{ path: string; excerpt: string }>;
             taskPaused?: boolean;
             pauseKind?: "vault_wait";
+            fileJobId?: string;
           })
         : undefined;
     return {
@@ -95,6 +96,10 @@ export const listUiMessages = async (
       citations: meta?.citations,
       taskPaused: meta?.taskPaused,
       pauseKind: meta?.pauseKind,
+      fileJobId:
+        typeof (meta as { fileJobId?: unknown })?.fileJobId === "string"
+          ? (meta as { fileJobId: string }).fileJobId
+          : undefined,
     };
   });
 };

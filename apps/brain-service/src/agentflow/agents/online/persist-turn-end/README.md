@@ -11,5 +11,5 @@ LangGraph **END 前**最后一个在线节点（非图内 LLM）。
 
 - 显式 `remember_user_fact`（`user-fact` 节点）
 - 检索 👍👎（`RetrievalFeedback`）
-- 语料文件写入（vault workspace 在 `vaultWorkspace` 节点；确定入库只入队，不在本节点 await）
-- gen_pause：analyst 截停后 discard，不经本节点（当前稿由 BFF 落库）
+- 语料文件写入（vault workspace / 确定入库在 **文件子图** `sideline/file`；主图只 `fileHandoff` 写信封，本节点不等 embed）
+- gen_pause：analyst 截停后 discard 问答 thread，不经本节点（当前稿由 BFF 落库）

@@ -17,7 +17,7 @@ import {
   matchVaultWorkspaceUiAction,
   runVaultWorkspaceOp,
   VAULT_WORKSPACE_UI_ENTRY,
-} from "@/agentflow/agents/online/vault-write";
+} from "@/agentflow/agents/sideline/file";
 import { disableActionsInMetadata } from "@fambrain/db";
 import { isVaultWorkspaceActionPrompt } from "../../../web/src/lib/chat/action-lifecycle";
 
@@ -86,8 +86,11 @@ describe("vault UI routes into pathPlan without Intake CRUD", () => {
   it("entry prompt builds vault_workspace decision only", () => {
     const action = matchVaultWorkspaceUiAction(VAULT_WORKSPACE_UI_ENTRY);
     expect(action).toEqual({ type: "list", folderRel: "" });
-    const decision = buildVaultWorkspaceUiDecision(action!);
-    expect(decision.routeMode).toBe("planFanOut");
+    if (!action || action.type === "done") {
+      throw new Error("expected list action");
+    }
+    const decision = buildVaultWorkspaceUiDecision(action);
+    expect(decision.routeMode).toBe("fileHandoff");
     expect(decision.pathPlan.steps[0]?.kind).toBe("vault_workspace");
     expect(decision.compositeSlots[0]?.executor).toBe("vault_workspace");
     expect(

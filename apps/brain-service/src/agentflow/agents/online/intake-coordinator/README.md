@@ -112,6 +112,7 @@ state.decision 写入 PipelineGraphState
 routeAfterIntake()                        pipeline/graph/routes.ts
     ├─ userFact        → user-fact-node.ts → persistTurnEnd
     ├─ respondEarly    → respond-early-node.ts → persistTurnEnd
+    ├─ fileHandoff     → 只写信封 → persistTurnEnd（HITL 在 sideline/file）
     ├─ planFanout      → plan-fanout/<capability>/node（km/list Send → join → post ∥ dag → merge）→ … → analyst → persistTurnEnd
     ├─ contentSummarizer
     └─ factChecker     → （无检索的 direct_answer 等）

@@ -47,6 +47,8 @@ export type AgentPipelineContext = {
      */
     resume?: {
         kind: "vault_action";
+        /** 文件子线 FileJob id；Resume 必填 */
+        jobId: string;
         prompt?: string;
         /** 写回闸门：弹窗确认的文件基名（不含 .txt） */
         name?: string;
@@ -69,8 +71,8 @@ export type PipelineStepName =
     | "retrieval"
     | "km_retrieve"
     | "list_retrieve"
-    | "vault_workspace"
-    | "vault_save_gate"
+    | "file_handoff"
+    | "file_agent"
     | "plan_cache_resolve"
     | "plan_slot_join"
     | "plan_slot_post"
@@ -181,12 +183,24 @@ export type AgentStreamEvent = {
     turnId: string;
     reason: TurnAbortReason;
 } | {
-    /** vault_wait / gen_pause：图 interrupt，载荷见 pauseKind */
+    /** 主图已 END，即将交文件子线；BFF 可先落终稿 */
+    type: "main_turn_complete";
+    answer: string;
+    blocks?: AssistantMessageBlock[];
+    citations?: Citation[];
+} | {
+    type: "file_run";
+    jobId: string;
+    task: "workspace" | "save_offer";
+    status: "started" | "noop" | "paused" | "done";
+} | {
+    /** vault_wait：文件子线 interrupt，载荷见 pauseKind */
     type: "paused";
     turnId: string;
     kind: "vault_wait";
     answer: string;
     blocks?: AssistantMessageBlock[];
+    jobId?: string;
 };
 export type AgentPipelineResult = {
     answer: string;
@@ -210,7 +224,26 @@ export type AgentPipelineResult = {
     aborted?: boolean;
     abortReason?: TurnAbortReason;
     turnId?: string;
-    /** 图停在 interrupt；vault_wait 可 Resume，gen_pause 随后 discard */
     paused?: boolean;
     pauseKind?: "vault_wait";
+    jobId?: string;
+    fileHandoff?: {
+        envelope: {
+            task: "workspace" | "save_offer";
+            draft: string;
+            attachmentAction: "extract" | "summarize" | "translate" | null;
+            composeMode: "qa" | "composite" | "summarize" | null;
+            intent: string | null;
+            hasPathSteps: boolean;
+            hasSearchQuery: boolean;
+            language: "zh" | "en";
+            workspaceOp?: {
+                operation: string;
+                targetPath?: string | null;
+                name?: string | null;
+                afterContent?: string | null;
+                recursive?: boolean;
+            };
+        };
+    } | null;
 };

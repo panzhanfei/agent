@@ -29,7 +29,8 @@ export type IntakeRouteMode =
   | "userFact"
   | "listRetriever"
   | "planFanOut"
-  | "contentSummarizer";
+  | "contentSummarizer"
+  | "fileHandoff";
 
 /** 为何走到当前 routeMode（写进日志 routeReason） */
 export type CompositeRouteReason =

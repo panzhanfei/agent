@@ -7,6 +7,7 @@ export {
     appendAssistantMessage,
     disableActionsInMetadata,
     disableConversationActionBlocks,
+    updateAssistantMessage,
     maybeUpdateConversationTitle,
     deleteOwnedConversation,
     createConversation,
@@ -40,6 +41,21 @@ export {
     type UpsertTurnTraceInput,
     type TurnTraceRow,
 } from "./repos/turn-traces";
+export {
+    createFileJob,
+    getFileJob,
+    listActiveFileJobs,
+    pausedSaveOfferJobIds,
+    supersedeFileJobs,
+    markFileJobPaused,
+    markFileJobTerminal,
+    attachFileJobFollowup,
+    attachFileJobSourceMessage,
+    expireStaleFileJobs,
+    type FileJobRow,
+    type FileJobTask,
+    type FileJobStatus,
+} from "./repos/file-jobs";
 export {
     ChatRole,
     UserRole,

@@ -96,8 +96,9 @@ pnpm run dev
 | `cd apps/brain-service && pnpm run e2e:inprocess:vault` | 进程内「我的原文库」list 旁路 E2E |
 | `cd apps/brain-service && pnpm run e2e:api:vault` | HTTP E2E vault CRUD（`E2E_USER`/`E2E_PASSWORD`/`E2E_BASE_URL`；需 web+brain） |
 | `cd apps/brain-service && pnpm run e2e:api:chat` | HTTP E2E **对话主链**（姓名/年龄/手机） |
-| `cd apps/brain-service && pnpm run e2e:gate` | E2E 门禁：vault + 对话主链 + Playwright |
-| `cd apps/web && pnpm run test:e2e` | Playwright：vault UI + 对话主链（需先 `test:e2e:install` 与本地服务） |
+| `cd apps/brain-service && pnpm run e2e:api:file-hitl` | HTTP E2E 文件 HITL（缺 jobId 400、workspace 顶替、PDF 附件总结 save_offer） |
+| `cd apps/brain-service && pnpm run e2e:gate` | E2E 门禁：vault + 对话主链 + 文件 HITL + Playwright |
+| `cd apps/web && pnpm run test:e2e` | Playwright：vault UI + 对话主链 + save_offer 弹窗（需先 `test:e2e:install` 与本地服务） |
 | `cd apps/brain-service && pnpm run load:chat` | 压测：health + 队列 + **Web 对话全链路**（`LOAD_SKIP_CHAT=1` 可跳过对话段） |
 | `cd apps/brain-service && pnpm run eval:run` | Eval **全量**写入 `reports/eval-report.*`；`--case` / `*-only` **不覆盖**全量报表 |
 | `cd apps/brain-service && pnpm run eval:run -- --vault-only` | vault_workspace golden probe（不写全量 GATE eval 段） |
@@ -198,16 +199,16 @@ pnpm run dev
 
 **约定：** `@fambrain/brain-service` 不直接访问数据库；编排层不把中间 Agent 输出写入 `messages`。
 
-**架构演进（2026-07）：** **PathPlan + planFanOut（LangGraph Send）** 统一有序 `pathPlan.steps[]`（kind=km|list|mem|tool|summarize|dag）：km 槽 per-step FC；list 无 FC；mem→Mem0；tool→独立工具工人（易扩展天气/搜索）；summarizeSlot→子步总结。详见 [架构 v2 §11](./05-architecture-v2-tool-orchestration.md#11-pathplan-统一执行计划-2026-07)、[坑点 §2.8](./04-pitfalls.md#28-pathplan-统一编排-p0-28--2026-07)。
+**架构演进（2026-07 / 2026-08）：** **PathPlan + planFanOut（LangGraph Send）** 统一有序 `pathPlan.steps[]`（kind=km|list|mem|tool|summarize|dag|vault_workspace）。vault HITL 不在主图：`fileHandoff` 写信封，平级图 `agents/sideline/file`。详见 [架构 v2 §11](./05-architecture-v2-tool-orchestration.md#11-pathplan-统一执行计划-2026-07)、[坑点 §2.8](./04-pitfalls.md#28-pathplan-统一编排-p0-28--2026-07)、[流程 · 原文库](./02-agent-flows.md)。
 
 ## P0 已落地能力（代码索引）
 
 | 技能点 | 代码位置 | 用途 |
 |--------|----------|------|
-| `runAgentStream` + `runPipelineStream` | `agentflow/`、`pipeline/runtime/stream.ts` | SSE 运行时（步骤耗时 + SSE；业务在 agents/online） |
+| `runAgentStream` + `runPipelineStream` | `agentflow/`、`pipeline/runtime/orchestrate.ts` + `stream.ts` | HTTP 走双图编排（主图 + 可选文件子线）；`runPipelineStream` 仅主图（eval QA） |
 | `runPrepareTurnStart` | `agentflow/agents/online/prepare-turn-start/` | 图首节点：ALS、同问短路、Mem0/LangMem **读** |
 | `runPersistTurnEnd` | `agentflow/agents/online/persist-turn-end/` | 图末节点：LangMem **写**、可选静默用户记忆 |
-| `getCompiledPipelineGraph` | `pipeline/graph/compile.ts` + `routes.ts` | **prepareTurnStart** → Intake → … → **persistTurnEnd** → END |
+| `getCompiledPipelineGraph` | `pipeline/graph/compile.ts` + `routes.ts` | **prepareTurnStart** → Intake → … → **fileHandoff?** → **persistTurnEnd** → END |
 | `userFactNode` / `runUserFactSideNode` / `routeUserFactFromIntake` | `user-fact/`（`index.ts` + `side/`） | remember/recall 主路径；复合路径并行 side-effect |
 | `parseIntakeDecision` / `defaultIntakeDecision` | `intake-coordinator/pipeline/parse-intake.ts` | 解析 Intake 路由 JSON；失败 → **clarify**（不发明 retrieve） |
 | `runListRetrieverNode` / `runListRetrieveNode` | `corpus-lister/` | 纯 list 短路径 / 复合 list Send 工人 |

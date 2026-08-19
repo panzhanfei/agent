@@ -4,10 +4,10 @@ import {
   buildVaultSaveGateBlocks,
   parseVaultSaveResume,
   sanitizeVaultSaveBasename,
-  shouldOfferVaultSaveGate,
+  shouldHandoffFromPipelineState,
   VAULT_SAVE_CANCEL_PROMPT,
   VAULT_SAVE_CONFIRM_PROMPT,
-} from "@/agentflow/agents/online/vault-save-gate";
+} from "@/agentflow/agents/sideline/file";
 import {
   routeAfterAnalyst,
   routeAfterContentSummarizer,
@@ -37,8 +37,8 @@ const decision = (
     attachmentAction: null,
     routeMode: "respondEarly",
     compositeSlots: [],
-    routeReason: null,
-    routePlanSource: null,
+    routeReason: "intake_path_plan",
+    routePlanSource: "intake_path_plan",
     ...patch,
   }) as PipelineGraphState["decision"];
 
@@ -97,10 +97,10 @@ describe("parseVaultSaveResume", () => {
   });
 });
 
-describe("shouldOfferVaultSaveGate", () => {
+describe("shouldHandoffFromPipelineState", () => {
   it("offers on attachment summarize/translate and pasted summarize only", () => {
     expect(
-      shouldOfferVaultSaveGate(
+      shouldHandoffFromPipelineState(
         state({
           decision: decision({
             composeMode: "summarize",
@@ -112,21 +112,21 @@ describe("shouldOfferVaultSaveGate", () => {
       )
     ).toBe(true);
     expect(
-      shouldOfferVaultSaveGate(
+      shouldHandoffFromPipelineState(
         state({
           decision: decision({ attachmentAction: "translate" }),
         })
       )
     ).toBe(true);
     expect(
-      shouldOfferVaultSaveGate(
+      shouldHandoffFromPipelineState(
         state({
           decision: decision({ attachmentAction: "summarize" }),
         })
       )
     ).toBe(true);
     expect(
-      shouldOfferVaultSaveGate(
+      shouldHandoffFromPipelineState(
         state({
           decision: decision({
             composeMode: "summarize",
@@ -148,23 +148,23 @@ describe("shouldOfferVaultSaveGate", () => {
         })
       )
     ).toBe(false);
-    expect(shouldOfferVaultSaveGate(state({}))).toBe(false);
+    expect(shouldHandoffFromPipelineState(state({}))).toBe(false);
     expect(
-      shouldOfferVaultSaveGate(
+      shouldHandoffFromPipelineState(
         state({
           decision: decision({ attachmentAction: "extract" }),
         })
       )
     ).toBe(false);
-    expect(shouldOfferVaultSaveGate(state({ error: "fail" }))).toBe(false);
-    expect(shouldOfferVaultSaveGate(state({ answer: "   " }))).toBe(false);
+    expect(shouldHandoffFromPipelineState(state({ error: "fail" }))).toBe(false);
+    expect(shouldHandoffFromPipelineState(state({ answer: "   " }))).toBe(false);
   });
 });
 
 describe("buildVaultSaveGateBlocks", () => {
   it("emits confirm+cancel exact-match prompts", () => {
-    const built = buildVaultSaveGateBlocks({ draft: "hello draft" });
-    expect(built.answer).toContain("hello draft");
+    const built = buildVaultSaveGateBlocks({ language: "zh" });
+    expect(built.answer).toContain("原文库");
     const actions = built.blocks.find((b) => b.type === "actions");
     expect(actions?.type).toBe("actions");
     if (actions?.type !== "actions") return;
@@ -177,7 +177,7 @@ describe("buildVaultSaveGateBlocks", () => {
 });
 
 describe("save-gate routes", () => {
-  it("routes summarizer/analyst to vaultSaveGate when offering", () => {
+  it("routes summarizer/analyst to fileHandoff when offering", () => {
     const pasted = state({
       decision: decision({
         composeMode: "summarize",
@@ -194,8 +194,8 @@ describe("save-gate routes", () => {
         searchQuery: "城管平台",
       }),
     });
-    expect(routeAfterContentSummarizer(pasted)).toBe("vaultSaveGate");
-    expect(routeAfterAnalyst(pasted)).toBe("vaultSaveGate");
+    expect(routeAfterContentSummarizer(pasted)).toBe("fileHandoff");
+    expect(routeAfterAnalyst(pasted)).toBe("fileHandoff");
     expect(routeAfterContentSummarizer(corpusSummarize)).toBe("respondEarly");
     expect(routeAfterAnalyst(corpusSummarize)).toBe("persistTurnEnd");
     expect(routeAfterAnalyst(state({}))).toBe("persistTurnEnd");

@@ -53,12 +53,15 @@ export {
 
 export {
   discardPipelineTask,
+  discardFileTask,
   getPipelineCheckpointer,
   pipelineThreadId,
+  fileThreadId,
   isPipelinePauseValue,
   isResumablePipelinePause,
   extractPipelinePauseValue,
   registerPipelineDiscardHook,
+  registerFileDiscardHook,
   resetPipelineCheckpointForTests,
   useSqliteCheckpointerForTests,
   type PipelinePauseValue,

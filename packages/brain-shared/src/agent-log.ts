@@ -25,6 +25,8 @@ export type AgentLogName =
   | "ListRetriever"
   | "DagExecutor"
   | "VaultWrite"
+  | "FileHandoff"
+  | "FileAgent"
   | "PlanCacheResolve";
 
 export const AGENT_LOG_LABEL_IN = "进入";
@@ -55,6 +57,8 @@ const AGENT_EMOJI: Record<AgentLogName, string> = {
   DagExecutor: "🕸️",
   ListRetriever: "🔍",
   VaultWrite: "🗄️",
+  FileHandoff: "📎",
+  FileAgent: "📁",
   PlanCacheResolve: "💾",
 };
 

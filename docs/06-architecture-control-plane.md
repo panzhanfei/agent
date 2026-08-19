@@ -26,7 +26,7 @@ Understand + Plan（可融合为一次 LLM）
 
 `pending → running → done | skipped`  
 `running → aborted`（Turn 取消 / supersede）  
-图级人等：仅原文库 `interrupt({ kind: vault_wait })`（工作台 CRUD 循环 + 写回闸门一次确认）。槽状态机无 `awaiting_human`。生成停用 `gen_pause` 截停采样后 **discard**，不 Resume。
+图级人等：仅 **文件子图** `interrupt({ kind: vault_wait })`（工作台 CRUD 循环 + 写回闸门一次确认）。主图不 interrupt 文件 HITL。槽状态机无 `awaiting_human`。生成停用 `gen_pause` 截停采样后 **discard 问答 thread**，不 Resume。
 
 | 状态 | 含义 |
 |------|------|
@@ -56,13 +56,13 @@ Understand + Plan（可融合为一次 LLM）
 ## 4. Turn / 取消
 
 - 每次用户提交 = 新 `turnId`（**Web 生成并贯穿**；Brain 缺省时兜底）  
-- **两模式：** 问答主路径 = **停 / 换题 → discard + 新一轮**（无 Resume）；**Resume 只给原文库 HITL 按钮**（工作台 + 写回闸门）  
-- 再发下一句 = **supersede**（默认）= discard 图任务（世代 +1）  
-- **原文库人等** = `interrupt({ kind: vault_wait })` + checkpointer；点按钮 = 同 thread `Command({ resume: vault_action })`（写回闸门可带 `name`）  
-- **生成停** = 截停采样，半截稿落库为终稿，discard；无「继续」  
+- **两模式：** 问答主路径 = **停 / 换题 → discard 问答 thread + 新一轮**（无 Resume）；**Resume 只给文件子线 HITL 按钮**（工作台 + 写回闸门），且 **`jobId` 必填**  
+- 再发下一句 = **supersede 问答 thread**（默认）= discard 问答图任务（世代 +1）。**不**作废 save_offer 按钮；**会**顶替 workspace HITL  
+- **原文库人等** = 文件子图 `interrupt({ kind: vault_wait })` + 独立 file thread；点按钮 = `Command({ resume: vault_action })`（须 `jobId`；写回闸门可带 `name`）  
+- **生成停** = 截停采样，半截稿落库为终稿，discard 问答 thread；无「继续」  
 - **HITL 载荷** = `interrupt` value（`answer`/`blocks`）。stream `values` 合入已有 channel，禁止整帧覆盖  
 - 双保险：Abort 断流 + cancel API  
-- 落库：cancelled 有正文 → 截停 +「——用户已暂停」；superseded 不写旧 assistant；生成停按普通 `done` 写半截稿（无该后缀）
+- 落库：cancelled 有正文 → 截停 +「——用户已暂停」；superseded 不写旧 assistant；生成停按普通 `done` 写半截稿（无该后缀）；写回闸门两条助手消息（终稿 + CTA）
 
 ## 5. 指代续问
 
@@ -78,8 +78,8 @@ Understand + Plan（可融合为一次 LLM）
 
 ## 7. 子图与 DAG
 
-- km / list / mem / tool / summarize / vaultWorkspace：扁平工人（`emitBudgetedSlotPatch` + worker）  
-
+- km / list / mem / tool / summarize：扁平工人（`emitBudgetedSlotPatch` + worker）  
+- **vault_workspace 不进 fan-out**：主图 `fileHandoff` 写信封，HITL 在 `agents/sideline/file` 平级图 
 - DAG：**不**另起规划器；失败信号并进同一 B  
 - DAG **动态裁剪**：`deps` + `optionalDeps`（soft）；仅 hard 未满足才 skip；soft 失败 → 下游可继续并 `degraded`/备注  
 - DAG **部分再批**：`pendingGlobalRebatchDagNodeIds` + `fanOutDagPatch.toolResults` seed；`collectDownstreamRerunClosure`；`canReuseDagNodeResult`（deps-skip / 失败不可复用）  
@@ -99,17 +99,17 @@ Understand + Plan（可融合为一次 LLM）
 
 ### 阶段 6 定稿（原文库写盘）
 
-HITL 直接改 `corpus/**/*.md` 的 `corpus_edit` 已删除。写盘只走 VaultWrite：
+HITL 直接改 `corpus/**/*.md` 的 `corpus_edit` 已删除。写盘只走文件子线 `sideline/file`（主图不再挂 `vaultWorkspace` / `vaultSaveGate`）：
 
-| 路径 | 图节点 | 写什么 | HITL |
-|------|--------|--------|------|
-| 工作台 | `vaultWorkspace` | 用户 CRUD workspace `.txt` | interrupt 循环 +「结束」 |
-| 写回闸门 | `vaultSaveGate`（独立 Agent） | 附件/粘贴终稿 → `.txt` | 一次暂停；确定入库弹窗填名 / 取消。查库摘要不出闸 |
+| 路径 | 图 | 写什么 | HITL |
+|------|----|--------|------|
+| 工作台 | 文件子图 `workspace` | 用户 CRUD workspace `.txt` | interrupt 循环 +「结束」；列表覆写同一 followup |
+| 写回闸门 | 文件子图 `saveHitl` | 附件/粘贴终稿 → `.txt` | 主图已 persistTurnEnd；一次暂停；确定入库弹窗填名 / 取消。查库摘要不出闸 |
 | 语料页批量 | （不在聊天图内） | 原件 → corpus | 无；`ingestDocumentBatch` |
 
-聊天附件 **不再 ingest**；要入库先总结或翻译，再走写回闸门。
+聊天附件 **不再 ingest**；要入库先总结或翻译，再走写回闸门。Resume 必须带 `FileJob.id`。
 
-Eval：`golden.json` → `vaultWorkspaceProbe`（含 `save_gate_*`）；`eval:run -- --vault-only`。
+Eval：`golden.json` → `vaultWorkspaceProbe`（含 `save_gate_*` / `resume_requires_jobid`）；`eval:run -- --vault-only`。
 
 ### 记忆分层（自学重设计）
 

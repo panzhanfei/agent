@@ -2,7 +2,7 @@
  * 按 conversationId 缓存最近一次 vault op 结果。
  * 节点 Resume 从入口重跑，写操作须命中缓存以免重复执行；discard 时清除。
  */
-import { registerPipelineDiscardHook } from "@/agentflow/execution";
+import { registerFileDiscardHook } from "@/agentflow/execution";
 import type { VaultWorkspaceRunResult } from "./interface";
 
 const cache = new Map<
@@ -29,6 +29,6 @@ export const rememberVaultWorkspaceOp = (
   cache.set(conversationId, { sig: paramsSig(params), result });
 };
 
-registerPipelineDiscardHook((conversationId) => {
+registerFileDiscardHook((conversationId) => {
   cache.delete(conversationId);
 });

@@ -648,6 +648,7 @@ export const useChatShell = ({
         staleMessageId?: string | null;
         resume?: {
           kind: "vault_action";
+          jobId: string;
           prompt?: string;
           name?: string;
         };
@@ -671,21 +672,24 @@ export const useChatShell = ({
       streamPreviewRef.current = "";
       setStreamBlocks([]);
       setThinkingPanelVisible(false);
-      // 与 HITL 同套：group key + 源消息 / 当前最新助手消息一并作废
+      // 与 HITL 同套：group key 作废同类按钮。
+      // 原文库 Resume 原地更新同一条 followup，不能把 source message 整条标 stale，否则新列表删除/打开也会灰。
       markStaleActionKey(
         options?.staleGroupKey ?? chatActionStaleGroupKey(trimmed)
       );
-      const msgToStale =
-        options?.staleMessageId ??
-        (() => {
-          for (let i = messagesRef.current.length - 1; i >= 0; i -= 1) {
-            if (messagesRef.current[i]?.role === "assistant") {
-              return messagesRef.current[i]!.id;
+      if (!options?.resume) {
+        const msgToStale =
+          options?.staleMessageId ??
+          (() => {
+            for (let i = messagesRef.current.length - 1; i >= 0; i -= 1) {
+              if (messagesRef.current[i]?.role === "assistant") {
+                return messagesRef.current[i]!.id;
+              }
             }
-          }
-          return null;
-        })();
-      if (msgToStale) markStaleActionKey(messageActionStaleKey(msgToStale));
+            return null;
+          })();
+        if (msgToStale) markStaleActionKey(messageActionStaleKey(msgToStale));
+      }
 
       // 发送即带走附件：先挂到用户气泡并清空输入区芯片（抽取失败也不再留在下方）
       const pendingFiles = [...pendingAttachmentsRef.current];
@@ -1025,6 +1029,41 @@ export const useChatShell = ({
               }
             }
             if (
+              event === "main_turn_complete" &&
+              payload &&
+              typeof payload === "object" &&
+              payload !== null &&
+              activeTurnIdRef.current === turnId
+            ) {
+              const p = payload as {
+                assistantMessage?: ChatMessage;
+                answer?: string;
+              };
+              const row = p.assistantMessage;
+              if (row && typeof row.id === "string") {
+                const assistant: ChatMessage = {
+                  id: row.id,
+                  role: "assistant",
+                  content:
+                    typeof row.content === "string"
+                      ? row.content
+                      : (p.answer ?? ""),
+                  createdAt: new Date().toISOString(),
+                  blocks: row.blocks,
+                  citations: row.citations,
+                };
+                flushSync(() => {
+                  setMessages((prev) => {
+                    if (prev.some((m) => m.id === assistant.id)) return prev;
+                    return [...prev, assistant];
+                  });
+                });
+                streamPreviewRef.current = "";
+                setStreamAnswerPreview("");
+                setStreamBlocks([]);
+              }
+            }
+            if (
               event === "aborted" &&
               payload &&
               typeof payload === "object" &&
@@ -1160,6 +1199,8 @@ export const useChatShell = ({
                   pauseKind:
                     (p.assistantMessage as { pauseKind?: ChatMessage["pauseKind"] })
                       .pauseKind ?? p.pauseKind,
+                  fileJobId: (p.assistantMessage as { fileJobId?: string })
+                    .fileJobId,
                 };
                 flushSync(() => {
                   setMessages((prev) => {
@@ -1257,20 +1298,22 @@ export const useChatShell = ({
         });
         return;
       }
-      const lastAssistant = [...messagesRef.current]
-        .reverse()
-        .find((m) => m.role === "assistant");
-      const resumeVault =
-        lastAssistant?.taskPaused &&
-        lastAssistant.pauseKind === "vault_wait" &&
-        isVaultWorkspaceActionPrompt(action.prompt);
+      const source = action.sourceMessageId
+        ? messagesRef.current.find((m) => m.id === action.sourceMessageId)
+        : undefined;
+      const jobId = source?.fileJobId;
+      const resumeVault = Boolean(jobId) && isVaultWorkspaceActionPrompt(action.prompt);
       void sendMessageWithContent(action.prompt, {
         displayContent: action.displayText ?? action.label,
         staleGroupKey: chatActionStaleGroupKey(action.prompt),
         staleMessageId: action.sourceMessageId ?? null,
-        ...(resumeVault
+        ...(resumeVault && jobId
           ? {
-              resume: { kind: "vault_action" as const, prompt: action.prompt },
+              resume: {
+                kind: "vault_action" as const,
+                prompt: action.prompt,
+                jobId,
+              },
             }
           : {}),
       });
@@ -1299,6 +1342,11 @@ export const useChatShell = ({
       });
       return;
     }
+    const jobId = modal.sourceMessageId
+      ? messagesRef.current.find((m) => m.id === modal.sourceMessageId)
+          ?.fileJobId
+      : undefined;
+    if (!jobId) return;
     setVaultSaveNameModal(null);
     void sendMessageWithContent(modal.prompt, {
       displayContent: modal.displayText,
@@ -1306,6 +1354,7 @@ export const useChatShell = ({
       staleMessageId: modal.sourceMessageId ?? null,
       resume: {
         kind: "vault_action",
+        jobId,
         prompt: modal.prompt,
         name,
       },
@@ -1597,6 +1646,41 @@ export const useChatShell = ({
             }
           }
           if (
+            event === "main_turn_complete" &&
+            payload &&
+            typeof payload === "object" &&
+            payload !== null &&
+            activeTurnIdRef.current === turnId
+          ) {
+            const p = payload as {
+              assistantMessage?: ChatMessage;
+              answer?: string;
+            };
+            const row = p.assistantMessage;
+            if (row && typeof row.id === "string") {
+              const assistant: ChatMessage = {
+                id: row.id,
+                role: "assistant",
+                content:
+                  typeof row.content === "string"
+                    ? row.content
+                    : (p.answer ?? ""),
+                createdAt: new Date().toISOString(),
+                blocks: row.blocks,
+                citations: row.citations,
+              };
+              flushSync(() => {
+                setMessages((prev) => {
+                  if (prev.some((m) => m.id === assistant.id)) return prev;
+                  return [...prev, assistant];
+                });
+              });
+              streamPreviewRef.current = "";
+              setStreamAnswerPreview("");
+              setStreamBlocks([]);
+            }
+          }
+          if (
             event === "aborted" &&
             payload &&
             typeof payload === "object" &&
@@ -1687,6 +1771,8 @@ export const useChatShell = ({
                 pauseKind:
                   (p.assistantMessage as { pauseKind?: ChatMessage["pauseKind"] })
                     .pauseKind ?? p.pauseKind,
+                fileJobId: (p.assistantMessage as { fileJobId?: string })
+                  .fileJobId,
               };
               flushSync(() => {
                 setMessages((prev) => {
