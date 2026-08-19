@@ -64,10 +64,10 @@ knowledge-manager/
 └── composite/
 
 tools/
-├── catalog/    ← 唯一清单（本地 / http / 以后 mcp 都在这登记）
+├── catalog/    ← 唯一清单（本地 / http / mcp 都在这登记）
 ├── invoke/     ← 唯一分发
 ├── local/      ← 本地 tool 实现 { identity, corpus, web, translate, … }
-├── mcp/        ← { client, server }；server 待定（experiment:mcp-vault 以后搬）
+├── mcp/        ← client 只绑定/调用；server 对外 stdio（weather；vault 实验以后搬）
 ├── context/    ← 工具运行 ALS，不是一种 tool
 ├── index.ts
 ```

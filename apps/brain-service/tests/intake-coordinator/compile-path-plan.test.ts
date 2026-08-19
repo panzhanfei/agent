@@ -116,6 +116,28 @@ describe("legalizePathPlan + deriveCompositeSlots", () => {
     );
   });
 
+  it("rewrites get_weather on km → kind=tool", () => {
+    const pathPlan = legalizePathPlan({
+      steps: [
+        {
+          id: "km-weather",
+          kind: "km",
+          label: "北京天气",
+          searchQuery: "北京",
+          queryType: "default",
+          topics: ["weather"],
+          toolId: "get_weather",
+          dataSource: "web",
+        },
+      ],
+    });
+    expect(pathPlan.steps[0]?.kind).toBe("tool");
+    expect(pathPlan.steps[0]?.toolId).toBe("get_weather");
+    expect(deriveCompositeSlotsFromPathPlan(pathPlan)[0]?.executor).toBe(
+      "tool_run"
+    );
+  });
+
   it("keeps identityField phone as km (not mem)", () => {
     const pathPlan = legalizePathPlan({
       steps: [

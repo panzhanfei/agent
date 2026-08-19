@@ -71,6 +71,7 @@ export type PipelineStepName =
     | "retrieval"
     | "km_retrieve"
     | "list_retrieve"
+    | "tool_retrieve"
     | "file_handoff"
     | "file_agent"
     | "plan_cache_resolve"

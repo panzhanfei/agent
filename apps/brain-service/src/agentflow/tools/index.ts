@@ -43,6 +43,7 @@ export { invokeTool, type InvokeToolContext } from "./invoke";
 
 export {
   MCP_CLIENT_BINDINGS,
+  MCP_CLIENT_SERVERS,
   MCP_SERVER_EXPORTS,
   callRegisteredMcpTool,
 } from "./mcp";
@@ -75,6 +76,7 @@ export {
 
 export { runSearchWeb } from "./local/web";
 export { runTranslateText } from "./local/translate";
+export { runGetWeather } from "./local/weather";
 export {
   runComputeAgeFromHits,
   runComputeTenureFromHits,

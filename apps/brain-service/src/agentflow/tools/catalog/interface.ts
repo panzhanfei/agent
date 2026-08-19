@@ -14,7 +14,8 @@ export type ToolRunId =
   | "compose_enumeration"
   | "search_web"
   | "translate_text"
-  | "synthesize_merge";
+  | "synthesize_merge"
+  | "get_weather";
 
 /** 需先有 corpus/list hits 再跑的工具（planSlotPost） */
 export type PostRetrievalToolId =
@@ -56,13 +57,14 @@ export type PipelineToolFolder =
   | "links"
   | "web"
   | "translate"
-  | "synthesize";
+  | "synthesize"
+  | "weather";
 
 /**
  * 运输方式（不是第三份 tool 清单）：
  * - local：本仓库 run*
- * - http：直连外部 HTTP（有道 / Tavily / Open-Meteo）
- * - mcp：invoke 经 mcp/client 调已登记 Server
+ * - http：直连外部 HTTP（有道 / Tavily）
+ * - mcp：invoke 经 mcp/client 调已登记 Server（如 Open-Meteo）
  */
 export type ToolTransport = "local" | "http" | "mcp";
 

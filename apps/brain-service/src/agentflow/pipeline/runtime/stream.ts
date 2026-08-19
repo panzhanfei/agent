@@ -571,9 +571,15 @@ async function* runPipelineStreamInner(
           const fan = describeFanOutPlan(finalState);
           if (fan.hasKm) yield* startStep("km_retrieve");
           if (fan.hasList) yield* startStep("list_retrieve");
+          if (fan.hasTool) yield* startStep("tool_retrieve");
           if (fan.hasDag) yield* startStep("plan_dag");
           if (fan.hasSideRemember) yield* startStep("user_fact");
-          if (fan.hasKm || fan.hasList || fan.hasSideRemember) {
+          if (
+            fan.hasKm ||
+            fan.hasList ||
+            fan.hasTool ||
+            fan.hasSideRemember
+          ) {
             yield* startStep("plan_slot_join");
           }
         }
@@ -584,9 +590,15 @@ async function* runPipelineStreamInner(
         const fan = describeFanOutPlan(finalState);
         if (fan.hasKm) yield* startStep("km_retrieve");
         if (fan.hasList) yield* startStep("list_retrieve");
+        if (fan.hasTool) yield* startStep("tool_retrieve");
         if (fan.hasDag) yield* startStep("plan_dag");
         if (fan.hasSideRemember) yield* startStep("user_fact");
-        if (fan.hasKm || fan.hasList || fan.hasSideRemember) {
+        if (
+          fan.hasKm ||
+          fan.hasList ||
+          fan.hasTool ||
+          fan.hasSideRemember
+        ) {
           yield* startStep("plan_slot_join");
         }
         continue;
@@ -627,6 +639,9 @@ async function* runPipelineStreamInner(
       if (nodeName === "listRetrieve") {
         continue;
       }
+      if (nodeName === "toolRetrieve") {
+        continue;
+      }
       if (nodeName === "fileHandoff") {
         yield* finishStep("file_handoff");
         yield* startStep("persist_turn_end");
@@ -638,6 +653,9 @@ async function* runPipelineStreamInner(
         }
         if (runningSteps.has("list_retrieve")) {
           yield* finishStep("list_retrieve");
+        }
+        if (runningSteps.has("tool_retrieve")) {
+          yield* finishStep("tool_retrieve");
         }
         yield* finishStep("plan_slot_join");
         yield* startStep("plan_slot_post");
@@ -674,6 +692,9 @@ async function* runPipelineStreamInner(
         }
         if (runningSteps.has("list_retrieve")) {
           yield* finishStep("list_retrieve");
+        }
+        if (runningSteps.has("tool_retrieve")) {
+          yield* finishStep("tool_retrieve");
         }
         yield {
           type: "retrieval_meta",

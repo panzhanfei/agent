@@ -1,5 +1,5 @@
 /**
- * 工具清单：本地、外调 HTTP、以后 MCP 对外，都在此登记。
+ * 工具清单：本地、外调 HTTP、MCP 对外，都在此登记。
  * 生产执行走 `@/agentflow/tools/invoke`。
  */
 import type { IntakeIdentityField } from "@/agentflow/agents/online/intake-coordinator/contract";
@@ -34,6 +34,7 @@ export const TOOL_RUN_IDS = [
   "search_web",
   "translate_text",
   "synthesize_merge",
+  "get_weather",
 ] as const satisfies readonly ToolRunId[];
 
 export const POST_RETRIEVAL_TOOL_IDS = [
@@ -86,6 +87,7 @@ export const PIPELINE_TOOL_IMPL = {
   search_web: "web",
   translate_text: "translate",
   synthesize_merge: "synthesize",
+  get_weather: "weather",
 } as const satisfies Record<ToolRunId, PipelineToolFolder>;
 
 /** 每个 pipeline toolId 的运输层。mcp 须同时在 mcp/client 登记绑定。 */
@@ -100,6 +102,7 @@ export const PIPELINE_TOOL_TRANSPORT: Record<ToolRunId, ToolTransport> = {
   search_web: "http",
   translate_text: "http",
   synthesize_merge: "local",
+  get_weather: "mcp",
 };
 
 export const IDENTITY_FIELD_BY_ID: Record<

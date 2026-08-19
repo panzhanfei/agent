@@ -473,6 +473,12 @@ const evaluateCase = async (
         retried = true;
         ({ snap, issues } = await runOnce(2));
     }
+    if (caseFilter) {
+        const preview = snap.answer.trim() || "(empty)";
+        console.log(
+            `\n--- ${spec.id} answer ---\n${preview}\n--- steps: ${snap.steps.join(" → ")} ---\n`
+        );
+    }
     return {
         id: spec.id,
         tier: spec.tier,

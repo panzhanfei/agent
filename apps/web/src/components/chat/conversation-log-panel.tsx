@@ -20,6 +20,7 @@ const STEP_LABELS: Record<PipelineStepName, string> = {
     retrieval: "检索知识库",
     km_retrieve: "知识检索",
     list_retrieve: "列举检索",
+    tool_retrieve: "外部工具",
     file_handoff: "交文件线",
     file_agent: "原文库",
     plan_cache_resolve: "解析缓存",

@@ -9,4 +9,5 @@ export type LocalToolFolder =
   | "synthesize"
   | "summarize"
   | "user-fact"
-  | "orchestrated";
+  | "orchestrated"
+  | "weather";

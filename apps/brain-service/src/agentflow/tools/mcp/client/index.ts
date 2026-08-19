@@ -1,9 +1,15 @@
 /**
  * 生产路径 MCP Client：只调已登记绑定，不把 tools/list 交给模型。
+ * Server 实现在 mcp/server；这里只登记怎么连、调哪个远程 tool。
  */
 import { Client } from "@modelcontextprotocol/sdk/client/index.js";
 import { StdioClientTransport } from "@modelcontextprotocol/sdk/client/stdio.js";
 import type { ToolRunId } from "@/agentflow/tools/catalog/interface";
+import {
+  OPEN_METEO_CURRENT_WEATHER_TOOL,
+  OPEN_METEO_MCP_SERVER_ID,
+  OPEN_METEO_MCP_STDIO_SERVER,
+} from "@/agentflow/tools/mcp/server";
 import type {
   McpClientBinding,
   McpStdioServerSpec,
@@ -16,11 +22,19 @@ export type {
   McpToolCallResult,
 } from "./interface";
 
-/** 已登记的外部 MCP Server。接入时加条目，不要运行时发现。 */
-export const MCP_CLIENT_SERVERS: readonly McpStdioServerSpec[] = [];
+/** 已登记的 MCP Server。接入时加条目，不要运行时发现。 */
+export const MCP_CLIENT_SERVERS: readonly McpStdioServerSpec[] = [
+  OPEN_METEO_MCP_STDIO_SERVER,
+];
 
-/** toolId → 对方 tool 名。invoke 只认这里有的绑定。 */
-export const MCP_CLIENT_BINDINGS: readonly McpClientBinding[] = [];
+/** 我们的 toolId → 对方 Server 上的 tool 名。 */
+export const MCP_CLIENT_BINDINGS: readonly McpClientBinding[] = [
+  {
+    toolId: "get_weather",
+    serverId: OPEN_METEO_MCP_SERVER_ID,
+    remoteToolName: OPEN_METEO_CURRENT_WEATHER_TOOL,
+  },
+];
 
 export const resolveMcpClientBinding = (
   toolId: ToolRunId
@@ -60,11 +74,16 @@ export const callRegisteredMcpTool = async (input: {
     return { ok: false, text: `未登记 MCP Server：${binding.serverId}` };
   }
 
+  const env: Record<string, string> = {};
+  for (const [key, value] of Object.entries(process.env)) {
+    if (value !== undefined) env[key] = value;
+  }
   const transport = new StdioClientTransport({
     command: server.command,
     args: server.args ? [...server.args] : [],
     cwd: server.cwd,
-    stderr: "pipe",
+    env,
+    stderr: "ignore",
   });
   const client = new Client({
     name: "fambrain-invoke",

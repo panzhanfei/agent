@@ -2,7 +2,7 @@
  * Analyst 消费 toolResults：对上这一问该用哪条，再收成 Analyst 结果。
  */
 import { facetKeyMatchesIdentity } from "@/agentflow/cache";
-import { resolveIdentityField } from "@/agentflow/tools/catalog";
+import { isPostRetrievalToolId, resolveIdentityField } from "@/agentflow/tools/catalog";
 import type {
   PipelineToolResults,
   ToolRunResult,
@@ -94,6 +94,19 @@ export const pickToolResultForSubQuestion = (
   }
 
   if (toolResults.web) return toolResults.web;
+
+  /** 单槽独立工具（get_weather / search_web / translate_text）：无 slotId 时仍应对上唯一成功结果 */
+  const standalone = Object.values(toolResults).filter(
+    (r): r is ToolRunResult =>
+      Boolean(
+        r &&
+          !isPostRetrievalToolId(r.toolId) &&
+          r.toolId !== "synthesize_merge" &&
+          r.ok &&
+          r.answer.trim()
+      )
+  );
+  if (standalone.length === 1) return standalone[0]!;
 
   return null;
 };

@@ -54,3 +54,5 @@ export {
   runOrchestratedSubQuestion,
   type OrchestratedToolId,
 } from "./orchestrated";
+
+export { runGetWeather } from "./weather";

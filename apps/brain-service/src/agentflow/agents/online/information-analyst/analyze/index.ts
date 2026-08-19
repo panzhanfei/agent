@@ -355,6 +355,10 @@ export const buildFallbackAnswer = async (
     {
       userQuestion,
       queryType: queryType ?? undefined,
+      slotId:
+        input.compositeSubResults?.length === 1
+          ? String(input.compositeSubResults[0]?.slot ?? "")
+          : undefined,
     },
     input.toolResults
   );
@@ -445,4 +449,8 @@ export const toSubQuestionInput = (
   asOfDate: input.asOfDate ?? new Date().toISOString().slice(0, 10),
   toolResults: input.toolResults,
   searchQuery: input.searchQuery,
+  slotId:
+    input.compositeSubResults?.length === 1
+      ? String(input.compositeSubResults[0]?.slot ?? "")
+      : undefined,
 });

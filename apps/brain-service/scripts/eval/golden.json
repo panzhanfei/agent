@@ -416,6 +416,19 @@
         "answerRe": "云联智慧|友谊时光|github\\.com/panzhanfei",
         "answerMustNotRe": "未能生成回复"
       }
+    },
+    {
+      "id": "E2E-weather-tianshui",
+      "tier": "pipeline",
+      "label": "天气：天水（重复地名仍走 get_weather / MCP）",
+      "question": "今天天水的天水的天气如何",
+      "assert": {
+        "mustIncludeSteps": ["intake", "tool_retrieve", "plan_merge", "analyst"],
+        "mustNotIncludeSteps": ["km_retrieve"],
+        "minAnswerLength": 8,
+        "answerRe": "(天水|Tianshui)[\\s\\S]*(°C|℃|Open-Meteo|气温|晴|雨|云|雾|雪)",
+        "answerMustNotRe": "再说清楚|哪一方面|请明确|未能生成回复|未提供地点|潘展飞"
+      }
     }
   ],
   "memProbe": {

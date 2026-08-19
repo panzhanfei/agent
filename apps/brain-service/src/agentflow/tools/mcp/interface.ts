@@ -20,5 +20,5 @@ export type McpToolCallResult = {
   text: string;
 };
 
-/** 对外 MCP Server 允许被点的名字。待定；当前实验脚本未迁入。 */
+/** 本进程 MCP Server 对外允许被点的 tool 名（与 catalog toolId 不是同一张表）。 */
 export type McpServerExportName = string;
