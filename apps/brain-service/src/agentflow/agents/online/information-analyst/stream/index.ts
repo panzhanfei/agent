@@ -157,7 +157,7 @@ async function* streamSingleAnalyze(
         queryType: input.queryType,
         searchQuery: input.searchQuery,
     });
-    const fallback = buildFallbackAnswer(input);
+    const fallback = await buildFallbackAnswer(input);
     const { ollama } = getBrainServiceConfig();
 
     if (shouldSkipAnalystLlm(input)) {

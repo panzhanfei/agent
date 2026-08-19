@@ -20,6 +20,26 @@ export { searchWebTool } from "./web";
 export { translateTextTool } from "./translate";
 
 export {
+  ANALYST_FALLBACK_TOOL_IDS,
+  FAMBRAIN_TOOL_NAMES,
+  IDENTITY_FIELD_BY_ID,
+  LANGCHAIN_TOOL_NAMES,
+  PIPELINE_TOOL_IMPL,
+  POST_RETRIEVAL_TOOL_IDS,
+  TOOL_RUN_IDS,
+  isPostRetrievalToolId,
+  resolveIdentityField,
+  resolveIdentityFieldFromPlan,
+  type AnalystFallbackToolId,
+  type IdentityFieldSpec,
+  type LangchainToolName,
+  type PostRetrievalToolId,
+  type ToolRunId,
+} from "./catalog";
+
+export { invokeTool, type InvokeToolContext } from "./invoke";
+
+export {
   ORCHESTRATED_TOOL_IDS,
   resolveOrchestratedTool,
   runOrchestratedSubQuestion,
@@ -64,7 +84,7 @@ export {
   matchReportToBlocks,
 } from "./synthesize";
 
-/** FamBrain 在线能力对应的 LangChain StructuredTool（主 pipeline 仍走 LangGraph 编排节点 + orchestrated 工具表） */
+/** FamBrain 在线能力对应的 LangChain StructuredTool（主 pipeline 仍走 invoke(toolId)） */
 export const createFambrainTools = (): StructuredToolInterface[] => [
   retrieveCorpusTool,
   computeAgeFromHitsTool,
@@ -76,15 +96,3 @@ export const createFambrainTools = (): StructuredToolInterface[] => [
   translateTextTool,
   getCurrentDateTool,
 ];
-
-export const FAMBRAIN_TOOL_NAMES = [
-  "retrieve_corpus",
-  "compute_age_from_hits",
-  "remember_user_fact",
-  "recall_user_fact",
-  "list_vault_files",
-  "summarize_text",
-  "search_web",
-  "translate_text",
-  "get_current_date",
-] as const;

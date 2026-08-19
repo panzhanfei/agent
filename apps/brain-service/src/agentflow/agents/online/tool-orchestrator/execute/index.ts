@@ -1,8 +1,8 @@
 /**
- * 执行层：按 toolId 分发。具体实现在 `@/agentflow/tools/<name>`。
+ * 执行层：plan 节点 → invoke。具体实现在 `@/agentflow/tools/<name>`。
  */
-import type { IntakeIdentityField } from "@/agentflow/agents/online/intake-coordinator/contract";
 import type { PipelineGraphState } from "@/agentflow/pipeline/graph/state";
+import { invokeTool } from "@/agentflow/tools/invoke";
 import { runRetrieveCorpus } from "@/agentflow/tools/corpus";
 import {
   runComposeEnumeration,
@@ -35,113 +35,20 @@ export const runExecutionPlanNode = async (
 ): Promise<ToolRunResult> => {
   const { state, prior } = ctx;
   const { corpusUserId, actorUserId } = state.context;
-  const language = state.decision?.language ?? "zh";
-  const hits = node.hitsOverride ?? state.hits;
-  const asOfDate = state.asOfDate ?? new Date().toISOString().slice(0, 10);
-
-  switch (node.toolId) {
-    case "retrieve_corpus":
-      return runRetrieveCorpus({
-        corpusUserId,
-        actorUserId,
-        searchQuery: node.searchQuery ?? state.userQuestion,
-        queryType: node.queryType,
-        topics: node.topics,
-        subTasks: [node.label],
-        label: node.label,
-      });
-    case "search_web":
-      return runSearchWeb({
-        corpusUserId,
-        actorUserId,
-        query: node.webQuery ?? node.searchQuery ?? state.userQuestion,
-      });
-    case "translate_text":
-      return runTranslateText({
-        corpusUserId,
-        actorUserId,
-        text: node.searchQuery?.trim() || state.userQuestion.trim() || "",
-        targetLang: node.targetLang?.trim() || "",
-        sourceLang: node.sourceLang ?? "auto",
-        label: node.label,
-      });
-    case "compute_age_from_hits":
-      return runComputeAgeFromHits({
-        corpusUserId,
-        actorUserId,
-        hits,
-        asOfDate,
-        language,
-        label: node.label,
-      });
-    case "compute_tenure_from_hits":
-      return runComputeTenureFromHits({
-        hits,
-        language,
-        label: node.label,
-        searchQuery: node.searchQuery,
-        asOfDate,
-      });
-    case "extract_identity_from_hits": {
-      const field = (node.field as IntakeIdentityField | null) ?? "name";
-      const allowed: IntakeIdentityField[] = [
-        "name",
-        "age",
-        "birthYear",
-        "email",
-        "phone",
-        "education",
-        "career",
-        "tenure",
-      ];
-      return runExtractIdentityFromHits({
-        hits,
-        field: allowed.includes(field) ? field : "name",
-        language,
-        label: node.label,
-      });
-    }
-    case "extract_external_links_from_hits":
-      return runExtractExternalLinksFromHits({
-        hits,
-        language,
-        label: node.label,
-      });
-    case "list_corpus_entries":
-      return runListCorpusEntries({
-        corpusUserId,
-        topics: node.topics ?? [],
-        label: node.label,
-        language,
-      });
-    case "compose_enumeration":
-      return runComposeEnumeration({
-        hits,
-        language,
-        topics: node.topics ?? state.decision?.topics ?? [],
-        label: node.label,
-        enumerationMeta: node.enumerationMetaOverride ?? state.enumerationMeta,
-        notes: state.notes,
-        listIntent: state.decision?.listIntent ?? null,
-      });
-    case "synthesize_merge":
-      return runSynthesizeMerge({
-        label: node.label,
-        deps: node.deps.map((id) => prior[id]).filter(Boolean) as ToolRunResult[],
-        userQuestion: state.userQuestion,
-      });
-    default:
-      return {
-        toolId: node.toolId,
-        label: node.label,
-        ok: false,
-        answer: `未知工具：${node.toolId}`,
-        citations: [],
-        hits: [],
-        insufficientEvidence: true,
-        confidence: 0.5,
-      };
-  }
+  return invokeTool(node, {
+    corpusUserId,
+    actorUserId,
+    userQuestion: state.userQuestion,
+    parentUserQuestion: state.userQuestion,
+    asOfDate: state.asOfDate ?? new Date().toISOString().slice(0, 10),
+    language: state.decision?.language ?? "zh",
+    hits: node.hitsOverride ?? state.hits,
+    prior,
+    notes: state.notes,
+    enumerationMeta: node.enumerationMetaOverride ?? state.enumerationMeta,
+    listIntent: state.decision?.listIntent ?? null,
+    decisionTopics: state.decision?.topics ?? [],
+  });
 };
 
 export const resolvePostRetrievalToolRuns = (

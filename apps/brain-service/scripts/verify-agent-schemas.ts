@@ -77,8 +77,8 @@ const testKnowledgeManager = () => {
     assert.equal(r.coverage, "partial");
     assert.equal(r.notes, "note");
 };
-const testAnalyst = () => {
-    const fallback = buildFallbackAnswer({
+const testAnalyst = async () => {
+    const fallback = await buildFallbackAnswer({
         userQuestion: "q",
         language: "zh",
         subTasks: [],
@@ -106,10 +106,10 @@ const testAnalyst = () => {
     assert.equal(r.answer, "回答");
     assert.equal(r.citations.length, 1);
 };
-const main = () => {
+const main = async () => {
     testIntake();
     testKnowledgeManager();
-    testAnalyst();
+    await testAnalyst();
     console.log("在线 Agent Zod 单测通过。");
 };
-main();
+void main();

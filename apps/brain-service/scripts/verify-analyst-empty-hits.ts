@@ -37,6 +37,17 @@ const assertSync = (name: string, fn: () => void) => {
   }
 };
 
+const assertAsync = async (name: string, fn: () => Promise<void>) => {
+  try {
+    await fn();
+    console.log(`  ✓ ${name}`);
+  } catch (e) {
+    const msg = e instanceof Error ? e.message : String(e);
+    console.error(`  ✗ ${name}: ${msg}`);
+    process.exitCode = 1;
+  }
+};
+
 console.log("verify-analyst-empty-hits\n— shouldSkipAnalystLlm —");
 
 assertSync("hits=[] → skip", () => {
@@ -87,8 +98,8 @@ assertSync("有 hits 且 partial → 不 skip", () => {
 
 console.log("\n— buildFallbackAnswer —");
 
-assertSync("空 hits → insufficientEvidence", () => {
-  const r = buildFallbackAnswer(emptyHitsInput());
+await assertAsync("空 hits → insufficientEvidence", async () => {
+  const r = await buildFallbackAnswer(emptyHitsInput());
   if (!r.insufficientEvidence) throw new Error("应 insufficientEvidence");
   if (HALLUCINATION_NAMES.test(r.answer)) {
     throw new Error(`fallback 不应含编造姓名: ${r.answer}`);
@@ -98,8 +109,8 @@ assertSync("空 hits → insufficientEvidence", () => {
   }
 });
 
-assertSync("enumeration 有 hits → 紧凑列表，非 excerpt 体", () => {
-  const r = buildFallbackAnswer({
+await assertAsync("enumeration 有 hits → 紧凑列表，非 excerpt 体", async () => {
+  const r = await buildFallbackAnswer({
     userQuestion: "我在哪几家公司上过班？",
     language: "zh",
     subTasks: [],

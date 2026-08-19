@@ -157,7 +157,7 @@ console.log("\n— resolveOrchestratedTool —");
 console.log("\n— runOrchestratedSubQuestion —");
 
 {
-    const result = runOrchestratedSubQuestion({
+    const result = await runOrchestratedSubQuestion({
         userQuestion: "我今年多大",
         language: "zh",
         hits: [resumeHit("| 出生日期 | 1993.03 |")],
@@ -174,7 +174,7 @@ console.log("\n— runOrchestratedSubQuestion —");
 }
 
 {
-    const result = runOrchestratedSubQuestion({
+    const result = await runOrchestratedSubQuestion({
         userQuestion: "我今年多大",
         language: "zh",
         hits: [resumeHit("职业：前端工程师")],
@@ -189,7 +189,7 @@ console.log("\n— runOrchestratedSubQuestion —");
 }
 
 {
-    const result = runOrchestratedSubQuestion({
+    const result = await runOrchestratedSubQuestion({
         userQuestion: "姓名",
         language: "zh",
         hits: [resumeHit("| 姓名 | 潘展飞 |")],
@@ -205,7 +205,7 @@ console.log("\n— runOrchestratedSubQuestion —");
 }
 
 {
-    const result = runOrchestratedSubQuestion({
+    const result = await runOrchestratedSubQuestion({
         userQuestion: "出生年份",
         language: "zh",
         hits: [resumeHit("| 出生日期 | 1993.03 |")],
@@ -221,7 +221,7 @@ console.log("\n— runOrchestratedSubQuestion —");
 }
 
 {
-    const result = runOrchestratedSubQuestion({
+    const result = await runOrchestratedSubQuestion({
         userQuestion: "西安奥卡云任职年限",
         language: "zh",
         hits: [
@@ -243,7 +243,7 @@ console.log("\n— runOrchestratedSubQuestion —");
 }
 
 {
-    const result = runOrchestratedSubQuestion({
+    const result = await runOrchestratedSubQuestion({
         userQuestion: "开源 GitHub",
         language: "zh",
         hits: [

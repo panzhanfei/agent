@@ -147,7 +147,7 @@ const main = async () => {
   const { runOrchestratedSubQuestion } = await import(
     "../src/agentflow/tools/orchestrated"
   );
-  const orchestrated = runOrchestratedSubQuestion({
+  const orchestrated = await runOrchestratedSubQuestion({
     userQuestion: USER_QUESTION,
     language: "zh",
     hits: retrieval.hits,

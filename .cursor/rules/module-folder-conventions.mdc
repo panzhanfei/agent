@@ -62,6 +62,12 @@ knowledge-manager/
 ├── slot/
 ├── recall/
 └── composite/
+
+tools/
+├── index.ts    ← LC adapters + barrel
+├── catalog/    ← toolId 清单 + identityField 字典
+├── invoke/     ← 唯一生产 dispatcher
+├── corpus/ identity/ links/ enumeration/ web/ translate/ synthesize/ …
 ```
 
 ```ts

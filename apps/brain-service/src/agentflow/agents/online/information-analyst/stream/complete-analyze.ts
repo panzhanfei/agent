@@ -82,7 +82,7 @@ export async function* streamAnalyzeSubQuestion(
         topics: input.topics ?? [],
         asOfDate: input.asOfDate ?? new Date().toISOString().slice(0, 10),
     };
-    const fallback = buildSubQuestionFallbackAnswer(payload);
+    const fallback = await buildSubQuestionFallbackAnswer(payload);
 
     if (shouldSkipSubQuestionLlm(payload)) {
         const toolId =
@@ -188,7 +188,7 @@ export const completeAnalyzeSubQuestion = async (
         queryType: profile,
         asOfDate: input.asOfDate ?? new Date().toISOString().slice(0, 10),
     };
-    const fallback = buildSubQuestionFallbackAnswer(payload);
+    const fallback = await buildSubQuestionFallbackAnswer(payload);
 
     if (shouldSkipSubQuestionLlm(payload)) {
         const toolId =

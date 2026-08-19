@@ -60,7 +60,7 @@ const main = async () => {
 
     const analystLimit = maxAnalystHitsForProfile("enumeration");
     const analystHits = organized.hits.slice(0, analystLimit);
-    const rulesAnswer = buildSubQuestionFallbackAnswer({
+    const rulesAnswer = await buildSubQuestionFallbackAnswer({
         userQuestion: slot.label,
         language: "zh",
         hits: analystHits,

@@ -7,7 +7,7 @@ const hitSchema = z.object({
   excerpt: z.string(),
 });
 
-/** LangChain 封装：与主 pipeline `runOrchestratedSubQuestion` 共用核心逻辑 */
+/** LangChain 封装：与主 pipeline `invokeTool("compute_age_from_hits")` 共用核心逻辑 */
 export const computeAgeFromHitsTool = tool(
   async (input) => {
     const hits = input.hits.map((h) => ({

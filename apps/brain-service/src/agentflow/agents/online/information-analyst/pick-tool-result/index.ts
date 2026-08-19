@@ -2,7 +2,7 @@
  * Analyst 消费 toolResults：对上这一问该用哪条，再收成 Analyst 结果。
  */
 import { facetKeyMatchesIdentity } from "@/agentflow/cache";
-import { resolveIdentityField } from "@/agentflow/agents/online/tool-orchestrator/catalog";
+import { resolveIdentityField } from "@/agentflow/tools/catalog";
 import type {
   PipelineToolResults,
   ToolRunResult,

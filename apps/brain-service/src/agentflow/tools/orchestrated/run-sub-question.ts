@@ -1,23 +1,11 @@
-import { dedupeCitations } from "@/agentflow/agents/online/content-organizer";
-import { composeEnumerationAnswer } from "@/agentflow/agents/online/information-analyst/compose";
 import type { SubQuestionAnalyzeInput } from "@/agentflow/agents/online/information-analyst/analyze";
 import { resolveAnalystQueryProfile } from "@/agentflow/agents/online/information-analyst/limits";
 import type { InformationAnalystResult } from "@/agentflow/agents/online/information-analyst/interface";
-import {
-    buildAgeAnswer,
-    buildIdentityFieldAnswer,
-    buildTenureAnswer,
-    extractBirthOrAgeFromHits,
-    extractIdentityFieldFromHits,
-    extractTenureFromHits,
-    isAgeSubQuestion,
-} from "../identity";
-import {
-    buildExternalLinksAnswer,
-    extractExternalLinksFromHits,
-    resolveExternalLinkScope,
-} from "../links";
-import { resolveIdentityFieldFromPlan } from "@/agentflow/agents/online/tool-orchestrator/catalog";
+import { toolRunToAnalystResult } from "@/agentflow/agents/online/information-analyst/pick-tool-result";
+import type { ExecutionPlanNode } from "@/agentflow/agents/online/tool-orchestrator/interface";
+import { resolveIdentityFieldFromPlan } from "@/agentflow/tools/catalog";
+import { invokeTool } from "@/agentflow/tools/invoke";
+import { isAgeSubQuestion } from "../identity";
 import type { OrchestratedToolId } from "./interface";
 
 const ageContext = (input: SubQuestionAnalyzeInput): string =>
@@ -61,153 +49,48 @@ export const resolveOrchestratedTool = (
     return null;
 };
 
-const computeAgeFromHits = (
+/** 运行编排工具；无匹配返回 null。生产执行走 invoke。 */
+export const runOrchestratedSubQuestion = async (
     input: SubQuestionAnalyzeInput
-): InformationAnalystResult => {
-    const extraction = extractBirthOrAgeFromHits(input.hits);
-    const { answer, insufficientEvidence } = buildAgeAnswer({
-        extraction,
-        language: input.language,
-        asOfDate: input.asOfDate,
-    });
-    const citations =
-        insufficientEvidence || !extraction.sourceHit
-            ? []
-            : dedupeCitations([
-                  {
-                      path: extraction.sourceHit.path,
-                      excerpt: extraction.sourceHit.excerpt,
-                  },
-              ]);
-    return {
-        answer,
-        citations,
-        confidence: insufficientEvidence ? 0.85 : 0.9,
-        insufficientEvidence,
-    };
-};
-
-const computeTenureFromHits = (
-    input: SubQuestionAnalyzeInput
-): InformationAnalystResult => {
-    const extraction = extractTenureFromHits(input.hits);
-    const { answer, insufficientEvidence } = buildTenureAnswer({
-        extraction,
-        language: input.language,
-        asOfDate: input.asOfDate,
-        searchQuery: input.searchQuery,
-    });
-    const citations =
-        extraction?.sourceHit && !insufficientEvidence
-            ? dedupeCitations([
-                  {
-                      path: extraction.sourceHit.path,
-                      excerpt: extraction.sourceHit.excerpt,
-                  },
-              ])
-            : [];
-    return {
-        answer,
-        citations,
-        confidence: insufficientEvidence ? 0.85 : 0.9,
-        insufficientEvidence,
-    };
-};
-
-const extractIdentityFromHits = (
-    input: SubQuestionAnalyzeInput
-): InformationAnalystResult => {
-    const field =
-        input.identityField ??
-        resolveIdentityFieldFromPlan({ identityField: null })?.id ??
-        "name";
-    const resolvedField =
-        field === "name" ||
-        field === "age" ||
-        field === "birthYear" ||
-        field === "email" ||
-        field === "phone" ||
-        field === "education" ||
-        field === "career"
-            ? field
-            : "name";
-    const extraction = extractIdentityFieldFromHits(input.hits, resolvedField);
-    const { answer, insufficientEvidence } = buildIdentityFieldAnswer({
-        field: resolvedField,
-        extraction,
-        language: input.language,
-    });
-    const citations =
-        extraction?.sourceHit && !insufficientEvidence
-            ? dedupeCitations([
-                  {
-                      path: extraction.sourceHit.path,
-                      excerpt: extraction.sourceHit.excerpt,
-                  },
-              ])
-            : [];
-    return {
-        answer,
-        citations,
-        confidence: insufficientEvidence ? 0.85 : 0.92,
-        insufficientEvidence,
-    };
-};
-
-const extractExternalLinksFromHitsResult = (
-    input: SubQuestionAnalyzeInput
-): InformationAnalystResult => {
-    const scope = resolveExternalLinkScope(
-        input.userQuestion,
-        input.parentUserQuestion
-    );
-    const links = extractExternalLinksFromHits(input.hits, scope);
-    const { answer, insufficientEvidence } = buildExternalLinksAnswer({
-        links,
-        language: input.language,
-        scope,
-    });
-    const citations = dedupeCitations(
-        links.slice(0, 6).map((l) => ({ path: l.path, excerpt: l.url }))
-    );
-    return {
-        answer,
-        citations,
-        confidence: insufficientEvidence ? 0.85 : 0.9,
-        insufficientEvidence,
-    };
-};
-
-/** 运行编排工具；无匹配返回 null */
-export const runOrchestratedSubQuestion = (
-    input: SubQuestionAnalyzeInput
-): InformationAnalystResult | null => {
+): Promise<InformationAnalystResult | null> => {
     const toolId = resolveOrchestratedTool(input);
-    if (!toolId) return null;
-
-    switch (toolId) {
-        case "compose_enumeration":
-            return composeEnumerationAnswer({
-                hits: input.hits,
-                language: input.language,
-                topics: input.topics ?? [],
-                label: input.userQuestion,
-                enumerationMeta: input.enumerationMeta,
-                notes: input.notes,
-                listIntent: input.listIntent,
-            });
-        case "compute_age_from_hits":
-            return computeAgeFromHits(input);
-        case "compute_tenure_from_hits":
-            return computeTenureFromHits(input);
-        case "extract_identity_from_hits":
-            return extractIdentityFromHits(input);
-        case "extract_external_links_from_hits":
-            return extractExternalLinksFromHitsResult(input);
-        case "search_web":
-        case "translate_text":
-            return null;
-        default:
-            return null;
+    if (!toolId || toolId === "search_web" || toolId === "translate_text") {
+        return null;
     }
+
+    const node: ExecutionPlanNode = {
+        id: input.slotId ?? "sub",
+        label: input.userQuestion,
+        dataSource:
+            toolId === "compute_age_from_hits" ||
+            toolId === "compute_tenure_from_hits"
+                ? "compute"
+                : "corpus",
+        toolId,
+        searchQuery: input.searchQuery,
+        queryType: input.queryType,
+        topics: input.topics,
+        field:
+            input.identityField ??
+            (toolId === "compute_age_from_hits" ? "age" : null),
+        deps: [],
+        hitsOverride: input.hits,
+        enumerationMetaOverride: input.enumerationMeta ?? null,
+    };
+
+    const result = await invokeTool(node, {
+        corpusUserId: "",
+        actorUserId: "",
+        userQuestion: input.userQuestion,
+        parentUserQuestion: input.parentUserQuestion,
+        asOfDate: input.asOfDate ?? new Date().toISOString().slice(0, 10),
+        language: input.language,
+        hits: input.hits,
+        prior: {},
+        notes: input.notes,
+        enumerationMeta: input.enumerationMeta,
+        listIntent: input.listIntent,
+        decisionTopics: input.topics,
+    });
+    return toolRunToAnalystResult(result);
 };

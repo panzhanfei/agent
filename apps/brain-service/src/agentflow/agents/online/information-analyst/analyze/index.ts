@@ -246,9 +246,9 @@ const buildEmptyHitsFallback = (
   };
 };
 
-export const buildSubQuestionFallbackAnswer = (
+export const buildSubQuestionFallbackAnswer = async (
   input: SubQuestionAnalyzeInput
-): InformationAnalystResult => {
+): Promise<InformationAnalystResult> => {
   const { userQuestion, hits, coverage, language, queryType } = input;
 
   if (input.recalledFact?.value) {
@@ -305,7 +305,7 @@ export const buildSubQuestionFallbackAnswer = (
     };
   }
 
-  const orchestrated = runOrchestratedSubQuestion(input);
+  const orchestrated = await runOrchestratedSubQuestion(input);
   if (orchestrated) return orchestrated;
 
   let hitsForAnswer = hits;
@@ -328,9 +328,9 @@ export const buildSubQuestionFallbackAnswer = (
   };
 };
 
-export const buildFallbackAnswer = (
+export const buildFallbackAnswer = async (
   input: InformationAnalystInput
-): InformationAnalystResult => {
+): Promise<InformationAnalystResult> => {
   const { userQuestion, hits, coverage, notes, language, queryType, subTasks } =
     input;
 
@@ -369,7 +369,7 @@ export const buildFallbackAnswer = (
     });
   }
 
-  const orchestrated = runOrchestratedSubQuestion({
+  const orchestrated = await runOrchestratedSubQuestion({
     userQuestion,
     language,
     hits,

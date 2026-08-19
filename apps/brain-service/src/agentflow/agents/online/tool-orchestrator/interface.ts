@@ -2,6 +2,17 @@ import type { AssistantMessageBlock } from "@fambrain/brain-types";
 import type { QueryProfile } from "@/agentflow/agents/online/knowledge-manager";
 import type { Citation } from "@/agentflow/agents/online/information-analyst/interface";
 import type { KnowledgeHit } from "@/agentflow/agents/online/knowledge-manager";
+import type {
+    PostRetrievalToolId,
+    ToolRunId,
+} from "@/agentflow/tools/catalog/interface";
+
+export type { PostRetrievalToolId, ToolRunId } from "@/agentflow/tools/catalog/interface";
+export {
+    isPostRetrievalToolId,
+    POST_RETRIEVAL_TOOL_IDS,
+    TOOL_RUN_IDS,
+} from "@/agentflow/tools/catalog";
 
 /**
  * 数据源（细语义）：
@@ -18,49 +29,6 @@ export type DataSource =
     | "synthesize"
     | "mem0"
     | "user_text";
-
-/**
- * 工具白名单。扩展天气/搜索等：在此加 id + execute switch；
- * 不在 POST_RETRIEVAL_TOOL_IDS 内的 → 自动走 toolRetrieve Send。
- */
-export const TOOL_RUN_IDS = [
-    "retrieve_corpus",
-    "list_corpus_entries",
-    "compute_age_from_hits",
-    "compute_tenure_from_hits",
-    "extract_identity_from_hits",
-    "extract_external_links_from_hits",
-    "compose_enumeration",
-    "search_web",
-    "translate_text",
-    "synthesize_merge",
-] as const;
-
-export type ToolRunId = (typeof TOOL_RUN_IDS)[number];
-
-/**
- * 需先有 corpus/list hits 再跑的工具（planSlotPost）。
- * 其它 toolId → 独立 toolRetrieve 工人（架构上易加天气/搜索等）。
- */
-export const POST_RETRIEVAL_TOOL_IDS = [
-    "retrieve_corpus",
-    "list_corpus_entries",
-    "compute_age_from_hits",
-    "compute_tenure_from_hits",
-    "extract_identity_from_hits",
-    "extract_external_links_from_hits",
-    "compose_enumeration",
-] as const;
-
-export type PostRetrievalToolId = (typeof POST_RETRIEVAL_TOOL_IDS)[number];
-
-export const isPostRetrievalToolId = (
-    toolId: ToolRunId | null | undefined
-): toolId is PostRetrievalToolId =>
-    Boolean(
-        toolId &&
-            (POST_RETRIEVAL_TOOL_IDS as readonly string[]).includes(toolId)
-    );
 
 /** 独立工具步默认 dataSource（按 toolId；未列出则 web） */
 export const defaultDataSourceForStandaloneTool = (

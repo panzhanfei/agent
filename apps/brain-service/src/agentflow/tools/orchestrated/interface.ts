@@ -1,3 +1,5 @@
+import type { AnalystFallbackToolId } from "@/agentflow/tools/catalog/interface";
+
 /** 主 pipeline Analyst 编排工具（非 LLM ReAct） */
 export const ORCHESTRATED_TOOL_IDS = [
   "compose_enumeration",
@@ -9,6 +11,6 @@ export const ORCHESTRATED_TOOL_IDS = [
   "search_web",
   /** 在线翻译（有道） */
   "translate_text",
-] as const;
+] as const satisfies readonly AnalystFallbackToolId[];
 
 export type OrchestratedToolId = (typeof ORCHESTRATED_TOOL_IDS)[number];
