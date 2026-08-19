@@ -71,5 +71,38 @@ describe("recallDocKindsForQuery", () => {
         expect(recallDocKindsForQuery("default")).toBeNull();
         expect(recallDocKindsForQuery(null)).toBeNull();
         expect(recallDocKindsForQuery(undefined)).toBeNull();
+        expect(
+            recallDocKindsForQuery("default", null, null, ["aky"])
+        ).toBeNull();
+        expect(
+            recallDocKindsForQuery("default", null, null, ["personal"])
+        ).toBeNull();
+    });
+
+    it("default 只信槽柜标签 → docKind（不覆盖已有 queryType）", () => {
+        expect(
+            recallDocKindsForQuery("default", null, null, ["aky", "experience"])
+        ).toEqual(["experience"]);
+        expect(
+            recallDocKindsForQuery("default", null, null, ["career"])
+        ).toEqual(["experience"]);
+        expect(
+            recallDocKindsForQuery("default", null, null, ["project"])
+        ).toEqual(["project"]);
+        expect(
+            recallDocKindsForQuery("default", null, null, [
+                "experience",
+                "project",
+            ])
+        ).toEqual(["experience", "project"]);
+        expect(
+            recallDocKindsForQuery("default", null, null, ["family"])
+        ).toEqual(["relations"]);
+        expect(
+            recallDocKindsForQuery("identity", "name", null, ["experience"])
+        ).toEqual(["identity_card"]);
+        expect(
+            recallDocKindsForQuery("tech", null, null, ["experience"])
+        ).toEqual(["project", "experience"]);
     });
 });

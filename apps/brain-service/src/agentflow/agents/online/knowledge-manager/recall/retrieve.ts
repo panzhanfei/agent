@@ -9,7 +9,8 @@
  * RRF 融合：Qdrant 引擎加权 RRF（HY-02～03；进程内 fuseRrf 仅单测）
  * 打分与摘录：内存关键词打分 + pickExcerpt（唯一输出路径）
  *
- * KM-01 topics 分流：topics 仅拼入向量 query；sparse 用 searchQuery + subTasks。
+ * KM-01 topics 分流：topics 拼入向量 query，不进 sparse 文本；default 时柜标签
+ *   experience/project/family 另映射 Qdrant docKind 过滤（schema→executor，不扫问句）。
  * KM-05 rank：relevance = token + vector/sparse + pathBoost（排序不解封顶；写出 hit 时钳 0–1）。
  * KM-06：hits 只来自 rank（relevance>0）；空 hits 不再硬补 Top1。
  * KM-08/09：queryProfile 分档 vectorTopK / maxHits；Intake queryType 优先。
@@ -79,6 +80,14 @@ const summarizeRetrievalOut = (
     ...extra,
 });
 
+const resolveRecallDocKinds = (input: KnowledgeManagerInput) =>
+    recallDocKindsForQuery(
+        input.queryType,
+        input.identityField,
+        input.listKind,
+        input.topics
+    );
+
 const CJK_RUN = /^[\u4e00-\u9fff]+$/;
 
 const tokenize = (...parts: string[]): string[] => {
@@ -98,7 +107,7 @@ const tokenize = (...parts: string[]): string[] => {
     return [...new Set(expanded)];
 };
 
-/** 字面匹配用 token（KM-01：不含 topics，topics 只参与向量 semantic query） */
+/** 字面匹配用 token（KM-01：不含 topics；柜标签走 docKind 过滤，不进 BM25 文本） */
 const tokenizeForRecall = (
     searchQuery: string,
     subTasks: string[] = []
@@ -231,11 +240,7 @@ const loadCandidates = async (
         ...input.subTasks,
     ].join(" ");
     const sparseQuery = [input.searchQuery, ...input.subTasks].join(" ");
-    const docKinds = recallDocKindsForQuery(
-        input.queryType,
-        input.identityField,
-        input.listKind
-    );
+    const docKinds = resolveRecallDocKinds(input);
 
     const hybrid = await hybridRecall(
         input.corpusUserId,
@@ -280,11 +285,7 @@ export const retrieveKnowledge = async (
         input.queryType
     );
     const { vectorTopK, maxHits } = getProfileRecallParams(queryProfile);
-    const docKinds = recallDocKindsForQuery(
-        input.queryType,
-        input.identityField,
-        input.listKind
-    );
+    const docKinds = resolveRecallDocKinds(input);
 
     logAgentIn("KnowledgeManager", "进入", {
         corpusUserId: input.corpusUserId,
@@ -339,11 +340,7 @@ export const retrieveKnowledge = async (
             uniquePathCount,
             fusionTopPath,
             queryProfile,
-            docKinds: recallDocKindsForQuery(
-                input.queryType,
-                input.identityField,
-                input.listKind
-            ),
+            docKinds: resolveRecallDocKinds(input),
             vectorTopK,
             maxHits,
             confidenceTier: "low",
@@ -390,11 +387,7 @@ export const retrieveKnowledge = async (
         uniquePathCount,
         fusionTopPath,
         queryProfile,
-        docKinds: recallDocKindsForQuery(
-            input.queryType,
-            input.identityField,
-            input.listKind
-        ),
+        docKinds: resolveRecallDocKinds(input),
         vectorTopK,
         maxHits,
         confidenceTier,

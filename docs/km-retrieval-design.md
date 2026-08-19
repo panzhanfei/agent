@@ -107,9 +107,9 @@ flowchart TD
 | **external_link** | GitHub / 仓库 / 对外 URL | 12 | 6 | hybrid | `project` + `experience` + `identity_card` |
 | tech | 技术栈、框架 | 16 | 6 | hybrid | `project` + `experience` |
 | **relations** | 亲友名册（槽 `topics` 含 family） | 12 | 5 | hybrid | **`relations` only** |
-| default | 其余 | 12 | 5 | hybrid | **不过滤（全库）** |
+| default | 其余 | 12 | 5 | hybrid | 无柜 topics → 不过滤；槽 `topics` 含 `experience` / `project` / `family`（只信槽）→ 对应 `docKind` |
 
-Intake `queryType` 与上表 **同名枚举**。`recallDocKindsForQuery` 是 schema→executor：过滤命中为空时 **不得** 回退无过滤。`identity`+`name` **不**并进 `relations`（无 family 标仍只搜档案）。
+Intake `queryType` 与上表 **同名枚举**。`recallDocKindsForQuery` 是 schema→executor：已有 queryType 柜优先，topics 不覆盖；过滤命中为空时 **不得** 回退无过滤。`identity`+`name` **不**并进 `relations`（无 family 标仍只搜档案）。`default` 的柜过滤只认槽标签（与 `family→relations` 同类），不扫问句。
 
 文件级 `docKind`（入库时按 path + 全文打标，整文件同一种）：`identity_card` | `relations` | `experience` | `project` | `uncategorized`。`/personal/` 多名册 → `relations`，否则 `identity_card`；`/experience/` → experience；`/projects/`（含 `resume.md`）→ project；imports/learned → uncategorized。
 

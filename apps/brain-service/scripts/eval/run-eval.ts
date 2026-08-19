@@ -324,7 +324,8 @@ const runKmCase = async (
     const docKinds = recallDocKindsForQuery(
         km.queryType,
         km.identityField,
-        km.listKind
+        km.listKind,
+        km.topics
     );
 
     const [result, hybrid] = await Promise.all([

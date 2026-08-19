@@ -70,6 +70,7 @@ IDENTITY_FIELD_BY_ID.age.toolId = "compute_age_from_hits";
 POST_RETRIEVAL_TOOL_IDS + isPostRetrievalToolId(toolId);
 queryType === "relations" → recallDocKindsForQuery = ["relations"];
 topics.some(t => t.toLowerCase() === "family") → queryType = "relations"; // 只信槽，不扫「哥哥」
+topics 含 experience / project（queryType=default）→ docKind 过滤；不扫问句「奥卡云」
 
 // ✅ pathPlan 结构归一（无字段名表）
 dataSource === "mem0" || kind === "mem" → mem 步;

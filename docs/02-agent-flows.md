@@ -350,7 +350,7 @@ flowchart TD
 
 | 步骤 | 做什么 | 规则 | 文件 | 方法 |
 |------|--------|------|------|------|
-| 1 | Hybrid 召回 | Qdrant dense + sparse prefetch；引擎加权 RRF；topK 按 profile；**按 queryType 滤 `docKind`**（空过滤不回退全库） | `hybrid-recall.ts`、`profile/recall-doc-kinds.ts`、`packages/corpus` | `hybridRecall()` → `searchCorpusHybrid()` |
+| 1 | Hybrid 召回 | Qdrant dense + sparse prefetch；引擎加权 RRF；topK 按 profile；**按 queryType / 槽 topics 柜标签滤 `docKind`**（空过滤不回退全库） | `hybrid-recall.ts`、`profile/recall-doc-kinds.ts`、`packages/corpus` | `hybridRecall()` → `searchCorpusHybrid()` |
 | 2 | 关键词扫盘 | ~~查询时扫盘建内存 BM25~~ **已移除**（sparse 在入库时写入 Qdrant） | — | — |
 | 3 | 规则精排 | **token + vector + pathBoost**（排序用未封顶分；`KnowledgeHit.relevance` 再 clamp 0–1）；`pickExcerpt`（表格行优先） | `retrieve-helpers.ts` | `rankCandidates()`、`pickTableExcerpt()` |
 | 4 | 置信分档 | 融合分 + gap + path 权威 → `high` / `mid` / `low` | `score-candidate.ts` | `assessConfidence()`、`deriveCoverageFromTier()` |

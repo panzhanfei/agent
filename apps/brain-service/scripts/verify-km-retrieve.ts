@@ -236,6 +236,13 @@ assert("identity / tech / enumeration / external_link / relations / default 映�
   if (recallDocKindsForQuery("default") !== null) {
     throw new Error("default 应不过滤");
   }
+  const defaultExp = recallDocKindsForQuery("default", null, null, [
+    "aky",
+    "experience",
+  ]);
+  if (JSON.stringify(defaultExp) !== JSON.stringify(["experience"])) {
+    throw new Error(`default + topics.experience 应为 experience，实际 ${defaultExp}`);
+  }
 });
 
 console.log("\n— KM-10 表格 excerpt —");

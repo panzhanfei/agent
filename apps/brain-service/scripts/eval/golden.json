@@ -256,7 +256,7 @@
       "km": {
         "searchQuery": "介绍一下西安奥卡云的工作经历",
         "queryType": "default",
-        "topics": [],
+        "topics": ["aky", "experience"],
         "subTasks": []
       },
       "assert": {

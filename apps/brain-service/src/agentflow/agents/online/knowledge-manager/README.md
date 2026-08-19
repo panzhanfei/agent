@@ -135,7 +135,7 @@ KnowledgeRetrievalResult { hits, coverage, notes, confidenceTier }
 | `searchQuery` | Intake | 主检索文本；检索 hits 缓存 key 之一 |
 | `queryType` | Intake | 映射 queryProfile；`recallDocKindsForQuery` 收窄 Qdrant `docKind`；facet 分桶 |
 | `routeMode` / `compositeSlots` | Intake | **`plan`（可观测）** + 1～N 槽；执行看 pathPlan |
-| `topics` | Intake | **仅**拼入向量 semantic query（KM-01） |
+| `topics` | Intake | 拼入向量 semantic query（KM-01，不进 sparse 文本）；`default` 时柜标签 `experience` / `project` / `family` 映射 `docKind` 过滤 |
 | `subTasks` | Intake | sparse token + rank 辅助 |
 
 列举目标解析（experience / projects）在 Intake 侧：`intake-coordinator/composite/enumeration-target.ts`，KM `retrieve.ts` 调用 `resolveEnumerationTarget`。
