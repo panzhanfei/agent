@@ -16,49 +16,7 @@ import {
   findUserFactValueInMemoryBlock,
   findUserFactValueInTexts,
   normalizeFactKey,
-  parseUserFactRecord,
 } from "../user-fact";
-
-/**
- * 无 userFactKey 时：优先结构化记忆行；再用 Intake 提供的 label 松散抽取（非字段名表）。
- */
-const resolveMemWithoutKey = (
-  texts: string[],
-  label: string
-): { factKey: string; label: string; value: string } | null => {
-  for (const line of texts) {
-    const rec = parseUserFactRecord(line);
-    if (rec) {
-      return {
-        factKey: normalizeFactKey(rec.factKey) || rec.factKey,
-        label: rec.label || label,
-        value: rec.value,
-      };
-    }
-  }
-  const marker = texts
-    .map((t) => t.match(/（字段\s+([a-z0-9_+-]+)）/iu)?.[1])
-    .find(Boolean);
-  if (marker) {
-    const key = normalizeFactKey(marker);
-    if (key) {
-      const value = findUserFactValueInTexts(texts, key, label || undefined);
-      if (value) return { factKey: key, label: label || key, value };
-    }
-  }
-  if (!label.trim()) return null;
-  for (const line of texts) {
-    const value = findUserFactValueInTexts([line], "", label);
-    if (value) {
-      return {
-        factKey: normalizeFactKey(label) || "user_fact",
-        label,
-        value,
-      };
-    }
-  }
-  return null;
-};
 
 const emptySub = (
   slotId: string,
@@ -153,34 +111,9 @@ export const runMemSlotWorker = async (
 
     if (resolvedKey) {
       value = await resolveMemValue(state, resolvedKey, resolvedLabel);
-    } else {
-      const texts = [
-        ...(state.memoryBlock
-          ? state.memoryBlock
-              .split("\n")
-              .map((l) => l.replace(/^[-*]\s*/, "").trim())
-              .filter(Boolean)
-          : []),
-        ...state.userMemories,
-      ];
-      if (state.context.actorUserId) {
-        const searched = await searchUserFactMemories(
-          state.context.actorUserId,
-          "",
-          label,
-          state.userQuestion
-        );
-        texts.push(...searched);
-      }
-      const recovered = resolveMemWithoutKey(texts, label);
-      if (recovered) {
-        resolvedKey = recovered.factKey;
-        resolvedLabel = recovered.label;
-        value = recovered.value;
-      }
     }
 
-    if (!resolvedKey && !value) {
+    if (!resolvedKey) {
       const notes =
         language === "en"
           ? "Missing userFactKey for mem slot."

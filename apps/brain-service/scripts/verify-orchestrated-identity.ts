@@ -62,9 +62,23 @@ console.log("\n— resolveOrchestratedTool —");
         coverage: "sufficient",
         notes: null,
         queryType: "identity",
+        identityField: "age",
     });
     assert.equal(tool, "compute_age_from_hits");
-    ok("单问年龄 → compute_age_from_hits");
+    ok("identityField=age → compute_age_from_hits");
+}
+
+{
+    const tool = resolveOrchestratedTool({
+        userQuestion: "我今年多大",
+        language: "zh",
+        hits: [resumeHit("| 出生日期 | 1993.03 |")],
+        coverage: "sufficient",
+        notes: null,
+        queryType: "identity",
+    });
+    assert.equal(tool, null);
+    ok("无 identityField 的年龄口语不走 age 工具");
 }
 
 {
@@ -75,9 +89,10 @@ console.log("\n— resolveOrchestratedTool —");
         coverage: "partial",
         notes: null,
         queryType: "identity",
+        identityField: "age",
     });
     assert.equal(tool, "compute_age_from_hits");
-    ok("composite 槽 label=年龄 → compute_age_from_hits");
+    ok("composite 槽 identityField=age → compute_age_from_hits");
 }
 
 {
@@ -164,6 +179,7 @@ console.log("\n— runOrchestratedSubQuestion —");
         coverage: "sufficient",
         notes: null,
         queryType: "identity",
+        identityField: "age",
         asOfDate: "2026-07-09",
     });
     assert.ok(result);
@@ -181,6 +197,7 @@ console.log("\n— runOrchestratedSubQuestion —");
         coverage: "partial",
         notes: null,
         queryType: "identity",
+        identityField: "age",
     });
     assert.ok(result);
     assert.equal(result.insufficientEvidence, true);
@@ -271,6 +288,7 @@ console.log("\n— completeAnalyzeSubQuestion skip LLM —");
         coverage: "sufficient",
         notes: null,
         queryType: "identity",
+        identityField: "age",
         asOfDate: "2026-07-09",
     });
     assert.match(result.answer, /33\s*岁/);

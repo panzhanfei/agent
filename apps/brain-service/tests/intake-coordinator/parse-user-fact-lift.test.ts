@@ -26,37 +26,7 @@ describe("parseIntakeRoutingDecision userFact lift", () => {
     expect(d?.userFactValue).toBe("734858469");
   });
 
-  it("lifts userFact* from set_user_fact params.key/value", () => {
-    const d = parseIntakeRoutingDecision({
-      intent: "remember",
-      searchQuery: "",
-      subTasks: [],
-      topics: [],
-      language: "zh",
-      confidence: 0.9,
-      queryType: null,
-      clarifyingQuestion: null,
-      briefReply: null,
-      pathPlan: {
-        steps: [
-          {
-            id: "user-fact",
-            kind: "set_user_fact",
-            label: "QQ号",
-            params: { key: "qq", value: "734858469" },
-          },
-        ],
-      },
-      composeMode: "qa",
-      retrievalPlan: [],
-      coreference: "none",
-    });
-    expect(d?.intent).toBe("remember_user_fact");
-    expect(d?.userFactKey).toBe("qq");
-    expect(d?.userFactValue).toBe("734858469");
-  });
-
-  it("lifts userFact* from mem step params + step.id slug", () => {
+  it("does not invent userFact* from pathPlan step id or params", () => {
     const d = parseIntakeRoutingDecision({
       intent: "remember_user_fact",
       searchQuery: "",
@@ -89,8 +59,7 @@ describe("parseIntakeRoutingDecision userFact lift", () => {
       coreference: "none",
     });
     expect(d?.intent).toBe("remember_user_fact");
-    expect(d?.userFactKey).toBe("qq");
-    expect(d?.userFactValue).toBe("734858469");
-    expect(d?.userFactLabel).toMatch(/QQ/);
+    expect(d?.userFactKey).toBeNull();
+    expect(d?.userFactValue).toBeNull();
   });
 });

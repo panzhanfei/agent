@@ -343,126 +343,6 @@ const normalizePathPlanBucket = (raw: unknown): unknown => {
   );
 };
 
-/**
- * 从 pathPlan 步抬升顶层 userFact*（LLM 偶发只写在 mem 步 / params）。
- * 只信结构化字段与 step.id slug，不从用户口语发明 key。
- */
-const liftUserFactFieldsFromPathPlan = (
-  raw: Record<string, unknown>,
-  pathPlan: unknown
-): {
-  userFactKey: unknown;
-  userFactLabel: unknown;
-  userFactValue: unknown;
-} => {
-  let userFactKey = pickIntakeField(raw, "userFactKey", "user_fact_key");
-  let userFactLabel = pickIntakeField(raw, "userFactLabel", "user_fact_label");
-  let userFactValue = pickIntakeField(raw, "userFactValue", "user_fact_value");
-  const hasKey = typeof userFactKey === "string" && userFactKey.trim();
-  const hasValue = typeof userFactValue === "string" && userFactValue.trim();
-  if (hasKey && hasValue) {
-    return { userFactKey, userFactLabel, userFactValue };
-  }
-
-  const collectSteps = (): Record<string, unknown>[] => {
-    if (Array.isArray(pathPlan)) {
-      return pathPlan.filter(
-        (s): s is Record<string, unknown> =>
-          Boolean(s) && typeof s === "object" && !Array.isArray(s)
-      );
-    }
-    if (pathPlan && typeof pathPlan === "object" && !Array.isArray(pathPlan)) {
-      const pp = pathPlan as Record<string, unknown>;
-      const out: Record<string, unknown>[] = [];
-      if (Array.isArray(pp.steps)) {
-        for (const s of pp.steps) {
-          if (s && typeof s === "object" && !Array.isArray(s)) {
-            out.push(s as Record<string, unknown>);
-          }
-        }
-      }
-      for (const bucket of ["km", "list", "tool", "dag", "mem"] as const) {
-        const arr = pp[bucket];
-        if (!Array.isArray(arr)) continue;
-        for (const s of arr) {
-          if (s && typeof s === "object" && !Array.isArray(s)) {
-            out.push(s as Record<string, unknown>);
-          }
-        }
-      }
-      return out;
-    }
-    return [];
-  };
-
-  const slugFromStepId = (id: unknown): string | null => {
-    if (typeof id !== "string") return null;
-    const m = id.trim().match(/^mem[-_]?([a-z][a-z0-9_+-]{0,63})$/i);
-    return m?.[1]?.toLowerCase() ?? null;
-  };
-
-  const asciiSlug = (v: unknown): string | null => {
-    if (typeof v !== "string") return null;
-    const t = v.trim().toLowerCase();
-    if (!t || !/^[a-z][a-z0-9_+-]{0,63}$/.test(t)) return null;
-    return t;
-  };
-
-  for (const step of collectSteps()) {
-    const kind = String(step.kind ?? step.pathKind ?? "").toLowerCase();
-    const params =
-      step.params && typeof step.params === "object" && !Array.isArray(step.params)
-        ? (step.params as Record<string, unknown>)
-        : null;
-    const op = String(params?.operation ?? "").toLowerCase();
-    const keySlugHint =
-      asciiSlug(step.userFactKey) ||
-      asciiSlug(params?.userFactKey) ||
-      asciiSlug(params?.factKey) ||
-      asciiSlug(params?.key) ||
-      slugFromStepId(step.id);
-    const looksMem =
-      kind === "mem" ||
-      kind.includes("user_fact") ||
-      op === "remember_user_fact" ||
-      op === "remember" ||
-      op === "recall_user_fact" ||
-      op === "recall" ||
-      Boolean(step.userFactKey) ||
-      Boolean(params?.userFactKey) ||
-      Boolean(params?.factKey) ||
-      Boolean(keySlugHint && (params?.value || step.userFactValue));
-    if (!looksMem) continue;
-
-    if (!hasKey) {
-      userFactKey =
-        asciiSlug(step.userFactKey) ||
-        asciiSlug(params?.userFactKey) ||
-        asciiSlug(params?.factKey) ||
-        asciiSlug(params?.key) ||
-        slugFromStepId(step.id) ||
-        userFactKey;
-    }
-    if (!(typeof userFactLabel === "string" && userFactLabel.trim())) {
-      const labelCand =
-        step.userFactLabel ?? params?.label ?? params?.userFactLabel ?? step.label;
-      if (typeof labelCand === "string" && labelCand.trim()) {
-        userFactLabel = labelCand.trim();
-      }
-    }
-    if (!hasValue) {
-      const valueCand =
-        step.userFactValue ?? params?.userFactValue ?? params?.value;
-      if (typeof valueCand === "string" && valueCand.trim()) {
-        userFactValue = valueCand.trim();
-      }
-    }
-    break;
-  }
-
-  return { userFactKey, userFactLabel, userFactValue };
-};
-
 const normalizeIntakeRaw = (
   raw: Record<string, unknown>
 ): Record<string, unknown> => {
@@ -492,7 +372,11 @@ const normalizeIntakeRaw = (
       answerOrder: pickIntakeField(pp, "answerOrder", "answer_order"),
     };
   }
-  const lifted = liftUserFactFieldsFromPathPlan(raw, pathPlanRaw ?? pathPlan);
+  const lifted = {
+    userFactKey: pickIntakeField(raw, "userFactKey", "user_fact_key"),
+    userFactLabel: pickIntakeField(raw, "userFactLabel", "user_fact_label"),
+    userFactValue: pickIntakeField(raw, "userFactValue", "user_fact_value"),
+  };
   return {
     ...raw,
     intent: normalizeIntakeIntent(pickIntakeField(raw, "intent", "intent")),

@@ -135,7 +135,6 @@ export {
   enrichRetrievalPlan,
   deriveCompositeSlotsFromPathPlan,
   deriveRetrievalPlanFromPathPlan,
-  ensureMemRecallStepFromTopUserFact,
   exclusiveVaultWorkspacePlan,
   legalizePathPlan,
   legalizeAnswerOrder,

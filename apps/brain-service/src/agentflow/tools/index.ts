@@ -60,7 +60,6 @@ export {
   computeAgeYears,
   extractBirthOrAgeFromHits,
   extractBirthOrAgeFromText,
-  isAgeSubQuestion,
   type BirthDate,
 } from "./local/identity";
 

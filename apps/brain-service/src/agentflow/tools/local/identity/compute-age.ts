@@ -3,9 +3,6 @@ import type { AgeExtraction, BirthDate } from "./interface";
 
 export type { AgeExtraction, BirthDate } from "./interface";
 
-/** 周岁问法；不含「出生年份」（那是 identityField=birthYear） */
-const AGE_QUESTION_RE = /年龄|多大|几岁|周岁|how old|\bage\b/i;
-
 const EXPLICIT_AGE_RE =
     /(?:年龄|Age)[：:\s|]*(\d{1,2})\s*(?:岁|years? old)?/i;
 
@@ -173,9 +170,6 @@ export const extractBirthOrAgeFromHits = (
     }
     return {};
 };
-
-export const isAgeSubQuestion = (context: string): boolean =>
-    AGE_QUESTION_RE.test(context);
 
 export const buildAgeAnswer = (input: {
     extraction: AgeExtraction;

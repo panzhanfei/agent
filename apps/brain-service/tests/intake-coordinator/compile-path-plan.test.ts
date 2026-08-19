@@ -3,7 +3,6 @@ import {
   applyPathPlanGuard,
   deriveCompositeSlotsFromPathPlan,
   emptyPathPlan,
-  ensureMemRecallStepFromTopUserFact,
   legalizePathPlan,
   stepsOfKind,
   type RoutedIntakeDecision,
@@ -289,7 +288,7 @@ describe("legalizePathPlan + deriveCompositeSlots", () => {
     expect(pathPlan.steps[0]?.searchQuery).toMatch(/西安奥卡云/);
   });
 
-  it("remaps lowercase open-fact identityField (qq) to mem", () => {
+  it("does not invent mem from illegal identityField qq", () => {
     const pathPlan = legalizePathPlan({
       steps: [
         {
@@ -306,13 +305,13 @@ describe("legalizePathPlan + deriveCompositeSlots", () => {
       ],
     });
     expect(pathPlan.steps).toHaveLength(1);
-    expect(pathPlan.steps[0]?.kind).toBe("mem");
-    expect(pathPlan.steps[0]?.userFactKey).toBe("qq");
-    expect(pathPlan.steps[0]?.dataSource).toBe("mem0");
+    expect(pathPlan.steps[0]?.kind).toBe("km");
+    expect(pathPlan.steps[0]?.userFactKey).toBeFalsy();
     expect(pathPlan.steps[0]?.identityField).toBeNull();
+    expect(pathPlan.steps[0]?.queryType).toBe("default");
   });
 
-  it("remaps km-qq step.id to mem when identityField omitted", () => {
+  it("does not invent mem from km-qq step.id", () => {
     const pathPlan = legalizePathPlan({
       steps: [
         {
@@ -329,9 +328,8 @@ describe("legalizePathPlan + deriveCompositeSlots", () => {
       ],
     });
     expect(pathPlan.steps).toHaveLength(1);
-    expect(pathPlan.steps[0]?.kind).toBe("mem");
-    expect(pathPlan.steps[0]?.userFactKey).toBe("qq");
-    expect(pathPlan.steps[0]?.dataSource).toBe("mem0");
+    expect(pathPlan.steps[0]?.kind).toBe("km");
+    expect(pathPlan.steps[0]?.userFactKey).toBeFalsy();
   });
 
   it("demotes identityField when topics include family", () => {
@@ -353,7 +351,7 @@ describe("legalizePathPlan + deriveCompositeSlots", () => {
     expect(pathPlan.steps[0]?.identityField).toBeNull();
     expect(pathPlan.steps[0]?.toolId).toBeNull();
     expect(pathPlan.steps[0]?.queryType).toBe("relations");
-    expect(pathPlan.steps[0]?.searchQuery).toBe("亲友关系 哥哥姓名");
+    expect(pathPlan.steps[0]?.searchQuery).toBe("个人简介 简历 妻子的姐妹 名字");
   });
 
   it("does not convert km+mem0 without userFactKey into mem", () => {
@@ -401,7 +399,7 @@ describe("legalizePathPlan + deriveCompositeSlots", () => {
     expect(slots[0]?.enumerationControl?.action).toBe("preview");
   });
 
-  it("injects mem step when top-level userFactKey has no value", () => {
+  it("does not inject a mem step from top-level userFactKey", () => {
     const pathPlan = legalizePathPlan({
       steps: [
         {
@@ -439,20 +437,9 @@ describe("legalizePathPlan + deriveCompositeSlots", () => {
         },
       ],
     });
-    const patched = ensureMemRecallStepFromTopUserFact(
-      {
-        intent: "retrieve_and_answer",
-        userFactKey: "qq",
-        userFactLabel: "QQ号",
-        userFactValue: null,
-      },
-      pathPlan
-    );
-    expect(stepsOfKind(patched, "mem")).toHaveLength(1);
-    expect(patched.steps[2]?.id).toBe("mem-qq");
-    expect(patched.steps[2]?.userFactKey).toBe("qq");
-    const slots = deriveCompositeSlotsFromPathPlan(patched);
-    expect(slots.some((s) => s.executor === "mem_recall")).toBe(true);
+    expect(stepsOfKind(pathPlan, "mem")).toHaveLength(0);
+    const slots = deriveCompositeSlotsFromPathPlan(pathPlan);
+    expect(slots.some((s) => s.executor === "mem_recall")).toBe(false);
   });
 
   it("drops unknown kinds (not in PathKind whitelist)", () => {

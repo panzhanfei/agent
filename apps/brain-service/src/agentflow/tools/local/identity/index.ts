@@ -15,7 +15,6 @@ export {
   extractBirthOrAgeFromHits,
   extractBirthOrAgeFromText,
   formatBirthLabel,
-  isAgeSubQuestion,
 } from "./compute-age";
 
 export {

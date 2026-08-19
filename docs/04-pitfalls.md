@@ -126,67 +126,38 @@
 | P0-20 | Analyst / KM / composite | **综合问**公司段只列 2 家；子问「2～8 句」压缩；Organizer 固定 cap **5** | `MAX_SUB_QUESTION_HITS=4`；子问 prompt 句数限制；CO 未跟 profile | **`maxAnalystHitsForProfile`** + CO **`queryProfile` maxHits**；enumeration 子问 prompt「须列全 hits」 | ✅ **已解决**（2026-06）← §2.5.5 |
 | P0-21 | Intake / KM / Analyst | composite 槽 label「**具体项目名称**」→ 答 **云联智慧/友谊时光** 等公司 | 所有 enumeration 共用 **experience fill**；Intake 误标 `topics:experience` → canonical 到 employers | **`resolveEnumerationTarget`**（label 优先）+ KM **projects/** 专扫 + Analyst project prompt | ✅ **已解决**（2026-06）← §2.5.5 |
 | **P0-33** | HITL / 语料写盘 | 直接改 `corpus/**/*.md` + 软清空 `<!-- fambrain:cleared -->`；用户难记 path | 编辑面与检索产物耦合；软删仍占向量 path | **模型 A**：只 CRUD `vault/originals/workspace/*.txt`；`vault_workspace` list/CRUD；语料化 md+向量；**硬删**级联；`corpus_edit` 已删除 | ✅ **已解决**（2026-08）← [流程 · 原文库](./02-agent-flows.md) |
-| **P0-34** | Intake / Tool / Mem0 | 小模型 pathPlan 不稳 → 代码「猜 LLM 本意」抬升/改写（亲友 searchQuery、`km-qq`→mem、空 plan→remember、年龄口语 regex 等） | 本地小模型 JSON 纪律弱；为过 eval 叠加结构兜底，复盘时难分「模型工单错」vs「代码又规划」 | **暂留（现在不删）**；债 **主要在 Intake，工具层次之**；与 **Dify 抽离 + 换更强 Intake 模型** 同批验证；绿后按 §2.11 模块账本删除 | ⬜ **待清理** ← **§2.11** · [架构 v2 §14](./05-architecture-v2-tool-orchestration.md#14-猜模型意图兜底债--dify换模型后删除-p0-34--2026-08) |
+| **P0-34** | Intake / Tool / Mem0 | 小模型 pathPlan 不稳 → 代码「猜 LLM 本意」抬升/改写 | 本地小模型 JSON 纪律弱 | **已清 Intake 猜意图抬升**（DeepSeek Flash）：亲友 searchQuery 改写、`km-qq`→mem、空 plan→remember、顶层 key 注 mem 步、年龄口语分流、无 key 发明字段名。**保留** `topics=family`→relations、Zod 合法化、空 plan→clarify。外链 label 剥词（P1）未动 | ✅ **Intake 主债已清**（2026-08）← **§2.11** |
 | **P0-35** | Pipeline / HITL | 原文库 `interrupt` 时 `values` 缺 channel，若拿这帧当终稿则列表没了 | LangGraph HITL 时 values 常是不完整快照；曾整帧覆盖 `finalState` | 给人看的 list/CTA **只信 `interrupt({ answer, blocks })`**；`values` **合入**已有 channel。现网 HITL 在文件子图 | ✅ **已解决**（2026-08）← **§2.12** · [控制面 §4](./06-architecture-control-plane.md) |
 | **P0-36** | Analyst / 产品 | 生成「暂停」后点「继续」会从头再生成一篇，不能从半截 token 接着写 | Checkpointer 只管图光标；Ollama HTTP 流一断就没了；`interrupt` 不是给采样续流用的 | **Pause = 停**（豆包/ChatGPT）：半截稿即终稿，discard 问答 thread，无「继续」；下一句新 invoke。文件子线仍 `vault_wait` Resume（须 `jobId`） | ✅ **已解决**（2026-08）← **§2.12** · [流程 · 原文库](./02-agent-flows.md) |
 
-### 2.11 猜模型意图兜底债（⬜ P0-34 · 与 Dify 抽离同批 · 2026-08）
+### 2.11 猜模型意图兜底债（✅ P0-34 Intake 主债已清 · 2026-08）
 
-> **背景：** P0-30/31 已禁止「口语二次 Intake」，但本地小模型仍常把 QQ 写成 `kind=km`、漏 `userFactKey`、或把非法 `identityField` 塞进闭集外字段。工程收口期为过 GMem / 六连问等 eval，在 `from-llm.ts` / pipeline / schema / 工具层叠了多层 **「LLM 偶发 → 猜本意」** 兜底。体感仍像硬编码；**正确收敛路径不是继续加词表，而是换模型后删掉这些猜意图代码。**
+> **背景：** P0-30/31 已禁止「口语二次 Intake」，工程收口期曾为过 eval 在 `from-llm.ts` / pipeline / schema / 工具层叠了「LLM 偶发 → 猜本意」兜底。
 >
-> **2026-08 记账：** 猜意图债 **主要集中在 Intake**（小模型 JSON 不稳，没办法，换模型再砍）；**工具层次之**（年龄口语 regex、外链 label 剥词）。KM / Analyst / plan-fanout 几乎没有「按问句词表改路由」。**现在不删**；Dify / 更强 Intake 模型验证绿后再按下方清单删。
+> **2026-08：** Intake 已切 DeepSeek Flash。已删除亲友 `searchQuery` 改写、`identityField=qq` / `km-qq`→mem 抬升、空 plan+userFact→remember、`ensureMemRecallStepFromTopUserFact`、年龄问句 regex 分流、mem 无 key 用 label 发明字段名。schema 不再从 step.id / params 抬升 userFact*。
+>
+> **仍保留（schema→executor / 合法化）：** 槽 `topics` 含 `family` → `queryType=relations`（不改写问句）；`userFactKey` 有且无 identityField → mem；非法 identityField 剥掉；空 pathPlan → clarify；intent 别名（remember→remember_user_fact）。
+>
+> **未清（P1 外链）：** `extract-external-links.ts` 仍对 Intake **label** 剥 GitHub/开源等泛词（不对用户口语路由）。复盘后可再收成只对 excerpt 抽 URL。
 
-#### 模块账本（换模型后再动；现在不删）
+#### 已知红（换模型后已重测）
 
-| 模块 | 密度 | 为什么还在 | 换模型后 |
-|------|------|------------|----------|
-| **Intake** `path-plan/from-llm.ts` · `pipeline/intake-pipeline.ts` · `contract/schema.ts` | **最密** | 小模型漏 `kind=mem` / 乱填 identityField / 空 plan；为过 eval 猜 LLM 本意 | **先砍这里**：亲友 searchQuery 改写、`km-qq`→mem、空 plan→remember、pathPlan 抬升 userFact |
-| **工具** `tools/local/identity/compute-age.ts` · `local/orchestrated/run-sub-question.ts` · `tools/local/links/extract-external-links.ts` | **次密** | 无 `identityField`/`toolId` 时用问句/label 口语兜底 | **随后砍**：只信 Intake 结构化字段；外链只对 excerpt 抽 URL |
-| **Mem0** `user-fact/mem-retrieve` | 薄 | 无 key 时 `normalizeFactKey(label)` 发明字段名 | 无 key → clarify，禁止发明 key |
-| KM / Analyst / plan-fanout | 几乎无 | — | 不必为「去硬编码」大改 |
-| `tool-orchestrator/catalog`、excerpt 表头、UI exact-match | **不是债** | schema→executor / 语料结构 / 按钮精确匹配 | **保留** |
+DeepSeek Flash 下 **E2E-brother** / **G5b** 已绿（不再为过 eval 加口语兜底）。后续回归仍禁止扫问句「哥哥」或用口语猜指代。
 
-删的顺序：Intake JSON 稳了 → 砍 `from-llm` / pipeline → 再砍年龄与外链口语 fallback → 最后 mem 发明 key。
+#### 清单状态（2026-08 Flash 后）
 
-#### 处置约定（与 Dify 同批）
+| 项 | 状态 |
+|----|------|
+| 亲友 searchQuery 改写、`km-qq`/`identityField=qq`→mem、空 plan→remember、顶层 key 注 mem 步 | **已删** |
+| 单步 mem 无 key 发明字段名 | **已收窄** → clarify |
+| schema pathPlan 抬升 userFact*（step.id / params） | **已删**；intent 别名保留 |
+| 年龄问句 regex → `compute_age_from_hits` | **已删**；只信 `identityField`/`toolId` |
+| mem-retrieve 无 key 发明字段名 | **已删** |
+| `topics=family` → `queryType=relations` | **保留**（schema→executor，不改写问句） |
+| `extract-external-links` 对 label 剥泛词 | **未清**（P1；只滤 excerpt URL，不改路由） |
+| `repair-retrieval-plan` topics→listKind、link-lookup-guard | **未动**（P2；topics→listKind 属 schema→executor 可留） |
 
-| 阶段 | 动作 |
-|------|------|
-| **现在** | 清单入库；**暂不删**（eval / 现网仍依赖） |
-| **Dify 抽离** | Intake（及必要 Agent）迁 Dify / 更强模型；只信结构化 JSON |
-| **换模型后验证** | 全量 `eval:run` + GMem / 六连问 / **E2E-brother** / **G5b**（下表已知红）；`test:unit` |
-| **验证通过** | 按下方清单 **删除或收窄** 猜意图代码；只留 Zod 合法化、空 plan→clarify、UI exact-match、schema→executor |
-
-**复盘口诀：** 先看 Intake JSON 对不对 → 再决定是否还需要某条 `guard_*` / `legalize*` 抬升。模型工单稳了，抬升就该删。
-
-#### 已知红 · 换模型后再测（2026-08 · 不改代码）
-
-代码路径已齐（`queryType=relations` 只信槽上 `topics=family`；指代只信 LLM `coreference` + 拼接≤1）。下面两条 eval 仍红，是 **Intake 小模型没按 few-shot 出槽**，不是 KM/`docKind` 映射错。**禁止**为过 eval 扫问句「哥哥」或用口语猜指代。
-
-| 用例 | 问句 | 现网 | 判定 | 换模型后 |
-|------|------|------|------|----------|
-| **E2E-brother** | 「我哥叫什么」 | Intake 打成 `identity`+`name`、`topics` 无 family → 只搜 `identity_card` → 答潘展飞 | prompt 示例 4c 已要求 `queryType=relations` + `topics: family` + `identityField: null`。三连问 **E2E-family-tri**、单问 **E2E-sister-in-law** 能过；单问哥哥被类比成「我叫什么」 | `eval:run -- --case E2E-brother` 须含 **潘小强** |
-| **G5b** | 上轮「城管平台用了什么技术」→「那个项目呢？」 | 终稿未钉死城管实体，answer 未匹配城管/React 等 | prompt 已要求有 history 须 `resolved` 且 searchQuery 写明实体；**G5c** 实体替换续问已过。代词续问仍漂移 | `eval:run -- --case G5b` 须含 **城管\|城市管理\|React\|UniApp\|TypeScript\|Vite** |
-
-对照：`E2E-family-tri` / `E2E-sister-in-law` / `G5c` 过 ≠ 这两条可标绿；换 Intake 模型后必须重跑上表。
-
-#### 待删 / 待收窄清单（生产 `src/`）
-
-| 优先级 | 位置 | 行为（猜意图气味） | 换模型后建议 |
-|--------|------|-------------------|--------------|
-| **P0** | `path-plan/from-llm.ts` | 非法 `identityField`：开集 ascii→`userFactKey`；否则改写 ``searchQuery=`亲友关系 ${label}```（含 `/亲友/`） | **删**亲友改写；开集→mem 抬升在强模型下应可删 |
-| **P0** | 同上 | 槽 `topics` 含 `family` → `queryType=relations` + 清 `identityField` + 亲友 searchQuery 改写 | **删** searchQuery 改写；**保留** relations 落点（schema→executor，与 `listKind` 同类）。禁止扫问句「哥哥」 |
-| **P0** | 同上 | `step.id` 如 `km-qq` + identity/`extract_identity` 等 hint → 发明 `userFactKey`→mem | **删**；要求 LLM 直接写 `kind=mem` + `userFactKey` |
-| **P0** | `pipeline/intake-pipeline.ts` | 空 plan + 顶层 `userFactKey`+`Value` → `retrieve` 改 `remember_user_fact` | **删**；要求 intent 直接 remember |
-| **P0** | 同上 | 单步 `mem` → early `recall`；缺 key 时 `normalizeFactKey(label\|searchQuery)` / `"user_fact"` | **收窄**：无 key 则 clarify，禁止发明 key |
-| **P1** | `contract/schema.ts` | intent/queryType 别名；`liftUserFactFieldsFromPathPlan`（params / `mem-*` id） | 别名可留极薄一层；**pathPlan 抬升尽量删** |
-| **P1** | `from-llm.ts` `ensureMemRecallStepFromTopUserFact` | 顶层 key 无 mem 步 → 注入 mem 步 | **删**；复合问须 LLM 写齐 mem 步 |
-| **P1** | `tools/.../run-sub-question.ts` + `compute-age.ts` | 问句 `/年龄\|多大\|几岁/` → 强行走 age 工具 | **删**口语；只信 `identityField`/`toolId` |
-| **P1** | `tools/local/links/extract-external-links.ts` | 对 label/问句剥离开源·GitHub 类口语 | **删**或仅保留对 **excerpt** 的 URL 抽取（允许 D） |
-| **P2** | `composite/repair-retrieval-plan.ts` | 缺 `listKind` 时用 topics 猜 project/experience | **收窄**；缺则 clarify 或丢步 |
-| **P2** | `guards/intake-link-lookup-guard.ts` | 按 plan 形状改写 `external_link` | 复盘后能删则删 |
-| **P2** | `user-fact/mem-retrieve` | 无 key：`normalizeFactKey(label) \|\| "user_fact"` | **删**发明 key |
-| — | `signals/pure-social-utterance` / `inferQueryProfile` 等 | 已 stub | 死代码可随时清 |
+**复盘：** 先看 Intake JSON 是否写齐 `kind=mem` + `userFactKey` / `topics=family`；缺字段不要再加代码抬升。
 
 #### 允许保留（对照 `.cursor/rules/no-scene-hardcoding.mdc`）
 

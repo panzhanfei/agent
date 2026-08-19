@@ -4,7 +4,6 @@ import {
     computeAgeYears,
     extractBirthOrAgeFromText,
     extractIdentityFieldFromHits,
-    isAgeSubQuestion,
 } from "@/agentflow/tools/local/identity";
 
 describe("compute-age", () => {
@@ -20,12 +19,6 @@ describe("compute-age", () => {
             new Date("2026-07-09T12:00:00")
         );
         expect(age).toBe(33);
-    });
-
-    it("detects age sub-questions", () => {
-        expect(isAgeSubQuestion("我今年多大")).toBe(true);
-        expect(isAgeSubQuestion("姓名叫什么")).toBe(false);
-        expect(isAgeSubQuestion("出生年份")).toBe(false);
     });
 
     it("builds insufficient answer when no birth field", () => {

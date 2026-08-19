@@ -22,7 +22,6 @@ import {
   deriveCompositeSlotsFromPathPlan,
   deriveRetrievalPlanFromPathPlan,
   emptyPathPlan,
-  ensureMemRecallStepFromTopUserFact,
   executionPlanFromPathPlanDag,
   fillListPagesInPathPlan,
   isPathPlanEmpty,
@@ -31,7 +30,7 @@ import {
   legalizePathPlan,
   reorderPathPlanByAnswerOrder,
 } from "@/agentflow/agents/online/intake-coordinator/path-plan";
-import { isUserFactIntent, normalizeFactKey } from "@/agentflow/agents/online/user-fact";
+import { isUserFactIntent } from "@/agentflow/agents/online/user-fact";
 import { logAgentOut } from "@fambrain/brain-shared/agent-log";
 import type { DbChatTurn } from "@fambrain/brain-types";
 import { resolveIntakeGraphRouteMode } from "./resolve-graph-route-mode";
@@ -332,35 +331,33 @@ export const runIntakePipeline = async (
     };
   }
 
-  const pathPlanBeforeMemRecall = pathPlan;
-  pathPlan = ensureMemRecallStepFromTopUserFact(decision, pathPlan);
-  if (pathPlan.steps.length !== pathPlanBeforeMemRecall.steps.length) {
-    logAgentOut("IntakeCoordinator", "guard_顶层userFactKey→mem步", {
-      userFactKey: decision.userFactKey,
-      userFactLabel: decision.userFactLabel,
-      memStepId: pathPlan.steps.find((s) => s.kind === "mem")?.id ?? null,
-    });
-  }
-
-  // 结构规则：仅一步 mem → 等价纯 recall 早退（缺 key 时用占位 key + Intake label）
+  // 结构规则：仅一步 mem 且已有 userFactKey → 等价纯 recall 早退；无 key → clarify
   if (
     decision.intent === "retrieve_and_answer" &&
     pathPlan.steps.length === 1 &&
     pathPlan.steps[0]?.kind === "mem"
   ) {
     const mem = pathPlan.steps[0];
+    const factKey =
+      mem.userFactKey?.trim() || decision.userFactKey?.trim() || "";
+    if (!factKey) {
+      decision = emptyPlanClarify(decision);
+      logAgentOut("IntakeCoordinator", "guard_单步mem缺key→clarify", {
+        label: mem.label,
+      });
+      const routed = buildEarlyExitRoutedDecision(decision);
+      logAgentOut("IntakeCoordinator", "最终路由", {
+        earlyExit: true,
+        reason: "clarify",
+        ...summarizeDecision(routed),
+      });
+      return { decision: routed, parseUsedFallback, earlyExit: true };
+    }
     const label =
       mem.userFactLabel?.trim() ||
       decision.userFactLabel?.trim() ||
       mem.label ||
-      "user_fact";
-    const factKey =
-      mem.userFactKey?.trim() ||
-      decision.userFactKey?.trim() ||
-      normalizeFactKey(mem.userFactLabel ?? "") ||
-      normalizeFactKey(mem.label) ||
-      normalizeFactKey(mem.searchQuery) ||
-      "user_fact";
+      factKey;
     decision = {
       ...decision,
       intent: "recall_user_fact",
@@ -390,36 +387,6 @@ export const runIntakePipeline = async (
       decision.searchQuery.trim().length > 0);
 
   if (needsPathPlan && isPathPlanEmpty(pathPlan)) {
-    /**
-     * LLM 偶发：intent=retrieve 但 steps 非法被合法化清空，同时顶层已填
-     * userFactKey+Value → 结构上等价整轮 remember，勿落到 clarify。
-     */
-    const factKey = decision.userFactKey?.trim() ?? "";
-    const factValue = decision.userFactValue?.trim() ?? "";
-    if (factKey && factValue && decision.intent === "retrieve_and_answer") {
-      decision = {
-        ...decision,
-        intent: "remember_user_fact",
-        pathPlan: emptyPathPlan(),
-        retrievalPlan: [],
-        composeMode: "qa",
-        clarifyingQuestion: null,
-        briefReply: null,
-      };
-      logAgentOut("IntakeCoordinator", "guard_空plan+userFact→remember", {
-        userFactKey: factKey,
-        userFactLabel: decision.userFactLabel,
-        hasValue: true,
-      });
-      const routed = buildEarlyExitRoutedDecision(decision);
-      logAgentOut("IntakeCoordinator", "最终路由", {
-        earlyExit: true,
-        reason: "remember_user_fact",
-        ...summarizeDecision(routed),
-      });
-      return { decision: routed, parseUsedFallback, earlyExit: true };
-    }
-
     decision = emptyPlanClarify(decision);
     logAgentOut("IntakeCoordinator", "guard_PathPlan", {
       reason: "empty_path_plan_to_clarify",

@@ -1,7 +1,6 @@
 import { describe, expect, it } from "vitest";
 import {
   deriveCompositeSlotsFromPathPlan,
-  ensureMemRecallStepFromTopUserFact,
   legalizeComposeMode,
   legalizePathPlan,
   stepsOfKind,
@@ -161,7 +160,7 @@ describe("pathPlan vault_workspace", () => {
     expect(legalizeComposeMode("composite", plan)).toBe("qa");
   });
 
-  it("does not inject mem recall beside a vault_workspace plan", () => {
+  it("vault_workspace plan stays exclusive without injected mem", () => {
     const plan = legalizePathPlan({
       steps: [
         {
@@ -175,17 +174,9 @@ describe("pathPlan vault_workspace", () => {
         },
       ],
     });
-    const next = ensureMemRecallStepFromTopUserFact(
-      {
-        intent: "retrieve_and_answer",
-        userFactKey: "qq",
-        userFactLabel: "QQ",
-        userFactValue: null,
-      },
-      plan
-    );
-    expect(next.steps).toHaveLength(1);
-    expect(next.steps[0]?.kind).toBe("vault_workspace");
+    expect(plan.steps).toHaveLength(1);
+    expect(plan.steps[0]?.kind).toBe("vault_workspace");
+    expect(stepsOfKind(plan, "mem")).toHaveLength(0);
   });
 
   it("matches UI exact-match prompts", () => {

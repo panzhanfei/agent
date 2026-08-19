@@ -441,29 +441,14 @@ const legalizeStep = (raw: unknown, index: number): ExecutionStep | null => {
   const rawIdentityField = o.identityField ?? o.identity_field;
   let identityField = legalizeIdentityField(rawIdentityField);
   let userFactKey = legalizeUserFactKey(o.userFactKey ?? o.user_fact_key);
-  /**
-   * LLM 偶发把 Mem0 开集 slug（全小写 ascii，如 qq）误写入 identityField：
-   * → 抬升为 userFactKey 走 mem。camelCase 发明字段（sisterInLawName）仍走亲友语料回落。
-   */
+  // 非法 identityField 已剥掉；identity 无合法字段 → default（不发明 mem key / 不改写亲友问）
   if (
     typeof rawIdentityField === "string" &&
     rawIdentityField.trim() &&
-    !identityField
+    !identityField &&
+    queryType === "identity"
   ) {
-    const rawId = rawIdentityField.trim();
-    const asMemKey = legalizeUserFactKey(rawId);
-    const looksOpenFactSlug =
-      Boolean(asMemKey) &&
-      !/[A-Z]/.test(rawId) &&
-      asMemKey === rawId.toLowerCase().replace(/[^a-z0-9_+-]/g, "");
-    if (looksOpenFactSlug && asMemKey) {
-      if (!userFactKey) userFactKey = asMemKey;
-    } else {
-      if (queryType === "identity") queryType = "default";
-      if (label && !/亲友/.test(searchQuery)) {
-        searchQuery = `亲友关系 ${label}`;
-      }
-    }
+    queryType = "default";
   }
   const userFactLabelRaw = o.userFactLabel ?? o.user_fact_label;
   const userFactLabel =
@@ -475,9 +460,6 @@ const legalizeStep = (raw: unknown, index: number): ExecutionStep | null => {
   if (topicFamily) {
     identityField = null;
     queryType = "relations";
-    if (label && !/亲友/.test(searchQuery)) {
-      searchQuery = `亲友关系 ${label}`;
-    }
   }
   const rawToolId = asToolId(o.toolId ?? o.tool_id);
   let toolId = rawToolId;
@@ -492,47 +474,8 @@ const legalizeStep = (raw: unknown, index: number): ExecutionStep | null => {
     toolId = null;
   }
   const dataSourceRaw = asDataSource(o.dataSource ?? o.data_source);
-  const dataSourceHint = String(o.dataSource ?? o.data_source ?? "")
-    .trim()
-    .toLowerCase();
 
-  /**
-   * LLM 偶发把 Mem0 槽写成 km-<slug>（如 km-qq）且未填 userFactKey/identityField：
-   * 仅在非亲友、且 slug 不属于 identity 闭集时，从 step.id 抬升为 mem。
-   * 信号：step.id / 原 toolId=extract_identity / dataSource 暗示 memory。
-   */
-  const rawIdentityAbsent =
-    rawIdentityField == null ||
-    (typeof rawIdentityField === "string" && !rawIdentityField.trim());
-  if (
-    !userFactKey &&
-    !identityField &&
-    !topicFamily &&
-    rawIdentityAbsent &&
-    (kind === "km" || kind === "mem")
-  ) {
-    const stepId = String(o.id ?? "").trim();
-    const idSlug = stepId
-      .match(/^(?:km|mem)[-_]?([a-z][a-z0-9_+-]{0,63})$/i)?.[1]
-      ?.toLowerCase();
-    if (
-      idSlug &&
-      !legalizeIdentityField(idSlug) &&
-      legalizeUserFactKey(idSlug) === idSlug
-    ) {
-      const hintsMem =
-        kind === "mem" ||
-        rawToolId === "extract_identity_from_hits" ||
-        dataSourceHint === "mem0" ||
-        dataSourceHint === "memory" ||
-        queryType === "identity";
-      if (hintsMem) {
-        userFactKey = idSlug;
-      }
-    }
-  }
-
-  // km/mem + userFactKey 且无闭集 identity → mem（含 identityField=qq 抬升）
+  // km/mem + userFactKey 且无闭集 identity → mem
   if (userFactKey && !identityField && (kind === "mem" || kind === "km")) {
     return {
       id: trimId(o.id, `mem-${index}`),
@@ -738,53 +681,6 @@ export const legalizeComposeMode = (
   if (raw === "qa" || raw === "summarize" || raw === "composite") return raw;
   if (plan.steps.length >= 2) return "composite";
   return defaultComposeMode();
-};
-
-/**
- * 复合 retrieve 时 LLM 有时在顶层填 userFactKey（无 Value = recall），却漏写 kind=mem 步。
- * 按结构化顶层 key 补一步 mem recall（非口语猜意图）；remember side-effect（有 Value）不补。
- */
-export const ensureMemRecallStepFromTopUserFact = (
-  decision: Pick<
-    IntakeRoutingDecision,
-    "intent" | "userFactKey" | "userFactLabel" | "userFactValue"
-  >,
-  plan: PathPlan
-): PathPlan => {
-  if (decision.intent !== "retrieve_and_answer") return plan;
-  if (plan.steps.some((s) => s.kind === "vault_workspace")) return plan;
-  const factKey = normalizeFactKey(decision.userFactKey ?? "");
-  if (!factKey || decision.userFactValue?.trim()) return plan;
-  if (plan.steps.length === 0) return plan;
-
-  const hasMem = plan.steps.some(
-    (s) => s.kind === "mem" && normalizeFactKey(s.userFactKey ?? "") === factKey
-  );
-  if (hasMem) return plan;
-
-  const label = decision.userFactLabel?.trim() || factKey;
-  const memStep: ExecutionStep = {
-    id: `mem-${factKey}`,
-    kind: "mem",
-    label,
-    searchQuery: label,
-    queryType: "identity",
-    topics: ["personal"],
-    identityField: null,
-    toolId: null,
-    dataSource: "mem0",
-    userFactKey: factKey,
-    userFactLabel: label,
-    enumerationControl: null,
-  };
-
-  const ageIdx = plan.steps.findIndex(
-    (s) => s.identityField === "age" || s.id === "km-age"
-  );
-  const insertIdx = ageIdx >= 0 ? ageIdx + 1 : Math.min(1, plan.steps.length);
-  const steps = [...plan.steps];
-  steps.splice(insertIdx, 0, memStep);
-  return { steps };
 };
 
 /** answerOrder = steps 顺序；若 LLM 另给 order 则校验并重排（合法 id） */

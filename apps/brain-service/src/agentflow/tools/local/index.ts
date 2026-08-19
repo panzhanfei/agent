@@ -12,7 +12,6 @@ export {
   extractBirthOrAgeFromText,
   extractTenureFromHits,
   getCurrentDateTool,
-  isAgeSubQuestion,
   runComputeAgeFromHits,
   runComputeTenureFromHits,
   runExtractIdentityFromHits,

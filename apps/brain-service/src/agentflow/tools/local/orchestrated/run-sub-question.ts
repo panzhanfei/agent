@@ -5,11 +5,7 @@ import { toolRunToAnalystResult } from "@/agentflow/agents/online/information-an
 import type { ExecutionPlanNode } from "@/agentflow/agents/online/tool-orchestrator/interface";
 import { resolveIdentityFieldFromPlan } from "@/agentflow/tools/catalog";
 import { invokeTool } from "@/agentflow/tools/invoke";
-import { isAgeSubQuestion } from "../identity";
 import type { OrchestratedToolId } from "./interface";
-
-const ageContext = (input: SubQuestionAnalyzeInput): string =>
-    [input.userQuestion, ...(input.topics ?? [])].join(" ");
 
 /** 命中则跳过 Analyst LLM，改走确定性编排工具 */
 export const resolveOrchestratedTool = (
@@ -40,9 +36,6 @@ export const resolveOrchestratedTool = (
         }
         if (fieldSpec?.toolId === "extract_identity_from_hits") {
             return "extract_identity_from_hits";
-        }
-        if (isAgeSubQuestion(ageContext(input))) {
-            return "compute_age_from_hits";
         }
     }
 
