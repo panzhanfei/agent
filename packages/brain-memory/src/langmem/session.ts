@@ -1,17 +1,17 @@
-import { HumanMessage, SystemMessage } from "@langchain/core/messages";
-import { ChatOllama } from "@langchain/ollama";
 import type { DbChatTurn } from "@fambrain/brain-types";
 import {
     getConversationSessionSummary,
     upsertConversationSessionSummary,
 } from "@fambrain/db";
-import { recordLangChainOllamaUsage } from "@fambrain/brain-shared/pipeline-run-context";
+import { completeChat } from "@fambrain/brain-shared/chat";
+import { recordCompleteChatUsage } from "@fambrain/brain-shared/pipeline-run-context";
 import { getMemoryConfig } from "../config";
 
 /**
- * LangMem 在官方仅有 Python SDK；此处用 ChatOllama 会话摘要实现同等职责：
+ * LangMem 在官方仅有 Python SDK；此处用 completeChat 会话摘要实现同等职责：
  * 长对话压缩为 summary，Intake / Analyst 注入摘要 + 保留最近 N 轮原文。
  * 摘要落 Prisma Conversation（sessionSummary），非 JSON 文件。
+ * Chat 提供方跟 CHAT_PROVIDER（ollama | openai），不单独钉 Ollama。
  */
 const SUMMARY_SYSTEM = `你是 FamBrain 的会话记忆管理器（LangMem 风格）。
 将对话历史压缩为简洁中文摘要，保留：用户身份/偏好、已讨论的项目或话题、关键结论、待澄清点。
@@ -52,46 +52,27 @@ export const summarizeSessionTurns = async (
     previousSummary: string | null,
     turns: DbChatTurn[]
 ): Promise<string> => {
-    const cfg = getMemoryConfig();
-    const llm = new ChatOllama({
-        baseUrl: cfg.ollamaBaseUrl,
-        model: cfg.ollamaChatModel,
-        temperature: 0.2,
-    });
     const body = [
         previousSummary
             ? `已有会话摘要：\n${previousSummary}\n\n请合并以下新对话：`
             : "请摘要以下对话：",
         formatTurns(turns),
     ].join("\n\n");
-    const msg = await llm.invoke([
-        new SystemMessage(SUMMARY_SYSTEM),
-        new HumanMessage(body),
-    ]);
-    const text =
-        typeof msg.content === "string"
-            ? msg.content.trim()
-            : Array.isArray(msg.content)
-              ? msg.content
-                    .map((p) =>
-                        typeof p === "string"
-                            ? p
-                            : p &&
-                                typeof p === "object" &&
-                                "text" in p &&
-                                typeof (p as { text: string }).text === "string"
-                              ? (p as { text: string }).text
-                              : ""
-                    )
-                    .join("")
-                    .trim()
-              : "";
-    recordLangChainOllamaUsage(msg, {
+    const result = await completeChat({
+        messages: [
+            { role: "system", content: SUMMARY_SYSTEM },
+            { role: "user", content: body },
+        ],
+        jsonMode: false,
+        thinking: "disabled",
+        temperature: 0.2,
+    });
+    recordCompleteChatUsage(result.usage, {
         promptText: `${SUMMARY_SYSTEM}\n${body}`,
-        completionText: text,
+        completionText: result.text,
         node: "persist_turn_end",
     });
-    return text || previousSummary || "";
+    return result.text || previousSummary || "";
 };
 
 export const persistSessionSummary = async (

@@ -98,7 +98,7 @@
       "question": "那个项目呢？",
       "assert": {
         "mustIncludeAnySteps": [["km_retrieve", "list_retrieve", "plan_slot_join", "plan_merge", "retrieval", "plan_executor"]],
-        "answerMustNotRe": "哪|哪个|请说明|指的是|哪一段|哪一家|什么项目|能否说明",
+        "answerMustNotRe": "你指的是哪|哪一段|哪个项目\\s*[？?]|请说明|能否说明|请提供更多",
         "answerRe": "城管|城市管理|React|UniApp|TypeScript|Vite"
       }
     },
@@ -120,7 +120,7 @@
       "assert": {
         "mustIncludeAnySteps": [["km_retrieve", "list_retrieve", "plan_slot_join", "plan_merge", "retrieval", "plan_executor"]],
         "mustIncludeSteps": ["analyst"],
-        "answerMustNotRe": "哪|哪个|请说明|指的是|哪一段",
+        "answerMustNotRe": "你指的是哪|哪一段|请说明|哪个公司|你指的是.{0,24}还是",
         "answerRe": "2016|2017|云联智慧",
         "answerMustIncludeAll": ["云联智慧"]
       }

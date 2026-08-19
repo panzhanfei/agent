@@ -7,6 +7,7 @@
  *   pnpm run golden:regression
  *   GOLDEN_RUNS=3 pnpm run golden:regression
  *   pnpm run golden:regression -- 3
+ *   pnpm run golden:regression -- --case G5,G5b,G5c
  *
  * 需 Ollama + Qdrant + 已入库语料；corpusUserId 见 FAMBRAIN_CORPUS_USER_ID
  * 或 data/doc/users/ 下首个有 corpus 的用户。
@@ -56,8 +57,20 @@ type GoldenCase = {
   ) => string | null;
 };
 
-const CLARIFY_ANSWER =
-  /哪|哪个|请说明|指的是|哪一段|哪一家|什么项目|能否说明|更多.*(?:细节|信息)|提供更多|具体.*(?:项目|信息|名称)/;
+/** 无上文：像在问用户「你指哪一个」（G5）。 */
+const looksLikeClarifyQuestion = (answer: string): boolean =>
+  /你指的是哪|哪一段|哪个项目|哪一家|请说明|能否说明|提供更多|例如/.test(
+    answer
+  );
+
+/**
+ * 有上文后仍在追问用户选哪一个。
+ * 不含陈述句「X 指的是 Y」、也不含「具体业务项目暂未…」这类语料缺口说明。
+ */
+const isStillAskingWhich = (answer: string): boolean =>
+  /你指的是哪|哪一段|哪个项目\s*[？?]|哪一家|请说明|能否说明|请提供更多|你指的是.{0,24}还是/.test(
+    answer
+  );
 
 const hasStep = (steps: string[], name: string): boolean =>
   steps.includes(name);
@@ -84,6 +97,24 @@ const parseGoldenRuns = (): number => {
   if (!Number.isFinite(n) || n < 1)
     throw new Error(`GOLDEN_RUNS 须为正整数，当前: ${raw}`);
   return n;
+};
+
+/** `pnpm run golden:regression -- --case G5b,G5c`；未传则全量 */
+const parseGoldenCaseFilter = (): Set<GoldenId> | null => {
+  const argv = process.argv.slice(2);
+  const ids: string[] = [];
+  for (let i = 0; i < argv.length; i += 1) {
+    if (argv[i] === "--case" && argv[i + 1]) {
+      ids.push(
+        ...argv[i + 1]!.split(",")
+          .map((s) => s.trim())
+          .filter(Boolean)
+      );
+      i += 1;
+    }
+  }
+  if (ids.length === 0) return null;
+  return new Set(ids as GoldenId[]);
 };
 
 const resolveCorpusUserId = async (): Promise<string> => {
@@ -178,7 +209,7 @@ const GOLDEN_CASES: GoldenCase[] = [
       if (
         !hasStep(steps, "analyst") &&
         !hasStep(steps, "user_fact") &&
-        CLARIFY_ANSWER.test(answer)
+        isStillAskingWhich(answer)
       )
         return "不应 clarify，应检索 personal/简历";
       if (/再说清楚|哪一方面|请明确/.test(answer) && !/潘展飞/.test(answer))
@@ -220,8 +251,8 @@ const GOLDEN_CASES: GoldenCase[] = [
       if (!hasStep(steps, "prepare_turn_start"))
         return "应至少经过 prepare_turn_start";
       if (!hasStep(steps, "intake")) return "应至少经过 intake";
-      if (!CLARIFY_ANSWER.test(answer))
-        return "answer 应像澄清问句（含「哪/哪个/指的是」等）";
+      if (!looksLikeClarifyQuestion(answer))
+        return "answer 应像澄清问句（含「你指的是哪/哪一段/例如」等）";
       return null;
     },
   },
@@ -240,7 +271,7 @@ const GOLDEN_CASES: GoldenCase[] = [
     assert: ({ steps, answer }) => {
       if (!hasRetrievalStep(steps))
         return "有上文时应走 plan_executor/retrieval，不应 clarify";
-      if (CLARIFY_ANSWER.test(answer)) return "answer 不应再澄清「哪个项目」";
+      if (isStillAskingWhich(answer)) return "answer 不应再澄清「哪个项目」";
       if (!/城管|城市管理|React|UniApp|TypeScript|Vite/i.test(answer))
         return "应延续上文城市管理平台主题，而非无关项目";
       return null;
@@ -260,7 +291,7 @@ const GOLDEN_CASES: GoldenCase[] = [
     assert: ({ steps, answer }) => {
       if (!hasRetrievalStep(steps))
         return "有上文时应走 plan_executor/retrieval，不应 clarify";
-      if (CLARIFY_ANSWER.test(answer))
+      if (isStillAskingWhich(answer))
         return "answer 不应再澄清，应继承「入职年份」意图";
       if (!/云联智慧/.test(answer))
         return "answer 应提及云联智慧";
@@ -370,14 +401,19 @@ const formatDuration = (ms: number): string => `${(ms / 1000).toFixed(1)}s`;
 const runGoldenSuite = async (
   corpusUserId: string,
   runIndex: number,
-  totalRuns: number
+  totalRuns: number,
+  caseFilter: Set<GoldenId> | null
 ): Promise<GoldenRunResult> => {
   const started = Date.now();
   const results: PipelineCaseResult[] = [];
-  const caseTotal = GOLDEN_CASES.length + 1;
+  const cases = caseFilter
+    ? GOLDEN_CASES.filter((c) => caseFilter.has(c.id))
+    : GOLDEN_CASES;
+  const runMem = !caseFilter || caseFilter.has("GMem");
+  const caseTotal = cases.length + (runMem ? 1 : 0);
   console.log(`\n── 第 ${runIndex}/${totalRuns} 遍 ──`);
-  for (let i = 0; i < GOLDEN_CASES.length; i++) {
-    const spec = GOLDEN_CASES[i]!;
+  for (let i = 0; i < cases.length; i++) {
+    const spec = cases[i]!;
     console.log(`  [${i + 1}/${caseTotal}] ${spec.id} · 「${spec.question}」…`);
     const result = await runPipelineCase(corpusUserId, spec, runIndex);
     console.log(
@@ -385,12 +421,14 @@ const runGoldenSuite = async (
     );
     results.push(result);
   }
-  console.log(`  [${caseTotal}/${caseTotal}] GMem · 跨会话 QQ…`);
-  const memResult = await runCrossSessionMemCase(corpusUserId, runIndex);
-  console.log(
-    `       → ${memResult.pass ? "PASS" : "FAIL"} ${formatDuration(memResult.latencyMs)}`
-  );
-  results.push(memResult);
+  if (runMem) {
+    console.log(`  [${caseTotal}/${caseTotal}] GMem · 跨会话 QQ…`);
+    const memResult = await runCrossSessionMemCase(corpusUserId, runIndex);
+    console.log(
+      `       → ${memResult.pass ? "PASS" : "FAIL"} ${formatDuration(memResult.latencyMs)}`
+    );
+    results.push(memResult);
+  }
   return { runIndex, results, durationMs: Date.now() - started };
 };
 
@@ -483,18 +521,35 @@ const printMultiRunReport = (
 const main = async (): Promise<void> => {
   bootstrapBrainServiceRuntime();
   const totalRuns = parseGoldenRuns();
+  const caseFilter = parseGoldenCaseFilter();
   const corpusUserId = await resolveCorpusUserId();
   console.log(
-    `Golden G1～G5c + GMem 全链路回归（corpusUserId=${corpusUserId}，连跑 ${totalRuns} 遍）`
+    `Golden G1～G5c + GMem 全链路回归（corpusUserId=${corpusUserId}，连跑 ${totalRuns} 遍${
+      caseFilter ? `，子集 ${[...caseFilter].join(",")}` : ""
+    }）`
   );
   console.log("运行中仅显示进度；问/答/评判与各遍汇总将在全部结束后统一展示…");
 
   const runs: GoldenRunResult[] = [];
   for (let runIndex = 1; runIndex <= totalRuns; runIndex++) {
-    runs.push(await runGoldenSuite(corpusUserId, runIndex, totalRuns));
+    runs.push(
+      await runGoldenSuite(corpusUserId, runIndex, totalRuns, caseFilter)
+    );
   }
 
   printMultiRunReport(runs, corpusUserId, totalRuns);
+
+  if (caseFilter) {
+    const failed = runs.flatMap((run) => run.results.filter((r) => !r.pass));
+    if (failed.length > 0) {
+      console.error(
+        `\nGolden 子集未通过：${failed.map((r) => r.id).join("、")}`
+      );
+      process.exit(1);
+    }
+    console.log("\nGolden 子集通过。");
+    return;
+  }
 
   /** 与报告文案一致：每遍 ≥6/8，且 G1～G5 核心 ≥4/5；允许偶发 LLM 抖动（如 G5b/G5c） */
   const CORE_IDS = new Set(["G1", "G2", "G3", "G4", "G5"]);

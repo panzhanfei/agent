@@ -1,7 +1,7 @@
 import { getBrainServiceConfig } from "@fambrain/brain-config";
 import { logAgentIn, logAgentOut } from "@fambrain/brain-shared/agent-log";
-import { estimateTokenUsage, recordPipelineTokenUsage, } from "@fambrain/brain-shared/pipeline-run-context";
-import { streamOllamaNative } from "@fambrain/brain-shared/ollama-native-stream";
+import { streamChat, type ChatMessage } from "@fambrain/brain-shared/chat";
+import { recordCompleteChatUsage } from "@fambrain/brain-shared/pipeline-run-context";
 import { parseJsonObject } from "@/agentflow/utils";
 import {
     prefersPlainTextAnalystStream,
@@ -158,7 +158,6 @@ async function* streamSingleAnalyze(
         searchQuery: input.searchQuery,
     });
     const fallback = await buildFallbackAnswer(input);
-    const { ollama } = getBrainServiceConfig();
 
     if (shouldSkipAnalystLlm(input)) {
         logAgentOut("InformationAnalyst", "出去", {
@@ -188,39 +187,30 @@ async function* streamSingleAnalyze(
     }
 
     try {
-        const messages = [
+        const messages: ChatMessage[] = [
             { role: "system", content: prompt },
             { role: "user", content: JSON.stringify(input, null, 2) },
         ];
         let fullContent = "";
-        const gen = streamOllamaNative({
+        const gen = streamChat({
             messages,
-            think: false,
-            model: ollama.models.intakeCoordinator,
+            jsonMode: true,
+            thinking: "disabled",
         });
         while (true) {
             const next = await gen.next();
             if (next.done) {
-                const usage = next.value;
-                if (usage) {
-                    recordPipelineTokenUsage({
-                        prompt: usage.promptTokens,
-                        completion: usage.completionTokens,
-                    }, { node: "analyst" });
-                }
-                else {
-                    recordPipelineTokenUsage(estimateTokenUsage(JSON.stringify(messages), fullContent), {
-                        estimated: true,
-                        node: "analyst",
-                    });
-                }
+                recordCompleteChatUsage(next.value, {
+                    promptText: JSON.stringify(messages),
+                    completionText: fullContent,
+                    node: "analyst",
+                });
                 break;
             }
             const chunk = next.value;
             if (chunk.kind === "thinking") {
                 yield { type: "thinking", text: chunk.fullText };
-            }
-            else {
+            } else {
                 fullContent = chunk.fullText;
                 yield { type: "assistant", text: chunk.fullText };
             }
@@ -236,6 +226,7 @@ async function* streamSingleAnalyze(
             insufficientEvidence: result.insufficientEvidence,
             confidence: result.confidence,
             citationCount: result.citations.length,
+            chatProvider: getBrainServiceConfig().chat.provider,
             answerPreview:
                 result.answer.length > 400
                     ? `${result.answer.slice(0, 400)}…`

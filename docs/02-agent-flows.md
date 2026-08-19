@@ -244,11 +244,11 @@ flowchart TD
 
 **职责：** 只产 **路由 JSON**，不写终稿、不检索。
 
-**技术：** LangChain `ChatOllama`、`SystemMessage` / `HumanMessage`；输出 **Zod**（`intakeRoutingSchema`）。
+**技术：** `completeChat` / `streamChat`（`CHAT_PROVIDER=ollama|openai`）；输出 **Zod**（`intakeRoutingSchema`）。
 
 ```mermaid
 flowchart TD
-  H[DbChatTurn 历史] --> LLM["ChatOllama.invoke<br/>SystemMessage + 历史"]
+  H[DbChatTurn 历史] --> LLM["completeChat<br/>system + 历史"]
   LLM --> RAW[原始 JSON 字符串]
   RAW --> PARSE["parseIntakeDecision()"]
   PARSE -->|失败| DEF["defaultIntakeDecision()<br/>clarify"]
@@ -260,7 +260,7 @@ flowchart TD
 | 步骤 | 做什么 | 规则 | 文件 | 方法 |
 |------|--------|------|------|------|
 | 1 | 拼 prompt | 系统指令定义 intent / searchQuery 等 | `IntakeCoordinator/prompt.ts` | `prompt` |
-| 2 | 调模型 | 一次 `invoke`；模型见 `OLLAMA_MODEL_INTAKE_COORDINATOR` | `IntakeCoordinator/ollama-chat.ts` | `completeIntakeCoordinator()` |
+| 2 | 调模型 | 一次非流式 `completeChat`；`CHAT_PROVIDER=openai` 时用 `OPENAI_MODEL`（默认 deepseek-v4-flash，thinking disabled）；否则 `OLLAMA_MODEL_INTAKE_COORDINATOR` | `IntakeCoordinator/llm/complete.ts` | `completeIntakeCoordinator()` |
 | 3 | 解析 JSON | 抠 JSON → **Zod parse**；`userFact*` 缺省视为 `null`（勿误 fallback 检索） | `intake-coordinator/pipeline/parse-intake.ts`, `schema.ts` | `parseIntakeDecision()`, `intakeRoutingSchema` |
 | 4 | 兜底 | 解析失败 → `defaultIntakeDecision()`（**clarify**，不瞎 retrieve） | `pipeline/parse-intake.ts` | `defaultIntakeDecision()` |
 | 5 | Guard 链 | parse 后依次 guard（见下） | `pipeline/intake-pipeline.ts` | `runIntakePipeline()` |
@@ -484,7 +484,7 @@ flowchart TD
 
 **触发：** 每轮 LangGraph **`prepareTurnStart` 节点**内调用 `preparePipelineMemory()`（`agentflow/agents/online/prepare-turn-start/prepare-turn-start.ts`）。**不参与**离线入库链路。
 
-**职责：** **Mem0** 按 `actorUserId` 检索跨会话偏好/事实；**LangMem** 按 `conversationId` 维护会话摘要；合并为 `memoryBlock` 注入 **IntakeCoordinator** 与 **InformationAnalyst** prompt。轮次结束后由 **`persistTurnEnd` 节点**写 LangMem；可选静默抽事实写 Mem0。
+**职责：** **Mem0** 按 `actorUserId` 检索跨会话偏好/事实；**LangMem** 按 `conversationId` 维护会话摘要（`completeChat`，跟 `CHAT_PROVIDER`）；合并为 `memoryBlock` 注入 **IntakeCoordinator** 与 **InformationAnalyst** prompt。轮次结束后由 **`persistTurnEnd` 节点**写 LangMem；可选静默抽事实写 Mem0。
 
 **P0-16 补充：** 联系方式类 **remember/recall** 走 **userFact 节点**（`addStructuredUserFact` / `searchUserFactMemories`），不依赖轮次后 LLM 抽取；LangMem 仍仅本会话。
 
@@ -522,7 +522,7 @@ flowchart LR
 
 **验证：**
 
-- `pnpm run verify:memory`（需 Ollama；`MEM0_ENABLED=false` 时测 LangMem→Prisma）
+- `pnpm run verify:memory`（LangMem 跟 `CHAT_PROVIDER`；`MEM0_ENABLED=false` 时测 LangMem→Prisma）
 - `pnpm run verify:user-fact`（需 Ollama + Qdrant；Mem0→Qdrant）
 
 ### 9. ContentSummarizer — 内容摘要师（D9）✅

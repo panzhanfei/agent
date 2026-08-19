@@ -45,3 +45,11 @@ export const resolveBrainServiceUrl = (): string => {
         defaultPort: "3001",
     });
 };
+
+/** OpenAI 兼容 Chat Completions URL。`https://api.deepseek.com` → `.../chat/completions`；已含 `/v1` 则接到 `/v1/chat/completions`。 */
+export const resolveOpenAiChatCompletionsUrl = (baseUrl: string): string => {
+    const base = baseUrl.replace(/\/+$/, "");
+    if (/\/chat\/completions$/i.test(base))
+        return base;
+    return `${base}/chat/completions`;
+};

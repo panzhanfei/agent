@@ -1,5 +1,5 @@
 import { createServer } from "node:http";
-import { bootstrapBrainServiceRuntime, logLangSmithStartup } from "@/config";
+import { bootstrapBrainServiceRuntime, logChatProviderStartup, logLangSmithStartup } from "@/config";
 import { handleAsync } from "@/server/http";
 import {
     handleHealth,
@@ -14,7 +14,7 @@ import {
     handleEnumerationList,
 } from "@/server/handlers";
 
-const { langSmith, port } = bootstrapBrainServiceRuntime();
+const { brain, langSmith, port } = bootstrapBrainServiceRuntime();
 
 const server = createServer((req, res) => {
     const url = req.url?.split("?")[0] ?? "/";
@@ -62,5 +62,6 @@ server.on("error", (err: NodeJS.ErrnoException) => {
 
 server.listen(port, () => {
     console.log(`[@fambrain/brain-service] listening on http://127.0.0.1:${port}`);
+    logChatProviderStartup(brain);
     logLangSmithStartup(langSmith);
 });

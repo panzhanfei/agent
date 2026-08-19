@@ -1,23 +1,15 @@
 /**
  * 全局 B：一次 LLM JSON；解析失败 → 空 repairs（不硬编码补救）。
  */
-import { HumanMessage, SystemMessage } from "@langchain/core/messages";
-import { ChatOllama } from "@langchain/ollama";
-import { getBrainServiceConfig } from "@fambrain/brain-config";
 import { logAgentIn, logAgentOut } from "@fambrain/brain-shared/agent-log";
-import { recordLangChainOllamaUsage } from "@fambrain/brain-shared/pipeline-run-context";
-import { parseJsonObject, textFromResponse } from "@/agentflow/utils";
+import { completeChat } from "@fambrain/brain-shared/chat";
+import { recordCompleteChatUsage } from "@fambrain/brain-shared/pipeline-run-context";
+import { parseJsonObject } from "@/agentflow/utils";
 import type { PlanSlotWorkerPatch } from "../interface";
 import type { ExecutionPlanNode, PipelineToolResults } from "@/agentflow/agents/online/tool-orchestrator/interface";
 import { GLOBAL_REBATCH_SYSTEM_PROMPT } from "./prompt";
 import { parseGlobalRebatchPlan } from "./schema";
 import type { GlobalRebatchRepair } from "./interface";
-
-const { ollama } = getBrainServiceConfig();
-const llm = new ChatOllama({
-  baseUrl: ollama.baseUrl,
-  model: ollama.models.intakeCoordinator,
-});
 
 export type GlobalRebatchLlmInput = {
   userQuestion: string;
@@ -73,18 +65,21 @@ export const completeGlobalRebatchPlan = async (
   });
 
   try {
-    const messages = [
-      new SystemMessage(GLOBAL_REBATCH_SYSTEM_PROMPT),
-      new HumanMessage(buildHumanPayload(input)),
-    ];
-    const ai = await llm.invoke(messages);
-    const raw = textFromResponse(ai.content);
-    recordLangChainOllamaUsage(ai, {
-      promptText: JSON.stringify(messages.map((m) => m.content)),
-      completionText: raw,
+    const payload = buildHumanPayload(input);
+    const resultChat = await completeChat({
+      messages: [
+        { role: "system", content: GLOBAL_REBATCH_SYSTEM_PROMPT },
+        { role: "user", content: payload },
+      ],
+      jsonMode: true,
+      thinking: "disabled",
+    });
+    recordCompleteChatUsage(resultChat.usage, {
+      promptText: `${GLOBAL_REBATCH_SYSTEM_PROMPT}\n${payload}`,
+      completionText: resultChat.text,
       node: "global_rebatch",
     });
-    const obj = parseJsonObject(raw);
+    const obj = parseJsonObject(resultChat.text);
     if (!obj) {
       logAgentOut("GlobalRebatch", "出去", { repairCount: 0, parse: "null" });
       return [];

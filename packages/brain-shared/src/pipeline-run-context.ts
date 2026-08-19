@@ -231,3 +231,22 @@ export const recordLangChainOllamaUsage = (message: {
         node: options.node,
     });
 };
+
+/** completeChat 之后：有 usage 记真实计数，否则按字符估算 */
+export const recordCompleteChatUsage = (
+    usage: { prompt: number; completion: number } | undefined,
+    options: {
+        promptText: string;
+        completionText: string;
+        node?: PipelineStepName;
+    }
+): void => {
+    if (usage) {
+        recordPipelineTokenUsage(usage, { node: options.node });
+        return;
+    }
+    recordPipelineTokenUsage(
+        estimateTokenUsage(options.promptText, options.completionText),
+        { estimated: true, node: options.node }
+    );
+};

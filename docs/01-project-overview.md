@@ -24,7 +24,7 @@
 
 | 技术 | 当前用途 |
 |------|----------|
-| Ollama | 本地 chat + embed（`ChatOllama`、流式 thinking） |
+| Ollama | embed / 图片 OCR / Mem0 向量；`CHAT_PROVIDER=ollama` 时也承担在线 chat |
 | LangChain | Intake / Analyst / Organizer 等模型调用；**StructuredTool**（`agentflow/tools/`）；embed 经 `@langchain/ollama`（`@fambrain/corpus`） |
 | LangSmith | 配 `LANGSMITH_API_KEY` 后自动上报 [smith.langchain.com](https://smith.langchain.com)；`/health` 可见状态 |
 | Qdrant | 语料按 `corpusUserId` 分 collection（named vectors `dense`+`sparse`，引擎 RRF）；Mem0 独立 unnamed dense collection；单文件 HITL 按 path 增量 upsert |
@@ -143,7 +143,11 @@ pnpm run dev
 | `FAMBRAIN_MEMBERSHIP_AUDIT_ID_SUFFIX` | 否 | 身份证号后缀匹配则拥有「审核成员」权限；不设则用代码内默认值 |
 | `OLLAMA_BASE_URL` | 否 | 完整 Ollama URL；不设则由 `OLLAMA_HOST` + `OLLAMA_PORT` 拼接 |
 | `OLLAMA_MODEL` | 建议 | 默认 `qwen2.5:14b`；Intake / Analyst 等未单独配置时使用 |
-| `OLLAMA_MODEL_INTAKE_COORDINATOR` | 否 | 仅入口接线员专用模型；不配则等于 `OLLAMA_MODEL` |
+| `OLLAMA_MODEL_INTAKE_COORDINATOR` | 否 | 仅入口接线员在 `CHAT_PROVIDER=ollama` 时使用；不配则等于 `OLLAMA_MODEL` |
+| `CHAT_PROVIDER` | 否 | `ollama`（默认）或 `openai`。**须显式切换**；openai 失败不会回落到本地 14b。覆盖 Intake / Analyst / 摘要 / 全局 B / LangMem / 静默抽记忆 / DAG 填表 |
+| `OPENAI_BASE_URL` | `CHAT_PROVIDER=openai` 时建议 | OpenAI 兼容根地址，默认 `https://api.deepseek.com` |
+| `OPENAI_API_KEY` / `DEEPSEEK_API_KEY` | `CHAT_PROVIDER=openai` 时必填 | 二选一；DeepSeek 用同一套 Chat Completions |
+| `OPENAI_MODEL` | 否 | openai 时 Intake 模型，默认 `deepseek-v4-flash` |
 | `OLLAMA_MODEL_EMBED` | 否 | 嵌入模型；不配则 `nomic-embed-text`（知识入库师 embed 用） |
 | `INDEX_EMBED_CONCURRENCY` | 否 | 入库 embed 同时进行的批次数，默认 `3`（上限 16） |
 | `INDEX_EMBED_BATCH_SIZE` | 否 | 每批 chunk 数，默认 `8`（上限 64） |
@@ -189,9 +193,9 @@ pnpm run dev
 | `apps/brain-service/src/agentflow/utils/` | 跨 Agent 通用工具（JSON 解析、Zod 辅助） |
 | `packages/auth/` | JWT、登录注册、会话 |
 | `packages/brain-types/` | `DbChatTurn`、`AgentPipelineContext` 等共享类型 |
-| `packages/brain-config/` | Ollama / Qdrant 环境配置 |
+| `packages/brain-config/` | Ollama / OpenAI 兼容 Chat / Qdrant 环境配置 |
 | `packages/corpus/` | 语料路径、Qdrant 入库/检索（dense+sparse hybrid）、vault workspace |
-| `packages/brain-shared/` | agent-log、ollama-native-stream |
+| `packages/brain-shared/` | agent-log、completeChat、ollama-native-stream |
 | `apps/web/src/server/chat/handle-post-message.ts` | 存用户消息 → 调 Orchestrator → SSE → 存 assistant |
 | `apps/web/src/app/api/conversations/[id]/messages/route.ts` | GET 历史；POST 鉴权后委托 BFF |
 | `data/doc/users/<userId>/corpus/` | 可检索履历 Markdown（过渡期既有 md **只读于 HITL**）；新编辑走 `vault/originals/workspace/*.txt` 语料化到 `personal/imports/workspace/`；`corpus/learned/` 为自主学习写入（Phase C） |

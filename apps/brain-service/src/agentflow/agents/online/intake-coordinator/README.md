@@ -33,7 +33,7 @@ Intake 是 Pipeline 的**第一个 LLM 在线 Agent**（图内位于 **`prepareT
 
 | 技术 | 文件 | 用途 |
 |------|------|------|
-| LangChain `ChatOllama` | `llm/ollama-chat.ts` | 调本地 Ollama（模型名见 `getBrainServiceConfig().ollama.models.intakeCoordinator`） |
+| `completeChat`（Ollama / OpenAI 兼容 HTTP） | `llm/complete.ts` | `CHAT_PROVIDER=ollama|openai`。openai 时 Intake 走 DeepSeek 等 Chat Completions（thinking disabled + json_object）；embed/vision 仍走 Ollama |
 | Zod | `contract/schema.ts` | 校验 / 规范化 LLM 输出的 JSON |
 | 正则 + 纯函数 guard | `guards/*` | 闲聊、plan **normalize/dedupe/canonicalize**（不发明槽）、userFact 短路 |
 | Mem0 / LangMem | 由 **`prepareTurnStart`** 注入 `memoryBlock` | 帮理解多轮指代，**不能**替代 searchQuery 里的实体词 |
@@ -69,7 +69,7 @@ intake-coordinator/
 2. `contract/prompt.ts` — 字段含义 + Prompt 规则（pathPlan.steps[]）
 3. `path-plan/from-llm.ts` — 合法化与派生 slots
 4. `pipeline/intake-pipeline.ts` — 主路径编排
-5. `llm/ollama-chat.ts` — LLM 输入输出
+5. `llm/complete.ts` — LLM 输入输出
 6. [`../user-fact/`](../user-fact/README.md) — remember/recall Mem0
 7. [`../corpus-lister/enumeration/`](../corpus-lister/enumeration/) — 列举分页 / UI exact-match
 
@@ -94,7 +94,7 @@ pipeline/graph/compile.ts  →  runPrepareTurnStart()     ../prepare-turn-start/
     ▼
 intake-coordinator/index.ts                 runIntakeNode()
     │
-    ├─ completeIntakeCoordinator()          llm/ollama-chat.ts  ← 原文第 1 次
+    ├─ completeIntakeCoordinator()          llm/complete.ts  ← 原文第 1 次
     │       输入: intakeHistory + memoryBlock + contract/prompt
     │       输出: 原始 JSON 字符串
     │
@@ -538,7 +538,7 @@ LLM 返回非 JSON / Zod 校验失败
 
 | 文件 | 职责 |
 |------|------|
-| `ollama-chat.ts` | 组 LangChain messages → 调 Ollama → 返回原始 JSON 字符串 |
+| `complete.ts` | 组 messages → `completeChat`（Ollama 或 OpenAI 兼容）→ 返回原始 JSON 字符串 |
 
 ### pipeline/
 

@@ -1,12 +1,10 @@
-import { HumanMessage, SystemMessage } from "@langchain/core/messages";
-import { ChatOllama } from "@langchain/ollama";
 import { getBrainServiceConfig } from "@fambrain/brain-config";
 import { logAgentOut } from "@fambrain/brain-shared/agent-log";
-import { estimateTokenUsage, recordLangChainOllamaUsage, recordPipelineTokenUsage, } from "@fambrain/brain-shared/pipeline-run-context";
-import { streamOllamaNative } from "@fambrain/brain-shared/ollama-native-stream";
+import { completeChat, streamChat, type ChatMessage } from "@fambrain/brain-shared/chat";
+import { recordCompleteChatUsage } from "@fambrain/brain-shared/pipeline-run-context";
 import { dedupeCitations } from "@/agentflow/agents/online/content-organizer";
 import type { KnowledgeHit } from "@/agentflow/agents/online/knowledge-manager";
-import { parseJsonObject, textFromResponse } from "@/agentflow/utils";
+import { parseJsonObject } from "@/agentflow/utils";
 import {
     resolveAnalystQueryProfile,
     sliceHitsForAnalystStream,
@@ -26,12 +24,6 @@ import {
 import type { InformationAnalystResult } from "../interface";
 
 type SubQuestionStreamChunk = { type: "assistant"; text: string };
-
-const { ollama } = getBrainServiceConfig();
-const llm = new ChatOllama({
-    baseUrl: ollama.baseUrl,
-    model: ollama.models.intakeCoordinator,
-});
 
 const sliceHitsForAnalyst = (input: SubQuestionAnalyzeInput): KnowledgeHit[] => {
     const profile = resolveAnalystQueryProfile({
@@ -104,43 +96,31 @@ export async function* streamAnalyzeSubQuestion(
     }
 
     let fullContent = "";
-    const promptMessages = [
+    const promptMessages: ChatMessage[] = [
         {
             role: "system",
-            content: buildSubQuestionStreamPrompt(
-                profile,
-                payload.topics
-            ),
+            content: buildSubQuestionStreamPrompt(profile, payload.topics),
         },
         { role: "user", content: JSON.stringify(payload) },
-    ] as const;
+    ];
     try {
-        const gen = streamOllamaNative({
-            messages: [...promptMessages],
-            think: false,
-            model: ollama.models.intakeCoordinator,
+        const gen = streamChat({
+            messages: promptMessages,
+            jsonMode: false,
+            thinking: "disabled",
         });
         while (true) {
             const next = await gen.next();
             if (next.done) {
-                const usage = next.value;
-                if (usage) {
-                    recordPipelineTokenUsage({
-                        prompt: usage.promptTokens,
-                        completion: usage.completionTokens,
-                    }, { node: "analyst" });
-                }
-                else {
-                    recordPipelineTokenUsage(estimateTokenUsage(JSON.stringify(promptMessages), fullContent), {
-                        estimated: true,
-                        node: "analyst",
-                    });
-                }
+                recordCompleteChatUsage(next.value, {
+                    promptText: JSON.stringify(promptMessages),
+                    completionText: fullContent,
+                    node: "analyst",
+                });
                 break;
             }
             const chunk = next.value;
-            if (chunk.kind !== "content")
-                continue;
+            if (chunk.kind !== "content") continue;
             fullContent = chunk.fullText.trim();
             if (fullContent) {
                 yield { type: "assistant", text: fullContent };
@@ -156,6 +136,7 @@ export async function* streamAnalyzeSubQuestion(
             label: input.userQuestion,
             queryType: profile,
             hitCount: hits.length,
+            chatProvider: getBrainServiceConfig().chat.provider,
             answerPreview:
                 result.answer.length > 120
                     ? `${result.answer.slice(0, 120)}…`
@@ -209,22 +190,27 @@ export const completeAnalyzeSubQuestion = async (
     }
 
     try {
-        const ai = await llm.invoke([
-            new SystemMessage(subQuestionPrompt),
-            new HumanMessage(JSON.stringify(payload)),
-        ]);
-        const raw = textFromResponse(ai.content);
-        recordLangChainOllamaUsage(ai, {
-            promptText: `${subQuestionPrompt}\n${JSON.stringify(payload)}`,
-            completionText: raw,
+        const promptText = `${subQuestionPrompt}\n${JSON.stringify(payload)}`;
+        const resultChat = await completeChat({
+            messages: [
+                { role: "system", content: subQuestionPrompt },
+                { role: "user", content: JSON.stringify(payload) },
+            ],
+            jsonMode: true,
+            thinking: "disabled",
+        });
+        recordCompleteChatUsage(resultChat.usage, {
+            promptText,
+            completionText: resultChat.text,
             node: "analyst",
         });
-        const parsed = parseJsonObject<InformationAnalystResult>(raw);
+        const parsed = parseJsonObject<InformationAnalystResult>(resultChat.text);
         const result = normalizeAnalystResult(parsed, fallback);
         logAgentOut("InformationAnalyst", "子问出去", {
             label: input.userQuestion,
             source: parsed ? "llm" : "fallback_parse",
             hitCount: hits.length,
+            chatProvider: resultChat.provider,
             answerPreview:
                 result.answer.length > 120
                     ? `${result.answer.slice(0, 120)}…`

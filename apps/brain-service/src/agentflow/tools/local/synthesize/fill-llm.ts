@@ -2,11 +2,9 @@
  * 可选 LLM 填充 MatchReport（结构化 JSON）；失败则由调用方回退确定性模板。
  * SYNTHESIZE_MATCH_LLM=0 时跳过。
  */
-import { HumanMessage, SystemMessage } from "@langchain/core/messages";
-import { ChatOllama } from "@langchain/ollama";
-import { getBrainServiceConfig } from "@fambrain/brain-config";
-import { recordLangChainOllamaUsage } from "@fambrain/brain-shared/pipeline-run-context";
-import { parseJsonObject, textFromResponse } from "@/agentflow/utils";
+import { completeChat } from "@fambrain/brain-shared/chat";
+import { recordCompleteChatUsage } from "@fambrain/brain-shared/pipeline-run-context";
+import { parseJsonObject } from "@/agentflow/utils";
 import type { ToolRunResult } from "@/agentflow/agents/online/tool-orchestrator/interface";
 import { parseMatchReport } from "./match-report";
 import type { MatchReport } from "./interface";
@@ -46,30 +44,26 @@ export const fillMatchReportWithLlm = async (input: {
     })),
   };
 
-  const { ollama } = getBrainServiceConfig();
-  const llm = new ChatOllama({
-    baseUrl: ollama.baseUrl,
-    model: ollama.models.intakeCoordinator,
-    temperature: 0,
-  });
-
   try {
-    const messages = [
-      new SystemMessage(SYSTEM),
-      new HumanMessage(JSON.stringify(materials, null, 2)),
-    ];
-    const promptText = JSON.stringify(materials);
-    const res = await llm.invoke(messages);
-    const text = textFromResponse(res.content);
-    recordLangChainOllamaUsage(res, {
+    const promptText = JSON.stringify(materials, null, 2);
+    const resultChat = await completeChat({
+      messages: [
+        { role: "system", content: SYSTEM },
+        { role: "user", content: promptText },
+      ],
+      jsonMode: true,
+      thinking: "disabled",
+      temperature: 0,
+    });
+    recordCompleteChatUsage(resultChat.usage, {
       promptText,
-      completionText: text,
+      completionText: resultChat.text,
       node: "plan_dag",
     });
-    if (!text.trim()) {
+    if (!resultChat.text.trim()) {
       return null;
     }
-    const obj = parseJsonObject(text);
+    const obj = parseJsonObject(resultChat.text);
     return parseMatchReport(obj);
   } catch {
     return null;

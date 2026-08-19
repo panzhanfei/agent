@@ -1,5 +1,5 @@
 /**
- * Mem0 + LangMem 本地验证（需 Ollama；Mem0 可设 MEM0_ENABLED=false 仅测 LangMem）。
+ * Mem0 + LangMem 本地验证（LangMem 跟 CHAT_PROVIDER；Mem0 可设 MEM0_ENABLED=false 仅测 LangMem）。
  * LangMem 摘要落 Prisma Conversation；Mem0 向量落 Qdrant 独立 collection。
  *
  *   pnpm run verify:memory

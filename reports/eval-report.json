@@ -2,14 +2,14 @@
   "kind": "eval",
   "title": "Eval 全量报表",
   "pass": false,
-  "generatedAt": "2026-08-19T10:23:53.917Z",
+  "generatedAt": "2026-08-19T16:26:49.406Z",
   "scope": "full",
   "corpusUserId": "cmp9ihokn00000mbmhwh6gn0b",
   "qdrantUp": true,
   "metrics": {
-    "goldenPassRate": 0.8620689655172413,
-    "passed": 25,
-    "total": 29,
+    "goldenPassRate": 0.9666666666666667,
+    "passed": 29,
+    "total": 30,
     "coalesceFailureRate": 0,
     "coalesceChecks": 8,
     "coalesceFailures": 0,
@@ -18,27 +18,26 @@
     "cacheEligibleTurns": 1,
     "cacheNote": "已命中 L1 同问短路或 L2 检索 hits cache",
     "latencyMs": {
-      "avg": 4199.517241379311,
-      "min": 5,
-      "max": 12576,
-      "p95": 12509
+      "avg": 3690.766666666667,
+      "min": 6,
+      "max": 12694,
+      "p95": 11087
     },
     "tokens": {
-      "samples": 19,
-      "avgTotal": 2814,
-      "p95Total": 4233,
+      "samples": 20,
+      "avgTotal": 14780,
+      "p95Total": 18194,
       "byNodeAvg": {
-        "intake": 2364,
-        "analyst": 423,
-        "global_rebatch": 27
+        "intake": 13287,
+        "analyst": 1493
       }
     }
   },
   "totals": {
-    "cases": 29,
-    "failed": 4,
+    "cases": 30,
+    "failed": 1,
     "memFailed": 0,
-    "profileFailed": 0,
+    "profileFailed": 1,
     "listPaginationFailed": 0,
     "dualListPaginationFailed": 0,
     "fiveCompositeFailed": 0,
@@ -49,19 +48,17 @@
     "coalesceFailures": 0
   },
   "failures": [
-    "- G4: 缺少 step: content_organizer; 缺少 step: analyst; 缺少 step（任一即可）: km_retrieve | list_retrieve | plan_slot_join | plan_merge | retrieval | plan_executor",
-    "- G5b: answer 未匹配 /城管|城市管理|React|UniApp|TypeScript|Vite/",
     "- K5: Top1 path 未匹配 /experience|奥卡云/",
-    "- E2E-brother: answer 未匹配 /潘小强/"
+    "- G-履历综合-t4: pipeline error: OpenAI 兼容聊天未返回助手文本（https://api.deepseek.com/chat/completions，model=deepseek-v4-flash）; 缺少 step: analyst; 缺少 step（任一即可）: km_retrieve | list_retrieve | plan_slot_join | plan_merge | retrieval | plan_executor; answer 缺少「云联智慧」; answer 缺少「友谊时光」; answer 缺少「奖多多」; answer 缺少「奥卡云」"
   ],
   "fullReport": {
-    "generatedAt": "2026-08-19T10:23:53.912Z",
+    "generatedAt": "2026-08-19T16:26:49.401Z",
     "corpusUserId": "cmp9ihokn00000mbmhwh6gn0b",
     "qdrantUp": true,
     "metrics": {
-      "goldenPassRate": 0.8620689655172413,
-      "passed": 25,
-      "total": 29,
+      "goldenPassRate": 0.9666666666666667,
+      "passed": 29,
+      "total": 30,
       "coalesceFailureRate": 0,
       "coalesceChecks": 8,
       "coalesceFailures": 0,
@@ -70,19 +67,18 @@
       "cacheEligibleTurns": 1,
       "cacheNote": "已命中 L1 同问短路或 L2 检索 hits cache",
       "latencyMs": {
-        "avg": 4199.517241379311,
-        "min": 5,
-        "max": 12576,
-        "p95": 12509
+        "avg": 3690.766666666667,
+        "min": 6,
+        "max": 12694,
+        "p95": 11087
       },
       "tokens": {
-        "samples": 19,
-        "avgTotal": 2814,
-        "p95Total": 4233,
+        "samples": 20,
+        "avgTotal": 14780,
+        "p95Total": 18194,
         "byNodeAvg": {
-          "intake": 2364,
-          "analyst": 423,
-          "global_rebatch": 27
+          "intake": 13287,
+          "analyst": 1493
         }
       }
     },
@@ -93,7 +89,7 @@
         "label": "闲聊不检索",
         "pass": true,
         "reason": "ok",
-        "latencyMs": 1778
+        "latencyMs": 8137
       },
       {
         "id": "G2",
@@ -101,11 +97,10 @@
         "label": "姓名（语料 retrieve 或 Mem0 recall）",
         "pass": true,
         "reason": "ok",
-        "latencyMs": 4814,
-        "totalTokens": 3024,
+        "latencyMs": 2407,
+        "totalTokens": 13245,
         "tokensByNode": {
-          "intake": 2192,
-          "analyst": 832
+          "intake": 13245
         }
       },
       {
@@ -114,11 +109,10 @@
         "label": "姓名口语变体：我的名字叫什么",
         "pass": true,
         "reason": "ok",
-        "latencyMs": 4426,
-        "totalTokens": 3027,
+        "latencyMs": 1881,
+        "totalTokens": 13180,
         "tokensByNode": {
-          "intake": 2193,
-          "analyst": 834
+          "intake": 13180
         }
       },
       {
@@ -127,11 +121,10 @@
         "label": "姓名口语变体：我叫什么",
         "pass": true,
         "reason": "ok",
-        "latencyMs": 4424,
-        "totalTokens": 3025,
+        "latencyMs": 2255,
+        "totalTokens": 13245,
         "tokensByNode": {
-          "intake": 2192,
-          "analyst": 833
+          "intake": 13245
         }
       },
       {
@@ -140,23 +133,24 @@
         "label": "项目与技术",
         "pass": true,
         "reason": "ok",
-        "latencyMs": 12576,
-        "totalTokens": 2785,
+        "latencyMs": 6131,
+        "totalTokens": 26796,
         "tokensByNode": {
-          "intake": 2279,
-          "global_rebatch": 506
+          "intake": 13349,
+          "analyst": 13447
         }
       },
       {
         "id": "G4",
         "tier": "pipeline",
         "label": "城管平台技术",
-        "pass": false,
-        "reason": "缺少 step: content_organizer; 缺少 step: analyst; 缺少 step（任一即可）: km_retrieve | list_retrieve | plan_slot_join | plan_merge | retrieval | plan_executor",
-        "latencyMs": 5043,
-        "totalTokens": 2213,
+        "pass": true,
+        "reason": "ok",
+        "latencyMs": 12694,
+        "totalTokens": 17448,
         "tokensByNode": {
-          "intake": 2213
+          "intake": 13286,
+          "analyst": 4162
         }
       },
       {
@@ -165,22 +159,23 @@
         "label": "无上下文 clarify",
         "pass": true,
         "reason": "ok",
-        "latencyMs": 4194,
-        "totalTokens": 4233,
+        "latencyMs": 7413,
+        "totalTokens": 13126,
         "tokensByNode": {
-          "intake": 4233
+          "intake": 13126
         }
       },
       {
         "id": "G5b",
         "tier": "pipeline",
         "label": "多轮指代补全（QU-02）",
-        "pass": false,
-        "reason": "answer 未匹配 /城管|城市管理|React|UniApp|TypeScript|Vite/",
-        "latencyMs": 8700,
-        "totalTokens": 2389,
+        "pass": true,
+        "reason": "ok",
+        "latencyMs": 5127,
+        "totalTokens": 18194,
         "tokensByNode": {
-          "intake": 2389
+          "intake": 13309,
+          "analyst": 4885
         }
       },
       {
@@ -189,11 +184,11 @@
         "label": "实体替换续问（入职年份 · 云联智慧 · QU-03）",
         "pass": true,
         "reason": "ok",
-        "latencyMs": 6381,
-        "totalTokens": 3155,
+        "latencyMs": 10717,
+        "totalTokens": 14290,
         "tokensByNode": {
-          "intake": 2200,
-          "analyst": 955
+          "intake": 13286,
+          "analyst": 1004
         }
       },
       {
@@ -202,7 +197,7 @@
         "label": "姓名（Intake 改写 searchQuery）",
         "pass": true,
         "reason": "ok (hybrid, candidates=9)",
-        "latencyMs": 84,
+        "latencyMs": 139,
         "coalesceViolation": false
       },
       {
@@ -211,7 +206,7 @@
         "label": "姓名（identityGuard）",
         "pass": true,
         "reason": "ok (hybrid, candidates=9)",
-        "latencyMs": 107,
+        "latencyMs": 98,
         "coalesceViolation": false
       },
       {
@@ -220,7 +215,7 @@
         "label": "姓名口语：我的名字叫什么",
         "pass": true,
         "reason": "ok (hybrid, candidates=9)",
-        "latencyMs": 101,
+        "latencyMs": 105,
         "coalesceViolation": false
       },
       {
@@ -229,7 +224,7 @@
         "label": "亲友哥哥（default 检索）",
         "pass": true,
         "reason": "ok (hybrid, candidates=12)",
-        "latencyMs": 94,
+        "latencyMs": 114,
         "coalesceViolation": false
       },
       {
@@ -238,7 +233,7 @@
         "label": "亲友嫂子（default 检索）",
         "pass": true,
         "reason": "ok (hybrid, candidates=12)",
-        "latencyMs": 87,
+        "latencyMs": 106,
         "coalesceViolation": false
       },
       {
@@ -247,7 +242,7 @@
         "label": "列举经历（corpus-lister 目录扫盘）",
         "pass": true,
         "reason": "ok (list_corpus, total=5, hits=5)",
-        "latencyMs": 5
+        "latencyMs": 6
       },
       {
         "id": "K4",
@@ -255,7 +250,7 @@
         "label": "项目技术",
         "pass": true,
         "reason": "ok (hybrid, candidates=16)",
-        "latencyMs": 83,
+        "latencyMs": 135,
         "coalesceViolation": false
       },
       {
@@ -264,7 +259,7 @@
         "label": "奥卡云经历",
         "pass": false,
         "reason": "Top1 path 未匹配 /experience|奥卡云/",
-        "latencyMs": 79,
+        "latencyMs": 102,
         "coalesceViolation": false
       },
       {
@@ -273,7 +268,7 @@
         "label": "开源 GitHub（external_link 单槽检索）",
         "pass": true,
         "reason": "ok (hybrid, candidates=12)",
-        "latencyMs": 83,
+        "latencyMs": 110,
         "coalesceViolation": false
       },
       {
@@ -282,10 +277,10 @@
         "label": "单槽开源链接：Sentinel GitHub",
         "pass": true,
         "reason": "ok",
-        "latencyMs": 6167,
-        "totalTokens": 2228,
+        "latencyMs": 6741,
+        "totalTokens": 13220,
         "tokensByNode": {
-          "intake": 2228
+          "intake": 13220
         }
       },
       {
@@ -294,11 +289,10 @@
         "label": "全链路姓名",
         "pass": true,
         "reason": "ok",
-        "latencyMs": 5762,
-        "totalTokens": 3026,
+        "latencyMs": 1779,
+        "totalTokens": 13181,
         "tokensByNode": {
-          "intake": 2192,
-          "analyst": 834
+          "intake": 13181
         }
       },
       {
@@ -307,10 +301,10 @@
         "label": "全链路年龄",
         "pass": true,
         "reason": "ok",
-        "latencyMs": 3299,
-        "totalTokens": 2195,
+        "latencyMs": 2723,
+        "totalTokens": 13187,
         "tokensByNode": {
-          "intake": 2195
+          "intake": 13187
         }
       },
       {
@@ -319,24 +313,23 @@
         "label": "全链路手机（语料 identity）",
         "pass": true,
         "reason": "ok",
-        "latencyMs": 3959,
-        "totalTokens": 3034,
+        "latencyMs": 1830,
+        "totalTokens": 13186,
         "tokensByNode": {
-          "intake": 2187,
-          "analyst": 847
+          "intake": 13186
         }
       },
       {
         "id": "E2E-brother",
         "tier": "pipeline",
         "label": "亲友：哥哥姓名",
-        "pass": false,
-        "reason": "answer 未匹配 /潘小强/",
-        "latencyMs": 3904,
-        "totalTokens": 3038,
+        "pass": true,
+        "reason": "ok",
+        "latencyMs": 3438,
+        "totalTokens": 15593,
         "tokensByNode": {
-          "intake": 2199,
-          "analyst": 839
+          "intake": 13173,
+          "analyst": 2420
         }
       },
       {
@@ -344,12 +337,12 @@
         "tier": "pipeline",
         "label": "亲友：嫂子姓名",
         "pass": true,
-        "reason": "ok（retry）",
-        "latencyMs": 4005,
-        "totalTokens": 2602,
+        "reason": "ok",
+        "latencyMs": 3178,
+        "totalTokens": 15587,
         "tokensByNode": {
-          "intake": 2210,
-          "analyst": 392
+          "intake": 13172,
+          "analyst": 2415
         }
       },
       {
@@ -358,11 +351,11 @@
         "label": "三连问：本人+哥哥+嫂子姓名",
         "pass": true,
         "reason": "ok",
-        "latencyMs": 7271,
-        "totalTokens": 4009,
+        "latencyMs": 5015,
+        "totalTokens": 14966,
         "tokensByNode": {
-          "intake": 2332,
-          "analyst": 1677
+          "intake": 13439,
+          "analyst": 1527
         }
       },
       {
@@ -371,10 +364,10 @@
         "label": "全链路列举",
         "pass": true,
         "reason": "ok",
-        "latencyMs": 5000,
-        "totalTokens": 2202,
+        "latencyMs": 5346,
+        "totalTokens": 13265,
         "tokensByNode": {
-          "intake": 2202
+          "intake": 13265
         }
       },
       {
@@ -383,10 +376,10 @@
         "label": "纯 list 双槽：项目经历 + 从业经历",
         "pass": true,
         "reason": "ok",
-        "latencyMs": 5436,
-        "totalTokens": 2293,
+        "latencyMs": 2455,
+        "totalTokens": 13372,
         "tokensByNode": {
-          "intake": 2293
+          "intake": 13372
         }
       },
       {
@@ -395,10 +388,10 @@
         "label": "五连问：姓名+年龄+记住QQ side-effect+履历list+开源链接",
         "pass": true,
         "reason": "ok",
-        "latencyMs": 11415,
-        "totalTokens": 2459,
+        "latencyMs": 4486,
+        "totalTokens": 13484,
         "tokensByNode": {
-          "intake": 2459
+          "intake": 13484
         }
       },
       {
@@ -407,10 +400,22 @@
         "label": "六连问：姓名+年龄+QQ(recall)+履历+GitHub+手机（QQ 须先 remember）",
         "pass": true,
         "reason": "ok",
-        "latencyMs": 12509,
-        "totalTokens": 2532,
+        "latencyMs": 4968,
+        "totalTokens": 13878,
         "tokensByNode": {
-          "intake": 2532
+          "intake": 13878
+        }
+      },
+      {
+        "id": "E2E-weather-tianshui",
+        "tier": "pipeline",
+        "label": "天气：天水（重复地名仍走 get_weather / MCP）",
+        "pass": true,
+        "reason": "ok",
+        "latencyMs": 11087,
+        "totalTokens": 13162,
+        "tokensByNode": {
+          "intake": 13162
         }
       }
     ],
@@ -421,10 +426,10 @@
         "label": "P0-16 对话 A 记 QQ → 新对话 B 问（对齐 Intake 示例 remember/recall） · a",
         "pass": true,
         "reason": "ok",
-        "latencyMs": 9023,
-        "totalTokens": 4339,
+        "latencyMs": 4996,
+        "totalTokens": 13131,
         "tokensByNode": {
-          "intake": 4339
+          "intake": 13131
         }
       },
       {
@@ -433,10 +438,10 @@
         "label": "P0-16 对话 A 记 QQ → 新对话 B 问（对齐 Intake 示例 remember/recall） · b",
         "pass": true,
         "reason": "ok",
-        "latencyMs": 3341,
-        "totalTokens": 2188,
+        "latencyMs": 1503,
+        "totalTokens": 13123,
         "tokensByNode": {
-          "intake": 2188
+          "intake": 13123
         }
       }
     ],
@@ -447,14 +452,14 @@
         "label": "同问重复（L1 同问短路 / L2 hits cache；主路径仍为 planFanOut 真实步骤） · turn1",
         "pass": true,
         "reason": "ok",
-        "latencyMs": 4498,
+        "latencyMs": 5839,
         "cacheHit": false,
         "cacheExpected": false,
         "repeatHit": false,
-        "totalTokens": 3512,
+        "totalTokens": 17503,
         "tokensByNode": {
-          "intake": 2157,
-          "analyst": 1355
+          "intake": 13286,
+          "analyst": 4217
         }
       },
       {
@@ -463,7 +468,7 @@
         "label": "同问重复（L1 同问短路 / L2 hits cache；主路径仍为 planFanOut 真实步骤） · turn2",
         "pass": true,
         "reason": "ok（L1 同问短路）",
-        "latencyMs": 27,
+        "latencyMs": 18,
         "cacheHit": true,
         "cacheExpected": true,
         "repeatHit": true
@@ -476,13 +481,13 @@
         "label": "R6-3 综合履历四轮（fail-first） · turn1",
         "pass": true,
         "reason": "ok",
-        "latencyMs": 21897,
+        "latencyMs": 7219,
         "repeatHit": false,
         "repeatExpected": false,
-        "totalTokens": 5034,
+        "totalTokens": 29310,
         "tokensByNode": {
-          "intake": 2448,
-          "analyst": 2586
+          "intake": 13412,
+          "analyst": 15898
         }
       },
       {
@@ -491,7 +496,7 @@
         "label": "R6-3 综合履历四轮（fail-first） · turn2",
         "pass": true,
         "reason": "ok（同问短路：hit）",
-        "latencyMs": 20,
+        "latencyMs": 47,
         "repeatHit": true,
         "repeatExpected": true
       },
@@ -501,28 +506,23 @@
         "label": "R6-3 综合履历四轮（fail-first） · turn3",
         "pass": true,
         "reason": "ok",
-        "latencyMs": 4448,
+        "latencyMs": 3658,
         "repeatHit": false,
         "repeatExpected": false,
-        "totalTokens": 2201,
+        "totalTokens": 14394,
         "tokensByNode": {
-          "intake": 2201
+          "intake": 14394
         }
       },
       {
         "id": "G-履历综合-t4",
         "tier": "pipeline",
         "label": "R6-3 综合履历四轮（fail-first） · turn4",
-        "pass": true,
-        "reason": "ok",
-        "latencyMs": 4589,
+        "pass": false,
+        "reason": "pipeline error: OpenAI 兼容聊天未返回助手文本（https://api.deepseek.com/chat/completions，model=deepseek-v4-flash）; 缺少 step: analyst; 缺少 step（任一即可）: km_retrieve | list_retrieve | plan_slot_join | plan_merge | retrieval | plan_executor; answer 缺少「云联智慧」; answer 缺少「友谊时光」; answer 缺少「奖多多」; answer 缺少「奥卡云」",
+        "latencyMs": 1315,
         "repeatHit": false,
-        "repeatExpected": false,
-        "totalTokens": 2298,
-        "tokensByNode": {
-          "intake": 2196,
-          "persist_turn_end": 102
-        }
+        "repeatExpected": false
       }
     ],
     "listPaginationProbe": [
@@ -532,7 +532,7 @@
         "label": "列举 exhaustive→continue（blocks 游标 + 整页展示） · turn1",
         "pass": true,
         "reason": "ok",
-        "latencyMs": 1653
+        "latencyMs": 510
       },
       {
         "id": "E2E-list-pagination-t2",
@@ -540,7 +540,7 @@
         "label": "列举 exhaustive→continue（blocks 游标 + 整页展示） · turn2",
         "pass": true,
         "reason": "ok",
-        "latencyMs": 386
+        "latencyMs": 439
       }
     ],
     "dualListPaginationProbe": [
@@ -550,10 +550,10 @@
         "label": "双槽首问 + 更多项目续页 · turn1",
         "pass": true,
         "reason": "ok",
-        "latencyMs": 4712,
-        "totalTokens": 2277,
+        "latencyMs": 2865,
+        "totalTokens": 13372,
         "tokensByNode": {
-          "intake": 2277
+          "intake": 13372
         }
       },
       {
@@ -562,7 +562,7 @@
         "label": "双槽首问 + 更多项目续页 · turn2",
         "pass": true,
         "reason": "ok",
-        "latencyMs": 873
+        "latencyMs": 452
       }
     ],
     "fiveCompositeProbe": [
@@ -572,10 +572,10 @@
         "label": "五连问分轮：remember QQ 单轮 + 四槽语料复合 · turn1",
         "pass": true,
         "reason": "ok",
-        "latencyMs": 9451,
-        "totalTokens": 4341,
+        "latencyMs": 2796,
+        "totalTokens": 13131,
         "tokensByNode": {
-          "intake": 4341
+          "intake": 13131
         }
       },
       {
@@ -584,10 +584,10 @@
         "label": "五连问分轮：remember QQ 单轮 + 四槽语料复合 · turn2",
         "pass": true,
         "reason": "ok",
-        "latencyMs": 8310,
-        "totalTokens": 2433,
+        "latencyMs": 3079,
+        "totalTokens": 13564,
         "tokensByNode": {
-          "intake": 2433
+          "intake": 13564
         }
       }
     ],
@@ -598,10 +598,10 @@
         "label": "六连问分轮：remember QQ → 姓名+年龄+QQ recall+履历+GitHub+手机 · turn1",
         "pass": true,
         "reason": "ok",
-        "latencyMs": 4643,
-        "totalTokens": 2166,
+        "latencyMs": 3024,
+        "totalTokens": 13131,
         "tokensByNode": {
-          "intake": 2166
+          "intake": 13131
         }
       },
       {
@@ -610,11 +610,10 @@
         "label": "六连问分轮：remember QQ → 姓名+年龄+QQ recall+履历+GitHub+手机 · turn2",
         "pass": true,
         "reason": "ok",
-        "latencyMs": 16869,
-        "totalTokens": 4769,
+        "latencyMs": 4724,
+        "totalTokens": 13975,
         "tokensByNode": {
-          "intake": 2523,
-          "analyst": 2246
+          "intake": 13975
         }
       }
     ],
@@ -625,11 +624,10 @@
         "label": "个人档案：姓名变体后接亲友三连问（同会话；单轮亲友见 E2E-brother / E2E-sister-in-law） · turn1",
         "pass": true,
         "reason": "ok",
-        "latencyMs": 5432,
-        "totalTokens": 3027,
+        "latencyMs": 4078,
+        "totalTokens": 13180,
         "tokensByNode": {
-          "intake": 2193,
-          "analyst": 834
+          "intake": 13180
         }
       },
       {
@@ -638,11 +636,11 @@
         "label": "个人档案：姓名变体后接亲友三连问（同会话；单轮亲友见 E2E-brother / E2E-sister-in-law） · turn2",
         "pass": true,
         "reason": "ok",
-        "latencyMs": 7393,
-        "totalTokens": 4004,
+        "latencyMs": 4410,
+        "totalTokens": 14926,
         "tokensByNode": {
-          "intake": 2329,
-          "analyst": 1675
+          "intake": 13387,
+          "analyst": 1539
         }
       }
     ],
@@ -677,7 +675,7 @@
         "label": "create/update/delete + materialize/purge",
         "pass": true,
         "reason": "crud+materialize+purge ok",
-        "latencyMs": 20
+        "latencyMs": 33
       },
       {
         "id": "V-nested-folder",
@@ -685,7 +683,7 @@
         "label": "嵌套目录 materialize/purge",
         "pass": true,
         "reason": "nested path ok",
-        "latencyMs": 12
+        "latencyMs": 16
       },
       {
         "id": "V-update-body",
@@ -700,8 +698,8 @@
         "tier": "pipeline",
         "label": "orchestrate「我的原文库」文件子线 interrupt list（Pause + jobId）",
         "pass": true,
-        "reason": "file list pause ok jobId=cmszy1r500001yibmybvcckhf (原文库「(根目录)」共 1 项： 📁 folder-mszxi4zv/)",
-        "latencyMs": 929
+        "reason": "file list pause ok jobId=cmt0b0m1h00018xbmkivh2jlp (原文库「(根目录)」共 44 项： 📁 folder-mszxi4zv/ 📁 folder-mszy3e6o/ 📁 folder-mszy3e80/ 📁)",
+        "latencyMs": 5957
       },
       {
         "id": "V-resume-requires-jobid",
@@ -716,8 +714,8 @@
         "tier": "pipeline",
         "label": "文件 thread 与问答 thread 世代独立",
         "pass": true,
-        "reason": "qa=fambrain:eval-file-thread-1787135020486:1 file0=fambrain-file:eval-file-thread-1787135020486:0 file1=fambrain-file:eval-file-thread-1787135020486:1",
-        "latencyMs": 3
+        "reason": "qa=fambrain:eval-file-thread-1787156802247:1 file0=fambrain-file:eval-file-thread-1787156802247:0 file1=fambrain-file:eval-file-thread-1787156802247:1",
+        "latencyMs": 4
       },
       {
         "id": "V-save-gate-sanitize",
@@ -725,7 +723,7 @@
         "label": "写回闸门：文件名清洗 + resume 解析",
         "pass": true,
         "reason": "save-gate sanitize/resume ok",
-        "latencyMs": 0
+        "latencyMs": 1
       },
       {
         "id": "V-save-gate-offer",
@@ -749,39 +747,39 @@
         "label": "闲聊/普通 QA 不启动文件子线、不出写回闸",
         "pass": true,
         "reason": "qa/chitchat did not start file line",
-        "latencyMs": 351
+        "latencyMs": 419
       },
       {
         "id": "V-save-offer-attachments",
         "tier": "pipeline",
         "label": "附件总结出闸：main_turn_complete + paused + jobId，取消 Resume 结束任务",
         "pass": true,
-        "reason": "save_offer + cancel ok jobId=cmszy1vww0004yibmx8wgtdao",
-        "latencyMs": 5826
+        "reason": "save_offer + cancel ok jobId=cmt0b0pd200048xbm79pbn67g",
+        "latencyMs": 3862
       },
       {
         "id": "V-workspace-superseded-by-qa",
         "tier": "pipeline",
         "label": "新 QA 顶替 workspace HITL（FileJob superseded）",
         "pass": true,
-        "reason": "workspace superseded by QA job=cmszy1x0s0006yibmuyab8ean",
-        "latencyMs": 5843
+        "reason": "workspace superseded by QA job=cmt0b0q8l00068xbmz3i168f4",
+        "latencyMs": 2416
       },
       {
         "id": "V-save-offer-survives-qa",
         "tier": "pipeline",
         "label": "新 QA 保留 paused save_offer，不作废写回闸按钮",
         "pass": true,
-        "reason": "save_offer kept across QA job=cmszy20g30008yibm26p82mjb",
-        "latencyMs": 1387
+        "reason": "save_offer kept across QA job=cmt0b0r9900088xbmseh9w8pg",
+        "latencyMs": 435
       },
       {
         "id": "V-file-job-ttl",
         "tier": "pipeline",
         "label": "FileJob 超过 TTL → cancelled",
         "pass": true,
-        "reason": "ttl expired job=cmszy21il000ayibmu9hgp5rg",
-        "latencyMs": 14
+        "reason": "ttl expired job=cmt0b0rla000a8xbm5e1iwdva",
+        "latencyMs": 17
       }
     ],
     "matchReportProbe": [
@@ -791,7 +789,7 @@
         "label": "hybrid synthesize_merge：MatchReport 四栏+结论枚举（L1～L5，fixture 不依赖外网）",
         "pass": true,
         "reason": "ok",
-        "latencyMs": 4
+        "latencyMs": 3
       }
     ]
   }

@@ -14,7 +14,7 @@ const mergeIncremental = (acc: string, chunk: unknown): string => {
         return chunk;
     return acc + chunk;
 };
-const formatOllamaError = (raw: string, status: number, baseUrl: string): string => {
+export const formatOllamaError = (raw: string, status: number, baseUrl: string): string => {
     const t = raw.trim();
     if (!t) {
         return `Ollama 无响应正文（HTTP ${status}），请检查服务是否已启动、OLLAMA_BASE_URL 是否为 ${baseUrl}`;
@@ -103,6 +103,7 @@ export async function* streamOllamaNative(options: {
     think?: boolean;
     model?: string;
     signal?: AbortSignal;
+    formatJson?: boolean;
 }): AsyncGenerator<OllamaStreamChunk, OllamaStreamUsage | undefined> {
     const { ollama } = getBrainServiceConfig();
     const baseUrl = ollama.baseUrl;
@@ -116,6 +117,7 @@ export async function* streamOllamaNative(options: {
             messages: options.messages,
             stream: true,
             ...(useThink ? { think: true } : {}),
+            ...(options.formatJson ? { format: "json" } : {}),
         }),
         signal: options.signal,
     });

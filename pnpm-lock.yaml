@@ -20,9 +20,6 @@ importers:
 
   apps/brain-service:
     dependencies:
-      '@aiagentkarl/weather-mcp-server':
-        specifier: ^0.1.0
-        version: 0.1.0(@cfworker/json-schema@4.1.1)
       '@fambrain/auth':
         specifier: workspace:*
         version: link:../../packages/auth
@@ -220,15 +217,9 @@ importers:
       '@fambrain/db':
         specifier: workspace:*
         version: link:../db
-      '@langchain/core':
-        specifier: ^1.1.46
-        version: 1.1.46(@opentelemetry/api@1.9.1)(openai@6.39.0(ws@8.20.1)(zod@4.4.3))(ws@8.20.1)
-      '@langchain/ollama':
-        specifier: ^1.2.7
-        version: 1.2.7(@langchain/core@1.1.46(@opentelemetry/api@1.9.1)(openai@6.39.0(ws@8.20.1)(zod@4.4.3))(ws@8.20.1))
       mem0ai:
         specifier: ^2.4.6
-        version: 2.4.6(@anthropic-ai/sdk@0.27.3)(@azure/identity@4.13.1)(@azure/search-documents@12.2.0)(@cloudflare/workers-types@4.20260531.1)(@google/genai@1.52.0(@modelcontextprotocol/sdk@1.29.0(@cfworker/json-schema@4.1.1)(zod@4.4.3)))(@langchain/core@1.1.46(@opentelemetry/api@1.9.1)(openai@6.39.0(ws@8.20.1)(zod@4.4.3))(ws@8.20.1))(@mistralai/mistralai@1.15.1)(@qdrant/js-client-rest@1.19.0(typescript@5.9.3))(@supabase/supabase-js@2.106.2)(@types/jest@29.5.14)(@types/pg@8.11.0)(better-sqlite3@12.10.0)(cloudflare@4.5.0)(groq-sdk@0.3.0)(neo4j-driver@5.28.3)(ollama@0.6.3)(pg@8.11.3)(redis@4.7.1)(ws@8.20.1)
+        version: 2.4.6(@anthropic-ai/sdk@0.27.3)(@azure/identity@4.13.1)(@azure/search-documents@12.2.0)(@cloudflare/workers-types@4.20260531.1)(@google/genai@1.52.0(@modelcontextprotocol/sdk@1.29.0(@cfworker/json-schema@4.1.1)(zod@3.25.76)))(@langchain/core@1.1.46(@opentelemetry/api@1.9.1)(openai@6.39.0(ws@8.20.1)(zod@3.25.76))(ws@8.20.1))(@mistralai/mistralai@1.15.1)(@qdrant/js-client-rest@1.19.0(typescript@5.9.3))(@supabase/supabase-js@2.106.2)(@types/jest@29.5.14)(@types/pg@8.11.0)(better-sqlite3@12.10.0)(cloudflare@4.5.0)(groq-sdk@0.3.0)(neo4j-driver@5.28.3)(ollama@0.6.3)(pg@8.11.3)(redis@4.7.1)(ws@8.20.1)
     devDependencies:
       '@types/node':
         specifier: ^20.19.41
@@ -362,10 +353,6 @@ packages:
   '@ai-sdk/provider@3.0.10':
     resolution: {integrity: sha512-Q3BZ27qfpYqnCYGvE3vt+Qi6LGOF9R5Nmzn+9JoM1lCRsD9mYaIhfJLkSunN48nfGXJ6n+XNV0J/XVpqGQl7Dw==}
     engines: {node: '>=18'}
-
-  '@aiagentkarl/weather-mcp-server@0.1.0':
-    resolution: {integrity: sha512-bbxWFgCsQPk9SL09mF9D9fUUz80LRR2oNaSqVZC/OheX/vY+KFaM/WGnAYhu4qyXjcYNJn9kcmAGLMtcNPRwyQ==}
-    hasBin: true
 
   '@alloc/quick-lru@5.2.0':
     resolution: {integrity: sha512-UrcABB+4bUrFABwbluTIBErXwvbsU/V7TZWfmbgJfbkwiBuziS9gxdODUyuiecfdGQ85jglMW6juS3+z5TsKLw==}
@@ -5573,14 +5560,6 @@ snapshots:
     dependencies:
       json-schema: 0.4.0
 
-  '@aiagentkarl/weather-mcp-server@0.1.0(@cfworker/json-schema@4.1.1)':
-    dependencies:
-      '@modelcontextprotocol/sdk': 1.29.0(@cfworker/json-schema@4.1.1)(zod@3.25.76)
-      zod: 3.25.76
-    transitivePeerDependencies:
-      - '@cfworker/json-schema'
-      - supports-color
-
   '@alloc/quick-lru@5.2.0': {}
 
   '@anthropic-ai/sdk@0.27.3':
@@ -6006,6 +5985,19 @@ snapshots:
       '@eslint/core': 0.17.0
       levn: 0.4.1
 
+  '@google/genai@1.52.0(@modelcontextprotocol/sdk@1.29.0(@cfworker/json-schema@4.1.1)(zod@3.25.76))':
+    dependencies:
+      google-auth-library: 10.6.2
+      p-retry: 4.6.2
+      protobufjs: 7.6.2
+      ws: 8.20.1
+    optionalDependencies:
+      '@modelcontextprotocol/sdk': 1.29.0(@cfworker/json-schema@4.1.1)(zod@3.25.76)
+    transitivePeerDependencies:
+      - bufferutil
+      - supports-color
+      - utf-8-validate
+
   '@google/genai@1.52.0(@modelcontextprotocol/sdk@1.29.0(@cfworker/json-schema@4.1.1)(zod@4.4.3))':
     dependencies:
       google-auth-library: 10.6.2
@@ -6250,6 +6242,22 @@ snapshots:
       - '@opentelemetry/sdk-trace-base'
       - peggy
 
+  '@langchain/core@1.1.46(@opentelemetry/api@1.9.1)(openai@6.39.0(ws@8.20.1)(zod@3.25.76))(ws@8.20.1)':
+    dependencies:
+      '@cfworker/json-schema': 4.1.1
+      '@standard-schema/spec': 1.1.0
+      js-tiktoken: 1.0.21
+      langsmith: 0.7.1(@opentelemetry/api@1.9.1)(openai@6.39.0(ws@8.20.1)(zod@3.25.76))(ws@8.20.1)
+      mustache: 4.2.0
+      p-queue: 6.6.2
+      zod: 4.4.3
+    transitivePeerDependencies:
+      - '@opentelemetry/api'
+      - '@opentelemetry/exporter-trace-otlp-proto'
+      - '@opentelemetry/sdk-trace-base'
+      - openai
+      - ws
+
   '@langchain/core@1.1.46(@opentelemetry/api@1.9.1)(openai@6.39.0(ws@8.20.1)(zod@4.4.3))(ws@8.20.1)':
     dependencies:
       '@cfworker/json-schema': 4.1.1
@@ -6359,6 +6367,7 @@ snapshots:
       '@cfworker/json-schema': 4.1.1
     transitivePeerDependencies:
       - supports-color
+    optional: true
 
   '@modelcontextprotocol/sdk@1.29.0(@cfworker/json-schema@4.1.1)(zod@4.4.3)':
     dependencies:
@@ -9036,6 +9045,14 @@ snapshots:
       - ws
       - zod-to-json-schema
 
+  langsmith@0.7.1(@opentelemetry/api@1.9.1)(openai@6.39.0(ws@8.20.1)(zod@3.25.76))(ws@8.20.1):
+    dependencies:
+      p-queue: 6.6.2
+    optionalDependencies:
+      '@opentelemetry/api': 1.9.1
+      openai: 6.39.0(ws@8.20.1)(zod@3.25.76)
+      ws: 8.20.1
+
   langsmith@0.7.1(@opentelemetry/api@1.9.1)(openai@6.39.0(ws@8.20.1)(zod@4.4.3))(ws@8.20.1):
     dependencies:
       p-queue: 6.6.2
@@ -9190,6 +9207,35 @@ snapshots:
       is-buffer: 1.1.6
 
   media-typer@1.1.0: {}
+
+  mem0ai@2.4.6(@anthropic-ai/sdk@0.27.3)(@azure/identity@4.13.1)(@azure/search-documents@12.2.0)(@cloudflare/workers-types@4.20260531.1)(@google/genai@1.52.0(@modelcontextprotocol/sdk@1.29.0(@cfworker/json-schema@4.1.1)(zod@3.25.76)))(@langchain/core@1.1.46(@opentelemetry/api@1.9.1)(openai@6.39.0(ws@8.20.1)(zod@3.25.76))(ws@8.20.1))(@mistralai/mistralai@1.15.1)(@qdrant/js-client-rest@1.19.0(typescript@5.9.3))(@supabase/supabase-js@2.106.2)(@types/jest@29.5.14)(@types/pg@8.11.0)(better-sqlite3@12.10.0)(cloudflare@4.5.0)(groq-sdk@0.3.0)(neo4j-driver@5.28.3)(ollama@0.6.3)(pg@8.11.3)(redis@4.7.1)(ws@8.20.1):
+    dependencies:
+      '@anthropic-ai/sdk': 0.27.3
+      '@azure/identity': 4.13.1
+      '@azure/search-documents': 12.2.0
+      '@cloudflare/workers-types': 4.20260531.1
+      '@google/genai': 1.52.0(@modelcontextprotocol/sdk@1.29.0(@cfworker/json-schema@4.1.1)(zod@3.25.76))
+      '@langchain/core': 1.1.46(@opentelemetry/api@1.9.1)(openai@6.39.0(ws@8.20.1)(zod@3.25.76))(ws@8.20.1)
+      '@mistralai/mistralai': 1.15.1
+      '@qdrant/js-client-rest': 1.19.0(typescript@5.9.3)
+      '@supabase/supabase-js': 2.106.2
+      '@types/jest': 29.5.14
+      '@types/pg': 8.11.0
+      axios: 1.13.6
+      better-sqlite3: 12.10.0
+      cloudflare: 4.5.0
+      groq-sdk: 0.3.0
+      neo4j-driver: 5.28.3
+      ollama: 0.6.3
+      openai: 4.104.0(ws@8.20.1)(zod@3.25.76)
+      pg: 8.11.3
+      redis: 4.7.1
+      uuid: 9.0.1
+      zod: 3.25.76
+    transitivePeerDependencies:
+      - debug
+      - encoding
+      - ws
 
   mem0ai@2.4.6(@anthropic-ai/sdk@0.27.3)(@azure/identity@4.13.1)(@azure/search-documents@12.2.0)(@cloudflare/workers-types@4.20260531.1)(@google/genai@1.52.0(@modelcontextprotocol/sdk@1.29.0(@cfworker/json-schema@4.1.1)(zod@4.4.3)))(@langchain/core@1.1.46(@opentelemetry/api@1.9.1)(openai@6.39.0(ws@8.20.1)(zod@4.4.3))(ws@8.20.1))(@mistralai/mistralai@1.15.1)(@qdrant/js-client-rest@1.19.0(typescript@5.9.3))(@supabase/supabase-js@2.106.2)(@types/jest@29.5.14)(@types/pg@8.11.0)(better-sqlite3@12.10.0)(cloudflare@4.5.0)(groq-sdk@0.3.0)(neo4j-driver@5.28.3)(ollama@0.6.3)(pg@8.11.3)(redis@4.7.1)(ws@8.20.1):
     dependencies:
@@ -9480,6 +9526,12 @@ snapshots:
       zod: 3.25.76
     transitivePeerDependencies:
       - encoding
+
+  openai@6.39.0(ws@8.20.1)(zod@3.25.76):
+    optionalDependencies:
+      ws: 8.20.1
+      zod: 3.25.76
+    optional: true
 
   openai@6.39.0(ws@8.20.1)(zod@4.4.3):
     optionalDependencies:
@@ -10724,6 +10776,7 @@ snapshots:
   zod-to-json-schema@3.25.2(zod@3.25.76):
     dependencies:
       zod: 3.25.76
+    optional: true
 
   zod-to-json-schema@3.25.2(zod@4.4.3):
     dependencies:

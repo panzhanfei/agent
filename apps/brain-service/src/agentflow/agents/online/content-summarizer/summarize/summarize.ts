@@ -1,18 +1,11 @@
-import { HumanMessage, SystemMessage, } from "@langchain/core/messages";
-import { ChatOllama } from "@langchain/ollama";
-import { getBrainServiceConfig } from "@fambrain/brain-config";
 import { logAgentIn, logAgentOut } from "@fambrain/brain-shared/agent-log";
-import { recordLangChainOllamaUsage } from "@fambrain/brain-shared/pipeline-run-context";
-import { parseJsonObject, textFromResponse } from "@/agentflow/utils";
+import { completeChat } from "@fambrain/brain-shared/chat";
+import { recordCompleteChatUsage } from "@fambrain/brain-shared/pipeline-run-context";
+import { parseJsonObject } from "@/agentflow/utils";
 import { parseContentSummaryResult } from "./schema";
 import { prompt } from "./prompt";
 import type { ContentSummarizerInput, ContentSummaryResult } from "../interface";
 const MAX_INPUT_CHARS = 12000;
-const { ollama } = getBrainServiceConfig();
-const llm = new ChatOllama({
-    baseUrl: ollama.baseUrl,
-    model: ollama.models.intakeCoordinator,
-});
 const buildFallback = (input: ContentSummarizerInput): ContentSummaryResult => {
     const trimmed = input.text.replace(/\s+/g, " ").trim();
     const preview = trimmed.slice(0, 280);
@@ -34,30 +27,35 @@ export const summarizeContent = async (input: ContentSummarizerInput): Promise<C
         charCount: body.length,
         language: input.language ?? "zh",
     });
-    const response = await llm.invoke([
-        new SystemMessage(prompt),
-        new HumanMessage([
-            `language: ${input.language ?? "zh"}`,
-            `maxBullets: ${maxBullets}`,
-            input.sourceLabel ? `source: ${input.sourceLabel}` : null,
-            "---",
-            body,
-        ]
-            .filter(Boolean)
-            .join("\n")),
-    ]);
-    const rawText = textFromResponse(response.content);
-    recordLangChainOllamaUsage(response, {
+    const userContent = [
+        `language: ${input.language ?? "zh"}`,
+        `maxBullets: ${maxBullets}`,
+        input.sourceLabel ? `source: ${input.sourceLabel}` : null,
+        "---",
+        body,
+    ]
+        .filter(Boolean)
+        .join("\n");
+    const resultChat = await completeChat({
+        messages: [
+            { role: "system", content: prompt },
+            { role: "user", content: userContent },
+        ],
+        jsonMode: true,
+        thinking: "disabled",
+    });
+    recordCompleteChatUsage(resultChat.usage, {
         promptText: `${prompt}\n${body}`,
-        completionText: rawText,
+        completionText: resultChat.text,
         node: "content_summarizer",
     });
-    const parsed = parseJsonObject<unknown>(rawText);
+    const parsed = parseJsonObject<unknown>(resultChat.text);
     const result = parseContentSummaryResult(parsed, fallback);
     logAgentOut("ContentSummarizer", "出去", {
         title: result.title,
         bulletCount: result.bullets.length,
         keywordCount: result.keywords.length,
+        chatProvider: resultChat.provider,
         summaryPreview: result.summary.length > 200 ? `${result.summary.slice(0, 200)}…` : result.summary,
     });
     return result;
