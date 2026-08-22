@@ -586,6 +586,51 @@ describe("legalizePathPlan + deriveCompositeSlots", () => {
     expect(plan?.map((n) => n.id)).toEqual(["resume", "synth"]);
     expect(plan?.[1]?.synthesizeSchema).toBe("match_report");
     expect(plan?.[1]?.deps).toEqual(["resume"]);
+
+    const causal = legalizePathPlan({
+      steps: [
+        {
+          id: "dag-bilingual",
+          kind: "dag",
+          label: "中英对照",
+          searchQuery: "城管技术",
+          queryType: "tech",
+          topics: ["project"],
+          nodes: [
+            {
+              id: "src",
+              label: "原文",
+              toolId: "retrieve_corpus",
+              searchQuery: "城管 技术栈",
+              deps: [],
+            },
+            {
+              id: "en",
+              label: "译英",
+              toolId: "translate_text",
+              deps: ["src"],
+              targetLang: "en",
+            },
+            {
+              id: "synth",
+              label: "对照",
+              toolId: "synthesize_merge",
+              deps: ["src", "en"],
+              synthesizeSchema: "free",
+            },
+          ],
+        },
+      ],
+    });
+    expect(causal.steps[0]?.nodes?.map((n) => n.id)).toEqual([
+      "src",
+      "en",
+      "synth",
+    ]);
+    const causalPlan = executionPlanFromPathPlanDag(causal);
+    expect(causalPlan?.[1]?.targetLang).toBe("en");
+    expect(causalPlan?.[1]?.deps).toEqual(["src"]);
+    expect(causalPlan?.[2]?.synthesizeSchema).toBe("free");
   });
 
   it("drops cyclic dag.nodes", () => {

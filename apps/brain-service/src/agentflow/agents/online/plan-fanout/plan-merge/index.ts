@@ -5,6 +5,7 @@ import { logAgentOut } from "@fambrain/brain-shared/agent-log";
 import { emptyPathPlan } from "@/agentflow/agents/online/intake-coordinator/path-plan";
 import type { StepResult } from "@/agentflow/agents/online/intake-coordinator/path-plan/interface";
 import type { PipelineToolResults } from "@/agentflow/agents/online/tool-orchestrator/interface";
+import { pickSynthesizeMergeRun } from "@/agentflow/tools/local/synthesize";
 
 import type { PipelineGraphState } from "@/agentflow/pipeline/graph/state";
 import { applyEmptyPolicies } from "../empty-policy";
@@ -82,6 +83,13 @@ export const runPlanMergeNode = async (
       ...mergedToolResults,
       ...(dagPatch.toolResults ?? {}),
     };
+    const synthesis = pickSynthesizeMergeRun(mergedToolResults);
+    if (synthesis) {
+      mergedToolResults.synthesis = synthesis;
+      for (const dagRun of pathPlan.steps.filter((d) => d.kind === "dag")) {
+        mergedToolResults[dagRun.id] = synthesis;
+      }
+    }
 
     const dagRuns = pathPlan.steps.filter(
       (d) => d.kind === "dag"

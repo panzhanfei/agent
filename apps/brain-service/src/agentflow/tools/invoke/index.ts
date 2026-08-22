@@ -61,17 +61,23 @@ export const invokeTool = async (
         actorUserId: ctx.actorUserId,
         query: node.webQuery ?? node.searchQuery ?? ctx.userQuestion,
       });
-    case "translate_text":
+    case "translate_text": {
+      const fromDeps = node.deps
+        .map((id) => ctx.prior[id])
+        .filter((r): r is ToolRunResult => Boolean(r?.ok && r.answer.trim()))
+        .map((r) => r.answer.trim())
+        .join("\n\n");
       return runTranslateText({
         corpusUserId: ctx.corpusUserId,
         actorUserId: ctx.actorUserId,
-        text: node.searchQuery?.trim() || ctx.userQuestion.trim() || "",
+        text: fromDeps || node.searchQuery?.trim() || ctx.userQuestion.trim() || "",
         targetLang:
           node.targetLang?.trim() ||
           defaultTranslateTargetLangFromReplyLanguage(ctx.language),
         sourceLang: node.sourceLang ?? "auto",
         label: node.label,
       });
+    }
     case "compute_age_from_hits":
       return runComputeAgeFromHits({
         corpusUserId: ctx.corpusUserId,

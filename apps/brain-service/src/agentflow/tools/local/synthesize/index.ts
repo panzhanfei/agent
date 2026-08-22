@@ -21,6 +21,11 @@ export {
 } from "./match-report";
 export { fillFreeSynthesisWithLlm, fillMatchReportWithLlm } from "./fill-llm";
 export { buildSynthesizeMergeResult } from "./build";
+export {
+  collectRetrieveCorpusHits,
+  isUsableSynthesizeMerge,
+  pickSynthesizeMergeRun,
+} from "./pick";
 
 /** 编排层入口：synthesize_merge */
 export const runSynthesizeMerge = buildSynthesizeMergeResult;

@@ -57,6 +57,36 @@ describe("pickToolResultForSubQuestion", () => {
     );
     expect(r?.toolId).toBe("get_weather");
   });
+
+  it("picks free synthesize_merge without match_report headings", () => {
+    const synth: ToolRunResult = {
+      toolId: "synthesize_merge",
+      label: "中英对照",
+      ok: true,
+      answer: "中：React。\nEN: React.",
+      citations: [],
+      hits: [],
+      insufficientEvidence: false,
+      confidence: 0.75,
+    };
+    expect(
+      pickToolResultForSubQuestion(
+        { userQuestion: "中英对照", queryType: "default" },
+        { synth }
+      )?.answer
+    ).toMatch(/React/);
+    expect(
+      pickToolResultForSubQuestion(
+        {
+          userQuestion: "中英对照",
+          slotId: "dag-bilingual",
+          facetKey: "dag:dag-bilingual",
+          queryType: "default",
+        },
+        { synth }
+      )?.toolId
+    ).toBe("synthesize_merge");
+  });
 });
 
 describe("buildFallbackAnswer multi-slot", () => {

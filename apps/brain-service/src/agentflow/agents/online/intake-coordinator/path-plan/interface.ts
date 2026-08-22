@@ -30,7 +30,7 @@ export type PathKind =
 
 export type ComposeMode = "qa" | "summarize" | "composite";
 
-/** synthesize_merge 输出契约：free=按 goal 汇合；match_report=履历×岗位四栏（须 Intake 显式声明） */
+/** synthesize_merge 输出契约：free=按 goal 汇合；match_report=固定四栏对照（须 Intake 显式声明） */
 export type SynthesizeSchema = "free" | "match_report";
 
 /** 空证据策略：require | omit | degrade */

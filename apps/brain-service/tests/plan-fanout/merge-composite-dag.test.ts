@@ -156,4 +156,63 @@ describe("planFanOut merge helpers", () => {
     expect(merged.compositeSubResults?.[1]?.notes).toContain("## 匹配点");
     expect(merged.compositeSubResults?.[1]?.assistantBlocks?.length).toBe(1);
   });
+
+  it("picks synthesize_merge by toolId when node id is not synthesis", () => {
+    const pathPlan = {
+      ...emptyPathPlan(),
+      steps: [
+        {
+          id: "dag-bilingual",
+          kind: "dag" as const,
+          label: "中英对照",
+          searchQuery: "城管技术",
+          queryType: "tech" as const,
+          topics: [],
+          nodes: [
+            {
+              id: "synth",
+              label: "对照",
+              toolId: "synthesize_merge" as const,
+              deps: [],
+            },
+          ],
+        },
+      ],
+    };
+    const merged = mergeCompositeWithDagSteps(
+      {
+        userQuestion: "对照",
+        compositeSubResults: [],
+        compositeIncrementalPlan: {
+          slots: [],
+          slotPlanById: {},
+          activeRetrievalSlots: [],
+          facetCacheHits: 0,
+          hitsCacheHits: 0,
+          sessionCleared: false,
+        },
+      } as never,
+      pathPlan,
+      ["dag-bilingual"],
+      stepsOfKind(pathPlan, "dag"),
+      {
+        hits: [],
+        coverage: "partial",
+        notes: "dag ok",
+        toolResults: {
+          synth: {
+            toolId: "synthesize_merge",
+            label: "对照",
+            ok: true,
+            answer: "中：React。\nEN: React.",
+            citations: [],
+            hits: [],
+            insufficientEvidence: false,
+            confidence: 0.75,
+          },
+        },
+      }
+    );
+    expect(merged.compositeSubResults?.[0]?.notes).toMatch(/React/);
+  });
 });

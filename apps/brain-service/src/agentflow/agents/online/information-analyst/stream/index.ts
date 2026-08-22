@@ -23,6 +23,7 @@ import type {
 import { cachedFacetToAnalystResult } from "@/agentflow/cache";
 import { streamCompositeAnalyze } from "./stream-composite";
 import type { AssistantMessageBlock } from "@fambrain/brain-types";
+import { pickSynthesizeMergeRun } from "@/agentflow/tools/local/synthesize";
 import { toolRunToAnalystResult } from "../pick-tool-result";
 
 export {
@@ -106,16 +107,14 @@ async function* streamSinglePlainAnalyze(
 async function* streamSingleAnalyze(
     input: InformationAnalystInput
 ): AsyncGenerator<AnalystStreamChunk, InformationAnalystResult> {
-    // L4：匹配结构化已就绪 → 直接渲染，禁止再注入 notes 让 LLM 散文改写
-    const synthesis = input.toolResults?.synthesis;
-    if (
-        synthesis?.toolId === "synthesize_merge" &&
-        (synthesis.matchReport || synthesis.answer.includes("## 匹配点")) &&
-        (input.compositeSubResults?.length ?? 0) <= 1
-    ) {
+    // L4：synthesize_merge 已就绪（free / match_report）→ 直接渲染，禁止 LLM 散文改写
+    const synthesis = pickSynthesizeMergeRun(input.toolResults);
+    if (synthesis && (input.compositeSubResults?.length ?? 0) <= 1) {
         const rendered = toolRunToAnalystResult(synthesis);
         logAgentOut("InformationAnalyst", "出去", {
-            source: "synthesize_match_report",
+            source: synthesis.matchReport
+                ? "synthesize_match_report"
+                : "synthesize_free",
             insufficientEvidence: rendered.insufficientEvidence,
             confidence: rendered.confidence,
             citationCount: rendered.citations.length,

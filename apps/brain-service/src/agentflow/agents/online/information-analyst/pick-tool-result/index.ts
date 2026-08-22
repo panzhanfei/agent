@@ -3,6 +3,10 @@
  */
 import { facetKeyMatchesIdentity } from "@/agentflow/cache";
 import { isPostRetrievalToolId, resolveIdentityField } from "@/agentflow/tools/catalog";
+import {
+  isUsableSynthesizeMerge,
+  pickSynthesizeMergeRun,
+} from "@/agentflow/tools/local/synthesize";
 import type {
   PipelineToolResults,
   ToolRunResult,
@@ -22,12 +26,6 @@ export const toolRunToAnalystResult = (
   insufficientEvidence: run.insufficientEvidence,
   blocks: run.blocks,
 });
-
-const isUsableSynthesis = (run: ToolRunResult | undefined): boolean =>
-  Boolean(
-    run?.toolId === "synthesize_merge" &&
-      (run.matchReport || run.answer.includes("## 匹配点"))
-  );
 
 export const pickToolResultForSubQuestion = (
   input: PickToolResultInput,
@@ -84,14 +82,17 @@ export const pickToolResultForSubQuestion = (
 
   if (input.slotId) {
     const dagRun = toolResults[input.slotId];
-    if (isUsableSynthesis(dagRun)) return dagRun;
+    if (isUsableSynthesizeMerge(dagRun)) return dagRun;
+    if (input.facetKey?.startsWith("dag:")) {
+      const synth = pickSynthesizeMergeRun(toolResults);
+      if (synth) return synth;
+    }
     /** 本槽无结果：禁止用袋内其它槽 / 唯一成功独立工具填稿 */
     return null;
   }
 
-  if (isUsableSynthesis(toolResults.synthesis)) {
-    return toolResults.synthesis;
-  }
+  const synthesis = pickSynthesizeMergeRun(toolResults);
+  if (synthesis) return synthesis;
 
   if (toolResults.web) return toolResults.web;
 

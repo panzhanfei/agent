@@ -9,11 +9,11 @@ import type { ToolRunResult } from "@/agentflow/agents/online/tool-orchestrator/
 import { parseMatchReport } from "./match-report";
 import type { MatchReport } from "./interface";
 
-const SYSTEM = `你是「履历×公司/市场」匹配评估器。只输出一个 JSON 对象，不要 Markdown，不要解释。
+const SYSTEM = `你是多源对照评估器。只输出一个 JSON 对象，不要 Markdown，不要解释。
 字段：
-- matches: [{text, evidence?}] 履历与公司/岗位对齐的要点（有证据才写）
+- matches: [{text, evidence?}] 材料对齐的要点（有证据才写）
 - gaps: [{text, evidence?}] 缺口
-- risks: [{text, evidence?}] 风险或不确定（外搜弱、过时、证据不足）
+- risks: [{text, evidence?}] 风险或不确定（来源弱、过时、证据不足）
 - conclusion: 仅允许 "适合" | "谨慎" | "信息不足"
 - evidenceGrade: "sufficient" | "partial" | "insufficient"
 - sourcesUsed: ["corpus" 和/或 "web"]
@@ -21,7 +21,7 @@ const SYSTEM = `你是「履历×公司/市场」匹配评估器。只输出一�
 
 规则：
 1. 禁止编造材料中未出现的事实。
-2. 外网或履历缺失时 conclusion 必须为「信息不足」或「谨慎」，evidenceGrade 相应降级。
+2. 材料不足时 conclusion 必须为「信息不足」或「谨慎」，evidenceGrade 相应降级。
 3. conclusion 必须是三选一枚举，禁止散文句。`;
 
 const FREE_SYSTEM = `你是多源汇合器。根据 goal 与材料写一段直接回答用户的正文。

@@ -15,6 +15,7 @@ import type {
 } from "@/agentflow/agents/online/intake-coordinator/path-plan/interface";
 import type { PipelineGraphState } from "@/agentflow/pipeline/graph/state";
 import type { PipelineToolResults } from "@/agentflow/agents/online/tool-orchestrator/interface";
+import { pickSynthesizeMergeRun } from "@/agentflow/tools/local/synthesize";
 
 const isDagStepId = (pathPlan: PathPlan, stepId: string): boolean =>
   pathPlan.steps.some((d) => d.kind === "dag" && d.id === stepId);
@@ -90,8 +91,9 @@ export const mergeCompositeWithDagSteps = (
   | "coverage"
   | "notes"
 > => {
-  const synthesis = (dagPatch.toolResults as PipelineToolResults | undefined)
-    ?.synthesis;
+  const synthesis = pickSynthesizeMergeRun(
+    dagPatch.toolResults as PipelineToolResults | undefined
+  );
   const dagSubsById = new Map<string, CompositeSubRetrieval>();
   const dagPlansById = new Map<string, CompositeSlotPlan>();
 

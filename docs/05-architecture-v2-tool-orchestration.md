@@ -148,7 +148,7 @@ pnpm --filter @fambrain/brain-service run verify:langchain-tools
 
 | 项 | 说明 |
 |----|------|
-| 混合 DAG 由 Intake 写齐 `nodes[]` / `executionPlan` | 拓扑执行 `deps`；`synthesize_merge` 默认 `free`，岗位匹配才 `match_report`；不并入 ReAct |
+| 混合 DAG 由 Intake 写齐 `nodes[]` / `executionPlan` | 拓扑执行 `deps`；`synthesize_merge` 默认 `free`，仅 Intake 显式写 `match_report` 才四栏；不并入 ReAct |
 | `field-catalog` 扩展 | 新计算字段只加 catalog 映射，不加口语 if |
 | bind-tools | **保持实验**（`experiments/bind-tools-react.ts`）；主链不让模型自主选工具 |
 
@@ -332,7 +332,7 @@ flowchart LR
 | L2 | `MatchReport` JSON（Zod）；`ToolRunResult.matchReport` |
 | L3 | 证据不足时结论不得为「适合」；软依赖降级写入风险栏 |
 | L4 | Analyst **直接渲染** `synthesize_merge`（`pickToolResult` / `assistantBlocks`），禁止二次散文覆盖 |
-| L5 | eval `E2E-dag-job-fit`（`expectMatchReport`）；`verify:dag-hybrid`；单测 `match-report.test.ts` |
+| L5 | eval `E2E-dag-causal`（因果 retrieve→translate→free 合成）；`verify:dag-hybrid`；单测 `match-report.test.ts` |
 
 结论枚举仅：`适合` \| `谨慎` \| `信息不足`。`SYNTHESIZE_MATCH_LLM=0` 可关 LLM 填表（单测默认关）。
 

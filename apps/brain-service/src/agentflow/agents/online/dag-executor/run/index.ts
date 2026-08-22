@@ -1,4 +1,8 @@
 import type { PipelineGraphState } from "@/agentflow/pipeline/graph/state";
+import {
+  collectRetrieveCorpusHits,
+  pickSynthesizeMergeRun,
+} from "@/agentflow/tools/local/synthesize";
 import { executeDagPlan } from "../execute-plan";
 
 export const runDagExecutorNode = async (
@@ -12,17 +16,21 @@ export const runDagExecutorNode = async (
     const forceIds = state.pendingGlobalRebatchDagNodeIds ?? [];
     const seed =
       forceIds.length > 0 ? state.fanOutDagPatch?.toolResults ?? null : null;
-    const toolResults = await executeDagPlan(plan, state, {
+    const raw = await executeDagPlan(plan, state, {
       seedToolResults: seed,
       forceRerunIds: forceIds,
     });
-    const resume = toolResults.resume;
-    const synthesis = toolResults.synthesis;
+    const synthesis = pickSynthesizeMergeRun(raw);
+    const toolResults = {
+      ...raw,
+      ...(synthesis ? { synthesis } : {}),
+    };
+    const hits = collectRetrieveCorpusHits(toolResults);
     return {
-      hits: resume?.hits ?? [],
+      hits,
       coverage:
-        resume && resume.hits.length > 0
-          ? resume.insufficientEvidence
+        hits.length > 0
+          ? synthesis?.insufficientEvidence
             ? "partial"
             : "sufficient"
           : "none",

@@ -6,6 +6,7 @@ import { logAgentOut } from "@fambrain/brain-shared/agent-log";
 import type { ExecutionPlanNode } from "@/agentflow/agents/online/tool-orchestrator/interface";
 import type { PipelineToolResults } from "@/agentflow/agents/online/tool-orchestrator/interface";
 import { runExecutionPlanNode } from "@/agentflow/agents/online/tool-orchestrator/execute";
+import { pickSynthesizeMergeRun } from "@/agentflow/tools/local/synthesize";
 import {
   canReuseDagNodeResult,
   collectDownstreamRerunClosure,
@@ -133,7 +134,7 @@ export const executeDagPlan = async (
   }
   logAgentOut("DagExecutor", "完成", {
     nodeIds: Object.keys(results),
-    synthesis: results.synthesis?.ok ?? null,
+    synthesis: pickSynthesizeMergeRun(results)?.ok ?? null,
     skippedForDeps,
     reused,
     ran,

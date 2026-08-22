@@ -433,7 +433,7 @@
     {
       "id": "E2E-weather-go-out",
       "tier": "pipeline",
-      "label": "天气+出门建议：禁止 dag 招聘匹配",
+      "label": "天气+出门建议：禁止 dag（出门建议跟天气走）",
       "question": "天水今天天气怎么样？适合出门嘛？",
       "assert": {
         "mustIncludeSteps": ["intake", "tool_retrieve", "analyst"],
@@ -444,16 +444,15 @@
       }
     },
     {
-      "id": "E2E-dag-job-fit",
+      "id": "E2E-dag-causal",
       "tier": "pipeline",
-      "label": "dag.nodes：履历是否适合去奥卡云面试",
-      "question": "我的履历是否适合去西安奥卡云面试？",
+      "label": "dag.nodes：检索原文 → 翻译 → free 合成对照",
+      "question": "先从语料里把城管平台的技术说明找出来，再把这段原文翻译成英文，最后合成一段中英对照。",
       "assert": {
         "mustIncludeSteps": ["intake", "plan_dag", "analyst"],
-        "expectMatchReport": true,
         "minAnswerLength": 20,
-        "answerMustIncludeAll": ["## 匹配点", "## 结论"],
-        "answerMustNotRe": "Open-Meteo|适合出门"
+        "answerRe": "城管|城市管理|React|TypeScript",
+        "answerMustNotRe": "## 匹配点|## 缺口|候选人|岗位|招聘|履历是否适合|知识库未覆盖|Open-Meteo|适合出门"
       }
     },
     {
