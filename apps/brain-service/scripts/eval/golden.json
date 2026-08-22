@@ -429,6 +429,45 @@
         "answerRe": "(天水|Tianshui)[\\s\\S]*(°C|℃|Open-Meteo|气温|晴|雨|云|雾|雪)",
         "answerMustNotRe": "再说清楚|哪一方面|请明确|未能生成回复|未提供地点|潘展飞"
       }
+    },
+    {
+      "id": "E2E-weather-go-out",
+      "tier": "pipeline",
+      "label": "天气+出门建议：禁止 dag 招聘匹配",
+      "question": "天水今天天气怎么样？适合出门嘛？",
+      "assert": {
+        "mustIncludeSteps": ["intake", "tool_retrieve", "analyst"],
+        "mustNotIncludeSteps": ["plan_dag", "km_retrieve"],
+        "minAnswerLength": 8,
+        "answerRe": "(天水|Tianshui)[\\s\\S]*(°C|℃|Open-Meteo|气温|晴|雨|云|雾|雪)",
+        "answerMustNotRe": "## 匹配点|## 缺口|候选人|岗位|招聘|履历是否适合"
+      }
+    },
+    {
+      "id": "E2E-dag-job-fit",
+      "tier": "pipeline",
+      "label": "dag.nodes：履历是否适合去奥卡云面试",
+      "question": "我的履历是否适合去西安奥卡云面试？",
+      "assert": {
+        "mustIncludeSteps": ["intake", "plan_dag", "analyst"],
+        "expectMatchReport": true,
+        "minAnswerLength": 20,
+        "answerMustIncludeAll": ["## 匹配点", "## 结论"],
+        "answerMustNotRe": "Open-Meteo|适合出门"
+      }
+    },
+    {
+      "id": "E2E-name-weather-translate",
+      "tier": "pipeline",
+      "label": "三槽：姓名 + 济南天气 + 翻译eat（禁跨槽复用天气）",
+      "question": "我叫什么 ，今天济南的天气怎么样 ， 帮我翻译eat是什么意思？",
+      "assert": {
+        "mustIncludeSteps": ["intake", "km_retrieve", "tool_retrieve", "plan_merge", "analyst"],
+        "minAnswerLength": 20,
+        "answerMustIncludeAll": ["潘展飞", "吃"],
+        "answerRe": "(济南|Jinan)[\\s\\S]*(°C|℃|Open-Meteo|气温|晴|雨|云|雾|雪)",
+        "answerMustNotRe": "再说清楚|哪一方面|请明确|未能生成回复|未提供地点"
+      }
     }
   ],
   "memProbe": {
@@ -734,13 +773,12 @@
       }
     ]
   },
-  "matchReportProbe": {
-    "id": "G-匹配结构化",
-    "label": "hybrid synthesize_merge：MatchReport 四栏+结论枚举（L1～L5，fixture 不依赖外网）",
+  "dagFreeProbe": {
+    "id": "G-dag-free",
+    "label": "synthesize_merge schema=free：天气材料汇合，禁止招聘四栏",
     "assert": {
-      "expectMatchReport": true,
-      "answerMustIncludeAll": ["## 匹配点", "## 缺口", "## 风险/不确定", "## 结论"],
-      "answerRe": "适合|谨慎|信息不足"
+      "answerRe": "28°C|多云",
+      "answerMustNotRe": "## 匹配点|## 缺口|候选人|岗位"
     }
   }
 }

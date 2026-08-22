@@ -95,6 +95,8 @@ export type ExecutionPlanNode = {
      * 与 pathPlan.emptyPolicy 同语义。
      */
     emptyPolicy?: import("@/agentflow/agents/online/intake-coordinator/path-plan").EmptyPolicy;
+    /** synthesize_merge：free | match_report（缺省 free） */
+    synthesizeSchema?: import("@/agentflow/agents/online/intake-coordinator/path-plan").SynthesizeSchema;
     /** composite 槽位执行时覆盖 state.hits */
     hitsOverride?: KnowledgeHit[];
     /** composite 列举槽的 KM 元数据 */

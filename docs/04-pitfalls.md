@@ -231,7 +231,7 @@ pnpm --filter @fambrain/brain-service run eval:run   # 全量
 | `path-plan/interface.ts` | `PathPlan` = 有序 `steps[]`（`kind`: km\|list\|mem\|tool\|summarize\|dag）；`ComposeMode`；`DataSource` 含 mem0/user_text |
 | `path-plan/from-llm.ts` | LLM pathPlan **合法化 + 结构归一** + 按 steps 顺序 **派生** compositeSlots / retrievalPlan / answerOrder |
 | `path-plan/compile-path-plan.ts` | 旧分桶编译（测试/兼容；主 pipeline 不再走） |
-| `path-plan/dag-templates.ts` | 仅 `hybrid_multi_source`（多源汇合；禁止场景 named DAG） |
+| `path-plan/dag-templates.ts` | 合法化 `dag.nodes[]`（有向图；禁止场景 named template 展开） |
 | **`plan-fanout/`** | `fan-out` + `planSlotJoin` + `planMerge`；Send 目标节点在 KM / Lister / ToolOrchestrator / UserFact |
 | `corpus-lister/` | LangGraph **`listRetriever` / `listRetrieve`**：纯 list / 复合 list 工人 |
 | `plan-fanout/plan-slot-post/`、`dag-executor/` | Join 后 post-tools / DAG 图节点出口 |

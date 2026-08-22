@@ -5,16 +5,13 @@
 import type { CompositeRetrievalSlot } from "@/agentflow/agents/online/intake-coordinator/composite/interface";
 import type { IntakeRetrievalPlanItem } from "@/agentflow/agents/online/intake-coordinator/contract";
 import type { RoutedIntakeDecision } from "@/agentflow/agents/online/intake-coordinator/guards/interface";
-import { resolveIntakeGraphRouteMode } from "@/agentflow/agents/online/intake-coordinator/pipeline";
-import { buildHybridExecutionPlan } from "@/agentflow/agents/online/dag-executor/hybrid-plan";
-import type { QueryProfile } from "@/agentflow/agents/online/knowledge-manager";
 import { resolveIdentityFieldFromPlan } from "@/agentflow/agents/online/tool-orchestrator/catalog";
 import type {
   DataSource,
   EnrichedPlanItem,
   ToolRunId,
 } from "@/agentflow/agents/online/tool-orchestrator/interface";
-import { decisionSuggestsHybridDag, topicsSuggestWebSource } from "./route-signals";
+import { topicsSuggestWebSource } from "./route-signals";
 
 const enrichItem = (
   item: Pick<
@@ -65,38 +62,12 @@ export const enrichCompositeSlots = (
 
 export const applyToolPlanGuard = (
   decision: RoutedIntakeDecision,
-  userQuestion: string
+  _userQuestion: string
 ): RoutedIntakeDecision => {
   if (decision.intent !== "retrieve_and_answer") return decision;
 
   const enrichedPlan = enrichRetrievalPlan(decision.retrievalPlan ?? []);
   const enrichedSlots = enrichCompositeSlots(decision.compositeSlots ?? []);
-
-  const planTopics = (decision.retrievalPlan ?? []).map((p) => p.topics);
-  if (
-    decisionSuggestsHybridDag({
-      topics: decision.topics,
-      planTopics,
-    })
-  ) {
-    const next: RoutedIntakeDecision = {
-      ...decision,
-      routeMode: "planFanOut",
-      compositeSlots: enrichedSlots,
-      retrievalPlan: enrichedPlan.map(
-        ({ label, searchQuery, queryType, topics }) => ({
-          label,
-          searchQuery,
-          queryType: queryType as QueryProfile,
-          topics,
-        })
-      ),
-      executionPlan: buildHybridExecutionPlan(userQuestion, decision),
-      routeReason: decision.routeReason ?? "intake_retrieval_plan",
-    };
-    next.routeMode = resolveIntakeGraphRouteMode(next);
-    return next;
-  }
 
   return {
     ...decision,

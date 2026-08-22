@@ -112,7 +112,14 @@ describe("resolveIntakeGraphRouteMode", () => {
               searchQuery: "评估",
               queryType: "default",
               topics: [],
-              template: "hybrid_multi_source",
+              nodes: [
+                {
+                  id: "resume",
+                  label: "简历",
+                  toolId: "retrieve_corpus",
+                  deps: [],
+                },
+              ],
             },
           ],
         },

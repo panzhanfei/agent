@@ -130,7 +130,7 @@ export type IntakeRoutingDecision = {
   userFactValue: string | null;
   /**
    * 本轮有聊天附件（系统提示会声明）时必填：
-   * extract=展示已抽取原文 · summarize=总结 · translate=翻译（须在 pathPlan 步填 targetLang）。
+   * extract=展示已抽取原文 · summarize=总结 · translate=翻译（pathPlan 步填 targetLang；缺省按本轮 language）。
    * 旧 ingest 由 schema 合法化为 summarize（入库改走写回闸门）。
    * 无附件时为 null。禁止用口语词表猜；意图不清 → clarify。
    */

@@ -148,7 +148,7 @@ pnpm --filter @fambrain/brain-service run verify:langchain-tools
 
 | 项 | 说明 |
 |----|------|
-| 混合 DAG 由 Intake 写齐 `executionPlan` | 已有 `hybrid_multi_source` 模板；扩展字段仍走 schema→executor，不并入 ReAct |
+| 混合 DAG 由 Intake 写齐 `nodes[]` / `executionPlan` | 拓扑执行 `deps`；`synthesize_merge` 默认 `free`，岗位匹配才 `match_report`；不并入 ReAct |
 | `field-catalog` 扩展 | 新计算字段只加 catalog 映射，不加口语 if |
 | bind-tools | **保持实验**（`experiments/bind-tools-react.ts`）；主链不让模型自主选工具 |
 
@@ -279,7 +279,7 @@ type ExecutionStep = {
   userFactKey?: string | null;
   userFactLabel?: string | null;
   enumerationControl?: EnumerationControl | null;
-  template?: "hybrid_multi_source"; // 仅 dag
+  nodes?: DagNodeSpec[]; // 仅 dag：有向节点 + deps
   deps?: string[];
 };
 
@@ -297,7 +297,7 @@ type ComposeMode = "qa" | "summarize" | "composite";
 | `mem` | `memRetrieve`（Mem0） | **跳过** |
 | `tool` | `toolRetrieve`（独立工具） | **跳过** |
 | `summarize` | `summarizeSlot` | **跳过** |
-| `dag` | `planDag`（**仅** `hybrid_multi_source`） | 节点级 |
+| `dag` | `planDag`（`nodes[]` 拓扑） | 节点级 |
 
 **Compose 只做一次：** 全部 step 完成后，Analyst 按 `composeMode` 输出单答 / 多段 composite / 摘要；**回答顺序 = `pathPlan.steps` 数组顺序**（不做 list→km 重排）。整轮 `composeMode=summarize` 仍走 `contentSummarizer` 终稿节点。
 
@@ -318,13 +318,13 @@ flowchart LR
 
 - `external_link` 进 **km** 步 + 声明式 `toolId=extract_external_links_from_hits`（实现在 **`tools/lib/extract-external-links.ts`**；Intake 只填 queryType + toolId）；**禁止**再加 `opensource_links` / `dag-github-links` 一类场景 named DAG。
 - 工具层 strip「近两年」等时间口语（实体 token）；时间窗走 `enumerationControl.timeWindowYears`。
-- dag **仅** `hybrid_multi_source`（多源汇合）。
+- dag 为 `nodes[]` 有向图（无 named template）。`synthesize_merge` 默认 free；`match_report` 须显式声明。
 - 回答顺序 = Intake `steps[]` / 派生 `compositeSlots` 顺序；searchQuery 用 **`EXTERNAL_LINK_SLOT`** canonical（P0-27）。
 - 列举分页 / UI exact-match 实现在 **`corpus-lister/enumeration`**（Intake 经 barrel re-export，无独立 enumeration 目录）。
 
 ### 11.3b 匹配结构化（MatchReport · synthesize_merge）
 
-hybrid 汇合**不是**散文拼接材料包，而是固定契约：
+`synthesize_merge` 默认 `schema=free`（按节点 goal 汇合 deps）。仅当 Intake 写 `synthesizeSchema: "match_report"` 才走固定四栏：
 
 | 层 | 内容 |
 |----|------|
@@ -332,7 +332,7 @@ hybrid 汇合**不是**散文拼接材料包，而是固定契约：
 | L2 | `MatchReport` JSON（Zod）；`ToolRunResult.matchReport` |
 | L3 | 证据不足时结论不得为「适合」；软依赖降级写入风险栏 |
 | L4 | Analyst **直接渲染** `synthesize_merge`（`pickToolResult` / `assistantBlocks`），禁止二次散文覆盖 |
-| L5 | eval `expectMatchReport` + `matchReportProbe`；`verify:dag-hybrid` |
+| L5 | eval `E2E-dag-job-fit`（`expectMatchReport`）；`verify:dag-hybrid`；单测 `match-report.test.ts` |
 
 结论枚举仅：`适合` \| `谨慎` \| `信息不足`。`SYNTHESIZE_MATCH_LLM=0` 可关 LLM 填表（单测默认关）。
 

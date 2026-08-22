@@ -7,7 +7,7 @@
  *   pnpm run golden:regression
  *   GOLDEN_RUNS=3 pnpm run golden:regression
  *   pnpm run golden:regression -- 3
- *   pnpm run golden:regression -- --case G5,G5b,G5c
+ *   pnpm run golden:regression -- --case G5,G5b,G5c,G6
  *
  * 需 Ollama + Qdrant + 已入库语料；corpusUserId 见 FAMBRAIN_CORPUS_USER_ID
  * 或 data/doc/users/ 下首个有 corpus 的用户。
@@ -20,7 +20,16 @@ import { bootstrapBrainServiceRuntime } from "@/config";
 /** 默认连跑遍数；也可用环境变量 GOLDEN_RUNS 或 CLI 参数覆盖 */
 const DEFAULT_GOLDEN_RUNS = 3;
 
-type GoldenId = "G1" | "G2" | "G3" | "G4" | "G5" | "G5b" | "G5c" | "GMem";
+type GoldenId =
+  | "G1"
+  | "G2"
+  | "G3"
+  | "G4"
+  | "G5"
+  | "G5b"
+  | "G5c"
+  | "G6"
+  | "GMem";
 
 /** 跨会话记忆探测用 QQ（与 verify:user-fact 一致） */
 const GOLDEN_QQ = "734858469";
@@ -305,6 +314,23 @@ const GOLDEN_CASES: GoldenCase[] = [
       return null;
     },
   },
+  {
+    id: "G6",
+    label: "三槽：姓名 + 济南天气 + 翻译eat（禁跨槽复用天气）",
+    question: "我叫什么 ，今天济南的天气怎么样 ， 帮我翻译eat是什么意思？",
+    assert: ({ steps, answer }) => {
+      if (!hasRetrievalStep(steps)) return "应进入 km_retrieve / plan_merge";
+      if (!hasStep(steps, "km_retrieve")) return "姓名槽应走 km_retrieve";
+      if (!hasStep(steps, "tool_retrieve"))
+        return "天气/翻译应走 tool_retrieve";
+      if (!hasStep(steps, "analyst")) return "应进入 analyst 写终稿";
+      if (!/潘展飞/.test(answer)) return "姓名段应含「潘展飞」";
+      if (!/(济南|Jinan)/i.test(answer) || !/(°C|℃|Open-Meteo|气温|晴|雨|云|雾|雪)/.test(answer))
+        return "天气段应含济南气温/气象";
+      if (!/吃/.test(answer)) return "翻译段应含「吃」（eat→zh）";
+      return null;
+    },
+  },
 ];
 
 const runPipelineTurn = async (
@@ -468,7 +494,7 @@ const printOneRunBlock = (run: GoldenRunResult): void => {
 
   console.log(line);
   console.log(
-    `通过率：${passed.length}/${run.results.length}（目标 ≥6/8，G1～G5 核心 ≥4/5）`
+    `通过率：${passed.length}/${run.results.length}（目标 ≥6/9，G1～G5 核心 ≥4/5）`
   );
   console.log(
     `通过：${passed.length ? passed.map((r) => r.id).join("、") : "（无）"}`
@@ -524,7 +550,7 @@ const main = async (): Promise<void> => {
   const caseFilter = parseGoldenCaseFilter();
   const corpusUserId = await resolveCorpusUserId();
   console.log(
-    `Golden G1～G5c + GMem 全链路回归（corpusUserId=${corpusUserId}，连跑 ${totalRuns} 遍${
+    `Golden G1～G5c + G6 + GMem 全链路回归（corpusUserId=${corpusUserId}，连跑 ${totalRuns} 遍${
       caseFilter ? `，子集 ${[...caseFilter].join(",")}` : ""
     }）`
   );
@@ -551,7 +577,7 @@ const main = async (): Promise<void> => {
     return;
   }
 
-  /** 与报告文案一致：每遍 ≥6/8，且 G1～G5 核心 ≥4/5；允许偶发 LLM 抖动（如 G5b/G5c） */
+  /** 与报告文案一致：每遍 ≥6/9，且 G1～G5 核心 ≥4/5；允许偶发 LLM 抖动（如 G5b/G5c/G6） */
   const CORE_IDS = new Set(["G1", "G2", "G3", "G4", "G5"]);
   const runMeetsBar = (run: GoldenRunResult): boolean => {
     const passed = run.results.filter((r) => r.pass);
@@ -561,7 +587,7 @@ const main = async (): Promise<void> => {
   const failedRuns = runs.filter((run) => !runMeetsBar(run));
   if (failedRuns.length > 0) {
     console.error(
-      `\nGolden 未达标：${failedRuns.map((r) => `第${r.runIndex}遍`).join("、")}（目标每遍 ≥6/8 且 G1～G5 ≥4/5）`
+      `\nGolden 未达标：${failedRuns.map((r) => `第${r.runIndex}遍`).join("、")}（目标每遍 ≥6/9 且 G1～G5 ≥4/5）`
     );
     process.exit(1);
   }

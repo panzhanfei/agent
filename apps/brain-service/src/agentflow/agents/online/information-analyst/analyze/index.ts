@@ -351,17 +351,20 @@ export const buildFallbackAnswer = async (
     };
   }
 
-  const fromTools = pickToolResultForSubQuestion(
-    {
-      userQuestion,
-      queryType: queryType ?? undefined,
-      slotId:
-        input.compositeSubResults?.length === 1
-          ? String(input.compositeSubResults[0]?.slot ?? "")
-          : undefined,
-    },
-    input.toolResults
-  );
+  const fromTools =
+    (input.compositeSubResults?.length ?? 0) > 1
+      ? null
+      : pickToolResultForSubQuestion(
+          {
+            userQuestion,
+            queryType: queryType ?? undefined,
+            slotId:
+              input.compositeSubResults?.length === 1
+                ? String(input.compositeSubResults[0]?.slot ?? "")
+                : undefined,
+          },
+          input.toolResults
+        );
   if (fromTools) return toolRunToAnalystResult(fromTools);
 
   if (hits.length === 0 || coverage === "none") {

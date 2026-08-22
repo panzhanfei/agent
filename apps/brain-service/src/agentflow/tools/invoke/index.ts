@@ -1,7 +1,10 @@
 /**
  * 唯一分发：按 toolId 调领域 run*。MCP 工具由对应 run* 调 mcp/client 已登记绑定。
  */
-import type { IntakeIdentityField } from "@/agentflow/agents/online/intake-coordinator/contract";
+import {
+  defaultTranslateTargetLangFromReplyLanguage,
+  type IntakeIdentityField,
+} from "@/agentflow/agents/online/intake-coordinator/contract";
 import { runRetrieveCorpus } from "@/agentflow/tools/local/corpus";
 import {
   runComposeEnumeration,
@@ -63,7 +66,9 @@ export const invokeTool = async (
         corpusUserId: ctx.corpusUserId,
         actorUserId: ctx.actorUserId,
         text: node.searchQuery?.trim() || ctx.userQuestion.trim() || "",
-        targetLang: node.targetLang?.trim() || "",
+        targetLang:
+          node.targetLang?.trim() ||
+          defaultTranslateTargetLangFromReplyLanguage(ctx.language),
         sourceLang: node.sourceLang ?? "auto",
         label: node.label,
       });
@@ -121,6 +126,7 @@ export const invokeTool = async (
         label: node.label,
         deps: node.deps.map((id) => ctx.prior[id]).filter(Boolean) as ToolRunResult[],
         userQuestion: ctx.userQuestion,
+        schema: node.synthesizeSchema === "match_report" ? "match_report" : "free",
       });
     case "get_weather":
       return runGetWeather({

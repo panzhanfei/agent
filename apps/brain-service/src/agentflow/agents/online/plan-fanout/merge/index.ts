@@ -52,7 +52,7 @@ export const buildDagStepResults = (
   dagPatch: Partial<PipelineGraphState>
 ): StepResult[] => {
   const hybridRuns = pathPlan.steps.filter(
-    (d) => d.kind === "dag" && d.template === "hybrid_multi_source"
+    (d) => d.kind === "dag"
   );
   if (hybridRuns.length === 0) {
     return [

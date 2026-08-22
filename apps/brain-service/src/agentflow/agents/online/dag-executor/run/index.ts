@@ -27,7 +27,7 @@ export const runDagExecutorNode = async (
             : "sufficient"
           : "none",
       notes: synthesis?.ok
-        ? "DAG 混合检索：语料 + 外部搜索已汇合"
+        ? "DAG 拓扑执行完成"
         : "DAG 执行完成，部分节点无结果",
       toolResults,
       checkerPassed: true,

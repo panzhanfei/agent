@@ -24,6 +24,50 @@ const SYSTEM = `你是「履历×公司/市场」匹配评估器。只输出一�
 2. 外网或履历缺失时 conclusion 必须为「信息不足」或「谨慎」，evidenceGrade 相应降级。
 3. conclusion 必须是三选一枚举，禁止散文句。`;
 
+const FREE_SYSTEM = `你是多源汇合器。根据 goal 与材料写一段直接回答用户的正文。
+规则：
+1. 只依据材料，禁止编造材料中没有的事实。
+2. 默认不要输出「## 匹配点 / ## 缺口 / ## 风险 / ## 结论」招聘四栏。
+3. 材料不足就说明缺什么，不要假装评估岗位匹配。`;
+
+export const fillFreeSynthesisWithLlm = async (input: {
+  label: string;
+  deps: ToolRunResult[];
+  userQuestion?: string;
+}): Promise<string | null> => {
+  if (process.env.SYNTHESIZE_MATCH_LLM === "0") return null;
+  const materials = {
+    goal: input.label,
+    userQuestion: input.userQuestion ?? null,
+    sources: input.deps.map((d) => ({
+      label: d.label,
+      toolId: d.toolId,
+      ok: d.ok,
+      answer: d.answer?.slice(0, 1200) ?? null,
+    })),
+  };
+  try {
+    const promptText = JSON.stringify(materials, null, 2);
+    const resultChat = await completeChat({
+      messages: [
+        { role: "system", content: FREE_SYSTEM },
+        { role: "user", content: promptText },
+      ],
+      thinking: "disabled",
+      temperature: 0,
+    });
+    recordCompleteChatUsage(resultChat.usage, {
+      promptText,
+      completionText: resultChat.text,
+      node: "plan_dag",
+    });
+    const text = resultChat.text.trim();
+    return text || null;
+  } catch {
+    return null;
+  }
+};
+
 export const fillMatchReportWithLlm = async (input: {
   label: string;
   deps: ToolRunResult[];

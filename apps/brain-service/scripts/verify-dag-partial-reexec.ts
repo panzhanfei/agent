@@ -7,10 +7,47 @@ import {
   canReuseDagNodeResult,
   collectDownstreamRerunClosure,
 } from "../src/agentflow/execution";
-import { expandHybridMultiSourceTemplate } from "../src/agentflow/agents/online/intake-coordinator/path-plan";
+import type { ExecutionPlanNode } from "../src/agentflow/agents/online/tool-orchestrator/interface";
 import { applyEmptyPolicies } from "../src/agentflow/agents/online/plan-fanout/empty-policy";
 
-const plan = expandHybridMultiSourceTemplate("适合阿里吗", "简历 阿里");
+const plan: ExecutionPlanNode[] = [
+  {
+    id: "resume",
+    label: "简历",
+    dataSource: "corpus",
+    toolId: "retrieve_corpus",
+    searchQuery: "简历",
+    deps: [],
+    emptyPolicy: "require",
+  },
+  {
+    id: "company",
+    label: "公司",
+    dataSource: "web",
+    toolId: "search_web",
+    searchQuery: "公司",
+    deps: [],
+    emptyPolicy: "omit",
+  },
+  {
+    id: "market",
+    label: "市场",
+    dataSource: "web",
+    toolId: "search_web",
+    searchQuery: "市场",
+    deps: [],
+    emptyPolicy: "omit",
+  },
+  {
+    id: "synthesis",
+    label: "综合",
+    dataSource: "synthesize",
+    toolId: "synthesize_merge",
+    deps: ["resume", "company", "market"],
+    emptyPolicy: "degrade",
+    synthesizeSchema: "match_report",
+  },
+];
 const closure = collectDownstreamRerunClosure(plan, ["company"]);
 const ok = {
   toolId: "retrieve_corpus" as const,

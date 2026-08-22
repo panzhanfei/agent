@@ -29,7 +29,14 @@ describe("planFanOut merge helpers", () => {
           searchQuery: "适合度",
           queryType: "default" as const,
           topics: [],
-          template: "hybrid_multi_source" as const,
+          nodes: [
+            {
+              id: "n1",
+              label: "综合",
+              toolId: "synthesize_merge" as const,
+              deps: [],
+            },
+          ],
         },
       ],
     };
@@ -66,7 +73,14 @@ describe("planFanOut merge helpers", () => {
           searchQuery: "适合度",
           queryType: "default" as const,
           topics: [],
-          template: "hybrid_multi_source" as const,
+          nodes: [
+            {
+              id: "n1",
+              label: "综合",
+              toolId: "synthesize_merge" as const,
+              deps: [],
+            },
+          ],
         },
       ],
     };

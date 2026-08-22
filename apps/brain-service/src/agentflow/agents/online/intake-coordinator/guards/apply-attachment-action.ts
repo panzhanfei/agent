@@ -4,7 +4,10 @@
  * 写入原文库改走 Compose 后的写回闸门，不再从聊天附件直接 ingest。
  */
 import type { TurnAttachment } from "@fambrain/brain-types";
-import type { IntakeRoutingDecision } from "@/agentflow/agents/online/intake-coordinator/contract";
+import {
+  defaultTranslateTargetLangFromReplyLanguage,
+  type IntakeRoutingDecision,
+} from "@/agentflow/agents/online/intake-coordinator/contract";
 import {
   joinAttachmentTexts,
 } from "@/agentflow/agents/offline/doc-parser";
@@ -151,16 +154,8 @@ export const applyAttachmentAction = async (input: {
     fromStep?.targetLang?.trim() ||
     (typeof fromStep?.params?.targetLang === "string"
       ? String(fromStep.params.targetLang).trim()
-      : "");
-  if (!targetLang) {
-    return withClarify(
-      decision,
-      decision.language === "en"
-        ? "Which language should I translate the attachment into? (e.g. en, zh, ja)"
-        : "请说明要翻译成哪种语言（如 en / zh / ja）。",
-      action
-    );
-  }
+      : "") ||
+    defaultTranslateTargetLangFromReplyLanguage(decision.language);
 
   return {
     decision: {

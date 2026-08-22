@@ -45,7 +45,7 @@ describe("applyToolPlanGuard", () => {
         expect(age?.dataSource).toBe("compute");
     });
 
-    it("routes hybrid questions to dag mode via topics.external", () => {
+    it("does not invent a job-fit dag from topics.external", () => {
         const q = "根据我的简历和今年市场行情，评估我去奥卡云公司的机会";
         const withTools = applyToolPlanGuard(
             {
@@ -89,6 +89,7 @@ describe("applyToolPlanGuard", () => {
         );
         const routed = applyPathPlanGuard(withTools, q);
         expect(routed.routeMode).toBe("planFanOut");
-        expect(routed.executionPlan?.some((n) => n.id === "synthesis")).toBe(true);
+        expect(routed.executionPlan).toBeUndefined();
+        expect(routed.pathPlan.steps.some((s) => s.kind === "dag")).toBe(false);
     });
 });

@@ -3,6 +3,7 @@ import {
   applyPathPlanGuard,
   deriveCompositeSlotsFromPathPlan,
   emptyPathPlan,
+  executionPlanFromPathPlanDag,
   legalizePathPlan,
   stepsOfKind,
   type RoutedIntakeDecision,
@@ -442,6 +443,74 @@ describe("legalizePathPlan + deriveCompositeSlots", () => {
     expect(slots.some((s) => s.executor === "mem_recall")).toBe(false);
   });
 
+  it("fills translate_text targetLang from replyLanguage when omitted", () => {
+    const pathPlan = legalizePathPlan(
+      {
+        steps: [
+          {
+            id: "tool-translate",
+            kind: "tool",
+            label: "翻译eat",
+            searchQuery: "eat",
+            queryType: "default",
+            topics: ["translate"],
+            toolId: "translate_text",
+            dataSource: "web",
+          },
+        ],
+      },
+      { replyLanguage: "zh" }
+    );
+    expect(pathPlan.steps).toHaveLength(1);
+    expect(pathPlan.steps[0]?.toolId).toBe("translate_text");
+    expect(pathPlan.steps[0]?.targetLang).toBe("zh");
+    const slots = deriveCompositeSlotsFromPathPlan(pathPlan);
+    expect(slots[0]?.targetLang).toBe("zh");
+  });
+
+  it("keeps explicit translate_text targetLang and does not drop it in normalize", () => {
+    const pathPlan = legalizePathPlan(
+      {
+        steps: [
+          {
+            id: "tool-translate",
+            kind: "tool",
+            label: "译英",
+            searchQuery: "你好",
+            queryType: "default",
+            topics: ["translate"],
+            toolId: "translate_text",
+            dataSource: "web",
+            targetLang: "en",
+          },
+        ],
+      },
+      { replyLanguage: "zh" }
+    );
+    expect(pathPlan.steps[0]?.targetLang).toBe("en");
+  });
+
+  it("maps mixed replyLanguage to zh for missing translate targetLang", () => {
+    const pathPlan = legalizePathPlan(
+      {
+        steps: [
+          {
+            id: "tool-translate",
+            kind: "tool",
+            label: "翻译",
+            searchQuery: "eat",
+            queryType: "default",
+            topics: ["translate"],
+            toolId: "translate_text",
+            dataSource: "web",
+          },
+        ],
+      },
+      { replyLanguage: "mixed" }
+    );
+    expect(pathPlan.steps[0]?.targetLang).toBe("zh");
+  });
+
   it("drops unknown kinds (not in PathKind whitelist)", () => {
     const pathPlan = legalizePathPlan({
       steps: [
@@ -465,5 +534,77 @@ describe("legalizePathPlan + deriveCompositeSlots", () => {
     });
     expect(pathPlan.steps).toHaveLength(1);
     expect(pathPlan.steps[0]?.kind).toBe("km");
+  });
+
+  it("legalizes dag.nodes and drops template-only dag", () => {
+    const dropped = legalizePathPlan({
+      steps: [
+        {
+          id: "dag-old",
+          kind: "dag",
+          label: "评估",
+          searchQuery: "评估",
+          queryType: "default",
+          topics: [],
+          template: "hybrid_multi_source",
+        },
+      ],
+    });
+    expect(dropped.steps).toHaveLength(0);
+
+    const pathPlan = legalizePathPlan({
+      steps: [
+        {
+          id: "dag-fit",
+          kind: "dag",
+          label: "面试适合度",
+          searchQuery: "履历评估",
+          queryType: "default",
+          topics: [],
+          nodes: [
+            {
+              id: "resume",
+              label: "简历",
+              toolId: "retrieve_corpus",
+              searchQuery: "个人简介 简历",
+              deps: [],
+            },
+            {
+              id: "synth",
+              label: "综合",
+              toolId: "synthesize_merge",
+              deps: ["resume"],
+              synthesizeSchema: "match_report",
+            },
+          ],
+        },
+      ],
+    });
+    expect(pathPlan.steps).toHaveLength(1);
+    expect(pathPlan.steps[0]?.nodes).toHaveLength(2);
+    const plan = executionPlanFromPathPlanDag(pathPlan);
+    expect(plan?.map((n) => n.id)).toEqual(["resume", "synth"]);
+    expect(plan?.[1]?.synthesizeSchema).toBe("match_report");
+    expect(plan?.[1]?.deps).toEqual(["resume"]);
+  });
+
+  it("drops cyclic dag.nodes", () => {
+    const pathPlan = legalizePathPlan({
+      steps: [
+        {
+          id: "dag-cycle",
+          kind: "dag",
+          label: "环",
+          searchQuery: "环",
+          queryType: "default",
+          topics: [],
+          nodes: [
+            { id: "a", label: "a", toolId: "get_weather", deps: ["b"] },
+            { id: "b", label: "b", toolId: "search_web", deps: ["a"] },
+          ],
+        },
+      ],
+    });
+    expect(pathPlan.steps).toHaveLength(0);
   });
 });

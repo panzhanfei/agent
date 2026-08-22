@@ -1,6 +1,10 @@
 import { dedupeCitations } from "@/agentflow/agents/online/content-organizer";
 import type { ToolRunResult } from "@/agentflow/agents/online/tool-orchestrator/interface";
-import { fillMatchReportWithLlm } from "./fill-llm";
+import type { SynthesizeSchema } from "@/agentflow/agents/online/intake-coordinator/path-plan";
+import {
+  fillFreeSynthesisWithLlm,
+  fillMatchReportWithLlm,
+} from "./fill-llm";
 import {
   buildDeterministicMatchReport,
   matchReportToBlocks,
@@ -8,17 +12,58 @@ import {
 } from "./match-report";
 import type { MatchReport } from "./interface";
 
+const joinDepAnswers = (deps: ToolRunResult[]): string => {
+  const parts = deps
+    .filter((d) => d.ok && d.answer.trim())
+    .map((d) => `【${d.label}】\n${d.answer.trim()}`);
+  return parts.join("\n\n");
+};
+
+const buildFreeSynthesizeResult = async (input: {
+  label: string;
+  deps: ToolRunResult[];
+  userQuestion?: string;
+}): Promise<ToolRunResult> => {
+  const fallback = joinDepAnswers(input.deps);
+  const llm = await fillFreeSynthesisWithLlm(input);
+  const answer =
+    llm?.trim() ||
+    fallback ||
+    (input.userQuestion?.trim()
+      ? `材料不足，无法综合「${input.label}」。`
+      : "材料不足，无法综合。");
+  const citations = dedupeCitations(
+    input.deps.flatMap((d) => d.citations ?? [])
+  );
+  const anyOk = input.deps.some((d) => d.ok && d.answer.trim());
+  return {
+    toolId: "synthesize_merge",
+    label: input.label,
+    ok: anyOk || Boolean(llm?.trim()),
+    answer,
+    citations,
+    hits: input.deps.find((d) => d.hits?.length)?.hits ?? [],
+    insufficientEvidence: !anyOk,
+    confidence: anyOk ? 0.75 : 0.45,
+  };
+};
+
 export const buildSynthesizeMergeResult = async (input: {
   label: string;
   deps: ToolRunResult[];
   userQuestion?: string;
-}): Promise<ToolRunResult & { matchReport: MatchReport }> => {
+  schema?: SynthesizeSchema;
+}): Promise<ToolRunResult & { matchReport?: MatchReport }> => {
+  const schema = input.schema === "match_report" ? "match_report" : "free";
+  if (schema !== "match_report") {
+    return buildFreeSynthesizeResult(input);
+  }
+
   const deterministic = buildDeterministicMatchReport(input);
   let report = deterministic.report;
 
   const llmReport = await fillMatchReportWithLlm(input);
   if (llmReport) {
-    // LLM 结论不得在证据不足时标「适合」
     if (
       deterministic.report.evidenceGrade === "insufficient" &&
       llmReport.conclusion === "适合"

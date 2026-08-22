@@ -242,7 +242,9 @@ export const runIntakePipeline = async (
      * - pathPlan 为空 → clarify 早退
      */
     if (decision.intent === "recall_user_fact" && !factKey) {
-      const pathPlan = legalizePathPlan(decision.pathPlan);
+      const pathPlan = legalizePathPlan(decision.pathPlan, {
+        replyLanguage: decision.language,
+      });
       if (!isPathPlanEmpty(pathPlan)) {
         decision = {
           ...decision,
@@ -312,7 +314,9 @@ export const runIntakePipeline = async (
   decision = afterLinkLookup;
 
   /** ⑥ 合法化 LLM pathPlan；retrieve 且空 → clarify */
-  let pathPlan = legalizePathPlan(decision.pathPlan);
+  let pathPlan = legalizePathPlan(decision.pathPlan, {
+    replyLanguage: decision.language,
+  });
 
   // 顶层 userFactKey 补到缺 key 的 mem 步（结构补全，非猜字段名）
   if (decision.userFactKey?.trim()) {
@@ -423,7 +427,9 @@ export const runIntakePipeline = async (
     mem: pathPlan.steps.filter((s) => s.kind === "mem").length,
     tool: pathPlan.steps.filter((s) => s.kind === "tool").length,
     summarize: pathPlan.steps.filter((s) => s.kind === "summarize").length,
-    dag: pathPlan.steps.filter((s) => s.kind === "dag").map((d) => d.template),
+    dag: pathPlan.steps
+      .filter((s) => s.kind === "dag")
+      .map((d) => d.nodes?.length ?? 0),
   });
 
   /** ⑦ list 步补页码（从 history blocks） */
@@ -462,9 +468,9 @@ export const runIntakePipeline = async (
   if (executionPlan) {
     logAgentOut("IntakeCoordinator", "guard_工具计划", {
       executionPlanCount: executionPlan.length,
-      dagTemplates: pathPlan.steps
+      dagNodeCounts: pathPlan.steps
         .filter((d) => d.kind === "dag")
-        .map((d) => d.template),
+        .map((d) => d.nodes?.length ?? 0),
       compositeSlotCount: compositeSlots.length,
     });
   }

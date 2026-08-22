@@ -14,6 +14,8 @@ export {
   prompt,
 } from "./prompt";
 
+export { defaultTranslateTargetLangFromReplyLanguage } from "./reply-language";
+
 export {
   intakeRetrievalPlanItemSchema,
   intakeRoutingDecisionSchema,

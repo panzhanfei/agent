@@ -11,7 +11,6 @@ import {
 } from "../src/agentflow/agents/online/tool-orchestrator";
 import {
     applyToolPlanGuard,
-    decisionSuggestsHybridDag,
     emptyPathPlan,
     type RoutedIntakeDecision,
 } from "../src/agentflow/agents/online/intake-coordinator";
@@ -110,16 +109,11 @@ console.log("\n— applyToolPlanGuard —");
     ok("topics=external → enrichedPlan search_web");
 }
 
-console.log("\n— hybrid DAG intent —");
+console.log("\n— topics do not invent a job-fit DAG —");
 
 {
     const q =
         "根据我的简历和今年市场行情，评估我去奥卡云公司的机会";
-    assert.ok(
-        decisionSuggestsHybridDag({
-            topics: ["personal", "resume", "external"],
-        })
-    );
     const routed = applyToolPlanGuard(
         {
             ...baseDecision(),
@@ -142,11 +136,8 @@ console.log("\n— hybrid DAG intent —");
         },
         q
     );
-    assert.equal(routed.routeMode, "planFanOut");
-    assert.ok((routed.executionPlan?.length ?? 0) >= 3);
-    const synth = routed.executionPlan?.find((n) => n.id === "synthesis");
-    assert.ok(synth?.deps.includes("resume"));
-    ok("topics 含 external+corpus → routeMode=planFanOut + executionPlan");
+    assert.equal(routed.executionPlan, undefined);
+    ok("topics 含 external+corpus 不发明 executionPlan");
 }
 
 console.log("\n— resolvePostRetrievalToolRuns —");

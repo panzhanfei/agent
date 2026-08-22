@@ -30,11 +30,38 @@ export type PathKind =
 
 export type ComposeMode = "qa" | "summarize" | "composite";
 
-/** 仅通用多源汇合；禁止为单业务场景再加 named template */
-export type DagTemplateId = "hybrid_multi_source";
+/** synthesize_merge 输出契约：free=按 goal 汇合；match_report=履历×岗位四栏（须 Intake 显式声明） */
+export type SynthesizeSchema = "free" | "match_report";
 
 /** 空证据策略：require | omit | degrade */
 export type EmptyPolicy = "require" | "omit" | "degrade";
+
+/**
+ * DAG 内节点（有向依赖图）。toolId 白名单；边 = deps / optionalDeps。
+ * 不是业务场景名，禁止用 template 展开固定图。
+ */
+export type DagNodeSpec = {
+  id: string;
+  label: string;
+  toolId: ToolRunId;
+  searchQuery?: string;
+  webQuery?: string;
+  deps?: string[];
+  optionalDeps?: string[];
+  emptyPolicy?: EmptyPolicy;
+  dataSource?: DataSource | null;
+  queryType?:
+    | "identity"
+    | "enumeration"
+    | "tech"
+    | "external_link"
+    | "relations"
+    | "default";
+  topics?: string[];
+  targetLang?: string | null;
+  sourceLang?: string | null;
+  synthesizeSchema?: SynthesizeSchema;
+};
 
 /**
  * 单步执行计划（LLM 终稿字段）。
@@ -43,7 +70,7 @@ export type EmptyPolicy = "require" | "omit" | "degrade";
  * - mem：Mem0 结构化召回（userFactKey + dataSource=mem0）
  * - tool：独立工具步（search_web / translate_text / get_weather 等）
  * - summarize：子步总结用户原文（dataSource=user_text）
- * - dag：仅 hybrid_multi_source（语料+外网汇合）
+ * - dag：有向依赖图（nodes[] + deps）；无固定业务 template
  * - vault_workspace：原文库 txt/文件夹（params.operation=list|open|create_*|update|delete_*；list 可无 path）。独占单槽，不与 km/list/mem/tool/dag/summarize 同 plan
  */
 export type ExecutionStep = {
@@ -79,10 +106,18 @@ export type ExecutionStep = {
   enumerationControl?: EnumerationControl | null;
   enumerationPage?: number;
   enumerationPageSize?: number;
-  /** 仅 dag */
-  template?: DagTemplateId;
+  /** 仅 dag：内嵌有向节点（须 ≥1；无 nodes 则合法化丢弃该步） */
+  nodes?: DagNodeSpec[];
   deps?: string[];
   params?: Record<string, unknown>;
+};
+
+/** 与 Intake `language` 对齐 */
+export type ReplyLanguage = "zh" | "en" | "mixed";
+
+export type LegalizePathPlanOptions = {
+  /** 本轮回复语；translate_text 缺 targetLang 时按此补（en→en，其余→zh） */
+  replyLanguage?: ReplyLanguage;
 };
 
 export type PathPlan = {

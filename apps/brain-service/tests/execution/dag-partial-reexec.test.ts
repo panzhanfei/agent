@@ -5,9 +5,47 @@ import {
 } from "@/agentflow/execution";
 import type { ExecutionPlanNode } from "@/agentflow/agents/online/tool-orchestrator/interface";
 import type { ToolRunResult } from "@/agentflow/agents/online/tool-orchestrator/interface";
-import { expandHybridMultiSourceTemplate } from "@/agentflow/agents/online/intake-coordinator/path-plan";
 import { applyGlobalRebatchRepairs } from "@/agentflow/agents/online/plan-fanout/global-rebatch";
 import type { RoutedIntakeDecision } from "@/agentflow/agents/online/intake-coordinator/guards/interface";
+
+const sampleCausalDagPlan = (): ExecutionPlanNode[] => [
+  {
+    id: "resume",
+    label: "简历",
+    dataSource: "corpus",
+    toolId: "retrieve_corpus",
+    searchQuery: "简历",
+    deps: [],
+    emptyPolicy: "require",
+  },
+  {
+    id: "company",
+    label: "公司",
+    dataSource: "web",
+    toolId: "search_web",
+    searchQuery: "公司",
+    deps: [],
+    emptyPolicy: "omit",
+  },
+  {
+    id: "market",
+    label: "市场",
+    dataSource: "web",
+    toolId: "search_web",
+    searchQuery: "市场",
+    deps: [],
+    emptyPolicy: "omit",
+  },
+  {
+    id: "synthesis",
+    label: "综合",
+    dataSource: "synthesize",
+    toolId: "synthesize_merge",
+    deps: ["resume", "company", "market"],
+    emptyPolicy: "degrade",
+    synthesizeSchema: "match_report",
+  },
+];
 
 const ok = (id: string): ToolRunResult => ({
   toolId: "search_web",
@@ -32,7 +70,7 @@ const fail = (id: string): ToolRunResult => ({
 });
 
 describe("collectDownstreamRerunClosure", () => {
-  const plan = expandHybridMultiSourceTemplate("适合某公司吗", "简历 公司");
+  const plan = sampleCausalDagPlan();
 
   it("forces company and downstream synthesis", () => {
     const rerun = collectDownstreamRerunClosure(plan, ["company"]);
@@ -62,9 +100,9 @@ describe("canReuseDagNodeResult", () => {
   });
 });
 
-describe("hybrid template emptyPolicy defaults", () => {
-  it("marks resume require and web omit", () => {
-    const plan = expandHybridMultiSourceTemplate("q", "q");
+describe("causal dag emptyPolicy", () => {
+  it("keeps require/omit/degrade on nodes", () => {
+    const plan = sampleCausalDagPlan();
     expect(plan.find((n) => n.id === "resume")?.emptyPolicy).toBe("require");
     expect(plan.find((n) => n.id === "company")?.emptyPolicy).toBe("omit");
     expect(plan.find((n) => n.id === "market")?.emptyPolicy).toBe("omit");
@@ -74,7 +112,7 @@ describe("hybrid template emptyPolicy defaults", () => {
 
 describe("applyGlobalRebatchRepairs dag node ids", () => {
   it("returns rebatchDagNodeIds for patched nodes", () => {
-    const plan: ExecutionPlanNode[] = expandHybridMultiSourceTemplate("q", "q");
+    const plan: ExecutionPlanNode[] = sampleCausalDagPlan();
     const decision = {
       compositeSlots: [],
       executionPlan: plan,

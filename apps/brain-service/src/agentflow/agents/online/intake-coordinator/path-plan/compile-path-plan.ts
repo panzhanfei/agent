@@ -5,11 +5,8 @@
 import type { CompositeRetrievalSlot } from "@/agentflow/agents/online/intake-coordinator/composite/interface";
 import type { RoutedIntakeDecision } from "@/agentflow/agents/online/intake-coordinator/guards/interface";
 import { enrichCompositeSlots } from "./enrich-tool-plan";
-import { expandHybridMultiSourceTemplate } from "./dag-templates";
-import {
-  decisionSuggestsHybridDag,
-  topicsSuggestWebSource,
-} from "./route-signals";
+import { topicsSuggestWebSource } from "./route-signals";
+import { executionPlanFromPathPlanDag } from "./from-llm";
 import { emptyPathPlan } from "./defaults";
 import { resolveIntakeGraphRouteMode } from "@/agentflow/agents/online/intake-coordinator/pipeline";
 import type {
@@ -58,30 +55,6 @@ export const compilePathPlan = (
   }
 
   const slots = decision.compositeSlots ?? [];
-  const planTopics = (decision.retrievalPlan ?? []).map((p) => p.topics);
-  const hybrid = decisionSuggestsHybridDag({
-    topics: decision.topics,
-    planTopics,
-  });
-
-  if (hybrid) {
-    const pathPlan: PathPlan = {
-      steps: [
-        {
-          id: "dag-hybrid",
-          kind: "dag",
-          label: "多源综合评估",
-          searchQuery: decision.searchQuery || _userQuestion,
-          queryType: "default",
-          topics: [...decision.topics],
-          template: "hybrid_multi_source",
-          deps: [],
-        },
-      ],
-    };
-    return { pathPlan, composeMode: "qa" };
-  }
-
   const steps: ExecutionStep[] = [];
 
   for (const slot of slots) {
@@ -214,8 +187,10 @@ export const applyPathPlanGuard = (
   userQuestion: string
 ): RoutedIntakeDecision => {
   const { pathPlan, composeMode } = compilePathPlan(decision, userQuestion);
-  const isHybrid = pathPlan.steps.some(
-    (d) => d.kind === "dag" && d.template === "hybrid_multi_source"
+  const dagPlan = executionPlanFromPathPlanDag(
+    pathPlan,
+    userQuestion,
+    decision.searchQuery
   );
 
   const orderedSlots =
@@ -235,10 +210,7 @@ export const applyPathPlanGuard = (
         : enrichedSlots.map((s) => String(s.id)),
     compositeSlots: enrichedSlots,
     routeMode: decision.routeMode,
-    executionPlan: isHybrid
-      ? (decision.executionPlan ??
-        expandHybridMultiSourceTemplate(userQuestion, decision.searchQuery))
-      : decision.executionPlan,
+    executionPlan: dagPlan ?? decision.executionPlan,
   };
   next.routeMode = resolveIntakeGraphRouteMode(next);
   return next;

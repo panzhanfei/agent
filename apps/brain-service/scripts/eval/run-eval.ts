@@ -151,7 +151,7 @@ type GoldenFile = {
         turns: ListPaginationTurn[];
     };
     vaultWorkspaceProbe?: VaultWorkspaceProbeSpec;
-    matchReportProbe?: {
+    dagFreeProbe?: {
         id: string;
         label: string;
         assert: JsonAssert;
@@ -217,7 +217,7 @@ type EvalReport = {
     identityCompositeProbe?: CaseResult[];
     familyProbe?: CaseResult[];
     vaultWorkspaceProbe?: CaseResult[];
-    matchReportProbe?: CaseResult[];
+    dagFreeProbe?: CaseResult[];
 };
 
 const resolveCorpusUserId = async (): Promise<string> => {
@@ -589,9 +589,8 @@ const runCacheProbe = async (
     return out;
 };
 
-/** L5：fixture 驱动 MatchReport（不跑全链路外网） */
-const runMatchReportProbe = async (
-    probe: NonNullable<GoldenFile["matchReportProbe"]>
+const runDagFreeProbe = async (
+    probe: NonNullable<GoldenFile["dagFreeProbe"]>
 ): Promise<CaseResult[]> => {
     const prev = process.env.SYNTHESIZE_MATCH_LLM;
     process.env.SYNTHESIZE_MATCH_LLM = "0";
@@ -601,44 +600,27 @@ const runMatchReportProbe = async (
             "@/agentflow/agents/online/tool-orchestrator"
         );
         const merged = await invokeSynthesizeMerge({
-            label: "综合评估",
+            label: "是否适合出门",
+            schema: "free",
             deps: [
                 {
-                    toolId: "retrieve_corpus",
-                    label: "个人简历",
+                    toolId: "get_weather",
+                    label: "天水天气",
                     ok: true,
-                    answer: "前端工程师，React/TypeScript；带过小团队",
-                    citations: [
-                        { path: "personal/简历.md", excerpt: "React" },
-                    ],
+                    answer: "天水，中国：28°C，多云。",
+                    citations: [],
                     hits: [],
                     insufficientEvidence: false,
-                    confidence: 0.8,
-                },
-                {
-                    toolId: "search_web",
-                    label: "目标公司",
-                    ok: true,
-                    answer: "云计算与 ToG；招聘前端负责人",
-                    citations: [
-                        {
-                            path: "https://example.com",
-                            excerpt: "云计算",
-                        },
-                    ],
-                    hits: [],
-                    insufficientEvidence: false,
-                    confidence: 0.7,
+                    confidence: 0.9,
                 },
             ],
         });
         const snap: PipelineEvalSnapshot = {
-            steps: ["plan_dag", "analyst"],
+            steps: ["plan_dag"],
             answer: merged.answer,
             hitCount: 0,
-            coverage: merged.insufficientEvidence ? "partial" : "sufficient",
+            coverage: "sufficient",
             latencyMs: Date.now() - t0,
-            blocks: merged.blocks,
         };
         const issues = assertPipeline(snap, probe.assert);
         return [
@@ -968,9 +950,9 @@ const formatMarkdown = (report: EvalReport): string => {
             lines.push(probeLine(r, r.pass ? "✅" : "❌"));
         }
     }
-    if (report.matchReportProbe?.length) {
-        lines.push(``, `## 匹配结构化探测（MatchReport）`, ``);
-        for (const r of report.matchReportProbe) {
+    if (report.dagFreeProbe?.length) {
+        lines.push(``, `## DAG free 汇合探测`, ``);
+        for (const r of report.dagFreeProbe) {
             lines.push(probeLine(r, r.pass ? "✅" : "❌"));
         }
     }
@@ -1242,10 +1224,10 @@ const main = async (): Promise<void> => {
             ? []
             : await runVaultWorkspaceProbe(vaultSpec, corpusUserId);
 
-    const matchReportProbe =
-        caseFilter || !golden.matchReportProbe
+    const dagFreeProbe =
+        caseFilter || !golden.dagFreeProbe
             ? []
-            : await runMatchReportProbe(golden.matchReportProbe);
+            : await runDagFreeProbe(golden.dagFreeProbe);
 
     const report: EvalReport = {
         generatedAt: new Date().toISOString(),
@@ -1272,9 +1254,7 @@ const main = async (): Promise<void> => {
         vaultWorkspaceProbe: vaultWorkspaceProbe.length
             ? vaultWorkspaceProbe
             : undefined,
-        matchReportProbe: matchReportProbe.length
-            ? matchReportProbe
-            : undefined,
+        dagFreeProbe: dagFreeProbe.length ? dagFreeProbe : undefined,
     };
 
     const failed = results.filter((r) => !r.pass);
@@ -1294,9 +1274,7 @@ const main = async (): Promise<void> => {
     );
     const familyFailed = (report.familyProbe ?? []).filter((r) => !r.pass);
     const vaultFailed = (report.vaultWorkspaceProbe ?? []).filter((r) => !r.pass);
-    const matchReportFailed = (report.matchReportProbe ?? []).filter(
-        (r) => !r.pass
-    );
+    const dagFreeFailed = (report.dagFreeProbe ?? []).filter((r) => !r.pass);
     const coalesceBad = report.metrics.coalesceFailures > 0;
     const pass =
         failed.length === 0 &&
@@ -1308,7 +1286,7 @@ const main = async (): Promise<void> => {
         identityCompositeFailed.length === 0 &&
         familyFailed.length === 0 &&
         vaultFailed.length === 0 &&
-        matchReportFailed.length === 0 &&
+        dagFreeFailed.length === 0 &&
         !coalesceBad;
 
     const mdBody = formatMarkdown(report);
@@ -1334,7 +1312,7 @@ const main = async (): Promise<void> => {
         ...identityCompositeFailed,
         ...familyFailed,
         ...vaultFailed,
-        ...matchReportFailed,
+        ...dagFreeFailed,
     ].map((r) => `- ${r.id}: ${r.reason}`);
 
     // 子集（--case / 仅某 probe）不得覆盖 reports/eval-report 全量段
@@ -1364,7 +1342,7 @@ const main = async (): Promise<void> => {
                     identityCompositeFailed: identityCompositeFailed.length,
                 familyFailed: familyFailed.length,
                 vaultFailed: vaultFailed.length,
-                matchReportFailed: matchReportFailed.length,
+                dagFreeFailed: dagFreeFailed.length,
                 coalesceFailures: report.metrics.coalesceFailures,
             },
                 failures: failDetails,

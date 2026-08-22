@@ -3,7 +3,10 @@
  * 主契约：有序 steps[]。
  * normalizePathPlanSteps：仅按 dataSource / userFactKey / identityField / toolId 族修正 kind（无字段名表）。
  */
-import type { IntakeRoutingDecision } from "@/agentflow/agents/online/intake-coordinator/contract";
+import {
+  defaultTranslateTargetLangFromReplyLanguage,
+  type IntakeRoutingDecision,
+} from "@/agentflow/agents/online/intake-coordinator/contract";
 import type { CompositeRetrievalSlot } from "@/agentflow/agents/online/intake-coordinator/composite/interface";
 import type { EnumerationControl } from "@/agentflow/agents/online/corpus-lister/enumeration";
 import type { SlotExecutor } from "@/agentflow/agents/online/corpus-lister/enumeration";
@@ -21,15 +24,21 @@ import {
   type DataSource,
   type ToolRunId,
 } from "@/agentflow/agents/online/tool-orchestrator";
-import { expandHybridMultiSourceTemplate } from "./dag-templates";
+import {
+  dagNodesToExecutionPlan,
+  legalizeDagNodes,
+} from "./dag-templates";
 import { emptyPathPlan, defaultComposeMode } from "./defaults";
 import { legalizeEmptyPolicy } from "./empty-policy";
 import type {
   ComposeMode,
   ExecutionStep,
+  LegalizePathPlanOptions,
   PathKind,
   PathPlan,
+  ReplyLanguage,
 } from "./interface";
+import type { ExecutionPlanNode } from "@/agentflow/agents/online/tool-orchestrator";
 
 const TOOL_ID_SET = new Set<string>(TOOL_RUN_IDS);
 
@@ -277,11 +286,29 @@ const toToolStep = (step: ExecutionStep): ExecutionStep | null => {
       step.dataSource !== "user_text"
         ? step.dataSource
         : defaultDataSourceForStandaloneTool(step.toolId),
+    targetLang: step.targetLang ?? null,
+    sourceLang: step.sourceLang ?? null,
     userFactKey: null,
     userFactLabel: null,
     enumerationControl: null,
     emptyPolicy: step.emptyPolicy ?? "degrade",
   };
+};
+
+const fillTranslateTargetLangs = (
+  plan: PathPlan,
+  replyLanguage?: ReplyLanguage
+): PathPlan => {
+  if (!replyLanguage) return plan;
+  const fallback = defaultTranslateTargetLangFromReplyLanguage(replyLanguage);
+  let changed = false;
+  const steps = plan.steps.map((s) => {
+    if (s.toolId !== "translate_text") return s;
+    if (s.targetLang?.trim()) return s;
+    changed = true;
+    return { ...s, targetLang: fallback };
+  });
+  return changed ? { steps } : plan;
 };
 
 /**
@@ -399,24 +426,25 @@ export const normalizePathPlanSteps = (plan: PathPlan): PathPlan => {
 const legalizeStep = (raw: unknown, index: number): ExecutionStep | null => {
   if (!raw || typeof raw !== "object" || Array.isArray(raw)) return null;
   const o = raw as Record<string, unknown>;
-  const kind =
-    asKind(o.kind ?? o.pathKind ?? o.path_kind) ??
-    (o.template === "hybrid_multi_source" ? "dag" : null);
+  const kind = asKind(o.kind ?? o.pathKind ?? o.path_kind);
   if (!kind) return null;
 
   if (kind === "dag") {
-    if (o.template !== "hybrid_multi_source") return null;
+    const nodes = legalizeDagNodes(o.nodes);
+    if (nodes.length === 0) return null;
     return {
       id: trimId(o.id, `dag-${index}`),
       kind: "dag",
-      label: String(o.label ?? "多源综合评估").trim() || "多源综合评估",
+      label: String(o.label ?? "综合").trim() || "综合",
       searchQuery:
-        String(o.searchQuery ?? o.search_query ?? "").trim() || "多源综合评估",
+        String(o.searchQuery ?? o.search_query ?? "").trim() ||
+        nodes[0]?.searchQuery ||
+        "综合",
       queryType: "default",
       topics: Array.isArray(o.topics)
         ? o.topics.map((t) => String(t).trim()).filter(Boolean)
         : [],
-      template: "hybrid_multi_source",
+      nodes,
       deps: Array.isArray(o.deps)
         ? o.deps.map((d) => String(d).trim()).filter(Boolean)
         : [],
@@ -641,7 +669,10 @@ const legalizeStep = (raw: unknown, index: number): ExecutionStep | null => {
 };
 
 /** 合法化 LLM pathPlan；非法项丢弃；再结构归一 */
-export const legalizePathPlan = (raw: unknown): PathPlan => {
+export const legalizePathPlan = (
+  raw: unknown,
+  opts?: LegalizePathPlanOptions
+): PathPlan => {
   if (!raw || typeof raw !== "object" || Array.isArray(raw)) {
     return emptyPathPlan();
   }
@@ -670,7 +701,10 @@ export const legalizePathPlan = (raw: unknown): PathPlan => {
     seen.add(s.id);
     deduped.push(s);
   }
-  return normalizePathPlanSteps({ steps: deduped });
+  return fillTranslateTargetLangs(
+    normalizePathPlanSteps({ steps: deduped }),
+    opts?.replyLanguage
+  );
 };
 
 export const legalizeComposeMode = (
@@ -833,15 +867,16 @@ export const deriveRetrievalPlanFromPathPlan = (
   return out;
 };
 
-/** hybrid dag → executionPlan 模板展开 */
+/** dag.nodes[] → executionPlan（拓扑执行器用；无 nodes 则无 plan） */
 export const executionPlanFromPathPlanDag = (
   plan: PathPlan,
-  userQuestion: string,
-  searchQuery: string
-) => {
-  const hybrid = plan.steps.find(
-    (d) => d.kind === "dag" && d.template === "hybrid_multi_source"
+  _userQuestion?: string,
+  _searchQuery?: string
+): ExecutionPlanNode[] | undefined => {
+  const dags = plan.steps.filter(
+    (d) => d.kind === "dag" && (d.nodes?.length ?? 0) > 0
   );
-  if (!hybrid) return undefined;
-  return expandHybridMultiSourceTemplate(userQuestion, searchQuery);
+  if (dags.length === 0) return undefined;
+  const nodes = dags.flatMap((d) => dagNodesToExecutionPlan(d.nodes ?? []));
+  return nodes.length > 0 ? nodes : undefined;
 };

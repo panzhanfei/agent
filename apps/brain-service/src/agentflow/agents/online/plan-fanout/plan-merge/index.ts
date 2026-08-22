@@ -84,7 +84,7 @@ export const runPlanMergeNode = async (
     };
 
     const dagRuns = pathPlan.steps.filter(
-      (d) => d.kind === "dag" && d.template === "hybrid_multi_source"
+      (d) => d.kind === "dag"
     );
     const compositeMerge =
       hasSlots && dagRuns.length > 0

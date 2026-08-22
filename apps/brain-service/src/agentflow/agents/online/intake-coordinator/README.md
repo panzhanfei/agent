@@ -147,7 +147,7 @@ LLM 原始 JSON
 
 **列举分页：** Intake LLM 在 **list 步**填 `enumerationControl`；代码只补 session 页码。UI exact-match → `buildEnumerationListDecision` 直接造 list 步。实现位于 **`corpus-lister/enumeration`**（Intake barrel re-export）。
 
-**外链抽取：** `extract_external_links_from_hits` 在 **`tools/lib/extract-external-links.ts`**；Intake 只声明 `queryType=external_link` + `toolId`；「近 N 年」→ `timeWindowYears`，勿把时间口语当实体。dag **仅** `hybrid_multi_source`。
+**外链抽取：** `extract_external_links_from_hits` 在 **`tools/lib/extract-external-links.ts`**；Intake 只声明 `queryType=external_link` + `toolId`；「近 N 年」→ `timeWindowYears`，勿把时间口语当实体。dag 为 `nodes[]` 有向图（无固定业务 template）。
 
 详见坑点 [§2.5.9 GitHub 对外链接](../../../../../../../docs/04-pitfalls.md#259-简历-github--对外链接问法-p0-25--2026-07)（P0-25）。
 

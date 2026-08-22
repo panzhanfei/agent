@@ -1,12 +1,11 @@
 /**
- * DagExecutor：hybrid_multi_source 拓扑执行。
+ * DagExecutor：按 executionPlan 拓扑执行（deps 分波）。
  * 图节点 `runPlanDagNode` 见文件底部。单节点怎么跑走 tool-orchestrator。
  */
 
 export type { ExecuteDagPlanOptions } from "./interface";
 export { executeDagPlan } from "./execute-plan";
 export { runDagExecutorNode } from "./run";
-export { buildHybridExecutionPlan } from "./hybrid-plan";
 
 import { logAgentOut } from "@fambrain/brain-shared/agent-log";
 import type { PlanDagPatch } from "@/agentflow/agents/online/plan-fanout/interface";

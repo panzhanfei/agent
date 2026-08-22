@@ -192,7 +192,9 @@ const runChain = async (input: {
   if (isUserFactIntent(decision.intent)) {
     const factKey = decision.userFactKey?.trim() ?? "";
     if (decision.intent === "recall_user_fact" && !factKey) {
-      const pathPlan = legalizePathPlan(decision.pathPlan);
+      const pathPlan = legalizePathPlan(decision.pathPlan, {
+        replyLanguage: decision.language,
+      });
       if (!isPathPlanEmpty(pathPlan)) {
         decision = {
           ...decision,
@@ -274,7 +276,9 @@ const runChain = async (input: {
     decision
   );
 
-  let pathPlan = legalizePathPlan(decision.pathPlan);
+  let pathPlan = legalizePathPlan(decision.pathPlan, {
+    replyLanguage: decision.language,
+  });
   const needsPathPlan =
     decision.intent === "retrieve_and_answer" ||
     (decision.intent === "summarize_content" &&

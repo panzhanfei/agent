@@ -1,19 +1,29 @@
 export type {
   ComposeMode,
-  DagTemplateId,
+  DagNodeSpec,
   EmptyPolicy,
   ExecutionStep,
+  LegalizePathPlanOptions,
   PathKind,
   PathPlan,
   PathPlanCounts,
+  ReplyLanguage,
   StepResult,
+  SynthesizeSchema,
 } from "./interface";
+
+export { defaultTranslateTargetLangFromReplyLanguage } from "@/agentflow/agents/online/intake-coordinator/contract";
 
 export { DEFAULT_EMPTY_POLICY, legalizeEmptyPolicy } from "./empty-policy";
 
 export { subToStepResult } from "./step-result";
 
-export { expandHybridMultiSourceTemplate } from "./dag-templates";
+export {
+  dagNodesToExecutionPlan,
+  isExecutableDagStep,
+  legalizeDagNodes,
+  legalizeSynthesizeSchema,
+} from "./dag-templates";
 export { extractCompanyHint } from "./company-hint";
 export {
   decisionSuggestsHybridDag,

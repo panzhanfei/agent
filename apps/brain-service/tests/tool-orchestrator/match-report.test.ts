@@ -75,10 +75,33 @@ describe("MatchReport（匹配结构化 L1～L5）", () => {
     const result = await buildSynthesizeMergeResult({
       label: "综合评估",
       deps: [resume(), web()],
+      schema: "match_report",
     });
     expect(result.toolId).toBe("synthesize_merge");
     expect(result.matchReport?.conclusion).toBe("谨慎");
     expect(result.blocks?.length).toBeGreaterThan(0);
     expect(assertMatchReportAnswer(result.answer)).toEqual([]);
+  });
+
+  it("free schema joins deps and does not emit match report", async () => {
+    const result = await buildSynthesizeMergeResult({
+      label: "是否适合出门",
+      deps: [
+        {
+          toolId: "get_weather",
+          label: "天水天气",
+          ok: true,
+          answer: "天水，中国：28°C，多云。",
+          citations: [],
+          hits: [],
+          insufficientEvidence: false,
+          confidence: 0.9,
+        },
+      ],
+      schema: "free",
+    });
+    expect(result.matchReport).toBeUndefined();
+    expect(result.answer).toMatch(/28°C/);
+    expect(result.answer).not.toMatch(/## 匹配点/);
   });
 });

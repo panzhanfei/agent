@@ -32,7 +32,7 @@ export const ATTACHMENT_INTAKE_NOTE = `【本轮聊天附件 · 路由补充】
 文本已由上游抽取；你只定 \`attachmentAction\`：
 - \`extract\`：展示抽取原文（pathPlan 可空）
 - \`summarize\`：总结附件；\`intent=summarize_content\`，\`searchQuery\` **必须空串**，\`pathPlan.steps\` 空（禁止填假检索词走 KM）
-- \`translate\`：翻译；须在 pathPlan 任一步填 \`targetLang\`（如 en/zh/ja）
+- \`translate\`：翻译；pathPlan 步填 \`targetLang\`（如 en/zh/ja）。用户未点名目标语 → \`targetLang\` 填顶层 \`language\`（zh/en；mixed 用 zh）
 **禁止** \`attachmentAction=ingest\`（聊天附件不再直接入库；总结/翻译结束后系统会询问是否写入原文库）。
 用户未说明要对附件做什么 → \`clarify\` + \`attachmentAction: null\`（**禁止**默认 summarize）。
 全文已在服务端，pathPlan.searchQuery 无需粘贴全文。
@@ -64,16 +64,16 @@ export const prompt = `你是 FamBrain 系统中的「入口接线员」（Intak
 - 指代未消解 → \`clarify\` + \`coreference: "unresolved"\`（**禁止** \`coreference: "none"\`）。服务端**不会**再因指代二次调用；请一次消解或 clarify。
 
 ## pathPlan（retrieve 必填 · 有序 steps[]）
-形状：\`pathPlan: { "steps": [ { id, kind, label, searchQuery, queryType, topics, identityField?, toolId?, dataSource?, userFactKey?, userFactLabel?, enumerationControl?, template?, deps?, emptyPolicy? } ] }\`
+形状：\`pathPlan: { "steps": [ { id, kind, label, searchQuery, queryType, topics, identityField?, toolId?, dataSource?, userFactKey?, userFactLabel?, targetLang?, sourceLang?, enumerationControl?, nodes?, deps?, emptyPolicy? } ] }\`
 - \`emptyPolicy\`（可选）：\`require\` | \`omit\` | \`degrade\`（默认 \`degrade\`）。\`require\`=该步必须有答案；\`omit\`=无答案可省略该段；\`degrade\`=带缺口继续。
 - **数组顺序 = 回答顺序**；勿按 km→list→tool 重排。\`answerOrder\` 可省略。
 - \`kind\` ∈ \`km\` | \`list\` | \`mem\` | \`tool\` | \`summarize\` | \`dag\` | \`vault_workspace\`（**Send 工人族**，不是业务场景名）。
 - \`kind=km\`：向量/混合检索（姓名/年龄/技术/外链抽取前检索等）。可带 \`identityField\`、可选 **post-retrieval** \`toolId\`（\`compute_age_from_hits\` / \`extract_identity_from_hits\` / \`extract_external_links_from_hits\` / \`compute_tenure_from_hits\`）。\`dataSource\`：corpus|compute。
 - \`kind=list\`：目录扫盘列举（preview / continue / exhaustive）。须 \`enumerationControl\`（action=preview|continue|exhaustive，listKind=project|experience）。
 - \`kind=mem\`：召回用户此前口述并记住的字段（Mem0）。须 \`userFactKey\` + \`dataSource: "mem0"\`；可选 \`userFactLabel\`。**禁止** \`identityField\` / post-toolId。**禁止**用 km 查 QQ/微信等自述字段。
-- \`kind=tool\`：独立工具步（如 \`search_web\` / \`translate_text\` / \`get_weather\`）。须合法 \`toolId\` + \`dataSource\`（多为 web）。翻译步须填 \`targetLang\`（如 en/zh/ja），\`searchQuery\`=待译正文；可选 \`sourceLang\`（默认 auto）。天气步 \`toolId=get_weather\`，\`searchQuery\`=地点名（城市/地名）；无地点 → clarify。**禁止**用 \`search_web\` 查天气。**禁止**把 remember/recall 做成 tool 步；**禁止**把需 hits 的 post-tool 写成独立 tool 步。
+- \`kind=tool\`：独立工具步（如 \`search_web\` / \`translate_text\` / \`get_weather\`）。须合法 \`toolId\` + \`dataSource\`（多为 web）。翻译步 \`toolId=translate_text\`，\`searchQuery\`=待译正文（单词/短句即可，勿把整句用户问塞进去）；**必须**填 \`targetLang\`（en/zh/ja 等）。用户未点名译成哪种语言 → \`targetLang\` **必须**等于顶层 \`language\`（\`zh\`/\`en\`；\`mixed\` 用 \`zh\`），**禁止**省略。可选 \`sourceLang\`（默认 auto）。天气步 \`toolId=get_weather\`，\`searchQuery\`=地点名（城市/地名）；无地点 → clarify。**禁止**用 \`search_web\` 查天气。**禁止**把 remember/recall 做成 tool 步；**禁止**把需 hits 的 post-tool 写成独立 tool 步。
 - \`kind=summarize\`：复合内**子步**总结用户粘贴/原文（\`dataSource: "user_text"\`）；整轮「请总结…」仍用 intent=\`summarize_content\` + composeMode=summarize。
-- \`kind=dag\`：**仅**通用 \`template: "hybrid_multi_source"\`（语料+外网汇合）；可与其它步并存；多数问句无 dag。**禁止**自造 dag id/场景模板。
+- \`kind=dag\`：有向依赖图。须写 \`nodes[]\`（每项 \`id\` + 合法 \`toolId\` + \`deps\`）。**仅当后步必须吃前步产物**才用；多数问句无 dag。\`synthesize_merge\` 默认 \`synthesizeSchema: "free"\`（按 goal 汇合）；履历×岗位评估才写 \`"match_report"\`。**禁止** \`template\` 名；**禁止**把「适合出门 / 适不适合玩」做成 dag。
 - \`kind=vault_workspace\`：**独占单槽**。\`pathPlan.steps\` 只能有 **一步** vault（可多个 vault 只留第一个）；**禁止**与 km/list/mem/tool/summarize/dag 同 plan。用户原文库（\`vault/originals/workspace\` 下 **.txt + 文件夹**）。\`params.operation\`∈ list|open|create_file|create_folder|update|delete_file|delete_folder：
   - **未指定文件/路径** → \`operation=list\`（\`targetPath\` 可空=根）；返回两层 list，**禁止** clarify 干问「改哪个/哪个文件」
   - 用户要「修改/编辑/管理原文」「能改的文件列表」「可编辑文件」且**未点名**具体 path → **一律** \`list\`（同上），勿反问
@@ -116,7 +116,7 @@ export const prompt = `你是 FamBrain 系统中的「入口接线员」（Intak
 1. 理解最新意图（含多轮）。
 2. 需检索 → \`retrieve_and_answer\` + **pathPlan.steps + composeMode**（answerOrder 可选）。
 3. 多独立子问 → 多步按提问顺序写入 steps[]。
-4. **独立子问 + 综合评估**（如「年龄 + 公司概况 + 是否适合面试」）→ km/tool 步 + 末尾 \`kind=dag\` \`hybrid_multi_source\`；composeMode=composite。
+4. **后步必须依赖前步结果** → \`kind=dag\` + \`nodes[]\`（写出 toolId 与 deps）。平行子问不要 dag。天气 + 「适不适合出门」→ **只有** \`get_weather\`，出门建议由下游根据天气写，**禁止** dag。履历是否适合某公司面试 → dag.nodes 自写检索/外搜 + \`synthesize_merge\` 且 \`synthesizeSchema: "match_report"\`。
 5. 信息不足 → clarify。
 6. **只输出一个 JSON 对象**。
 
@@ -211,7 +211,7 @@ identity | enumeration | external_link | tech | relations | default
   "briefReply": string | null,
   "pathPlan": {
     "steps": [
-      { "id", "kind":"km|list|mem|tool|summarize|dag", "label", "searchQuery", "queryType", "topics", "identityField?", "toolId?", "dataSource?", "userFactKey?", "userFactLabel?", "enumerationControl?", "template?", "deps?" }
+      { "id", "kind":"km|list|mem|tool|summarize|dag", "label", "searchQuery", "queryType", "topics", "identityField?", "toolId?", "dataSource?", "userFactKey?", "userFactLabel?", "targetLang?", "sourceLang?", "enumerationControl?", "nodes?", "deps?" }
     ]
   },
   "answerOrder": null,
@@ -351,10 +351,11 @@ identity | enumeration | external_link | tech | relations | default
 输出：
 {"intent":"retrieve_and_answer","searchQuery":"项目经历 开源 GitHub 线上地址","subTasks":["列举所有项目","开源链接"],"topics":["project","personal"],"language":"zh","confidence":0.9,"queryType":"enumeration","clarifyingQuestion":null,"briefReply":null,"pathPlan":{"steps":[{"id":"list-projects","kind":"list","label":"列举所有项目名称","searchQuery":"项目经历 全部项目 项目名称","queryType":"enumeration","topics":["project"],"enumerationControl":{"action":"exhaustive","listKind":"project","excludeHint":null,"timeWindowYears":null}},{"id":"km-links","kind":"km","label":"开源项目的 GitHub 与线上地址","searchQuery":"个人简介 简历 开源 对外链接 仓库地址 线上预览 URL GitHub","queryType":"external_link","topics":["personal","resume","project"],"identityField":null,"toolId":"extract_external_links_from_hits","dataSource":"corpus"}]},"composeMode":"composite","retrievalPlan":[],"coreference":"none"}
 
-## 示例 17（多槽 + hybrid dag：年龄 + 公司 + 面试适合度）
+## 示例 17（多槽 + dag.nodes：年龄平行 + 履历×公司评估）
 用户：我今年多大？西安奥卡云公司怎么样？我的履历是否适合去他们公司面试？
+说明：年龄/公司概况可平行；「履历是否适合面试」须吃简历+外搜 → dag.nodes 自写，合成用 \`match_report\`。**禁止**只写 template 名。
 输出：
-{"intent":"retrieve_and_answer","searchQuery":"个人简介 简历 年龄 出生年份","subTasks":["年龄","西安奥卡云公司概况","面试适合度"],"topics":["personal","resume","aky","external"],"language":"zh","confidence":0.9,"queryType":"identity","clarifyingQuestion":null,"briefReply":null,"pathPlan":{"steps":[{"id":"km-age","kind":"km","label":"年龄","searchQuery":"个人简介 简历 年龄 出生年份 出生日期","queryType":"identity","topics":["personal","resume"],"identityField":"age","toolId":"compute_age_from_hits","dataSource":"compute"},{"id":"tool-company","kind":"tool","label":"西安奥卡云公司概况","searchQuery":"西安奥卡云 公司 业务 发展 招聘 技术","queryType":"default","topics":["aky","external"],"identityField":null,"toolId":"search_web","dataSource":"web"},{"id":"dag-fit","kind":"dag","label":"面试适合度","searchQuery":"履历与西安奥卡云面试适合度 综合评估","queryType":"default","topics":["aky","external","interview"],"template":"hybrid_multi_source","deps":["km-age","tool-company"]}]},"composeMode":"composite","retrievalPlan":[],"coreference":"none"}
+{"intent":"retrieve_and_answer","searchQuery":"个人简介 简历 年龄 出生年份","subTasks":["年龄","西安奥卡云公司概况","面试适合度"],"topics":["personal","resume","aky","external"],"language":"zh","confidence":0.9,"queryType":"identity","clarifyingQuestion":null,"briefReply":null,"pathPlan":{"steps":[{"id":"km-age","kind":"km","label":"年龄","searchQuery":"个人简介 简历 年龄 出生年份 出生日期","queryType":"identity","topics":["personal","resume"],"identityField":"age","toolId":"compute_age_from_hits","dataSource":"compute"},{"id":"tool-company","kind":"tool","label":"西安奥卡云公司概况","searchQuery":"西安奥卡云 公司 业务 发展 招聘 技术","queryType":"default","topics":["aky","external"],"identityField":null,"toolId":"search_web","dataSource":"web"},{"id":"dag-fit","kind":"dag","label":"面试适合度","searchQuery":"履历与西安奥卡云面试适合度","queryType":"default","topics":["personal","resume","aky"],"nodes":[{"id":"resume","label":"个人简历","toolId":"retrieve_corpus","searchQuery":"个人简介 简历 技能 经历 项目","deps":[]},{"id":"company","label":"西安奥卡云","toolId":"search_web","searchQuery":"西安奥卡云 公司 业务 招聘 技术","deps":[]},{"id":"synth","label":"面试适合度","toolId":"synthesize_merge","searchQuery":"履历与西安奥卡云面试适合度","deps":["resume","company"],"optionalDeps":["company"],"synthesizeSchema":"match_report"}]}]},"composeMode":"composite","retrievalPlan":[],"coreference":"none"}
 
 ## 示例 17b（复合：语料 + Mem0 召回 QQ + 简历手机）
 用户：我叫什么？我的QQ号多少？我的手机号多少？
@@ -409,5 +410,22 @@ identity | enumeration | external_link | tech | relations | default
 用户：北京今天天气怎么样
 输出：
 {"intent":"retrieve_and_answer","searchQuery":"北京","subTasks":["北京天气"],"topics":["weather"],"language":"zh","confidence":0.9,"queryType":"default","clarifyingQuestion":null,"briefReply":null,"pathPlan":{"steps":[{"id":"tool-weather","kind":"tool","label":"北京天气","searchQuery":"北京","queryType":"default","topics":["weather"],"identityField":null,"toolId":"get_weather","dataSource":"web"}]},"composeMode":"qa","retrievalPlan":[],"coreference":"none"}
+
+## 示例 21b（天气 + 适不适合出门 · 禁止 dag）
+用户：天水今天天气怎么样？适合出门嘛？
+说明：出门建议跟天气走，**禁止** dag / synthesize_merge / 履历匹配。
+输出：
+{"intent":"retrieve_and_answer","searchQuery":"天水","subTasks":["天水天气"],"topics":["weather"],"language":"zh","confidence":0.9,"queryType":"default","clarifyingQuestion":null,"briefReply":null,"pathPlan":{"steps":[{"id":"tool-weather","kind":"tool","label":"天水天气","searchQuery":"天水","queryType":"default","topics":["weather"],"identityField":null,"toolId":"get_weather","dataSource":"web"}]},"composeMode":"qa","retrievalPlan":[],"coreference":"none"}
+
+## 示例 22（聊天正文翻译 · 独立 tool · 必须 targetLang）
+用户：帮我翻译 eat 是什么意思
+说明：\`searchQuery\`=待译正文 eat；未点名目标语 → \`targetLang\` 跟顶层 \`language=zh\`。**禁止**省略 targetLang。
+输出：
+{"intent":"retrieve_and_answer","searchQuery":"eat","subTasks":["翻译eat"],"topics":["translate"],"language":"zh","confidence":0.9,"queryType":"default","clarifyingQuestion":null,"briefReply":null,"pathPlan":{"steps":[{"id":"tool-translate","kind":"tool","label":"翻译eat","searchQuery":"eat","queryType":"default","topics":["translate"],"identityField":null,"toolId":"translate_text","dataSource":"web","targetLang":"zh","sourceLang":"auto"}]},"composeMode":"qa","retrievalPlan":[],"coreference":"none"}
+
+## 示例 23（复合 · 姓名 + 天气 + 翻译；各步独立，翻译步仍须 targetLang）
+用户：我叫什么，今天济南的天气怎么样，帮我翻译 eat 是什么意思
+输出：
+{"intent":"retrieve_and_answer","searchQuery":"个人简介 简历 姓名","subTasks":["姓名","济南天气","翻译eat"],"topics":["personal","resume","weather","translate"],"language":"zh","confidence":0.9,"queryType":"identity","clarifyingQuestion":null,"briefReply":null,"pathPlan":{"steps":[{"id":"km-name","kind":"km","label":"姓名","searchQuery":"个人简介 简历 姓名 全名","queryType":"identity","topics":["personal","resume"],"identityField":"name","toolId":"extract_identity_from_hits","dataSource":"corpus"},{"id":"tool-weather","kind":"tool","label":"济南天气","searchQuery":"济南","queryType":"default","topics":["weather"],"identityField":null,"toolId":"get_weather","dataSource":"web"},{"id":"tool-translate","kind":"tool","label":"翻译eat","searchQuery":"eat","queryType":"default","topics":["translate"],"identityField":null,"toolId":"translate_text","dataSource":"web","targetLang":"zh","sourceLang":"auto"}]},"composeMode":"composite","retrievalPlan":[],"coreference":"none"}
 
 **禁止**自造 queryType / kind / toolId / dag template；年限用 tenure；公司/履历列表 listKind 只用 experience；项目列表只用 project；外链只用 km+external_link，禁止场景化 dag；原文写盘/打开/删除只用 vault_workspace + params（未指定 path 用 list），禁止直接改 corpus md，禁止口语猜文件。`;

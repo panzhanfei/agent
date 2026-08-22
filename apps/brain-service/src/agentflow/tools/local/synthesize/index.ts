@@ -19,7 +19,7 @@ export {
   parseMatchReport,
   renderMatchReportMarkdown,
 } from "./match-report";
-export { fillMatchReportWithLlm } from "./fill-llm";
+export { fillFreeSynthesisWithLlm, fillMatchReportWithLlm } from "./fill-llm";
 export { buildSynthesizeMergeResult } from "./build";
 
 /** 编排层入口：synthesize_merge */

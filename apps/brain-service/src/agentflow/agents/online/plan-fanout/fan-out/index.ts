@@ -9,14 +9,17 @@ import { emptyPathPlan } from "@/agentflow/agents/online/intake-coordinator/path
 import { routeUserFactSideEffect } from "@/agentflow/agents/online/user-fact";
 import type { PipelineGraphState } from "@/agentflow/pipeline/graph/state";
 
-export const pathHasHybridDag = (state: PipelineGraphState): boolean => {
+export const pathHasDag = (state: PipelineGraphState): boolean => {
   const pathPlan = state.decision?.pathPlan ?? emptyPathPlan();
   return (
     pathPlan.steps.some(
-      (d) => d.kind === "dag" && d.template === "hybrid_multi_source"
+      (d) => d.kind === "dag" && (d.nodes?.length ?? 0) > 0
     ) || (state.decision?.executionPlan?.length ?? 0) > 0
   );
 };
+
+/** @deprecated 用 pathHasDag */
+export const pathHasHybridDag = pathHasDag;
 
 const sendTargetForExecutor = (
   executor: string | undefined
@@ -56,7 +59,7 @@ export const fanOutPlanWorkers = (state: PipelineGraphState): Send[] => {
     sends.push(new Send(target, payload));
   }
 
-  if (pathHasHybridDag(state)) {
+  if (pathHasDag(state)) {
     sends.push(new Send("planDag", state));
   }
   if (routeUserFactSideEffect(decision)) {
@@ -126,7 +129,7 @@ export const describeFanOutPlan = (
     hasTool: toolCount > 0,
     hasSummarize: summarizeCount > 0,
     hasVaultWorkspace: false,
-    hasDag: pathHasHybridDag(state),
+    hasDag: pathHasDag(state),
     hasSideRemember: Boolean(routeUserFactSideEffect(decision)),
     kmCount,
     listCount,

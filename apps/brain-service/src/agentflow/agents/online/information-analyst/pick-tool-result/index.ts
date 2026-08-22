@@ -23,6 +23,12 @@ export const toolRunToAnalystResult = (
   blocks: run.blocks,
 });
 
+const isUsableSynthesis = (run: ToolRunResult | undefined): boolean =>
+  Boolean(
+    run?.toolId === "synthesize_merge" &&
+      (run.matchReport || run.answer.includes("## 匹配点"))
+  );
+
 export const pickToolResultForSubQuestion = (
   input: PickToolResultInput,
   toolResults?: PipelineToolResults | null
@@ -76,26 +82,20 @@ export const pickToolResultForSubQuestion = (
     }
   }
 
-  const synthesis = toolResults.synthesis;
-  if (
-    synthesis?.toolId === "synthesize_merge" &&
-    (synthesis.matchReport || synthesis.answer.includes("## 匹配点"))
-  ) {
-    return synthesis;
-  }
   if (input.slotId) {
     const dagRun = toolResults[input.slotId];
-    if (
-      dagRun?.toolId === "synthesize_merge" &&
-      (dagRun.matchReport || dagRun.answer.includes("## 匹配点"))
-    ) {
-      return dagRun;
-    }
+    if (isUsableSynthesis(dagRun)) return dagRun;
+    /** 本槽无结果：禁止用袋内其它槽 / 唯一成功独立工具填稿 */
+    return null;
+  }
+
+  if (isUsableSynthesis(toolResults.synthesis)) {
+    return toolResults.synthesis;
   }
 
   if (toolResults.web) return toolResults.web;
 
-  /** 单槽独立工具（get_weather / search_web / translate_text）：无 slotId 时仍应对上唯一成功结果 */
+  /** 无 slotId 的单槽：袋内恰好一条成功独立工具（get_weather / search_web / translate_text） */
   const standalone = Object.values(toolResults).filter(
     (r): r is ToolRunResult =>
       Boolean(

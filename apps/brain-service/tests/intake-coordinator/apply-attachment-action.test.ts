@@ -100,15 +100,16 @@ describe("applyAttachmentAction", () => {
     expect(r.decision.pathPlan?.steps ?? []).toHaveLength(0);
   });
 
-  it("translate without targetLang clarifies", async () => {
+  it("translate without targetLang defaults from reply language", async () => {
     const r = await applyAttachmentAction({
       decision: baseDecision({ attachmentAction: "translate" }),
       attachments: [sampleAtt],
       actorUserId: "u1",
       corpusUserId: "c1",
     });
-    expect(r.earlyExit).toBe(true);
-    expect(r.decision.intent).toBe("clarify");
+    expect(r.earlyExit).toBe(false);
+    expect(r.decision.pathPlan?.steps[0]?.toolId).toBe("translate_text");
+    expect(r.decision.pathPlan?.steps[0]?.targetLang).toBe("zh");
   });
 
   it("translate with targetLang builds tool step", async () => {
